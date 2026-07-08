@@ -6,6 +6,26 @@ This file is purely application wiring.
 
 from __future__ import annotations
 
+import os
+import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+_BACKEND_DIR = Path(__file__).resolve().parent
+_VENV_DIR = _BACKEND_DIR / ".venv"
+
+# Re-exec under `uv run` whenever this file is launched directly (e.g. `python
+# main.py`) with an interpreter that isn't the project's uv-managed venv, so
+# dependencies are always resolved correctly regardless of the ambient python.
+if __name__ == "__main__" and Path(sys.prefix).resolve() != _VENV_DIR.resolve():
+    try:
+        os.execvp(
+            "uv",
+            ["uv", "run", "--project", str(_BACKEND_DIR), "python", str(_BACKEND_DIR / "main.py"), *sys.argv[1:]],
+        )
+    except FileNotFoundError:
+        sys.exit("uv is required to run this project: https://docs.astral.sh/uv/")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,7 +41,13 @@ from modules.system_design_lab.router import router as sd_router
 from modules.daily_session.daily_session import router as session_router
 
 
-app = FastAPI(title="Lab-Ninja API", version=__version__)
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="Lab-Ninja API", version=__version__, lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,15 +63,16 @@ app.include_router(cv_router)
 app.include_router(sd_router)
 
 
-@app.on_event("startup")
-async def _startup() -> None:  # pragma: no cover
-    init_db()
-
-
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok", "service": "lab-ninja-api", "version": __version__}
 
 
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
 # To run locally:
-#   uvicorn main:app --reload --port 8000  (from backend/)
+#   python main.py                                  (bootstraps uv automatically)
+#   uv run uvicorn main:app --reload --port 8000     (with autoreload, from backend/)

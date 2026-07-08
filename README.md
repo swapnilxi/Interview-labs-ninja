@@ -46,11 +46,13 @@ You can integrate this package into any agent runtime or UI stack
 
 ### Backend (FastAPI)
 
-- Ensure your Python environment has the dependencies from `requirements.txt` installed.
+- Requires [`uv`](https://docs.astral.sh/uv/) installed locally.
+- From `backend/`, dependencies are managed via `pyproject.toml` / `uv.lock`; `uv run` installs
+  them automatically into a local `.venv` on first use.
 - Initialize the SQLite DB (one-time convenience):
-  - `python3 main.py`
+  - `cd backend && uv run python main.py`
 - Run the API server (for local dev):
-  - `uvicorn backend.main:app --reload --port 8000`
+  - `cd backend && uv run uvicorn main:app --reload --port 8000`
 
 The API will be available at `http://localhost:8000` with an OpenAPI UI
 at `http://localhost:8000/docs`.
