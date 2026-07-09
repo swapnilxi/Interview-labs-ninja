@@ -140,10 +140,12 @@ def init_db() -> None:
         from modules.system_design_lab.schema import register as sd_register
         from modules.cv_lab.schema import register as cv_register
         from modules.dsa_lab.schema import register as dsa_register
+        from modules.linkedin_post_generator.schema import register as linkedin_register
 
         sd_register(cursor)
         cv_register(cursor)
         dsa_register(cursor)
+        linkedin_register(cursor)
 
         # ── seed lab_sections from topic categories ────────────────────────────
         for lab, table in [
@@ -539,6 +541,17 @@ def save_lab_section(lab_name: str, name: str, is_custom: int = 1) -> None:
             """,
             (lab_name, name, is_custom)
         )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_lab_section(section_id: int) -> None:
+    """Delete a lab section by id."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM lab_sections WHERE id = ?", (section_id,))
         conn.commit()
     finally:
         conn.close()
