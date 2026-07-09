@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import Sidebar from '@/modules/common/Sidebar';
 
 interface NavigationItem {
   label: string;
@@ -111,7 +112,7 @@ function SystemStatus() {
 
 export default function Header() {
   const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
 
   useEffect(() => {
@@ -131,12 +132,12 @@ export default function Header() {
     return pathname === path;
   };
 
-  const toggleMobileMenu = () => {
-    setMobileMenuOpen(!mobileMenuOpen);
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => !prev);
   };
 
-  const closeMobileMenu = () => {
-    setMobileMenuOpen(false);
+  const closeSidebar = () => {
+    setSidebarOpen(false);
   };
 
   const toggleTheme = () => {
@@ -147,129 +148,115 @@ export default function Header() {
   };
 
   return (
-    <header className="app-header">
-      <nav className="h-[60px] px-4 sm:px-6 xl:px-8 flex items-center justify-between gap-4">
-        <Link 
-          href="/daily-session" 
-          className="flex items-center gap-3 transition-smooth hover:opacity-85"
-          onClick={closeMobileMenu}
-        >
+    <>
+      <header className="app-header">
+        <nav className="h-[60px] px-4 sm:px-6 xl:px-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <svg
-              width="36"
-              height="36"
-              viewBox="0 0 40 40"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="transition-smooth"
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="theme-toggle"
+              aria-label="Toggle navigation menu"
+              aria-expanded={sidebarOpen}
             >
-              <rect width="40" height="40" rx="8" fill="url(#gradient)" />
-              <path
-                d="M20 10L12 16V28L20 34L28 28V16L20 10Z"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M20 10V22M20 22L12 28M20 22L28 28"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <defs>
-                <linearGradient
-                  id="gradient"
-                  x1="0"
-                  y1="0"
-                  x2="40"
-                  y2="40"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop stopColor="#2563EB" />
-                  <stop offset="1" stopColor="#7C3AED" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <span className="font-heading text-xl font-semibold text-foreground">
-              Lab-Ninja
-            </span>
-          </div>
-        </Link>
+              <Icon name="Bars3Icon" size={20} variant="outline" />
+            </button>
 
-        <div className="hidden lg:flex items-center gap-2">
-          <SystemStatus />
-          {navigationItems.map((item) => (
             <Link
-              key={item.path}
-              href={item.path}
-              className={`app-nav-link ${
-                  isActivePath(item.path)
-                    ? 'app-nav-link-active'
-                    : ''
-                }`}
+              href="/daily-session"
+              className="flex items-center gap-3 transition-smooth hover:opacity-85"
             >
-              <Icon name={item.icon as any} size={18} variant="outline" />
-              <span>{item.label}</span>
+              <div className="flex items-center gap-3">
+                <svg
+                  width="36"
+                  height="36"
+                  viewBox="0 0 40 40"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="transition-smooth"
+                >
+                  <rect width="40" height="40" rx="8" fill="url(#gradient)" />
+                  <path
+                    d="M20 10L12 16V28L20 34L28 28V16L20 10Z"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M20 10V22M20 22L12 28M20 22L28 28"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <defs>
+                    <linearGradient
+                      id="gradient"
+                      x1="0"
+                      y1="0"
+                      x2="40"
+                      y2="40"
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop stopColor="#2563EB" />
+                      <stop offset="1" stopColor="#7C3AED" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <span className="font-heading text-xl font-semibold text-foreground">
+                  Lab-Ninja
+                </span>
+              </div>
             </Link>
-          ))}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="theme-toggle ml-2"
-            aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
-            title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
-          >
-            <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
-          </button>
-        </div>
+          </div>
 
-        <div className="flex items-center gap-2 lg:hidden">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="theme-toggle"
-            aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
-          >
-            <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
-          </button>
-          <button
-            onClick={toggleMobileMenu}
-            className="theme-toggle"
-            aria-label="Toggle mobile menu"
-            aria-expanded={mobileMenuOpen}
-          >
-            <Icon
-              name={mobileMenuOpen ? 'XMarkIcon' : 'Bars3Icon'}
-              size={22}
-              variant="outline"
-            />
-          </button>
-        </div>
-      </nav>
-
-      {mobileMenuOpen && (
-        <div className="lg:hidden bg-card/95 border-t border-border backdrop-blur-xl">
-          <div className="px-4 py-3 flex flex-col gap-1">
+          <div className="hidden lg:flex items-center gap-2">
+            <SystemStatus />
             {navigationItems.map((item) => (
               <Link
                 key={item.path}
                 href={item.path}
-                onClick={closeMobileMenu}
                 className={`app-nav-link ${
                     isActivePath(item.path)
                       ? 'app-nav-link-active'
                       : ''
                   }`}
               >
-                <Icon name={item.icon as any} size={20} variant="outline" />
+                <Icon name={item.icon as any} size={18} variant="outline" />
                 <span>{item.label}</span>
               </Link>
             ))}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="theme-toggle ml-2"
+              aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
+              title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
+            >
+              <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
+            </button>
           </div>
-        </div>
-      )}
-    </header>
+
+          <div className="flex items-center gap-2 lg:hidden">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="theme-toggle"
+              aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
+            >
+              <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
+            </button>
+          </div>
+        </nav>
+      </header>
+
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={closeSidebar}
+        theme={resolvedTheme}
+        onToggleTheme={toggleTheme}
+      />
+    </>
   );
 }
