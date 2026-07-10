@@ -40,6 +40,9 @@ from modules.system_design_lab.router import router as sd_router
 # Daily session module
 from modules.daily_session.daily_session import router as session_router
 
+# To-do module
+from modules.todo.router import router as todo_router
+
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
@@ -61,6 +64,7 @@ app.include_router(session_router)
 app.include_router(dsa_router)
 app.include_router(cv_router)
 app.include_router(sd_router)
+app.include_router(todo_router)
 
 
 @app.get("/health")
