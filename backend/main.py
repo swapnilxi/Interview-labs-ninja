@@ -43,6 +43,9 @@ from modules.daily_session.daily_session import router as session_router
 # LinkedIn post generator module
 from modules.linkedin_post_generator.router import router as linkedin_router
 
+# To-do module
+from modules.todo.router import router as todo_router
+
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
@@ -65,6 +68,7 @@ app.include_router(dsa_router)
 app.include_router(cv_router)
 app.include_router(sd_router)
 app.include_router(linkedin_router)
+app.include_router(todo_router)
 
 
 @app.get("/health")

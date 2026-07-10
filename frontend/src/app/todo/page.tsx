@@ -1,37 +1,69 @@
-import type { Metadata } from 'next';
+'use client';
+
+import { useState } from 'react';
 import Header from '@/components/common/Header';
 import Icon from '@/components/ui/AppIcon';
-
-export const metadata: Metadata = {
-  title: 'Personalised To-do - InterviewNinja',
-  description: 'Your personalised interview prep to-do list.',
-};
+import TaskTree from '@/modules/todo/TaskTree';
+import TodoCopilot from '@/modules/todo/TodoCopilot';
 
 export default function TodoPage() {
+  const [model, setModel] = useState<'ollama' | 'gemini'>('gemini');
+  const [copilotOpen, setCopilotOpen] = useState(true);
+
   return (
     <>
       <Header />
-      <div className="min-h-screen bg-background pt-[60px]">
-        <div className="max-w-[1000px] mx-auto px-24 py-36">
-          <div className="mb-12">
-            <h1 className="font-heading text-4xl font-semibold text-foreground mb-12">
-              Personalised To-do
-            </h1>
-            <p className="text-muted-foreground font-body">
-              Your personalised prep checklist will show up here.
-            </p>
-          </div>
-          <div className="lab-card flex flex-col items-center justify-center gap-4 py-24 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <Icon name="ClipboardDocumentCheckIcon" size={28} variant="outline" />
+      <div className="h-screen overflow-hidden bg-background pt-[60px] text-foreground">
+        <div className="flex h-full">
+          {/* Main content area */}
+          <div className="flex-1 overflow-y-auto scrollbar-clean">
+            <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              {/* Page header */}
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-secondary/20">
+                    <Icon name="ClipboardDocumentCheckIcon" size={22} variant="outline" className="text-primary" />
+                  </div>
+                  <div>
+                    <h1 className="font-heading text-2xl font-bold text-foreground">AI To-Do</h1>
+                    <p className="text-xs text-muted-foreground">
+                      Break tasks infinitely deep with AI · Track progress · Stay productive
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Task Tree */}
+              <TaskTree model={model} />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Coming soon</h2>
-              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                We&apos;re building a personalised to-do list based on your profile and progress. Check back soon.
-              </p>
-            </div>
           </div>
+
+          {/* Copilot toggle button (when collapsed) */}
+          {!copilotOpen && (
+            <button
+              onClick={() => setCopilotOpen(true)}
+              className="flex-shrink-0 w-12 h-full border-l border-border bg-card flex flex-col items-center pt-4 gap-2 hover:bg-muted/50 transition-smooth"
+              title="Open Copilot"
+            >
+              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                <Icon name="SparklesIcon" size={14} className="text-primary" variant="solid" />
+              </div>
+              <span className="text-[9px] font-medium text-muted-foreground writing-mode-vertical" style={{ writingMode: 'vertical-rl' }}>
+                Copilot
+              </span>
+            </button>
+          )}
+
+          {/* Copilot sidebar */}
+          {copilotOpen && (
+            <div className="flex-shrink-0 w-[320px] border-l border-border bg-card hidden lg:block">
+              <TodoCopilot
+                model={model}
+                onModelChange={setModel}
+                onCollapse={() => setCopilotOpen(false)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </>

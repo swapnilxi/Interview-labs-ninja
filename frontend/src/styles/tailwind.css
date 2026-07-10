@@ -327,4 +327,13 @@
     border-radius: 999px;
     background-clip: padding-box;
   }
+
+  .animate-fade-in {
+    animation: fadeIn 250ms ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 }
