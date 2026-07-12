@@ -24,6 +24,27 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [intention, setIntention] = useState('');
+  const [definitionOfDone, setDefinitionOfDone] = useState('');
+  const [showIntentionFields, setShowIntentionFields] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceInterval, setRecurrenceInterval] = useState('daily');
+  const [recurrenceCustomDays, setRecurrenceCustomDays] = useState('');
+
+  const handleSuggestIntention = async () => {
+    if (!title.trim()) return;
+    setSuggesting(true);
+    const suggestions = await todoService.suggestIntentionGeneral(title.trim(), context.trim() || null, 'gemini');
+    if (suggestions) {
+      setIntention(suggestions.intention || '');
+      setDefinitionOfDone(suggestions.definition_of_done || '');
+      setShowIntentionFields(true);
+    }
+    setSuggesting(false);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -60,6 +81,11 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
       due_date: dueDate || null,
       context: context.trim() || null,
       attachments: attachments.length > 0 ? attachments : undefined,
+      intention: intention.trim() || null,
+      definition_of_done: definitionOfDone.trim() || null,
+      is_recurring: isRecurring ? 1 : 0,
+      recurrence_interval: isRecurring ? recurrenceInterval : null,
+      recurrence_custom_days: isRecurring && recurrenceInterval === 'custom_days' ? recurrenceCustomDays.trim() || null : null,
     });
     setSaving(false);
 
@@ -145,6 +171,97 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
               rows={3}
               className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus-ring placeholder:text-muted-foreground resize-none"
             />
+          </div>
+
+          {/* Collapsible Intention & Definition of Done */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowIntentionFields(!showIntentionFields)}
+              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            >
+              <Icon name={showIntentionFields ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={14} />
+              🎯 Intention & Definition of Done (Optional)
+            </button>
+
+            {showIntentionFields && (
+              <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border animate-fade-in">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-muted-foreground">🎯 Why does this matter? (Intention)</label>
+                    <button
+                      type="button"
+                      onClick={handleSuggestIntention}
+                      disabled={suggesting || !title.trim()}
+                      className="text-[10px] text-primary hover:underline font-semibold disabled:opacity-50"
+                    >
+                      {suggesting ? 'Suggesting...' : '✨ Suggest'}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={intention}
+                    onChange={e => setIntention(e.target.value)}
+                    placeholder="e.g. To clear technical debt and speed up queries"
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">✅ What does done look like? (Definition of Done)</label>
+                  <input
+                    type="text"
+                    value={definitionOfDone}
+                    onChange={e => setDefinitionOfDone(e.target.value)}
+                    placeholder="e.g. Unit tests passing, code merged, index created"
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Recurring Task toggle (Feature 4) */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isRecurring}
+                onChange={e => setIsRecurring(e.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus-ring cursor-pointer"
+              />
+              <span>🔁 Make this task recurring</span>
+            </label>
+
+            {isRecurring && (
+              <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border animate-fade-in">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Recurrence Interval</label>
+                  <select
+                    value={recurrenceInterval}
+                    onChange={e => setRecurrenceInterval(e.target.value)}
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
+                  >
+                    <option value="daily">Daily (Every day)</option>
+                    <option value="weekly">Weekly (Every week)</option>
+                    <option value="custom_days">Custom Days</option>
+                  </select>
+                </div>
+
+                {recurrenceInterval === 'custom_days' && (
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Custom Days (comma-separated)</label>
+                    <input
+                      type="text"
+                      value={recurrenceCustomDays}
+                      onChange={e => setRecurrenceCustomDays(e.target.value)}
+                      placeholder="e.g. mon,wed,fri"
+                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* File upload */}

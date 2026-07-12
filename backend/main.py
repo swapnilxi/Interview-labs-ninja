@@ -42,6 +42,9 @@ from modules.daily_session.daily_session import router as session_router
 
 # To-do module
 from modules.todo.router import router as todo_router
+from modules.todo.quick_router import router as quick_router
+from modules.todo.projects_router import router as projects_router
+from modules.todo.pareto_router import router as pareto_router
 
 
 @asynccontextmanager
@@ -65,6 +68,9 @@ app.include_router(dsa_router)
 app.include_router(cv_router)
 app.include_router(sd_router)
 app.include_router(todo_router)
+app.include_router(quick_router)
+app.include_router(projects_router)
+app.include_router(pareto_router)
 
 
 @app.get("/health")

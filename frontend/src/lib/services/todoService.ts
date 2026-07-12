@@ -24,6 +24,15 @@ export interface Task {
   created_at: string;
   updated_at: string;
   children: Task[];
+  intention: string | null;
+  definition_of_done: string | null;
+  is_recurring: boolean;
+  recurrence_interval: string | null;
+  recurrence_custom_days: string | null;
+  recurrence_template_id: number | null;
+  last_activity_at: string | null;
+  pareto_score?: number | null;
+  is_top_20?: boolean;
 }
 
 export type TaskStatus = 'backlog' | 'in_progress' | 'delayed' | 'done' | 'not_done';
@@ -40,6 +49,11 @@ export interface TaskCreatePayload {
   due_date?: string | null;
   context?: string | null;
   attachments?: string[];
+  intention?: string | null;
+  definition_of_done?: string | null;
+  is_recurring?: number;
+  recurrence_interval?: string | null;
+  recurrence_custom_days?: string | null;
 }
 
 export interface TaskUpdatePayload {
@@ -50,6 +64,11 @@ export interface TaskUpdatePayload {
   due_date?: string | null;
   context?: string | null;
   attachments?: string[];
+  intention?: string | null;
+  definition_of_done?: string | null;
+  is_recurring?: number;
+  recurrence_interval?: string | null;
+  recurrence_custom_days?: string | null;
 }
 
 // ── Status & Priority config ─────────────────────────────────────────────────
@@ -237,6 +256,58 @@ export const todoService = {
     }
   },
 
+  async eisenhowerAuto(model: 'ollama' | 'gemini'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/eisenhower-auto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to auto-sort tasks', error);
+      return { assignments: [] };
+    }
+  },
+
+  async aiWeeklyPlan(model: 'ollama' | 'gemini'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/ai-weekly-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to generate weekly plan', error);
+      return { weekly_plan: {} };
+    }
+  },
+
+  async moveToQuick(taskId: number): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/move-to-quick`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to move task ${taskId} to quick`, error);
+      return null;
+    }
+  },
+
+  async moveToPlan(taskId: number): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/move-to-plan`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to move task ${taskId} to plan`, error);
+      return null;
+    }
+  },
+
   async regenerate(taskId: number, model: 'ollama' | 'gemini' = 'gemini'): Promise<Task[]> {
     try {
       const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/regenerate`, {
@@ -284,4 +355,296 @@ export const todoService = {
       return 'Sorry, I could not process your question. Please check if the backend is running.';
     }
   },
+
+  // ── Notes Operations ───────────────────────────────────────────────────────
+  
+  async fetchNotes(taskId: number): Promise<Note[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/notes`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to fetch notes for task ${taskId}:`, error);
+      return [];
+    }
+  },
+
+  async createNote(taskId: number, content: string): Promise<Note | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to create note for task ${taskId}:`, error);
+      return null;
+    }
+  },
+
+  async explainTask(taskId: number, model: 'ollama' | 'gemini' = 'gemini'): Promise<Note | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/notes/explain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to explain task ${taskId}:`, error);
+      return null;
+    }
+  },
+
+  async expandNote(taskId: number, noteId: number, model: 'ollama' | 'gemini' = 'gemini'): Promise<Note | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/notes/${noteId}/expand`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to expand note ${noteId} for task ${taskId}:`, error);
+      return null;
+    }
+  },
+
+  async summarizeNotes(taskId: number, model: 'ollama' | 'gemini' = 'gemini'): Promise<string> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/notes/summarize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return data.summary || '';
+    } catch (error) {
+      console.error(`Failed to summarize notes for task ${taskId}:`, error);
+      return 'Summary failed.';
+    }
+  },
+
+  async suggestIntention(taskId: number, model: 'ollama' | 'gemini' = 'gemini'): Promise<{ intention: string; definition_of_done: string } | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/suggest-intention`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to suggest intention for task ${taskId}:`, error);
+      return null;
+    }
+  },
+
+  async suggestIntentionGeneral(title: string, context?: string | null, model: 'ollama' | 'gemini' = 'gemini'): Promise<{ intention: string; definition_of_done: string } | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/suggest-intention`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, context, model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to suggest intention generally:', error);
+      return null;
+    }
+  },
+
+  async getDailyPlan(): Promise<{ status: 'none' | 'active'; plan: any | null }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/daily/plan`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to fetch daily plan:', error);
+      return { status: 'none', plan: null };
+    }
+  },
+
+  async kickstartDaily(availableHours: number, model: 'ollama' | 'gemini' = 'gemini'): Promise<{ suggestions: any[]; alternatives: any[] }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/daily/kickstart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ available_hours: availableHours, model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to kickstart daily plan:', error);
+      return { suggestions: [], alternatives: [] };
+    }
+  },
+
+  async saveDailyPlan(availableHours: number, taskIds: number[], reasoning: Record<number, string>): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/daily/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ available_hours: availableHours, task_ids: taskIds, reasoning }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to save daily plan:', error);
+      return null;
+    }
+  },
+
+  async endDaily(completedTaskIds: number[], incompleteReschedule: Record<number, 'tomorrow' | 'next_week' | 'remove'>, model: 'ollama' | 'gemini' = 'gemini'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/daily/end`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed_task_ids: completedTaskIds, incomplete_reschedule: incompleteReschedule, model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to end daily plan:', error);
+      return null;
+    }
+  },
+
+  async brainDump(text: string, model: 'ollama' | 'gemini' = 'gemini'): Promise<{ tasks: any[] }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/brain-dump`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to analyze brain dump:', error);
+      return { tasks: [] };
+    }
+  },
+
+  async bulkSaveTasks(tasks: any[]): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to bulk save tasks:', error);
+      return null;
+    }
+  },
+
+  async createInboxItem(content: string): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/inbox`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to create inbox item:', error);
+      return null;
+    }
+  },
+
+  async getInboxItems(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/inbox`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to get inbox items:', error);
+      return [];
+    }
+  },
+
+  async deleteInboxItem(id: number): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/inbox/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to delete inbox item ${id}:`, error);
+      return null;
+    }
+  },
+
+  async getStats(): Promise<{ completed_today: number; streak: number; last_7_days: number[]; last_7_dates: string[] }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/stats`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to get stats:', error);
+      return { completed_today: 0, streak: 0, last_7_days: [0, 0, 0, 0, 0, 0, 0], last_7_dates: [] };
+    }
+  },
 };
+
+export function triggerConfetti(x: number, y: number) {
+  const colors = ['#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#8b5cf6', '#ef4444'];
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = `${x}px`;
+  container.style.top = `${y}px`;
+  container.style.pointerEvents = 'none';
+  container.style.zIndex = '99999';
+  document.body.appendChild(container);
+
+  for (let i = 0; i < 30; i++) {
+    const el = document.createElement('div');
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const size = Math.random() * 6 + 4;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 100 + 50;
+    const dx = Math.cos(angle) * speed;
+    const dy = Math.sin(angle) * speed - 50;
+
+    el.style.position = 'absolute';
+    el.style.width = `${size}px`;
+    el.style.height = `${size}px`;
+    el.style.backgroundColor = color;
+    el.style.borderRadius = Math.random() > 0.5 ? '50%' : '0%';
+    el.style.transform = `rotate(${Math.random() * 360}deg)`;
+    container.appendChild(el);
+
+    el.animate([
+      { transform: 'translate3d(0, 0, 0) rotate(0deg)', opacity: 1 },
+      { transform: `translate3d(${dx}px, ${dy + 150}px, 0) rotate(${Math.random() * 720}deg)`, opacity: 0 }
+    ], {
+      duration: Math.random() * 600 + 600,
+      easing: 'cubic-bezier(0.1, 0.8, 0.3, 1)',
+      fill: 'forwards'
+    });
+  }
+
+  setTimeout(() => {
+    document.body.removeChild(container);
+  }, 1500);
+}
+
+
+export interface Note {
+  id: number;
+  task_id: number;
+  content: string;
+  note_type: 'manual' | 'ai_explanation' | 'ai_expansion' | 'ai_summary';
+  created_at: string;
+}
+

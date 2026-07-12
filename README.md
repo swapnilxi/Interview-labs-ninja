@@ -44,6 +44,20 @@ You can integrate this package into any agent runtime or UI stack
 
 ## Running Locally
 
+### Quick Start (Start Both Frontend and Backend)
+
+You can run both services concurrently using the startup script in the workspace root:
+
+```bash
+# 1. Make the script executable (one-time)
+chmod +x startup.sh
+
+# 2. Run both services
+./startup.sh
+```
+
+To stop both services, simply press `Ctrl+C`.
+
 ### Backend (FastAPI)
 
 - Requires [`uv`](https://docs.astral.sh/uv/) installed locally.
@@ -67,3 +81,4 @@ By default the app runs at `http://localhost:3000`.
 
 You can then wire the frontend to call the FastAPI endpoints under
 `http://localhost:8000` for sessions, questions, and exports.
+

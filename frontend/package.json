@@ -1,5 +1,5 @@
 {
-  "name": "interviewninja",
+  "name": "Lab-Ninja",
   "version": "0.1.0",
   "private": true,
   "rocketCritical": {
@@ -50,9 +50,12 @@
   },
   "dependencies": {
     "@dhiwise/component-tagger": "^1.0.14",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@heroicons/react": "^2.2.0",
-    "@supabase/supabase-js": "^2.49.4",
     "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.4",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16",
     "next": "15.1.11",
