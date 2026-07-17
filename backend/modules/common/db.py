@@ -102,7 +102,7 @@ def init_db() -> None:
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
-                question_model TEXT NOT NULL,
+                text_generation_model TEXT NOT NULL,
                 answer_model TEXT NOT NULL,
                 openai_key TEXT DEFAULT '',
                 gemini_key TEXT DEFAULT '',
@@ -124,6 +124,12 @@ def init_db() -> None:
                 cursor.execute(f"ALTER TABLE user_settings ADD COLUMN {col} TEXT DEFAULT {default}")
             except sqlite3.OperationalError:
                 pass  # column already exists
+
+        # Migrate existing DBs: rename question_model -> text_generation_model (preserves configured values)
+        cursor.execute("PRAGMA table_info(user_settings);")
+        user_settings_columns = [row[1] for row in cursor.fetchall()]
+        if "question_model" in user_settings_columns and "text_generation_model" not in user_settings_columns:
+            cursor.execute("ALTER TABLE user_settings RENAME COLUMN question_model TO text_generation_model")
 
         # shared sections table (all labs share this)
         cursor.execute("""
@@ -446,14 +452,14 @@ def fetch_settings() -> dict:
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """SELECT question_model, answer_model, openai_key, gemini_key, anthropic_key,
+            """SELECT text_generation_model, answer_model, openai_key, gemini_key, anthropic_key,
                       deepseek_key, groq_key, ollama_url, ollama_model
                FROM user_settings LIMIT 1"""
         )
         row = cursor.fetchone()
         if row:
             return {
-                "questionModel": row[0],
+                "textGenerationModel": row[0],
                 "answerModel": row[1],
                 "openaiKey": row[2] or "",
                 "geminiKey": row[3] or "",
@@ -465,7 +471,7 @@ def fetch_settings() -> dict:
             }
         else:
             return {
-                "questionModel": "gemini-2.5-flash",
+                "textGenerationModel": "gemini-2.5-flash",
                 "answerModel": "gemini-2.5-flash",
                 "openaiKey": "",
                 "geminiKey": "",
@@ -488,12 +494,12 @@ def save_settings(settings: dict) -> None:
         cursor.execute(
             """
             INSERT INTO user_settings (
-                question_model, answer_model, openai_key, gemini_key, anthropic_key,
+                text_generation_model, answer_model, openai_key, gemini_key, anthropic_key,
                 deepseek_key, groq_key, ollama_url, ollama_model
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                settings["questionModel"],
+                settings["textGenerationModel"],
                 settings["answerModel"],
                 settings.get("openaiKey", ""),
                 settings.get("geminiKey", ""),

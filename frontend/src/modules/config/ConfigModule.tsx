@@ -85,7 +85,7 @@ const API_KEY_FIELDS = [
 ] as const;
 
 const DEFAULT_SETTINGS: UserSettings = {
-  questionModel: 'gemini-2.5-flash',
+  textGenerationModel: 'gemini-2.5-flash',
   answerModel: 'gemini-2.5-pro',
   openaiKey: '',
   geminiKey: '',
@@ -151,9 +151,9 @@ export default function ConfigInteractive() {
     }
   };
 
-  const usesOllama = settings.questionModel === 'ollama' || settings.answerModel === 'ollama';
+  const usesOllama = settings.textGenerationModel === 'ollama' || settings.answerModel === 'ollama';
 
-  const selectedQModel = ALL_MODELS.find(m => m.id === settings.questionModel);
+  const selectedTextModel = ALL_MODELS.find(m => m.id === settings.textGenerationModel);
   const selectedAModel = ALL_MODELS.find(m => m.id === settings.answerModel);
 
   if (loading) {
@@ -184,14 +184,14 @@ export default function ConfigInteractive() {
             <Icon name="CpuChipIcon" size={24} className="text-primary" />
             <div>
               <h3 className="font-heading text-lg font-semibold text-foreground">Model Configuration</h3>
-              <p className="text-xs text-muted-foreground">Choose LLM models for question generation and answer evaluation</p>
+              <p className="text-xs text-muted-foreground">Choose the main LLM used for AI generation across the app, and the model used for answer evaluation</p>
             </div>
           </div>
 
           {/* Provider pills */}
           <div className="flex flex-wrap gap-2">
             {PROVIDERS.map(p => {
-              const active = settings.questionModel && ALL_MODELS.find(m => m.id === settings.questionModel)?.provider === p.key
+              const active = settings.textGenerationModel && ALL_MODELS.find(m => m.id === settings.textGenerationModel)?.provider === p.key
                           || settings.answerModel && ALL_MODELS.find(m => m.id === settings.answerModel)?.provider === p.key;
               return (
                 <span key={p.key}
@@ -207,16 +207,16 @@ export default function ConfigInteractive() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-18">
             <div className="space-y-6">
-              <label htmlFor="questionModel" className="block text-sm font-medium text-foreground">
-                Question Generation Model
+              <label htmlFor="textGenerationModel" className="block text-sm font-medium text-foreground">
+                Text Generation Model
               </label>
-              <ModelSelect id="questionModel" value={settings.questionModel} onChange={v => handleChange('questionModel', v)} />
-              {selectedQModel && (
+              <ModelSelect id="textGenerationModel" value={settings.textGenerationModel} onChange={v => handleChange('textGenerationModel', v)} />
+              {selectedTextModel && (
                 <span className="text-[11px] text-muted-foreground">
-                  {selectedQModel.provider} · {selectedQModel.badge}
+                  {selectedTextModel.provider} · {selectedTextModel.badge}
                 </span>
               )}
-              <span className="block text-[11px] text-muted-foreground/60">Used for daily topic expansion and parsing CV details.</span>
+              <span className="block text-[11px] text-muted-foreground/60">The main LLM for the app — used for daily topic expansion, parsing CV details, and all other AI generation (e.g. LinkedIn Post Generator).</span>
             </div>
 
             <div className="space-y-6">

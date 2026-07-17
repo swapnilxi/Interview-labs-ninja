@@ -100,7 +100,7 @@ class SessionAnswerIn(BaseModel):
 
 
 class UserSettingsSchema(BaseModel):
-    questionModel: str
+    textGenerationModel: str
     answerModel: str
     openaiKey: str = ''
     geminiKey: str = ''
@@ -306,7 +306,7 @@ Respond with ONLY a valid JSON array (no markdown, no text outside the array):
 @router.post("/lab/generate-questions")
 async def generate_lab_questions(payload: GenerateQuestionsPayload) -> dict:
     settings = fetch_settings()
-    model = settings.get("questionModel", "gemini-2.5-flash")
+    model = settings.get("textGenerationModel", "gemini-2.5-flash")
     prompt = _build_prompt(payload)
 
     provider_order: List[str] = []

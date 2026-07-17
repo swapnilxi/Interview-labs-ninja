@@ -87,7 +87,7 @@ def _provider_order(model: str) -> List[str]:
 
 def _raw_generate(prompt: str) -> str:
     settings = fetch_settings()
-    model = settings.get("questionModel", "gemini-2.5-flash")
+    model = settings.get("textGenerationModel", "gemini-2.5-flash")
     last_error: Optional[str] = None
 
     for provider in _provider_order(model):

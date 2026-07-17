@@ -1,7 +1,7 @@
 'use client';
 
 export interface UserSettings {
-  questionModel: string;
+  textGenerationModel: string;
   answerModel: string;
   openaiKey: string;
   geminiKey: string;
