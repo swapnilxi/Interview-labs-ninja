@@ -615,6 +615,34 @@ export default function TaskNode({
               <span className="hidden sm:inline">Chunk</span>
             </button>
 
+            {/* Generate DoD & Subtasks */}
+            <button
+              onClick={async () => {
+                setLoading('dod' as any);
+                try {
+                  const res = await todoService.generateTaskDoD(task.id, model);
+                  if (res && res.created_subtasks && res.created_subtasks.length > 0) {
+                    onChildrenGenerated(task.id, res.created_subtasks, 'chunk');
+                  }
+                  if (res && res.definition_of_done) {
+                    onUpdate(task.id, { definition_of_done: res.definition_of_done });
+                  }
+                } catch (e) {
+                  console.error(e);
+                } finally {
+                  setLoading(null);
+                }
+              }}
+              disabled={loading !== null}
+              className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-500 hover:bg-amber-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1"
+              title="Generate Definition of Done & Subtasks with AI"
+            >
+              {loading === ('dod' as any) ? (
+                <span className="w-3 h-3 border border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+              ) : '✨'}
+              <span className="hidden sm:inline">DoD</span>
+            </button>
+
             {/* Regenerate (AI-generated nodes only) */}
             {isAiGenerated && hasChildren && (
               <button

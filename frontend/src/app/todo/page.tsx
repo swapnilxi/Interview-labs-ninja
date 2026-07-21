@@ -69,7 +69,7 @@ export default function TodoPage() {
 
               {/* Tab Switcher */}
               <div className="mb-6">
-                <TabSwitcher activeTab={activeTab} onChange={setActiveTab} />
+                <TabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
               </div>
 
               {/* Tab Content */}

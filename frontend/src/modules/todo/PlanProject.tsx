@@ -66,7 +66,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
     ...p,
     id: p.id.toString(),
     quadrant: p.eisenhower_quadrant || null,
-  })) as (MatrixItem & Project)[];
+  })) as unknown as (MatrixItem & Project)[];
 
   // If a project is selected for explorer in 'projects' view
   if (activeProject && activeSubView === 'projects') {

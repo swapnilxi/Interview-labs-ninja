@@ -1410,5 +1410,225 @@ async def move_task_to_plan_endpoint(task_id: int) -> dict:
     return {"status": "moved", "project": project}
 
 
+# ── AI Fast Capture, Auto-Prioritize, DoD Generator & Smart Schedule ─────────────
+
+
+class TaskNLPParseRequest(BaseModel):
+    raw_text: str
+    model: str = "gemini"
+
+
+class AIPrioritizeAllRequest(BaseModel):
+    model: str = "gemini"
+
+
+class SmartScheduleRequest(BaseModel):
+    available_hours: float = 6.0
+    energy_level: str = "medium"  # "high", "medium", "low"
+    model: str = "gemini"
+
+
+class GenerateDoDRequest(BaseModel):
+    model: str = "gemini"
+
+
+@router.post("/ai/parse-task")
+async def parse_task_nlp_endpoint(payload: TaskNLPParseRequest) -> dict:
+    """Parse raw natural language string into structured task properties using AI."""
+    from datetime import date as date_mod, timedelta
+    today_str = date_mod.today().isoformat()
+    tomorrow_str = (date_mod.today() + timedelta(days=1)).isoformat()
+
+    prompt = f"""You are an AI task assistant. Parse this natural language task input into JSON fields.
+Today's date is: {today_str}
+Tomorrow's date is: {tomorrow_str}
+
+User Input: "{payload.raw_text}"
+
+Extract the following JSON fields:
+- "title": Clean task title without hashtags or dates
+- "priority": "p1" (critical/urgent), "p2" (high), "p3" (medium), or "p4" (low). Infer from #p1, #p2, "urgent", or importance. Default "p3".
+- "due_date": YYYY-MM-DD format if date/time specified, or null
+- "time_estimate": Estimated duration string (e.g. "30m", "1h", "2h"), or null
+- "intention": Short 1-sentence motivation, or null
+- "context": Extra context notes if present, or null
+
+Return ONLY a valid JSON object matching the schema above."""
+
+    try:
+        raw_res = _call_ai(prompt, payload.model)
+        text = raw_res.strip()
+        text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
+        start = text.find("{")
+        end = text.rfind("}")
+        parsed = json.loads(text[start : end + 1])
+        return parsed
+    except Exception as exc:
+        p_match = re.search(r"#p([1-4])", payload.raw_text, re.IGNORECASE)
+        priority = f"p{p_match.group(1)}" if p_match else "p3"
+        clean_title = re.sub(r"#p[1-4]", "", payload.raw_text).strip()
+        return {
+            "title": clean_title,
+            "priority": priority,
+            "due_date": None,
+            "time_estimate": None,
+            "intention": None,
+            "context": None,
+        }
+
+
+@router.post("/ai/prioritize-all")
+async def ai_prioritize_all_endpoint(payload: AIPrioritizeAllRequest) -> dict:
+    """Run AI analysis on all active tasks to assign priorities, Eisenhower quadrants, and Pareto scores."""
+    all_tasks = get_all_tasks()
+    active_tasks = [t for t in all_tasks if t.get("status") != "done"]
+
+    if not active_tasks:
+        return {"updated": 0, "message": "No active tasks to prioritize"}
+
+    tasks_summary = [
+        {"id": t["id"], "title": t["title"], "current_priority": t["priority"], "due_date": t.get("due_date")}
+        for t in active_tasks
+    ]
+
+    prompt = f"""You are a Pareto 80/20 productivity master. Evaluate these tasks and return a JSON array.
+
+Tasks:
+{json.dumps(tasks_summary, indent=2)}
+
+For each task item, assign:
+- "id": number
+- "priority": "p1" | "p2" | "p3" | "p4"
+- "eisenhower_quadrant": "q1_do" | "q2_schedule" | "q3_delegate" | "q4_eliminate"
+- "pareto_score": integer 0-100 (where >80 represents top 20% highest leverage tasks)
+- "is_top_20": boolean (true if pareto_score >= 80)
+
+Return ONLY a valid JSON array of objects with the exact schema above."""
+
+    try:
+        raw_res = _call_ai(prompt, payload.model)
+        evaluations = _extract_json_array(raw_res)
+        updated_count = 0
+
+        for item in evaluations:
+            t_id = item.get("id")
+            if t_id:
+                update_task(
+                    task_id=int(t_id),
+                    priority=item.get("priority", "p3"),
+                    eisenhower_quadrant=item.get("eisenhower_quadrant"),
+                    pareto_score=item.get("pareto_score"),
+                    is_top_20=1 if item.get("is_top_20") else 0,
+                )
+                updated_count += 1
+
+        return {"updated": updated_count, "evaluations": evaluations}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"AI Auto-Prioritization failed: {exc}")
+
+
+@router.post("/tasks/{task_id}/generate-dod")
+async def generate_task_dod_endpoint(task_id: int, payload: GenerateDoDRequest) -> dict:
+    """Generate Definition of Done criteria and auto-create initial subtasks for a task."""
+    task = get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    prompt = f"""You are an elite software project manager.
+For the task: "{task['title']}" (Context: {task.get('context') or 'N/A'})
+
+Generate:
+1. "definition_of_done": Clear, 3-4 bullet point testable criteria string for when this task is 100% complete.
+2. "subtasks": Array of 3-5 specific actionable subtask objects to complete it.
+   Each subtask object format: {{"title": "...", "priority": "p2"|"p3", "time_estimate": "30m"|"1h"}}
+
+Return ONLY a valid JSON object matching:
+{{
+  "definition_of_done": "1. ...\n2. ...\n3. ...",
+  "subtasks": [
+    {{"title": "...", "priority": "p2", "time_estimate": "30m"}}
+  ]
+}}"""
+
+    try:
+        raw_res = _call_ai(prompt, payload.model)
+        text = raw_res.strip()
+        text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
+        start = text.find("{")
+        end = text.rfind("}")
+        data = json.loads(text[start : end + 1])
+
+        dod = data.get("definition_of_done", "")
+        subtasks_data = data.get("subtasks", [])
+
+        update_task(task_id=task_id, definition_of_done=dod)
+
+        created_subtasks = []
+        if subtasks_data:
+            st_payloads = [
+                {
+                    "title": st["title"],
+                    "priority": st.get("priority", "p3"),
+                    "time_estimate": st.get("time_estimate", "30m"),
+                    "generation_type": "chunk",
+                    "status": "backlog",
+                }
+                for st in subtasks_data
+            ]
+            created_subtasks = create_subtasks_batch(parent_id=task_id, subtasks=st_payloads)
+
+        return {
+            "task_id": task_id,
+            "definition_of_done": dod,
+            "created_subtasks": created_subtasks,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"AI DoD & Subtask Generation failed: {exc}")
+
+
+@router.post("/ai/smart-schedule")
+async def ai_smart_schedule_endpoint(payload: SmartScheduleRequest) -> dict:
+    """Generate an AI-curated time-blocked schedule based on user energy level and available hours."""
+    all_tasks = get_all_tasks()
+    active_tasks = [t for t in all_tasks if t.get("status") != "done"]
+
+    prompt = f"""You are an executive productivity coach.
+User Profile:
+- Available Focus Hours Today: {payload.available_hours} hours
+- Energy Level: {payload.energy_level.upper()}
+
+Active Tasks:
+{json.dumps([{"id": t["id"], "title": t["title"], "priority": t["priority"], "time_estimate": t.get("time_estimate")} for t in active_tasks[:15]], indent=2)}
+
+Create an optimal daily schedule block array.
+Schema:
+{{
+  "schedule": [
+    {{
+      "time_slot": "9:00 AM - 10:30 AM",
+      "task_id": number or null,
+      "task_title": "...",
+      "focus_type": "Deep Work" | "Quick Win" | "Break" | "Admin",
+      "rationale": "Why this task now based on energy level"
+    }}
+  ],
+  "top_advice": "One key tip for executing today's plan"
+}}
+
+Return ONLY a valid JSON object matching the schema above."""
+
+    try:
+        raw_res = _call_ai(prompt, payload.model)
+        text = raw_res.strip()
+        text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
+        start = text.find("{")
+        end = text.rfind("}")
+        result = json.loads(text[start : end + 1])
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"AI Smart Schedule failed: {exc}")
+
+
+
 
 

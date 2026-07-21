@@ -22,6 +22,11 @@ export default function QuickDaily({ model }: QuickDailyProps) {
   const [showAiDayPlan, setShowAiDayPlan] = useState(false);
   const [brainDumpText, setBrainDumpText] = useState('');
 
+  // AI Smart Schedule state
+  const [showAiSmartSchedule, setShowAiSmartSchedule] = useState(false);
+  const [smartScheduleLoading, setSmartScheduleLoading] = useState(false);
+  const [smartScheduleData, setSmartScheduleData] = useState<any>(null);
+
   const loadTasks = async () => {
     setLoading(true);
     const fetched = await quickTaskService.fetchTodayTasks();
@@ -96,10 +101,10 @@ export default function QuickDaily({ model }: QuickDailyProps) {
   };
 
   // Convert to MatrixItem array
-  const matrixItems: (MatrixItem & QuickTask)[] = tasks.map(t => ({
+  const matrixItems = tasks.map(t => ({
     ...t,
     id: t.id.toString(),
-  }));
+  })) as unknown as (MatrixItem & QuickTask)[];
 
   const completedCount = tasks.filter(t => t.done).length;
   const totalCount = tasks.length;
@@ -128,11 +133,19 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             </button>
             <button
               type="button"
-              onClick={() => { setShowAiDayPlan(!showAiDayPlan); setShowBrainDump(false); }}
-              className={`p-1.5 rounded-md transition-smooth ${showAiDayPlan ? 'bg-amber-500/10 text-amber-500' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-              title="AI Day Plan"
+              onClick={async () => {
+                setShowAiSmartSchedule(true);
+                setShowBrainDump(false);
+                setShowAiDayPlan(false);
+                setSmartScheduleLoading(true);
+                const sched = await todoService.getSmartDailySchedule(6.0, 'medium', model);
+                setSmartScheduleData(sched);
+                setSmartScheduleLoading(false);
+              }}
+              className={`p-1.5 rounded-md transition-smooth ${showAiSmartSchedule ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              title="AI Smart Schedule Planner"
             >
-              <span className="text-sm">🌅</span>
+              <span className="text-sm">🤖</span>
             </button>
             <div className="w-px h-5 bg-border mx-1" />
             <button
@@ -264,6 +277,66 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         </div>
 
       </div>
+
+      {/* AI Smart Schedule Modal Overlay */}
+      {showAiSmartSchedule && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl shadow-2xl max-w-xl w-full p-6 space-y-4 animate-scale-up">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🤖</span>
+                <h3 className="font-heading text-lg font-bold text-foreground">AI Smart Daily Schedule</h3>
+              </div>
+              <button onClick={() => setShowAiSmartSchedule(false)} className="text-muted-foreground hover:text-foreground">
+                <Icon name="XMarkIcon" size={18} />
+              </button>
+            </div>
+
+            {smartScheduleLoading ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-3">
+                <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+                <p className="text-xs text-muted-foreground">Analyzing tasks, priority, and energy levels with AI...</p>
+              </div>
+            ) : smartScheduleData ? (
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                {smartScheduleData.top_advice && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs leading-relaxed font-medium">
+                    💡 <strong>Coach Advice:</strong> {smartScheduleData.top_advice}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {(smartScheduleData.schedule || []).map((slot: any, idx: number) => (
+                    <div key={idx} className="p-3 border border-border rounded-lg bg-muted/20 flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-primary">{slot.time_slot}</span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">
+                          {slot.focus_type || 'Task'}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-foreground">{slot.task_title}</p>
+                      {slot.rationale && (
+                        <p className="text-[11px] text-muted-foreground leading-normal">{slot.rationale}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Could not generate schedule. Check Config API keys.</p>
+            )}
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowAiSmartSchedule(false)}
+                className="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 transition-smooth"
+              >
+                Close Schedule
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

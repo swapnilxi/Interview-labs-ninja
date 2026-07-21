@@ -33,6 +33,7 @@ export interface Task {
   last_activity_at: string | null;
   pareto_score?: number | null;
   is_top_20?: boolean;
+  eisenhower_quadrant?: string | null;
 }
 
 export type TaskStatus = 'backlog' | 'in_progress' | 'delayed' | 'done' | 'not_done';
@@ -54,6 +55,7 @@ export interface TaskCreatePayload {
   is_recurring?: number;
   recurrence_interval?: string | null;
   recurrence_custom_days?: string | null;
+  eisenhower_quadrant?: string | null;
 }
 
 export interface TaskUpdatePayload {
@@ -69,6 +71,7 @@ export interface TaskUpdatePayload {
   is_recurring?: number;
   recurrence_interval?: string | null;
   recurrence_custom_days?: string | null;
+  eisenhower_quadrant?: string | null;
 }
 
 // ── Status & Priority config ─────────────────────────────────────────────────
@@ -169,6 +172,19 @@ export const todoService = {
       console.error('Failed to fetch task tree:', error);
       return [];
     }
+  },
+
+  async fetchTasks(): Promise<Task[]> {
+    const tree = await this.fetchTaskTree();
+    const flat: Task[] = [];
+    const walk = (nodes: Task[]) => {
+      for (const n of nodes) {
+        flat.push(n);
+        if (n.children && n.children.length > 0) walk(n.children);
+      }
+    };
+    walk(tree);
+    return flat;
   },
 
   async fetchChildren(taskId: number): Promise<Task[]> {
@@ -593,6 +609,66 @@ export const todoService = {
     } catch (error) {
       console.error('Failed to get stats:', error);
       return { completed_today: 0, streak: 0, last_7_days: [0, 0, 0, 0, 0, 0, 0], last_7_dates: [] };
+    }
+  },
+
+  async parseTaskWithAI(rawText: string, model: string = 'gemini'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/ai/parse-task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw_text: rawText, model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to parse task with AI:', error);
+      return null;
+    }
+  },
+
+  async prioritizeAllWithAI(model: string = 'gemini'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/ai/prioritize-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to auto-prioritize tasks with AI:', error);
+      return null;
+    }
+  },
+
+  async generateTaskDoD(taskId: number, model: string = 'gemini'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/generate-dod`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to generate DoD for task ${taskId}:`, error);
+      return null;
+    }
+  },
+
+  async getSmartDailySchedule(availableHours: number = 6, energyLevel: string = 'medium', model: string = 'gemini'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/ai/smart-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ available_hours: availableHours, energy_level: energyLevel, model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to get smart daily schedule:', error);
+      return null;
     }
   },
 };
