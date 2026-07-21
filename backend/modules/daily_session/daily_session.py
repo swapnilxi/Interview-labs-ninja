@@ -47,18 +47,36 @@ class SessionCreate(BaseModel):
     )
 
 
+import io
+try:
+    import pdfplumber
+except ImportError:
+    pdfplumber = None
+
+try:
+    import docx
+except ImportError:
+    docx = None
+
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from pydantic import BaseModel, Field
+
+def format_session_code(dt: Optional[date] = None) -> str:
+    if dt is None:
+        dt = date.today()
+    week_num = dt.isocalendar()[1]
+    day_str = dt.strftime("%d")
+    month_str = dt.strftime("%B")
+    return f"W{week_num}/{day_str}/{month_str}"
+
+
 class SessionCreateResponse(BaseModel):
     session_id: int
     session_date: str
+    session_code: str
 
 
-class QuestionIn(BaseModel):
-    section: Literal["A", "B"]
-    number: int
-    category: Category
-    sub_type: str
-    difficulty: str
-    topics: List[str] = Field(default_factory=list)
+class AnswerGenerationRequest(BaseModel):
     question_text: str
     question_type: Optional[str] = None
 
@@ -115,14 +133,107 @@ class UserSettingsSchema(BaseModel):
 
 @router.post("/sessions", response_model=SessionCreateResponse)
 async def create_session_endpoint(payload: SessionCreate) -> SessionCreateResponse:
-    session_date = date.today().isoformat()
+    today_date = date.today()
+    session_date = today_date.isoformat()
     session_id = create_session(
         session_date=session_date,
         difficulty_hint=payload.difficulty_hint,
         cv_present=payload.cv_present,
         jd_present=payload.jd_present,
     )
-    return SessionCreateResponse(session_id=session_id, session_date=session_date)
+    session_code = format_session_code(today_date)
+    return SessionCreateResponse(
+        session_id=session_id,
+        session_date=session_date,
+        session_code=session_code,
+    )
+
+
+@router.post("/sessions/upload-resume")
+async def upload_resume(file: UploadFile = File(...)) -> dict:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename missing")
+
+    contents = await file.read()
+    filename_lower = file.filename.lower()
+    text = ""
+
+    if filename_lower.endswith(".pdf"):
+        if pdfplumber is None:
+            raise HTTPException(status_code=500, detail="pdfplumber library not available")
+        with pdfplumber.open(io.BytesIO(contents)) as pdf:
+            pages_text = [page.extract_text() or "" for page in pdf.pages]
+            text = "\n".join(pages_text)
+    elif filename_lower.endswith(".docx"):
+        if docx is None:
+            raise HTTPException(status_code=500, detail="python-docx library not available")
+        doc = docx.Document(io.BytesIO(contents))
+        text = "\n".join([p.text for p in doc.paragraphs])
+    else:
+        # plain text or markdown
+        try:
+            text = contents.decode("utf-8")
+        except UnicodeDecodeError:
+            text = contents.decode("latin-1", errors="ignore")
+
+    text = text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Could not extract text from file")
+
+    return {"filename": file.filename, "extracted_text": text, "length": len(text)}
+
+
+@router.post("/sessions/generate-answer")
+async def generate_dynamic_answer(payload: AnswerGenerationRequest) -> dict:
+    settings = fetch_settings()
+    model = settings.get("answerModel", "gemini-2.0-flash")
+
+    if payload.action == "explain":
+        prompt = f"""You are Interview-Ninja, an elite technical interviewer.
+Provide a deep, step-by-step technical explanation for this question:
+
+Question ({payload.category} - {payload.sub_type}):
+{payload.question_text}
+
+Format your response cleanly with:
+1. High-level Summary (2-3 sentences)
+2. In-Depth Technical Walkthrough / Code / Architecture
+3. Key Trade-offs & Common Interviewer Follow-ups"""
+    else:
+        prompt = f"""You are Interview-Ninja, an elite technical interviewer.
+Provide a concise, top-tier model answer for this interview question:
+
+Question ({payload.category} - {payload.sub_type}):
+{payload.question_text}
+
+Provide:
+1. Concise Direct Answer (3-4 bullet points or short paragraph)
+2. Detailed Explanation / Code snippet / Algorithm steps if applicable."""
+
+    # Call AI using settings
+    last_err = None
+    try:
+        if settings.get("geminiKey"):
+            safe_model = model.replace("gemini-2.5-flash", "gemini-2.0-flash").replace("gemini-2.5-pro", "gemini-1.5-pro")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{safe_model}:generateContent?key={settings['geminiKey']}"
+            body = json.dumps({
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048},
+            }).encode()
+            req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read())
+            res_text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return {"answer": res_text, "model_used": safe_model}
+    except Exception as e:
+        last_err = str(e)
+
+    # Fallback to local default / mock if API fails or no key
+    return {
+        "answer": f"Model Answer for '{payload.question_text}':\n\n1. Focus on core architectural patterns, time/space complexity, and edge cases.\n2. Key implementation details: ensure robust error handling and clear separation of concerns.",
+        "note": f"Fallback applied. (Config note: {last_err or 'No API key set'})"
+    }
+
 
 
 @router.post("/sessions/questions")

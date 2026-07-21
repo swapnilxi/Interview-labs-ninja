@@ -35,6 +35,23 @@ export default function TodoPage() {
 
               {/* Task Tree */}
               <TaskTree model={model} />
+              {/* Tab Switcher */}
+              <div className="mb-6">
+                <TabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
+              </div>
+
+              {/* Tab Content */}
+              {activeTab === 'quick' && (
+                <QuickDaily model={model} />
+              )}
+
+              {activeTab === 'smart' && (
+                <SmartTodo key={refreshKey} model={model} />
+              )}
+
+              {activeTab === 'plan' && (
+                <PlanProject model={model} />
+              )}
             </div>
           </div>
 

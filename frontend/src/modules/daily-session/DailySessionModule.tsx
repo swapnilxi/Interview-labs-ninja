@@ -159,11 +159,38 @@ export default function DailySessionInteractive() {
   const [difficulty, setDifficulty] = useState('Mixed');
   const [cvText, setCvText] = useState('');
   const [jdText, setJdText] = useState('');
+  const [sessionCode, setSessionCode] = useState('');
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
-  // AI Hint state
+  // AI Hint & Answer state
   const [isGeneratingHint, setIsGeneratingHint] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showExplain, setShowExplain] = useState(false);
+  const [dynamicAiAnswer, setDynamicAiAnswer] = useState<string | null>(null);
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingResume(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('http://localhost:8000/sessions/upload-resume', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Failed to parse file');
+      const data = await res.json();
+      setCvText(data.extracted_text);
+      setUploadedFileName(data.filename);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to extract resume text. Please ensure file format is PDF, DOCX, or TXT.');
+    } finally {
+      setUploadingResume(false);
+    }
+  };
 
   // Timer state
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -242,6 +269,9 @@ export default function DailySessionInteractive() {
       const data = await res.json();
       const newSessionId = data.session_id;
       const newSessionDate = data.session_date;
+      const newSessionCode = data.session_code || `W${newSessionId}/${newSessionDate}`;
+      setSessionCode(newSessionCode);
+      localStorage.setItem('ninja_active_session_code', newSessionCode);
 
       // 2. Map default questions to backend payload
       const payloadQuestions = DEFAULT_QUESTIONS.map((q, idx) => ({
@@ -332,12 +362,31 @@ export default function DailySessionInteractive() {
     setViewAll(false);
   };
 
-  const handleGenerateHint = () => {
+  const handleGenerateHint = async () => {
+    if (!activeQuestion) return;
     setIsGeneratingHint(true);
-    setTimeout(() => {
+    setDynamicAiAnswer(null);
+    try {
+      const res = await fetch('http://localhost:8000/sessions/generate-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question_text: activeQuestion.questionText,
+          category: activeQuestion.category,
+          sub_type: activeQuestion.subType,
+          action: 'answer',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDynamicAiAnswer(data.answer);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
       setIsGeneratingHint(false);
       setShowHint(true);
-    }, 1500); // Simulate LLM generation time
+    }
   };
 
   const resetHints = () => {
@@ -451,12 +500,31 @@ export default function DailySessionInteractive() {
               </div>
 
               <div>
-                <label htmlFor="cv-text" className="flex items-center gap-3 text-sm font-medium text-foreground mb-2">
-                  Context / Document
-                  <span className="text-xs text-muted-foreground font-normal">Optional</span>
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="cv-text" className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    Context / Resume
+                    <span className="text-xs text-muted-foreground font-normal">Optional</span>
+                  </label>
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-smooth border border-primary/20">
+                    <Icon name="DocumentArrowUpIcon" size={14} />
+                    {uploadingResume ? 'Extracting...' : 'Upload Resume (.pdf/.docx/.txt)'}
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.txt,.md"
+                      className="hidden"
+                      onChange={handleResumeUpload}
+                      disabled={uploadingResume}
+                    />
+                  </label>
+                </div>
+                {uploadedFileName && (
+                  <div className="mb-2 text-xs font-medium text-emerald-500 flex items-center gap-1">
+                    <Icon name="CheckCircleIcon" size={14} variant="solid" />
+                    Uploaded: {uploadedFileName}
+                  </div>
+                )}
                 <textarea id="cv-text" rows={4} value={cvText} onChange={(e) => setCvText(e.target.value)}
-                  placeholder="Paste your resume, project context, or any relevant document..."
+                  placeholder="Paste your resume, project context, or upload a document using the button above..."
                   className="w-full rounded-xl border border-border bg-input px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 placeholder:text-muted-foreground/50 resize-none transition-all" />
               </div>
 
@@ -603,8 +671,8 @@ export default function DailySessionInteractive() {
             <Icon name="ClockIcon" size={16} />
             {formatTime(elapsedSeconds)}
           </span>
-          <span className="px-12 py-6 rounded-md bg-card border border-border text-foreground font-medium text-sm">
-            Session Date: {sessionDate}
+          <span className="px-12 py-6 rounded-md bg-card border border-border text-foreground font-semibold text-sm">
+            Session ID: {sessionCode || localStorage.getItem('ninja_active_session_code') || sessionDate}
           </span>
           <span className="text-sm text-muted-foreground">
             {Object.keys(answers).length} of 10 answered
@@ -728,7 +796,7 @@ export default function DailySessionInteractive() {
                   </div>
                 </div>
                 <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap font-body">
-                  {activeExplanation.answer}
+                  {dynamicAiAnswer || activeExplanation.answer}
                 </p>
                 <button
                   onClick={() => setShowExplain(!showExplain)}
