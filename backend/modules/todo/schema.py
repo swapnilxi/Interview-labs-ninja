@@ -235,6 +235,13 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE quick_tasks ADD COLUMN pareto_score REAL DEFAULT NULL;")
     if "is_top_20" not in qt_cols:
         cursor.execute("ALTER TABLE quick_tasks ADD COLUMN is_top_20 INTEGER DEFAULT 0;")
+    # Non-destructive export tracking: keep quick_tasks row when moved to Smart/Plan
+    if "exported_task_id" not in qt_cols:
+        cursor.execute("ALTER TABLE quick_tasks ADD COLUMN exported_task_id INTEGER DEFAULT NULL;")
+    if "exported_project_id" not in qt_cols:
+        cursor.execute("ALTER TABLE quick_tasks ADD COLUMN exported_project_id INTEGER DEFAULT NULL;")
+    if "is_exported" not in qt_cols:
+        cursor.execute("ALTER TABLE quick_tasks ADD COLUMN is_exported INTEGER DEFAULT 0;")
 
     # 3. project_nodes table
     cursor.execute("PRAGMA table_info(project_nodes);")
@@ -243,3 +250,11 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE project_nodes ADD COLUMN pareto_score REAL DEFAULT NULL;")
     if "is_top_20" not in pn_cols:
         cursor.execute("ALTER TABLE project_nodes ADD COLUMN is_top_20 INTEGER DEFAULT 0;")
+
+    # 4. projects table — add pareto + is_top_20 if missing
+    cursor.execute("PRAGMA table_info(projects);")
+    proj_cols = [row[1] for row in cursor.fetchall()]
+    if "pareto_score" not in proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN pareto_score REAL DEFAULT NULL;")
+    if "is_top_20" not in proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN is_top_20 INTEGER DEFAULT 0;")

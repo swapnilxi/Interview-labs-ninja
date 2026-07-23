@@ -19,15 +19,53 @@ This document serves as the master tracking board for the entire **Lab-Ninja** p
 
 ## 2. ⚡ AI To-Do App Productivity Suite
 
-- [x] **Infinite Task Tree**: Nested subtask breakdown with multi-level depth representation.
-- [x] **AI Strategic Dive Deeper & Actionable Chunk Breakdown**: Deep tree auto-breakdown into actionable steps.
-- [x] **AI Natural Language Fast Task Capture**: Enter raw text (e.g. `"Prepare system design proposal tomorrow at 3pm for 2 hours #p1"`) and auto-parse title, priority, due date, duration, and context with AI.
-- [x] **AI Eisenhower & Pareto Auto-Prioritizer**: Automatically analyze open tasks to evaluate effort/impact, set priority tags (P1-P4), Pareto top-20% scores, and matrix quadrants.
-- [x] **AI Definition of Done & Subtask Generator**: One-click generation of crisp, testable success criteria and step-by-step subtask checklists.
-- [x] **AI Smart Daily Schedule Planner**: Energy & available focus hours-aware schedule generator with time blocks and productivity coach tips.
-- [x] **Quick Daily & Time Boxing**: Focus timer, Pomodoro integration, and 2-minute rule launcher.
-- [x] **Distraction Inbox**: Floating instant capture modal (`Alt+D`) and conversion slide-over drawer to capture distractions without breaking focus.
-- [x] **Project Roadmap & Spec Generator**: Transform any task tree or project into technical architecture specs and milestone roadmaps.
+### Core Architecture (3-Tab)
+- [x] **Tab 1 — Quick Daily**: Eisenhower matrix + today's flat list + AI day plan
+- [x] **Tab 2 — Smart To-Do**: Full task tree + Eisenhower matrix + AI Weekly Plan views
+- [x] **Tab 3 — Plan & Project**: Projects, node tree, AI roadmap, Eisenhower matrix views
+- [x] **Copilot Sidebar**: Context-aware Q&A across all 3 tabs
+
+### Task Intelligence
+- [x] **Infinite Task Tree**: Nested subtask breakdown with multi-level depth representation
+- [x] **AI Strategic Dive Deeper & Actionable Chunk Breakdown**: Deep tree auto-breakdown
+- [x] **AI Natural Language Fast Task Capture**: Parse raw text → title, priority, due date, context
+- [x] **AI Eisenhower & Pareto Auto-Prioritizer**: Analyze tasks → Top 20% scores, matrix quadrants
+- [x] **AI Definition of Done & Subtask Generator**: One-click success criteria + subtask checklists
+- [x] **AI Smart Daily Schedule Planner**: Energy & focus-hours-aware time block schedule
+
+### 🧠 Brain Dump — Handwriting Processing (NEW Jul 2026)
+- [x] **Image Upload**: Accept .jpg/.png/.webp/.heic + scanned PDF brain dump photos
+- [x] **Vision AI Extraction**: Gemini / Ollama LLaVA reads and transcribes handwritten notes
+- [x] **AI Task Parser**: Extracted text → structured tasks (title, quadrant, time estimate, context)
+- [x] **Interactive Preview**: Review all parsed tasks, edit titles/quadrants inline, select/deselect
+- [x] **Bulk Save to Quick Daily**: Confirm → all selected tasks created as today's quick tasks
+- [x] **Source Tracking**: Brain-dump tasks tagged `source: brain_dump` for filtering
+
+### Cross-Tab Task Movement (FIXED Jul 2026)
+- [x] **Non-Destructive Moves**: Tasks moved to Smart/Plan are now kept in Quick Daily as dimmed "moved out" entries (previously they were deleted — BUG FIXED)
+- [x] **Quick → Smart To-Do**: Creates a full task, marks quick task `is_exported=1`
+- [x] **Quick → Plan & Project**: Creates a new project, marks quick task `is_exported=1`
+- [x] **Smart → Quick Daily**: Linked copy created in Quick Daily
+- [x] **Move buttons in flat list panel**: Fixed — QuickTaskCard now receives move handlers in both matrix and flat list views (previously only matrix had them — BUG FIXED)
+
+### 80/20 Pareto Integration
+- [x] **Pareto Analysis Endpoint**: POST /pareto/analyze across all 3 tabs
+- [x] **Top 20% Visual Indicators**: Gold ring + ⭐ badge on all task types
+- [x] **AI Day Plan Top 20% Priority** (FIXED): Top 20% tasks always included first in AI plan
+- [x] **Eisenhower Auto-Sort Top 20% Rule**: Top 20% tasks always placed in do_now/schedule only
+- [x] **Per-Task Re-Scoring**: Individual pareto score update from TaskNode popover
+
+### Quick Daily Features
+- [x] **Distraction Inbox**: Floating instant capture (`Alt+D`) + conversion drawer
+- [x] **End My Day Flow**: Archive completed, move to tomorrow/smart/discard + AI encouragement
+- [x] **QuickTaskUpdate PATCH fix**: Now accepts `is_top_20` and `pareto_score` (FIXED)
+
+### Pending / Future
+- [ ] **Copilot Top 20% Context**: Copilot system prompt to include user's Top 20% task list
+- [ ] **80/20 Analyze Button in FilterBar**: One-click analyze from Smart To-Do toolbar
+- [ ] **⭐ Top 20% Filter Chip**: Filter task tree to show only top 20% tasks
+- [ ] **Completion Dopamine**: Copilot proactive message on completing a Top 20% task
+
 
 ---
 
@@ -60,4 +98,4 @@ This document serves as the master tracking board for the entire **Lab-Ninja** p
 
 - [ ] **Voice-to-Text Task Audio Capture**: Direct browser microphone recording for instant task voice notes.
 - [ ] **Calendar Integration**: Syncing AI daily schedules directly with Google Calendar / iCal.
-- [ ] **Offline Ollama Auto-Detector**: Auto-detect running local Ollama models on startup.
+- [x] **Offline Ollama Auto-Detector**: Auto-detect running local Ollama models on startup — live status badge (Online/Offline), model dropdown replaces text input when running, re-detects on URL change, manual re-detect button.

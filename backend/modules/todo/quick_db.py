@@ -23,12 +23,15 @@ def _quick_task_row_to_dict(row: tuple) -> Dict[str, Any]:
         "created_at": row[8],
         "pareto_score": row[9] if len(row) > 9 else None,
         "is_top_20": bool(row[10]) if len(row) > 10 and row[10] is not None else False,
+        "exported_task_id": row[11] if len(row) > 11 else None,
+        "exported_project_id": row[12] if len(row) > 12 else None,
+        "is_exported": bool(row[13]) if len(row) > 13 and row[13] is not None else False,
     }
 
 
 _QT_COLUMNS = (
     "id, title, done, quadrant, date, source, original_task_id, order_index, created_at, "
-    "pareto_score, is_top_20"
+    "pareto_score, is_top_20, exported_task_id, exported_project_id, is_exported"
 )
 
 
@@ -102,6 +105,35 @@ def get_quick_task(task_id: int) -> Optional[Dict[str, Any]]:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
+        cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ?", (task_id,))
+        row = cursor.fetchone()
+        return _quick_task_row_to_dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def mark_quick_task_exported(
+    task_id: int,
+    exported_task_id: Optional[int] = None,
+    exported_project_id: Optional[int] = None,
+) -> Optional[Dict[str, Any]]:
+    """Mark a quick task as exported to Smart To-Do or Plan & Project.
+
+    Keeps the row in quick_tasks for historical reference but marks it
+    is_exported=1 so the UI can visually dim/separate it.
+    """
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """UPDATE quick_tasks
+               SET is_exported = 1,
+                   exported_task_id = ?,
+                   exported_project_id = ?
+               WHERE id = ?""",
+            (exported_task_id, exported_project_id, task_id),
+        )
+        conn.commit()
         cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ?", (task_id,))
         row = cursor.fetchone()
         return _quick_task_row_to_dict(row) if row else None

@@ -17,6 +17,9 @@ export interface QuickTask {
   created_at: string;
   pareto_score: number | null;
   is_top_20: boolean;
+  is_exported?: boolean;
+  exported_task_id?: number | null;
+  exported_project_id?: number | null;
 }
 
 export interface QuickTaskCreate {
@@ -32,6 +35,20 @@ export interface QuickTaskUpdate {
   order_index?: number;
   is_top_20?: boolean;
   pareto_score?: number | null;
+}
+
+export interface ParsedBrainDumpTask {
+  title: string;
+  quadrant: QuadrantType;
+  time_estimate: string | null;
+  context: string | null;
+}
+
+export interface BrainDumpResult {
+  extracted_text: string;
+  parsed_tasks: ParsedBrainDumpTask[];
+  count: number;
+  warning?: string;
 }
 
 export const quickTaskService = {
@@ -108,6 +125,38 @@ export const quickTaskService = {
     }
   },
 
+  /** Upload handwriting image/PDF brain dump → vision AI extract → task parse preview */
+  async brainDumpUpload(file: File, model: 'ollama' | 'gemini'): Promise<BrainDumpResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('model', model);
+    const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/brain-dump-upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return await res.json();
+  },
+
+  /** Bulk-save confirmed brain dump tasks */
+  async bulkCreate(tasks: ParsedBrainDumpTask[]): Promise<{ created: QuickTask[]; count: number } | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/bulk-create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      console.error('Bulk create failed', err);
+      return null;
+    }
+  },
+
   async autoSort(model: 'ollama' | 'gemini'): Promise<any> {
     try {
       const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/eisenhower-auto`, {
@@ -138,9 +187,13 @@ export const quickTaskService = {
     }
   },
 
-  async endOfDay(): Promise<any> {
+  async endOfDay(model: 'ollama' | 'gemini' = 'gemini'): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/end-of-day`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/end-of-day`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (err) {
