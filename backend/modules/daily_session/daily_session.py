@@ -47,6 +47,65 @@ class SessionCreate(BaseModel):
     )
 
 
+class QuestionIn(BaseModel):
+    section: Literal["A", "B"]
+    number: int
+    category: Category
+    sub_type: str
+    difficulty: str
+    topics: List[str] = Field(default_factory=list)
+    question_text: str
+    question_type: Optional[str] = None
+
+
+class QuestionOut(BaseModel):
+    id: int
+    session_id: int
+    question_date: str
+    section: str
+    number: int
+    category: Category
+    sub_type: str
+    difficulty: str
+    topics: List[str]
+    question_text: str
+    user_performance: Optional[int] = None
+    last_reviewed: Optional[str] = None
+    question_type: Optional[str] = None
+
+
+class QuestionBatchCreate(BaseModel):
+    session_id: int
+    questions: List[QuestionIn]
+
+
+class PerformanceUpdatePayload(BaseModel):
+    user_performance: int
+
+
+class SessionAnswerIn(BaseModel):
+    questionId: Optional[str] = None
+    questionText: str
+    answerText: str
+    category: str
+    difficulty: str
+    questionType: str
+    isCompleted: bool
+    sessionDate: str
+
+
+class UserSettingsSchema(BaseModel):
+    questionModel: str
+    answerModel: str
+    openaiKey: str = ''
+    geminiKey: str = ''
+    anthropicKey: str = ''
+    deepseekKey: str = ''
+    groqKey: str = ''
+    ollamaUrl: str = 'http://localhost:11434'
+    ollamaModel: str = 'llama3.2'
+
+
 import io
 try:
     import pdfplumber
@@ -58,8 +117,8 @@ try:
 except ImportError:
     docx = None
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
-from pydantic import BaseModel, Field
+from fastapi import File, UploadFile
+
 
 def format_session_code(dt: Optional[date] = None) -> str:
     if dt is None:

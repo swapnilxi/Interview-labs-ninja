@@ -37,7 +37,7 @@ from .quick_db import (
 from .db import create_task, get_all_tasks
 from .projects_db import create_project
 
-router = APIRouter(prefix="/quick-tasks", tags=["quick-tasks"])
+router = APIRouter(prefix="/todo/quick-tasks", tags=["quick-tasks"])
 
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
@@ -48,6 +48,8 @@ class QuickTaskCreate(BaseModel):
     source: str = "manual"
     original_task_id: Optional[int] = None
     order_index: int = 0
+    due_date: Optional[str] = None
+    time_estimate: Optional[str] = None
 
 
 class QuickTaskUpdate(BaseModel):
@@ -55,8 +57,10 @@ class QuickTaskUpdate(BaseModel):
     done: Optional[int] = None          # 0 or 1
     quadrant: Optional[str] = None
     order_index: Optional[int] = None
-    is_top_20: Optional[bool] = None    # ✅ Fixed: was missing
-    pareto_score: Optional[float] = None  # ✅ Fixed: was missing
+    is_top_20: Optional[bool] = None
+    pareto_score: Optional[float] = None
+    due_date: Optional[str] = None
+    time_estimate: Optional[str] = None
 
 
 class AIDayPlanRequest(BaseModel):
@@ -140,6 +144,8 @@ async def create_quick_task_endpoint(payload: QuickTaskCreate) -> dict:
         source=payload.source,
         original_task_id=payload.original_task_id,
         order_index=payload.order_index,
+        due_date=payload.due_date,
+        time_estimate=payload.time_estimate,
     )
     return task
 

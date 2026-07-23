@@ -165,6 +165,14 @@ async def get_task_tree_endpoint() -> List[dict]:
     return get_task_tree()
 
 
+@router.get("/tasks/{task_id}")
+async def get_single_task_endpoint(task_id: int) -> dict:
+    task = get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
 @router.get("/tasks/{task_id}/children")
 async def get_children_endpoint(task_id: int) -> List[dict]:
     return get_children(task_id)

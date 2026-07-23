@@ -26,12 +26,14 @@ def _quick_task_row_to_dict(row: tuple) -> Dict[str, Any]:
         "exported_task_id": row[11] if len(row) > 11 else None,
         "exported_project_id": row[12] if len(row) > 12 else None,
         "is_exported": bool(row[13]) if len(row) > 13 and row[13] is not None else False,
+        "due_date": row[14] if len(row) > 14 else None,
+        "time_estimate": row[15] if len(row) > 15 else None,
     }
 
 
 _QT_COLUMNS = (
     "id, title, done, quadrant, date, source, original_task_id, order_index, created_at, "
-    "pareto_score, is_top_20, exported_task_id, exported_project_id, is_exported"
+    "pareto_score, is_top_20, exported_task_id, exported_project_id, is_exported, due_date, time_estimate"
 )
 
 
@@ -42,6 +44,8 @@ def create_quick_task(
     source: str = "manual",
     original_task_id: Optional[int] = None,
     order_index: int = 0,
+    due_date: Optional[str] = None,
+    time_estimate: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Insert a new quick task and return it."""
     if not task_date:
@@ -51,10 +55,10 @@ def create_quick_task(
         cursor = conn.cursor()
         cursor.execute(
             f"""
-            INSERT INTO quick_tasks (title, quadrant, date, source, original_task_id, order_index)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO quick_tasks (title, quadrant, date, source, original_task_id, order_index, due_date, time_estimate)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (title, quadrant, task_date, source, original_task_id, order_index),
+            (title, quadrant, task_date, source, original_task_id, order_index, due_date, time_estimate),
         )
         conn.commit()
         task_id = cursor.lastrowid
@@ -80,8 +84,8 @@ def get_quick_tasks_for_date(task_date: str) -> List[Dict[str, Any]]:
 
 def update_quick_task(task_id: int, **fields) -> Optional[Dict[str, Any]]:
     """Update specific fields on a quick task."""
-    allowed = {"title", "done", "quadrant", "order_index", "pareto_score", "is_top_20"}
-    updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
+    allowed = {"title", "done", "quadrant", "order_index", "pareto_score", "is_top_20", "due_date", "time_estimate"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_quick_task(task_id)
 

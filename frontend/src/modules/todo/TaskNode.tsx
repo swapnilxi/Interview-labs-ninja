@@ -1,17 +1,21 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import ParetoModal from '@/components/ui/ParetoModal';
+import TaskDetailModal from './TaskDetailModal';
 import {
   type Task,
   type TaskStatus,
   type TaskPriority,
+  type Note,
   STATUS_CONFIG,
   PRIORITY_CONFIG,
   getDepthColor,
   getRelativeDueDate,
   computeProgress,
   todoService,
+  triggerConfetti,
 } from '@/lib/services/todoService';
 
 interface TaskNodeProps {
@@ -24,6 +28,7 @@ interface TaskNodeProps {
   onChildrenGenerated: (parentId: number, children: Task[], generationType: string) => void;
   onUndoAvailable: (parentId: number, previousChildren: Task[]) => void;
   searchQuery?: string;
+  onResumeTask?: (task: Task) => void;
 }
 
 export default function TaskNode({
@@ -36,11 +41,13 @@ export default function TaskNode({
   onChildrenGenerated,
   onUndoAvailable,
   searchQuery = '',
+  onResumeTask,
 }: TaskNodeProps) {
   const [expanded, setExpanded] = useState(depth <= 2);
   const [loading, setLoading] = useState<'dive' | 'chunk' | 'regen' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showContext, setShowContext] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -48,11 +55,75 @@ export default function TaskNode({
   const [showDepthWarning, setShowDepthWarning] = useState<'dive' | 'chunk' | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
+  const [showNotes, setShowNotes] = useState(false);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [notesCount, setNotesCount] = useState(0);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [summary, setSummary] = useState<string | null>(null);
+  const [aiActionLoading, setAiActionLoading] = useState<'explain' | 'summarize' | string | null>(null);
+  
+  // 80/20 State
+  const [showParetoModal, setShowParetoModal] = useState(false);
+  const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+
+  // Fetch notes count on mount or when the task updates
+  useEffect(() => {
+    async function getNotesCount() {
+      const taskNotes = await todoService.fetchNotes(task.id);
+      setNotes(taskNotes);
+      setNotesCount(taskNotes.length);
+    }
+    getNotesCount();
+  }, [task.id, task.updated_at]);
+
+  const handleAddNote = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newNoteText.trim()) return;
+    const added = await todoService.createNote(task.id, newNoteText.trim());
+    if (added) {
+      setNotes(prev => [added, ...prev]);
+      setNotesCount(prev => prev + 1);
+      setNewNoteText('');
+    }
+  };
+
+  const handleExplainTask = async () => {
+    setAiActionLoading('explain');
+    const added = await todoService.explainTask(task.id, model);
+    if (added) {
+      setNotes(prev => [added, ...prev]);
+      setNotesCount(prev => prev + 1);
+    }
+    setAiActionLoading(null);
+  };
+
+  const handleSummarizeNotes = async () => {
+    setAiActionLoading('summarize');
+    const sum = await todoService.summarizeNotes(task.id, model);
+    setSummary(sum);
+    setAiActionLoading(null);
+  };
+
+  const handleExpandNote = async (noteId: number) => {
+    setAiActionLoading(`expand-${noteId}`);
+    const added = await todoService.expandNote(task.id, noteId, model);
+    if (added) {
+      setNotes(prev => [added, ...prev]);
+      setNotesCount(prev => prev + 1);
+    }
+    setAiActionLoading(null);
+  };
+
   const depthColor = getDepthColor(depth);
   const progress = computeProgress(task);
   const dueInfo = getRelativeDueDate(task.due_date);
   const hasChildren = task.children && task.children.length > 0;
   const isAiGenerated = task.generation_type !== 'manual';
+
+  // Calculate inactivity (Feature 2)
+  const lastAct = task.last_activity_at || task.created_at;
+  const isInactive = lastAct && (new Date().getTime() - new Date(lastAct).getTime() > 2 * 24 * 60 * 60 * 1000);
 
   // Search highlight
   const matchesSearch = searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -86,8 +157,11 @@ export default function TaskNode({
     if (updated) onUpdate(task.id, { priority: newPriority });
   };
 
-  const handleCheckbox = async () => {
+  const handleCheckbox = async (e: React.MouseEvent) => {
     const newStatus = task.status === 'done' ? 'backlog' : 'done';
+    if (newStatus === 'done') {
+      triggerConfetti(e.clientX, e.clientY);
+    }
     const updated = await todoService.updateTask(task.id, { status: newStatus as TaskStatus });
     if (updated) onUpdate(task.id, { status: newStatus as TaskStatus });
   };
@@ -148,6 +222,15 @@ export default function TaskNode({
   const statusConf = STATUS_CONFIG[task.status] || STATUS_CONFIG.backlog;
   const priorityConf = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.p3;
 
+  // 80/20 styling
+  let paretoClasses = '';
+  if (task.is_top_20) {
+    paretoClasses = 'ring-1 ring-amber-400/50 shadow-sm';
+  } else if (task.pareto_score !== undefined && task.pareto_score !== null) {
+    if (task.pareto_score >= 0.6) paretoClasses = 'shadow-[inset_2px_0_0_0_rgba(251,191,36,0.6)]';
+    else if (task.pareto_score < 0.3) paretoClasses = 'opacity-60 grayscale-[30%]';
+  }
+
   return (
     <div
       className={`task-node relative ${matchesSearch ? 'ring-2 ring-primary/40 rounded-lg' : ''}`}
@@ -162,7 +245,7 @@ export default function TaskNode({
       )}
 
       {/* Main task card */}
-      <div className={`relative lab-card-muted p-3 mb-2 transition-smooth hover:shadow-sm`}
+      <div className={`relative lab-card-muted p-3 mb-2 transition-smooth hover:shadow-sm ${paretoClasses}`}
            style={{ borderLeftWidth: '3px', borderLeftColor: depthColor }}>
 
         {/* Row 1: Checkbox + depth badge + gen badge + title + status + priority */}
@@ -195,6 +278,35 @@ export default function TaskNode({
             L{depth}
           </span>
 
+          {/* Recurrence badge (Feature 4) */}
+          {task.is_recurring ? (
+            <span
+              className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-0.5"
+              title={`Recurring: ${task.recurrence_interval}${task.recurrence_interval === 'custom_days' ? ` (${task.recurrence_custom_days})` : ''}`}
+            >
+              🔁 {task.recurrence_interval === 'custom_days' ? task.recurrence_custom_days : task.recurrence_interval}
+            </span>
+          ) : null}
+
+          {/* Intention icon with tooltip (Feature 5) */}
+          {task.intention && (
+            <div className="relative group flex-shrink-0">
+              <span className="cursor-help text-xs" title={task.intention}>
+                🎯
+              </span>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-gray-900 dark:bg-gray-800 text-white text-[10px] rounded p-2 whitespace-normal min-w-[200px] z-50 shadow-lg leading-normal">
+                <p className="font-semibold text-primary">🎯 Intention:</p>
+                <p className="mb-1.5">{task.intention}</p>
+                {task.definition_of_done && (
+                  <>
+                    <p className="font-semibold text-emerald-400 border-t border-gray-700/60 pt-1 mt-1">✅ Definition of Done:</p>
+                    <p>{task.definition_of_done}</p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Generation type badge */}
           {task.generation_type === 'dive_deeper' && (
             <span className="flex-shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-500">
@@ -204,6 +316,13 @@ export default function TaskNode({
           {task.generation_type === 'chunk' && (
             <span className="flex-shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500">
               ⚡ Chunk
+            </span>
+          )}
+          
+          {/* Top 20% Badge */}
+          {task.is_top_20 && (
+            <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center gap-1 shadow-sm">
+              ⭐ Top 20%
             </span>
           )}
 
@@ -219,21 +338,43 @@ export default function TaskNode({
               autoFocus
             />
           ) : (
-            <button
-              className={`flex-1 min-w-0 text-left text-sm font-medium transition-smooth hover:text-primary truncate ${
-                task.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'
-              }`}
-              onClick={() => setExpanded(!expanded)}
-              onDoubleClick={() => startEdit('title', task.title)}
-            >
+            <div className="flex-1 min-w-0 flex items-center gap-1.5 truncate">
               {hasChildren && (
-                <Icon
-                  name="ChevronRightIcon"
-                  size={12}
-                  className={`inline mr-1 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
-                />
+                <button
+                  onClick={() => setExpanded(!expanded)}
+                  className="text-muted-foreground hover:text-foreground transition-smooth shrink-0"
+                >
+                  <Icon
+                    name="ChevronRightIcon"
+                    size={12}
+                    className={`transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+                  />
+                </button>
               )}
-              {task.title}
+              <button
+                className={`text-left text-sm font-medium transition-smooth hover:text-primary truncate ${
+                  task.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'
+                }`}
+                onClick={() => setShowDetailModal(true)}
+                onDoubleClick={() => startEdit('title', task.title)}
+                title="Click to open task page for details & context"
+              >
+                {task.title}
+              </button>
+            </div>
+          )}
+
+          {/* Resume button (Feature 2) */}
+          {task.status !== 'done' && isInactive && onResumeTask && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onResumeTask(task);
+              }}
+              className="flex-shrink-0 text-[10px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5 transition-smooth animate-pulse"
+              title="Task has been inactive for 2+ days. Rebuild context now."
+            >
+              ⚡ Resume
             </button>
           )}
 
@@ -365,32 +506,90 @@ export default function TaskNode({
             </button>
           )}
 
-          {/* AI Action Buttons */}
-          <div className="flex items-center gap-1">
+          {/* Notes toggle button */}
+          <button
+            onClick={() => setShowNotes(!showNotes)}
+            className={`text-[10px] flex items-center gap-1 transition-smooth px-1.5 py-0.5 rounded ${
+              showNotes ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            title="View Notes & Journal"
+          >
+            <Icon name="DocumentTextIcon" size={13} />
+            <span>📝 {notesCount > 0 ? notesCount : ''}</span>
+          </button>
+
+          {/* AI & Detail Sub-menu Actions (Visible Everytime) */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {/* Open Task Page / Details Modal */}
+            <button
+              onClick={() => setShowDetailModal(true)}
+              className="text-[10px] px-2 py-1 rounded-md border border-primary/30 text-primary hover:bg-primary/10 transition-smooth flex items-center gap-1 font-semibold"
+              title="Open full task page for context, notes, due date & details"
+            >
+              <span>📄</span>
+              <span>Details</span>
+            </button>
+
+            {/* Task Detail Modal */}
+            <TaskDetailModal
+              taskId={task.id}
+              isOpen={showDetailModal}
+              onClose={() => setShowDetailModal(false)}
+              onUpdate={() => onUpdate(task.id, {})}
+              model={model}
+            />
+
+            {/* Pareto 80/20 Action */}
+            <button
+              onClick={() => setShowParetoModal(true)}
+              className={`text-[10px] px-1.5 py-1 rounded-md transition-smooth flex items-center gap-1 ${
+                task.is_top_20 ? 'bg-amber-400/10 text-amber-500 font-bold' : 'text-muted-foreground hover:bg-muted'
+              }`}
+              title="80/20 Pareto Analysis"
+            >
+              ⭐
+            </button>
+
+            {/* Pareto Modal */}
+            <ParetoModal
+              isOpen={showParetoModal}
+              onClose={() => setShowParetoModal(false)}
+              title={task.title}
+              table="tasks"
+              itemId={task.id}
+              paretoScore={task.pareto_score}
+              isTop20={task.is_top_20}
+              model={model}
+              onUpdate={async (updates) => {
+                const updated = await todoService.updateTask(task.id, updates as any);
+                if (updated) onUpdate(task.id, updates);
+              }}
+            />
+
             {/* Dive Deeper */}
             <button
               onClick={() => handleAIAction('dive')}
               disabled={loading !== null}
-              className="text-[10px] px-2 py-1 rounded-md border border-purple-500/30 text-purple-500 hover:bg-purple-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1"
+              className="text-[10px] px-2 py-1 rounded-md border border-purple-500/30 text-purple-500 hover:bg-purple-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1 font-medium"
               title="Break into strategic subtasks"
             >
               {loading === 'dive' ? (
                 <span className="w-3 h-3 border border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
               ) : '🔍'}
-              <span className="hidden sm:inline">Dive</span>
+              <span>Dive</span>
             </button>
 
             {/* Chunk It */}
             <button
               onClick={() => handleAIAction('chunk')}
               disabled={loading !== null}
-              className="text-[10px] px-2 py-1 rounded-md border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1"
+              className="text-[10px] px-2 py-1 rounded-md border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1 font-medium"
               title="Break into actionable steps"
             >
               {loading === 'chunk' ? (
                 <span className="w-3 h-3 border border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
               ) : '⚡'}
-              <span className="hidden sm:inline">Chunk</span>
+              <span>Chunk</span>
             </button>
 
             {/* Generate DoD & Subtasks */}
@@ -412,13 +611,13 @@ export default function TaskNode({
                 }
               }}
               disabled={loading !== null}
-              className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-500 hover:bg-amber-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1"
+              className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-500 hover:bg-amber-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1 font-medium"
               title="Generate Definition of Done & Subtasks with AI"
             >
               {loading === ('dod' as any) ? (
                 <span className="w-3 h-3 border border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
               ) : '✨'}
-              <span className="hidden sm:inline">DoD</span>
+              <span>DoD</span>
             </button>
 
             {/* Regenerate (AI-generated nodes only) */}
@@ -435,10 +634,45 @@ export default function TaskNode({
               </button>
             )}
 
+            {/* Move Menu */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowMoveMenu(!showMoveMenu); setShowDeleteConfirm(false); setShowParetoModal(false); }}
+                className="text-[10px] p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-smooth flex items-center gap-0.5"
+                title="Move Task"
+              >
+                <Icon name="ArrowRightIcon" size={11} />
+              </button>
+              {showMoveMenu && (
+                <div className="absolute top-full right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-1 min-w-[150px]">
+                  <button
+                    onClick={async () => {
+                      setShowMoveMenu(false);
+                      const res = await todoService.moveToQuick(task.id);
+                      if (res) onDelete(task.id); // Remove from Smart To-Do view
+                    }}
+                    className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
+                  >
+                    <span className="text-xs">⚡</span> Move to Quick Daily
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setShowMoveMenu(false);
+                      const res = await todoService.moveToPlan(task.id);
+                      if (res) onDelete(task.id); // Remove from Smart To-Do view
+                    }}
+                    className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
+                  >
+                    <span className="text-xs">🗺️</span> Move to Plan & Project
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Delete */}
             <div className="relative">
               <button
-                onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+                onClick={() => { setShowDeleteConfirm(!showDeleteConfirm); setShowMoveMenu(false); setShowParetoModal(false); }}
                 className="text-[10px] px-1.5 py-1 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-smooth"
                 title="Delete task"
               >
@@ -497,6 +731,220 @@ export default function TaskNode({
             </p>
           </div>
         )}
+
+        {/* Intention and definition of done display/edit (Feature 5) */}
+        {expanded && (
+          <div className="mt-2 p-2.5 bg-muted/20 border border-border/60 rounded-md space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">🎯 Why does this matter?</span>
+                {editingField === 'intention' ? (
+                  <input
+                    className="w-full text-xs bg-input border border-border rounded px-2.5 py-1.5 focus-ring"
+                    value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
+                    onBlur={() => saveEdit('intention')}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit('intention'); if (e.key === 'Escape') setEditingField(null); }}
+                    autoFocus
+                  />
+                ) : (
+                  <p
+                    className="text-xs text-foreground cursor-pointer hover:bg-muted/30 p-1.5 rounded min-h-[30px] border border-dashed border-border/40 leading-relaxed"
+                    onClick={() => startEdit('intention', task.intention || '')}
+                    title="Click to edit intention"
+                  >
+                    {task.intention || <span className="text-muted-foreground/60 italic">Define why this matters...</span>}
+                  </p>
+                )}
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">✅ What does done look like?</span>
+                {editingField === 'definition_of_done' ? (
+                  <input
+                    className="w-full text-xs bg-input border border-border rounded px-2.5 py-1.5 focus-ring"
+                    value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
+                    onBlur={() => saveEdit('definition_of_done')}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit('definition_of_done'); if (e.key === 'Escape') setEditingField(null); }}
+                    autoFocus
+                  />
+                ) : (
+                  <p
+                    className="text-xs text-foreground cursor-pointer hover:bg-muted/30 p-1.5 rounded min-h-[30px] border border-dashed border-border/40 leading-relaxed"
+                    onClick={() => startEdit('definition_of_done', task.definition_of_done || '')}
+                    title="Click to edit definition of done"
+                  >
+                    {task.definition_of_done || <span className="text-muted-foreground/60 italic">Define completion criteria...</span>}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Recurrence Edit Option (Feature 4) */}
+        {expanded && (
+          <div className="mt-2 p-2.5 bg-muted/20 border border-border/60 rounded-md flex items-center justify-between">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">🔁 Recurrence Settings</span>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1 text-xs text-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!task.is_recurring}
+                  onChange={async (e) => {
+                    const active = e.target.checked;
+                    const updated = await todoService.updateTask(task.id, {
+                      is_recurring: active ? 1 : 0,
+                      recurrence_interval: active ? (task.recurrence_interval || 'daily') : null,
+                    });
+                    if (updated) {
+                      onUpdate(task.id, {
+                        is_recurring: active,
+                        recurrence_interval: active ? (task.recurrence_interval || 'daily') : null,
+                      });
+                    }
+                  }}
+                  className="h-3.5 w-3.5 rounded border-border text-primary cursor-pointer"
+                />
+                <span className="font-medium">Active</span>
+              </label>
+
+              {task.is_recurring ? (
+                <div className="flex items-center gap-1.5 ml-2">
+                  <select
+                    value={task.recurrence_interval || 'daily'}
+                    onChange={async (e) => {
+                      const val = e.target.value;
+                      const updated = await todoService.updateTask(task.id, { recurrence_interval: val });
+                      if (updated) {
+                        onUpdate(task.id, { recurrence_interval: val });
+                      }
+                    }}
+                    className="bg-input border border-border rounded px-1.5 py-0.5 text-[10px] text-foreground focus-ring font-semibold"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="custom_days">Custom Days</option>
+                  </select>
+                  {task.recurrence_interval === 'custom_days' && (
+                    <input
+                      type="text"
+                      value={task.recurrence_custom_days || ''}
+                      placeholder="e.g. mon,wed,fri"
+                      onBlur={async (e) => {
+                        const val = e.target.value.trim() || null;
+                        const updated = await todoService.updateTask(task.id, { recurrence_custom_days: val });
+                        if (updated) {
+                          onUpdate(task.id, { recurrence_custom_days: val });
+                        }
+                      }}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter') {
+                          const val = e.currentTarget.value.trim() || null;
+                          const updated = await todoService.updateTask(task.id, { recurrence_custom_days: val });
+                          if (updated) {
+                            onUpdate(task.id, { recurrence_custom_days: val });
+                          }
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      className="bg-input border border-border rounded px-1.5 py-0.5 text-[10px] text-foreground focus-ring w-24 placeholder:text-muted-foreground/60"
+                    />
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* Notes display */}
+        {showNotes && (
+          <div className="mt-3 p-3 rounded-lg bg-card border border-border/80 shadow-inner space-y-3">
+            {/* AI Action Buttons */}
+            <div className="flex items-center gap-2 flex-wrap border-b border-border pb-2">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">AI Journal:</span>
+              <button
+                type="button"
+                onClick={handleExplainTask}
+                disabled={aiActionLoading !== null}
+                className="text-[10px] px-2 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 font-medium transition-smooth flex items-center gap-1 disabled:opacity-50"
+              >
+                {aiActionLoading === 'explain' ? '⏳' : '✨'} Explain Task
+              </button>
+              <button
+                type="button"
+                onClick={handleSummarizeNotes}
+                disabled={aiActionLoading !== null || notes.length === 0}
+                className="text-[10px] px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium transition-smooth flex items-center gap-1 disabled:opacity-50"
+              >
+                {aiActionLoading === 'summarize' ? '⏳' : '📋'} Summarize Journal
+              </button>
+            </div>
+
+            {/* AI Summary display (dismissable) */}
+            {summary && (
+              <div className="p-2.5 rounded bg-emerald-500/5 border border-emerald-500/20 text-xs text-foreground relative">
+                <button
+                  type="button"
+                  onClick={() => setSummary(null)}
+                  className="absolute top-1.5 right-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  <Icon name="XMarkIcon" size={12} />
+                </button>
+                <p className="font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Journal Summary:</p>
+                <p className="leading-relaxed whitespace-pre-wrap">{summary}</p>
+              </div>
+            )}
+
+            {/* Add manual note input */}
+            <form onSubmit={handleAddNote} className="flex gap-2">
+              <input
+                type="text"
+                value={newNoteText}
+                onChange={e => setNewNoteText(e.target.value)}
+                placeholder="Type a thought, decision, or update..."
+                className="flex-1 bg-input border border-border rounded px-2.5 py-1.5 text-xs focus-ring placeholder:text-muted-foreground"
+              />
+              <button
+                type="submit"
+                className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs hover:bg-primary/95 transition-smooth"
+              >
+                Add Note
+              </button>
+            </form>
+
+            {/* Notes list (timeline) */}
+            <div className="space-y-2 max-h-[220px] overflow-y-auto scrollbar-clean pr-1">
+              {notes.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground text-center py-2">No notes logged yet.</p>
+              ) : (
+                notes.map(note => (
+                  <div key={note.id} className="p-2 rounded bg-muted/40 border border-border/60 flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-[9px] text-muted-foreground">
+                      <span className="capitalize px-1 py-0.5 rounded bg-muted font-semibold text-foreground">
+                        {note.note_type.replace('ai_', 'AI ').replace('manual', 'Manual')}
+                      </span>
+                      <span>{new Date(note.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{note.content}</p>
+                    
+                    {/* Expand button for manual notes */}
+                    {note.note_type === 'manual' && (
+                      <button
+                        type="button"
+                        onClick={() => handleExpandNote(note.id)}
+                        disabled={aiActionLoading !== null}
+                        className="text-[9px] text-primary hover:underline font-semibold mt-1 self-start flex items-center gap-0.5 disabled:opacity-50"
+                      >
+                        {aiActionLoading === `expand-${note.id}` ? 'Expanding...' : '⚡ Expand decision'}
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Children (recursive) */}
@@ -514,6 +962,7 @@ export default function TaskNode({
               onChildrenGenerated={onChildrenGenerated}
               onUndoAvailable={onUndoAvailable}
               searchQuery={searchQuery}
+              onResumeTask={onResumeTask}
             />
           ))}
         </div>

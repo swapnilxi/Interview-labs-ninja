@@ -11,6 +11,8 @@ export interface QuickTask {
   done: boolean;
   quadrant: QuadrantType | null;
   date: string;
+  due_date?: string | null;
+  time_estimate?: string | null;
   source: QuickTaskSource;
   original_task_id: number | null;
   order_index: number;
@@ -26,6 +28,8 @@ export interface QuickTaskCreate {
   title: string;
   quadrant?: QuadrantType;
   source?: QuickTaskSource;
+  due_date?: string | null;
+  time_estimate?: string | null;
 }
 
 export interface QuickTaskUpdate {
@@ -35,6 +39,8 @@ export interface QuickTaskUpdate {
   order_index?: number;
   is_top_20?: boolean;
   pareto_score?: number | null;
+  due_date?: string | null;
+  time_estimate?: string | null;
 }
 
 export interface ParsedBrainDumpTask {

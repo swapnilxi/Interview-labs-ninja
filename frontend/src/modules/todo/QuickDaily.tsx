@@ -55,11 +55,25 @@ export default function QuickDaily({ model }: QuickDailyProps) {
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
 
+  const [addDueDate, setAddDueDate] = useState<string>('');
+  const [addTimeEstimate, setAddTimeEstimate] = useState<string>('');
+
   const handleCreateTask = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputValue.trim()) return;
-    const newTask = await quickTaskService.createTask({ title: inputValue.trim(), quadrant: 'do_now', source: 'manual' });
-    if (newTask) { setTasks(prev => [...prev, newTask]); setInputValue(''); }
+    const newTask = await quickTaskService.createTask({
+      title: inputValue.trim(),
+      quadrant: 'do_now',
+      source: 'manual',
+      due_date: addDueDate || null,
+      time_estimate: addTimeEstimate || null,
+    });
+    if (newTask) {
+      setTasks(prev => [...prev, newTask]);
+      setInputValue('');
+      setAddDueDate('');
+      setAddTimeEstimate('');
+    }
   };
 
   const handleUpdateTask = useCallback((id: number, updates: Partial<QuickTask>) => {
@@ -198,48 +212,90 @@ export default function QuickDaily({ model }: QuickDailyProps) {
       )}
 
       {/* Header & Quick Add Bar */}
-      <div className="bg-card border border-border/80 rounded-xl p-3 shadow-sm flex flex-col gap-3">
-        <form onSubmit={handleCreateTask} className="relative flex items-center">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            placeholder="Add a task for today... (hit Enter)"
-            className="w-full bg-input border-2 border-border/50 hover:border-border rounded-lg py-3 pl-4 pr-36 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-smooth placeholder:text-muted-foreground/70"
-          />
-          <div className="absolute right-2 flex items-center gap-1">
-            {/* Brain Dump (Handwriting) Button */}
-            <button
-              type="button"
-              onClick={openBrainDump}
-              className="p-1.5 rounded-md transition-smooth text-muted-foreground hover:bg-purple-500/10 hover:text-purple-500"
-              title="Brain Dump — upload handwriting photo"
-            >
-              <span className="text-sm">🧠</span>
-            </button>
-            {/* AI Smart Schedule */}
-            <button
-              type="button"
-              onClick={async () => {
-                setShowAiSmartSchedule(true);
-                setSmartScheduleLoading(true);
-                const sched = await todoService.getSmartDailySchedule(6.0, 'medium', model);
-                setSmartScheduleData(sched);
-                setSmartScheduleLoading(false);
-              }}
-              className="p-1.5 rounded-md transition-smooth text-muted-foreground hover:bg-primary/10 hover:text-primary"
-              title="AI Smart Daily Schedule"
-            >
-              <span className="text-sm">🤖</span>
-            </button>
-            <div className="w-px h-5 bg-border mx-1" />
-            <button
-              type="submit"
-              disabled={!inputValue.trim()}
-              className="p-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth disabled:opacity-50"
-            >
-              <Icon name="ArrowUpIcon" size={14} variant="solid" />
-            </button>
+      <div className="bg-card border border-border/80 rounded-xl p-3 shadow-sm flex flex-col gap-2.5">
+        <form onSubmit={handleCreateTask} className="flex flex-col gap-2">
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              placeholder="Add a task for today... (hit Enter)"
+              className="w-full bg-input border-2 border-border/50 hover:border-border rounded-lg py-2.5 pl-4 pr-36 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-smooth placeholder:text-muted-foreground/70"
+            />
+            <div className="absolute right-2 flex items-center gap-1">
+              {/* Brain Dump (Handwriting) Button */}
+              <button
+                type="button"
+                onClick={openBrainDump}
+                className="p-1.5 rounded-md transition-smooth text-muted-foreground hover:bg-purple-500/10 hover:text-purple-500"
+                title="Brain Dump — upload handwriting photo"
+              >
+                <span className="text-sm">🧠</span>
+              </button>
+              {/* AI Smart Schedule */}
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowAiSmartSchedule(true);
+                  setSmartScheduleLoading(true);
+                  const sched = await todoService.getSmartDailySchedule(6.0, 'medium', model);
+                  setSmartScheduleData(sched);
+                  setSmartScheduleLoading(false);
+                }}
+                className="p-1.5 rounded-md transition-smooth text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                title="AI Smart Daily Schedule"
+              >
+                <span className="text-sm">🤖</span>
+              </button>
+              <div className="w-px h-5 bg-border mx-1" />
+              <button
+                type="submit"
+                disabled={!inputValue.trim()}
+                className="p-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth disabled:opacity-50"
+              >
+                <Icon name="ArrowUpIcon" size={14} variant="solid" />
+              </button>
+            </div>
+          </div>
+
+          {/* Time Estimate & Due Date Options Strip */}
+          <div className="flex items-center gap-3 px-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-1 rounded-md border border-border/50">
+              <Icon name="ClockIcon" size={12} className="text-amber-500" />
+              <span className="text-[10px] font-semibold">Time:</span>
+              <select
+                value={addTimeEstimate}
+                onChange={e => setAddTimeEstimate(e.target.value)}
+                className="bg-transparent text-[11px] font-medium text-foreground focus:outline-none cursor-pointer"
+              >
+                <option value="">None</option>
+                <option value="15m">15 mins</option>
+                <option value="30m">30 mins</option>
+                <option value="45m">45 mins</option>
+                <option value="1h">1 hour</option>
+                <option value="2h">2 hours</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-1 rounded-md border border-border/50">
+              <Icon name="CalendarIcon" size={12} className="text-blue-500" />
+              <span className="text-[10px] font-semibold">Due Date:</span>
+              <input
+                type="date"
+                value={addDueDate}
+                onChange={e => setAddDueDate(e.target.value)}
+                className="bg-transparent text-[11px] font-medium text-foreground focus:outline-none cursor-pointer"
+              />
+              {addDueDate && (
+                <button
+                  type="button"
+                  onClick={() => setAddDueDate('')}
+                  className="text-[10px] hover:text-foreground text-muted-foreground ml-1"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
         </form>
       </div>

@@ -174,6 +174,17 @@ export const todoService = {
     }
   },
 
+  async fetchTask(id: number): Promise<Task | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to fetch task ${id}:`, error);
+      return null;
+    }
+  },
+
   async fetchTasks(): Promise<Task[]> {
     const tree = await this.fetchTaskTree();
     const flat: Task[] = [];

@@ -1,12 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '@/components/common/Header';
 import Icon from '@/components/ui/AppIcon';
 import TaskTree from '@/modules/todo/TaskTree';
 import TodoCopilot from '@/modules/todo/TodoCopilot';
 
-export default function TodoPage() {
+const VALID_TABS: TodoTab[] = ['quick', 'smart', 'plan'];
+
+function TodoPageInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const rawTab = searchParams.get('tab') as TodoTab | null;
+  const activeTab: TodoTab = rawTab && VALID_TABS.includes(rawTab) ? rawTab : 'smart';
+
+  const setActiveTab = useCallback((tab: TodoTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', tab);
+    router.push(`/todo?${params.toString()}`);
+  }, [router, searchParams]);
+
   const [model, setModel] = useState<'ollama' | 'gemini'>('gemini');
   const [copilotOpen, setCopilotOpen] = useState(true);
 
@@ -84,5 +99,13 @@ export default function TodoPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function TodoPage() {
+  return (
+    <Suspense fallback={null}>
+      <TodoPageInner />
+    </Suspense>
   );
 }

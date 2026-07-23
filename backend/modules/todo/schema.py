@@ -214,6 +214,10 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE quick_tasks ADD COLUMN pareto_score REAL DEFAULT NULL;")
     if "is_top_20" not in qt_cols:
         cursor.execute("ALTER TABLE quick_tasks ADD COLUMN is_top_20 INTEGER DEFAULT 0;")
+    if "due_date" not in qt_cols:
+        cursor.execute("ALTER TABLE quick_tasks ADD COLUMN due_date TEXT DEFAULT NULL;")
+    if "time_estimate" not in qt_cols:
+        cursor.execute("ALTER TABLE quick_tasks ADD COLUMN time_estimate TEXT DEFAULT NULL;")
     # Non-destructive export tracking: keep quick_tasks row when moved to Smart/Plan
     if "exported_task_id" not in qt_cols:
         cursor.execute("ALTER TABLE quick_tasks ADD COLUMN exported_task_id INTEGER DEFAULT NULL;")
@@ -229,6 +233,8 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE project_nodes ADD COLUMN pareto_score REAL DEFAULT NULL;")
     if "is_top_20" not in pn_cols:
         cursor.execute("ALTER TABLE project_nodes ADD COLUMN is_top_20 INTEGER DEFAULT 0;")
+    if "eisenhower_quadrant" not in pn_cols:
+        cursor.execute("ALTER TABLE project_nodes ADD COLUMN eisenhower_quadrant TEXT DEFAULT 'schedule';")
 
     # 4. projects table — add pareto + is_top_20 if missing
     cursor.execute("PRAGMA table_info(projects);")
