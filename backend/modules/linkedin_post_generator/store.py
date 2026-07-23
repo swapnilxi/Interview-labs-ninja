@@ -19,12 +19,13 @@ def _row_to_dict(r) -> dict:
         "isFavorite": bool(r[9]),
         "createdAt": r[10],
         "updatedAt": r[11],
+        "category": r[12],
     }
 
 
 _COLUMNS = (
     "id, type, title, description, content, style_analysis, tags, tone, "
-    "post_type, is_favorite, created_at, updated_at"
+    "post_type, is_favorite, created_at, updated_at, category"
 )
 
 
@@ -32,6 +33,7 @@ def fetch_templates(
     template_type: Optional[str] = None,
     search: Optional[str] = None,
     favorites_only: bool = False,
+    category: Optional[str] = None,
 ) -> List[dict]:
     conn = sqlite3.connect(get_db_path())
     try:
@@ -43,6 +45,9 @@ def fetch_templates(
             params.append(template_type)
         if favorites_only:
             query += " AND is_favorite = 1"
+        if category:
+            query += " AND category = ?"
+            params.append(category)
         if search:
             query += " AND (title LIKE ? OR content LIKE ? OR tags LIKE ?)"
             like = f"%{search}%"
@@ -90,8 +95,8 @@ def save_template(template: dict) -> int:
         cursor.execute(
             """
             INSERT INTO linkedin_templates
-                (type, title, description, content, style_analysis, tags, tone, post_type, is_favorite)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (type, title, description, content, style_analysis, tags, tone, post_type, is_favorite, category)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 template["type"],
@@ -103,6 +108,7 @@ def save_template(template: dict) -> int:
                 template.get("tone"),
                 template.get("postType"),
                 1 if template.get("isFavorite") else 0,
+                template.get("category"),
             ),
         )
         conn.commit()
@@ -120,6 +126,7 @@ def update_template(template_id: int, fields: dict) -> None:
         "tone": "tone",
         "postType": "post_type",
         "isFavorite": "is_favorite",
+        "category": "category",
     }
     sets = []
     params: List = []

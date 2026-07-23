@@ -8,7 +8,6 @@ import {
   type LinkedInTemplate,
   type RefineAction,
 } from '@/lib/services/linkedinService';
-import Drawer from './Drawer';
 import TemplateLibraryModule from './TemplateLibraryModule';
 
 const TONE_OPTIONS = [
@@ -49,6 +48,18 @@ const REFINE_LABELS: Record<RefineAction, string> = {
   expand: 'Expand',
   change_tone: 'Change Tone',
 };
+
+const IDEAL_MIN = 1300;
+const IDEAL_MAX = 2000;
+const LINKEDIN_LIMIT = 3000;
+
+function lengthGuidance(chars: number): { label: string; className: string } {
+  if (chars === 0) return { label: '', className: 'text-muted-foreground' };
+  if (chars > LINKEDIN_LIMIT) return { label: 'Over LinkedIn’s limit', className: 'text-destructive' };
+  if (chars >= IDEAL_MIN && chars <= IDEAL_MAX) return { label: 'Ideal length for engagement', className: 'text-emerald-500' };
+  if (chars < IDEAL_MIN) return { label: 'Could go longer for more reach', className: 'text-amber-500' };
+  return { label: 'Longer than ideal — consider tightening', className: 'text-amber-500' };
+}
 
 function TemplateMultiSelect({
   templates,
@@ -140,6 +151,7 @@ function TemplateMultiSelect({
 }
 
 export default function LinkedInPostGeneratorModule() {
+  const [pageTab, setPageTab] = useState<'generate' | 'templates'>('generate');
   const [topic, setTopic] = useState('');
 
   const [categories, setCategories] = useState<LinkedInCategory[]>([]);
@@ -163,12 +175,14 @@ export default function LinkedInPostGeneratorModule() {
 
   const [templates, setTemplates] = useState<LinkedInTemplate[]>([]);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<number[]>([]);
-  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const [generating, setGenerating] = useState(false);
   const [generatedPost, setGeneratedPost] = useState('');
+  const [postHistory, setPostHistory] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [generateError, setGenerateError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
   const [refiningAction, setRefiningAction] = useState<RefineAction | 'alternative' | null>(null);
 
   const effectiveTone = tone === 'Custom' ? customTone.trim() : tone;
@@ -241,8 +255,13 @@ export default function LinkedInPostGeneratorModule() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const pushHistory = () => {
+    setPostHistory((prev) => (generatedPost ? [...prev, generatedPost].slice(-10) : prev));
+  };
+
   const runGenerate = async (variation = false) => {
     if (!topic.trim()) return;
+    pushHistory();
     setGenerating(true);
     setGenerateError('');
     try {
@@ -266,6 +285,7 @@ export default function LinkedInPostGeneratorModule() {
 
   const handleRefine = async (action: RefineAction) => {
     if (!generatedPost) return;
+    pushHistory();
     setRefiningAction(action);
     setGenerateError('');
     try {
@@ -284,6 +304,15 @@ export default function LinkedInPostGeneratorModule() {
     setRefiningAction(null);
   };
 
+  const handleUndo = () => {
+    setPostHistory((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.slice(0, -1);
+      setGeneratedPost(prev[prev.length - 1]);
+      return next;
+    });
+  };
+
   const handleCopy = async () => {
     if (!generatedPost) return;
     await navigator.clipboard.writeText(generatedPost);
@@ -297,10 +326,47 @@ export default function LinkedInPostGeneratorModule() {
     if (!title) return;
     await linkedinService.addTemplate({ type: 'reference_post', title, content: generatedPost });
     refreshTemplates();
+    setSaveStatus('Saved to templates');
+    setTimeout(() => setSaveStatus(''), 2000);
   };
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1 self-start">
+        <button
+          type="button"
+          onClick={() => setPageTab('generate')}
+          className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-sm font-medium transition-smooth ${
+            pageTab === 'generate'
+              ? 'bg-card text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Icon name="SparklesIcon" size={15} variant="outline" />
+          Generate
+        </button>
+        <button
+          type="button"
+          onClick={() => setPageTab('templates')}
+          className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-sm font-medium transition-smooth ${
+            pageTab === 'templates'
+              ? 'bg-card text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Icon name="ArchiveBoxIcon" size={15} variant="outline" />
+          Templates
+          {templates.length > 0 && (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+              {templates.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {pageTab === 'templates' ? (
+        <TemplateLibraryModule onTemplatesChanged={refreshTemplates} />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* ── Left panel: configuration ── */}
         <div className="flex flex-col gap-6">
@@ -482,7 +548,7 @@ export default function LinkedInPostGeneratorModule() {
                 <label className="block text-xs font-medium text-muted-foreground">Select Templates</label>
                 <button
                   type="button"
-                  onClick={() => setLibraryOpen(true)}
+                  onClick={() => setPageTab('templates')}
                   className="flex items-center gap-1 text-[11px] font-medium text-primary hover:opacity-80 transition-smooth"
                 >
                   Manage Template Library
@@ -510,17 +576,45 @@ export default function LinkedInPostGeneratorModule() {
 
         {/* ── Right panel: generated output ── */}
         <div className="lab-card p-5 lg:sticky lg:top-[76px]">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 gap-2">
             <h3 className="text-sm font-medium text-foreground">Generated Post</h3>
             {generatedPost && (
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:opacity-80 transition-smooth"
-              >
-                <Icon name={copied ? 'CheckIcon' : 'ClipboardDocumentIcon'} size={14} variant="outline" />
-                {copied ? 'Copied' : 'Copy'}
-              </button>
+              <div className="flex items-center gap-3">
+                {saveStatus && (
+                  <span className="text-xs font-medium text-emerald-500 flex items-center gap-1">
+                    <Icon name="CheckCircleIcon" size={13} variant="outline" />
+                    {saveStatus}
+                  </span>
+                )}
+                <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('edit')}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-smooth ${
+                      viewMode === 'edit' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('preview')}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-smooth ${
+                      viewMode === 'preview' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Preview
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:opacity-80 transition-smooth"
+                >
+                  <Icon name={copied ? 'CheckIcon' : 'ClipboardDocumentIcon'} size={14} variant="outline" />
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
             )}
           </div>
 
@@ -530,19 +624,71 @@ export default function LinkedInPostGeneratorModule() {
             </div>
           )}
 
-          {!generatedPost ? (
+          {generating && !generatedPost ? (
+            <div className="flex flex-col gap-2 animate-pulse" aria-label="Generating post…">
+              <div className="h-4 rounded bg-muted w-5/6" />
+              <div className="h-4 rounded bg-muted w-full" />
+              <div className="h-4 rounded bg-muted w-full" />
+              <div className="h-4 rounded bg-muted w-2/3" />
+              <div className="h-4 rounded bg-muted w-full mt-3" />
+              <div className="h-4 rounded bg-muted w-4/5" />
+              <div className="h-4 rounded bg-muted w-3/5" />
+            </div>
+          ) : !generatedPost ? (
             <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
               <Icon name="DocumentTextIcon" size={32} variant="outline" />
               <p className="text-sm">Your generated post will appear here.</p>
             </div>
           ) : (
             <>
-              <textarea
-                value={generatedPost}
-                onChange={(e) => setGeneratedPost(e.target.value)}
-                rows={14}
-                className={`${inputClass} resize-y font-body`}
-              />
+              {viewMode === 'edit' ? (
+                <textarea
+                  value={generatedPost}
+                  onChange={(e) => setGeneratedPost(e.target.value)}
+                  rows={14}
+                  className={`${inputClass} resize-y font-body`}
+                />
+              ) : (
+                <div className="rounded-lg border border-border bg-card overflow-hidden">
+                  <div className="flex items-center gap-2.5 p-3.5 pb-2.5">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-primary text-sm font-semibold text-white">
+                      <Icon name="UserIcon" size={20} variant="solid" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">Your Name</p>
+                      <p className="text-xs text-muted-foreground">Your headline · Now</p>
+                    </div>
+                  </div>
+                  <p className="px-3.5 pb-3.5 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                    {generatedPost}
+                  </p>
+                  <div className="flex items-center gap-5 border-t border-border px-3.5 py-2.5 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Icon name="HandThumbUpIcon" size={15} variant="outline" />
+                      Like
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Icon name="ChatBubbleLeftIcon" size={15} variant="outline" />
+                      Comment
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Icon name="ArrowPathRoundedSquareIcon" size={15} variant="outline" />
+                      Repost
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Icon name="PaperAirplaneIcon" size={15} variant="outline" />
+                      Send
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <span className={lengthGuidance(generatedPost.length).className}>
+                  {lengthGuidance(generatedPost.length).label}
+                </span>
+                <span className="text-muted-foreground">{generatedPost.length.toLocaleString()} characters</span>
+              </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -552,6 +698,16 @@ export default function LinkedInPostGeneratorModule() {
                 >
                   Save
                 </button>
+                {postHistory.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleUndo}
+                    className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-smooth"
+                  >
+                    <Icon name="ArrowUturnLeftIcon" size={12} variant="outline" />
+                    Undo
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => runGenerate(false)}
@@ -584,17 +740,7 @@ export default function LinkedInPostGeneratorModule() {
           )}
         </div>
       </div>
-
-      <Drawer
-        isOpen={libraryOpen}
-        onClose={() => {
-          setLibraryOpen(false);
-          refreshTemplates();
-        }}
-        title="Template Library"
-      >
-        <TemplateLibraryModule onTemplatesChanged={refreshTemplates} />
-      </Drawer>
-    </>
+      )}
+    </div>
   );
 }

@@ -34,16 +34,6 @@ const navigationItems: NavigationItem[] = [
     icon: 'ServerStackIcon',
   },
   {
-    label: 'Progress',
-    path: '/progress-dashboard',
-    icon: 'ChartBarIcon',
-  },
-  {
-    label: 'Question Bank',
-    path: '/question-bank',
-    icon: 'BookOpenIcon',
-  },
-  {
     label: 'Config',
     path: '/config',
     icon: 'Cog6ToothIcon',
@@ -84,28 +74,23 @@ function SystemStatus() {
     return () => clearInterval(interval);
   }, []);
 
-  const StatusIndicator = ({ label, status }: { label: string, status: string }) => (
-    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 border border-border text-[10px] font-medium">
-      <span className="text-muted-foreground uppercase tracking-wider">{label}</span>
-      <div className="flex items-center gap-1">
-        {status === 'checking' ? (
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-        ) : status === 'online' ? (
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-        ) : (
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
-        )}
-        <span className={status === 'online' ? 'text-emerald-500' : status === 'offline' ? 'text-rose-500' : 'text-amber-500'}>
-          {status === 'checking' ? 'CHK' : status === 'online' ? 'ON' : 'OFF'}
-        </span>
-      </div>
+  const StatusRow = ({ label, status }: { label: string, status: string }) => (
+    <div className="flex items-center gap-1 leading-none" title={`${label}: ${status === 'checking' ? 'checking…' : status}`}>
+      {status === 'checking' ? (
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+      ) : status === 'online' ? (
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+      ) : (
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.5)]" />
+      )}
+      <span className="w-5 text-[8px] font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
     </div>
   );
 
   return (
-    <div className="flex items-center gap-2 mr-4">
-      <StatusIndicator label="API" status={apiStatus} />
-      <StatusIndicator label="DB" status={dbStatus} />
+    <div className="flex flex-col gap-0.5 px-2 py-1 rounded-md bg-muted/50 border border-border mr-3">
+      <StatusRow label="API" status={apiStatus} />
+      <StatusRow label="DB" status={dbStatus} />
     </div>
   );
 }

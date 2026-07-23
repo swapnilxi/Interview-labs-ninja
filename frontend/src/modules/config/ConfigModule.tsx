@@ -96,7 +96,17 @@ const DEFAULT_SETTINGS: UserSettings = {
   ollamaModel: 'llama3.2',
 };
 
-function ModelSelect({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+function ModelSelect({
+  id, value, onChange, ollamaModels, currentOllamaModel,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  ollamaModels: string[];
+  currentOllamaModel: string;
+}) {
+  const ollamaOptions = Array.from(new Set([...(currentOllamaModel ? [currentOllamaModel] : []), ...ollamaModels]));
+
   return (
     <select
       id={id}
@@ -104,13 +114,22 @@ function ModelSelect({ id, value, onChange }: { id: string; value: string; onCha
       onChange={e => onChange(e.target.value)}
       className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring transition-smooth"
     >
-      {PROVIDERS.map(p => (
+      {PROVIDERS.filter(p => p.key !== 'Ollama').map(p => (
         <optgroup key={p.key} label={`── ${p.label}`}>
           {p.models.map(m => (
             <option key={m.id} value={m.id}>{m.name} ({m.badge})</option>
           ))}
         </optgroup>
       ))}
+      <optgroup label="── Ollama (Local)">
+        {ollamaOptions.length === 0 ? (
+          <option value="ollama">Ollama — use configured model (Local · Free)</option>
+        ) : (
+          ollamaOptions.map(name => (
+            <option key={name} value={`ollama::${name}`}>{name} (Local · Free)</option>
+          ))
+        )}
+      </optgroup>
     </select>
   );
 }
@@ -122,6 +141,11 @@ export default function ConfigInteractive() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
 
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
+  const [ollamaModelsError, setOllamaModelsError] = useState('');
+  const [customOllamaModel, setCustomOllamaModel] = useState(false);
+
   useEffect(() => {
     settingsService.getSettings()
       .then(data => { if (data) setSettings({ ...DEFAULT_SETTINGS, ...data }); })
@@ -129,8 +153,35 @@ export default function ConfigInteractive() {
       .finally(() => setLoading(false));
   }, []);
 
+  const fetchOllamaModels = async (url: string) => {
+    setOllamaModelsLoading(true);
+    setOllamaModelsError('');
+    try {
+      const models = await settingsService.getOllamaModels(url);
+      setOllamaModels(models);
+      if (models.length === 0) setOllamaModelsError('Ollama is reachable but has no models pulled yet.');
+    } catch (err) {
+      setOllamaModels([]);
+      setOllamaModelsError(err instanceof Error ? err.message : 'Could not reach Ollama.');
+    } finally {
+      setOllamaModelsLoading(false);
+    }
+  };
+
   const handleChange = (key: keyof UserSettings, value: string) =>
     setSettings(prev => ({ ...prev, [key]: value }));
+
+  const handleModelSelectChange = (key: 'textGenerationModel' | 'answerModel') => (value: string) => {
+    if (value.startsWith('ollama::')) {
+      const model = value.slice('ollama::'.length);
+      setSettings(prev => ({ ...prev, [key]: 'ollama', ollamaModel: model }));
+      return;
+    }
+    handleChange(key, value);
+  };
+
+  const modelSelectValue = (key: 'textGenerationModel' | 'answerModel') =>
+    settings[key] === 'ollama' ? `ollama::${settings.ollamaModel}` : settings[key];
 
   const toggleKeyVisibility = (key: string) =>
     setVisibleKeys(prev => ({ ...prev, [key]: !prev[key] }));
@@ -155,6 +206,13 @@ export default function ConfigInteractive() {
 
   const selectedTextModel = ALL_MODELS.find(m => m.id === settings.textGenerationModel);
   const selectedAModel = ALL_MODELS.find(m => m.id === settings.answerModel);
+
+  useEffect(() => {
+    if (!loading && settings.ollamaUrl) {
+      fetchOllamaModels(settings.ollamaUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, settings.ollamaUrl]);
 
   if (loading) {
     return (
@@ -210,10 +268,16 @@ export default function ConfigInteractive() {
               <label htmlFor="textGenerationModel" className="block text-sm font-medium text-foreground">
                 Text Generation Model
               </label>
-              <ModelSelect id="textGenerationModel" value={settings.textGenerationModel} onChange={v => handleChange('textGenerationModel', v)} />
+              <ModelSelect
+                id="textGenerationModel"
+                value={modelSelectValue('textGenerationModel')}
+                onChange={handleModelSelectChange('textGenerationModel')}
+                ollamaModels={ollamaModels}
+                currentOllamaModel={settings.ollamaModel}
+              />
               {selectedTextModel && (
                 <span className="text-[11px] text-muted-foreground">
-                  {selectedTextModel.provider} · {selectedTextModel.badge}
+                  {selectedTextModel.provider} · {settings.textGenerationModel === 'ollama' ? settings.ollamaModel : selectedTextModel.badge}
                 </span>
               )}
               <span className="block text-[11px] text-muted-foreground/60">The main LLM for the app — used for daily topic expansion, parsing CV details, and all other AI generation (e.g. LinkedIn Post Generator).</span>
@@ -223,10 +287,16 @@ export default function ConfigInteractive() {
               <label htmlFor="answerModel" className="block text-sm font-medium text-foreground">
                 Answer Evaluation Model
               </label>
-              <ModelSelect id="answerModel" value={settings.answerModel} onChange={v => handleChange('answerModel', v)} />
+              <ModelSelect
+                id="answerModel"
+                value={modelSelectValue('answerModel')}
+                onChange={handleModelSelectChange('answerModel')}
+                ollamaModels={ollamaModels}
+                currentOllamaModel={settings.ollamaModel}
+              />
               {selectedAModel && (
                 <span className="text-[11px] text-muted-foreground">
-                  {selectedAModel.provider} · {selectedAModel.badge}
+                  {selectedAModel.provider} · {settings.answerModel === 'ollama' ? settings.ollamaModel : selectedAModel.badge}
                 </span>
               )}
               <span className="block text-[11px] text-muted-foreground/60">Used to score answers, provide STAR guidelines, and highlight improvements.</span>
@@ -258,16 +328,67 @@ export default function ConfigInteractive() {
                 <span className="text-[11px] text-muted-foreground/60">Default: http://localhost:11434</span>
               </div>
               <div className="space-y-6">
-                <label htmlFor="ollamaModel" className="block text-sm font-medium text-foreground">Ollama Model Name</label>
-                <input
-                  id="ollamaModel"
-                  type="text"
-                  value={settings.ollamaModel}
-                  onChange={e => handleChange('ollamaModel', e.target.value)}
-                  placeholder="llama3.2"
-                  className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring font-code"
-                />
-                <span className="text-[11px] text-muted-foreground/60">Any model pulled via <code className="bg-muted px-1 rounded text-[10px]">ollama pull &lt;name&gt;</code></span>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="ollamaModel" className="block text-sm font-medium text-foreground">Ollama Model Name</label>
+                  <button
+                    type="button"
+                    onClick={() => fetchOllamaModels(settings.ollamaUrl)}
+                    disabled={ollamaModelsLoading}
+                    className="flex items-center gap-1 text-[11px] font-medium text-primary hover:opacity-80 transition-smooth disabled:opacity-50"
+                  >
+                    <Icon name="ArrowPathIcon" size={11} className={ollamaModelsLoading ? 'animate-spin' : ''} />
+                    {ollamaModelsLoading ? 'Checking…' : 'Refresh'}
+                  </button>
+                </div>
+                {ollamaModels.length > 0 && !customOllamaModel ? (
+                  <select
+                    id="ollamaModel"
+                    value={settings.ollamaModel || '__custom__'}
+                    onChange={e => {
+                      if (e.target.value === '__custom__') {
+                        setCustomOllamaModel(true);
+                        return;
+                      }
+                      handleChange('ollamaModel', e.target.value);
+                    }}
+                    className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring font-code"
+                  >
+                    {!ollamaModels.includes(settings.ollamaModel) && settings.ollamaModel && (
+                      <option value={settings.ollamaModel}>{settings.ollamaModel} (current)</option>
+                    )}
+                    {ollamaModels.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                    <option value="__custom__">Type a model name manually…</option>
+                  </select>
+                ) : (
+                  <input
+                    id="ollamaModel"
+                    type="text"
+                    value={settings.ollamaModel}
+                    onChange={e => handleChange('ollamaModel', e.target.value)}
+                    placeholder="llama3.2"
+                    className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring font-code"
+                  />
+                )}
+                {ollamaModelsError ? (
+                  <span className="block text-[11px] text-amber-500">{ollamaModelsError}</span>
+                ) : ollamaModels.length > 0 ? (
+                  <span className="flex items-center justify-between text-[11px] text-emerald-500">
+                    {ollamaModels.length} model{ollamaModels.length > 1 ? 's' : ''} found locally
+                    {customOllamaModel && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomOllamaModel(false)}
+                        className="font-medium text-primary hover:opacity-80 transition-smooth"
+                      >
+                        Choose from list
+                      </button>
+                    )}
+                  </span>
+                ) : (
+                  <span className="block text-[11px] text-muted-foreground/60">Any model pulled via <code className="bg-muted px-1 rounded text-[10px]">ollama pull &lt;name&gt;</code></span>
+                )}
               </div>
             </div>
           </div>

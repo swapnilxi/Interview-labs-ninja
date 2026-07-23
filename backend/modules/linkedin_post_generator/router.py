@@ -42,6 +42,7 @@ class TemplateIn(BaseModel):
     tone: Optional[str] = None
     postType: Optional[str] = None
     isFavorite: bool = False
+    category: Optional[str] = None
 
 
 class TemplateUpdate(BaseModel):
@@ -53,6 +54,7 @@ class TemplateUpdate(BaseModel):
     tone: Optional[str] = None
     postType: Optional[str] = None
     isFavorite: Optional[bool] = None
+    category: Optional[str] = None
 
 
 class GeneratePostPayload(BaseModel):
@@ -102,8 +104,9 @@ async def get_templates(
     type: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
     favoritesOnly: bool = Query(default=False),
+    category: Optional[str] = Query(default=None),
 ) -> List[dict]:
-    return fetch_templates(type, search, favoritesOnly)
+    return fetch_templates(type, search, favoritesOnly, category)
 
 
 @router.post("/templates")

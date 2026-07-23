@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import {
   linkedinService,
+  type LinkedInCategory,
   type LinkedInTemplate,
   type LinkedInTemplateType,
 } from '@/lib/services/linkedinService';
+import { INSPIRATION_POSTS, type InspirationPost } from './inspirationPosts';
 
 const TYPE_META: Record<LinkedInTemplateType, { label: string; badgeClass: string }> = {
   prompt: { label: 'Prompt Template', badgeClass: 'bg-violet-500/10 text-violet-600 dark:text-violet-300' },
@@ -15,6 +17,11 @@ const TYPE_META: Record<LinkedInTemplateType, { label: string; badgeClass: strin
   writing_style: { label: 'AI Writing Style', badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300' },
   post_structure: { label: 'Post Structure', badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-300' },
   custom: { label: 'Custom Template', badgeClass: 'bg-muted text-muted-foreground' },
+};
+
+const SOURCE_META = {
+  mine: { label: 'Mine', badgeClass: 'bg-blue-600/10 text-blue-600 dark:text-blue-300', icon: 'UserIcon' as const },
+  inspiration: { label: 'Inspiration', badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-300', icon: 'FireIcon' as const },
 };
 
 const TABS: Array<{ key: LinkedInTemplateType | 'all'; label: string }> = [
@@ -37,7 +44,12 @@ interface SaveDraft {
   tags: string;
   content: string;
   styleAnalysis?: string;
+  category?: string;
 }
+
+type LibraryItem =
+  | { key: string; source: 'mine'; template: LinkedInTemplate }
+  | { key: string; source: 'inspiration'; post: InspirationPost };
 
 interface TemplateLibraryModuleProps {
   onTemplatesChanged?: () => void;
@@ -50,12 +62,20 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
   const [templates, setTemplates] = useState<LinkedInTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [categories, setCategories] = useState<LinkedInCategory[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [categoryManageOpen, setCategoryManageOpen] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<number | null>(null);
+
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState<{ title: string; description: string; tags: string; content: string } | null>(null);
+  const [editDraft, setEditDraft] = useState<{ title: string; description: string; tags: string; content: string; category: string } | null>(null);
 
   const [creating, setCreating] = useState(false);
-  const [newDraft, setNewDraft] = useState<SaveDraft>({ type: 'prompt', title: '', description: '', tags: '', content: '' });
+  const [newDraft, setNewDraft] = useState<SaveDraft>({ type: 'prompt', title: '', description: '', tags: '', content: '', category: '' });
 
   const [analyzeText, setAnalyzeText] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
@@ -69,11 +89,7 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
   const refresh = async () => {
     setLoading(true);
     try {
-      const data = await linkedinService.getTemplates({
-        type: activeTab === 'all' ? undefined : activeTab,
-        search: searchQuery || undefined,
-        favoritesOnly,
-      });
+      const data = await linkedinService.getTemplates();
       setTemplates(data);
     } finally {
       setLoading(false);
@@ -82,14 +98,9 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
 
   useEffect(() => {
     refresh();
+    refreshCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, favoritesOnly]);
-
-  useEffect(() => {
-    const timeout = setTimeout(refresh, 250);
-    return () => clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+  }, []);
 
   const notifyChanged = () => {
     onTemplatesChanged?.();
@@ -101,6 +112,40 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
     setTimeout(() => setStatusMessage(''), 2500);
   };
 
+  // ── Categories ─────────────────────────────────────────────────────────────
+
+  const refreshCategories = async () => {
+    const cats = await linkedinService.getCategories();
+    setCategories(cats);
+  };
+
+  const handleAddCategory = async () => {
+    const name = newCategoryInput.trim();
+    if (!name) return;
+    setAddingCategory(true);
+    try {
+      await linkedinService.addCategory(name);
+      setNewCategoryInput('');
+      await refreshCategories();
+    } catch (err) {
+      console.error('Failed to add category:', err);
+    } finally {
+      setAddingCategory(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    setDeletingCategoryId(id);
+    try {
+      await linkedinService.deleteCategory(id);
+      await refreshCategories();
+    } catch (err) {
+      console.error('Failed to delete category:', err);
+    } finally {
+      setDeletingCategoryId(null);
+    }
+  };
+
   // ── Template CRUD ──────────────────────────────────────────────────────────
 
   const startEdit = (tpl: LinkedInTemplate) => {
@@ -110,6 +155,7 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
       description: tpl.description || '',
       tags: tpl.tags.join(', '),
       content: tpl.content,
+      category: tpl.category || '',
     });
   };
 
@@ -120,6 +166,7 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
       description: editDraft.description,
       tags: editDraft.tags.split(',').map((t) => t.trim()).filter(Boolean),
       content: editDraft.content,
+      category: editDraft.category,
     });
     setEditingId(null);
     setEditDraft(null);
@@ -153,9 +200,10 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
       description: newDraft.description.trim() || undefined,
       content: newDraft.content.trim(),
       tags: newDraft.tags.split(',').map((t) => t.trim()).filter(Boolean),
+      category: newDraft.category || undefined,
     });
     setCreating(false);
-    setNewDraft({ type: 'prompt', title: '', description: '', tags: '', content: '' });
+    setNewDraft({ type: 'prompt', title: '', description: '', tags: '', content: '', category: '' });
     flash('Template created');
     notifyChanged();
   };
@@ -233,6 +281,7 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
         content: saveDraft.content,
         styleAnalysis: saveDraft.styleAnalysis,
         tags: saveDraft.tags.split(',').map((t) => t.trim()).filter(Boolean),
+        category: saveDraft.category || undefined,
       });
       setSaveDraft(null);
       flash('Saved as template');
@@ -250,11 +299,126 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
     [analyzeResult]
   );
 
+  // ── Unified library (mine + inspiration) ────────────────────────────────────
+
+  const openSaveFromInspiration = (post: InspirationPost) => {
+    const matchingCategory = categories.find((c) => c.name === post.category);
+    setSaveDraft({
+      type: post.suggestedType,
+      title: post.title,
+      description: `From Inspiration — ${post.category}`,
+      tags: post.tags.join(', '),
+      content: post.content,
+      category: matchingCategory?.name || '',
+    });
+  };
+
+  const handleCopy = async (key: string, content: string) => {
+    await navigator.clipboard.writeText(content);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((prev) => (prev === key ? null : prev)), 1500);
+  };
+
+  const combinedItems: LibraryItem[] = useMemo(
+    () => [
+      ...templates.map((t) => ({ key: `mine:${t.id}`, source: 'mine' as const, template: t })),
+      ...INSPIRATION_POSTS.map((p) => ({ key: `insp:${p.id}`, source: 'inspiration' as const, post: p })),
+    ],
+    [templates]
+  );
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return combinedItems.filter((item) => {
+      if (item.source === 'mine') {
+        if (favoritesOnly && !item.template.isFavorite) return false;
+        if (activeTab !== 'all' && item.template.type !== activeTab) return false;
+        if (activeCategory !== 'all' && (item.template.category || '') !== activeCategory) return false;
+        if (!q) return true;
+        const hay = `${item.template.title} ${item.template.content} ${item.template.tags.join(' ')}`.toLowerCase();
+        return hay.includes(q);
+      }
+      if (favoritesOnly) return false;
+      if (activeTab !== 'all' && item.post.suggestedType !== activeTab) return false;
+      if (activeCategory !== 'all' && item.post.category !== activeCategory) return false;
+      if (!q) return true;
+      const hay = `${item.post.title} ${item.post.content} ${item.post.tags.join(' ')} ${item.post.category}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [combinedItems, activeTab, activeCategory, searchQuery, favoritesOnly]);
+
   return (
     <div className="flex flex-col gap-6">
       {statusMessage && (
         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-300">
           {statusMessage}
+        </div>
+      )}
+
+      {/* Save draft editor */}
+      {saveDraft && (
+        <div className="lab-card p-5 border-primary/40">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Save as Template</h3>
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
+              <input
+                value={saveDraft.title}
+                onChange={(e) => setSaveDraft({ ...saveDraft, title: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Description</label>
+              <input
+                value={saveDraft.description}
+                onChange={(e) => setSaveDraft({ ...saveDraft, description: e.target.value })}
+                placeholder="Optional"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Tags (comma separated)</label>
+              <input
+                value={saveDraft.tags}
+                onChange={(e) => setSaveDraft({ ...saveDraft, tags: e.target.value })}
+                placeholder="e.g. hackathon, technical"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Category</label>
+              <select
+                value={saveDraft.category || ''}
+                onChange={(e) => setSaveDraft({ ...saveDraft, category: e.target.value })}
+                className={inputClass}
+              >
+                <option value="">No category</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={confirmSaveDraft}
+                disabled={savingTemplate}
+                className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-smooth disabled:opacity-50"
+              >
+                {savingTemplate ? 'Saving…' : 'Save Template'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSaveDraft(null)}
+                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-smooth"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -373,61 +537,9 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
         )}
       </div>
 
-      {/* Save draft editor */}
-      {saveDraft && (
-        <div className="lab-card p-5 border-primary/40">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Save as Template</h3>
-          <div className="flex flex-col gap-3">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
-              <input
-                value={saveDraft.title}
-                onChange={(e) => setSaveDraft({ ...saveDraft, title: e.target.value })}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Description</label>
-              <input
-                value={saveDraft.description}
-                onChange={(e) => setSaveDraft({ ...saveDraft, description: e.target.value })}
-                placeholder="Optional"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Tags (comma separated)</label>
-              <input
-                value={saveDraft.tags}
-                onChange={(e) => setSaveDraft({ ...saveDraft, tags: e.target.value })}
-                placeholder="e.g. hackathon, technical"
-                className={inputClass}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={confirmSaveDraft}
-                disabled={savingTemplate}
-                className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-smooth disabled:opacity-50"
-              >
-                {savingTemplate ? 'Saving…' : 'Save Template'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSaveDraft(null)}
-                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-smooth"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Library list */}
+      {/* Unified library list */}
       <div className="lab-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
           <h3 className="text-sm font-semibold text-foreground">Templates</h3>
           <button
             type="button"
@@ -438,6 +550,13 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
             New Template
           </button>
         </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Your saved templates (
+          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${SOURCE_META.mine.badgeClass}`}>Mine</span>
+          ) alongside curated high-performing examples (
+          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${SOURCE_META.inspiration.badgeClass}`}>Inspiration</span>
+          ) — all in one place.
+        </p>
 
         {creating && (
           <div className="mb-4 rounded-md border border-border bg-muted/30 p-3 flex flex-col gap-2">
@@ -479,6 +598,18 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
               placeholder="Tags, comma separated"
               className={inputClass}
             />
+            <select
+              value={newDraft.category || ''}
+              onChange={(e) => setNewDraft({ ...newDraft, category: e.target.value })}
+              className={inputClass}
+            >
+              <option value="">No category</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.name}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -516,7 +647,84 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
           ))}
         </div>
 
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          <button
+            type="button"
+            onClick={() => setActiveCategory('all')}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium transition-smooth ${
+              activeCategory === 'all'
+                ? 'bg-secondary text-secondary-foreground'
+                : 'bg-muted/60 text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            All Categories
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setActiveCategory(cat.name)}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-smooth ${
+                activeCategory === cat.name
+                  ? 'bg-secondary text-secondary-foreground'
+                  : 'bg-muted/60 text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setCategoryManageOpen((prev) => !prev)}
+            className="flex items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-smooth"
+          >
+            <Icon name="Cog6ToothIcon" size={12} variant="outline" />
+            Manage
+          </button>
+        </div>
+
+        {categoryManageOpen && (
+          <div className="mb-3 rounded-md border border-border bg-muted/30 p-3">
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {categories.map((cat) => (
+                <span
+                  key={cat.id}
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground"
+                >
+                  {cat.name}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCategory(cat.id)}
+                    disabled={deletingCategoryId === cat.id}
+                    aria-label={`Delete ${cat.name}`}
+                    className="text-muted-foreground hover:text-destructive transition-smooth disabled:opacity-40"
+                  >
+                    <Icon name="XMarkIcon" size={12} variant="outline" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              <input
+                value={newCategoryInput}
+                onChange={(e) => setNewCategoryInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                placeholder="New category…"
+                className="flex-1 min-w-0 rounded-md border border-border bg-input px-2.5 py-1.5 text-xs text-foreground focus-ring"
+              />
+              <button
+                type="button"
+                onClick={handleAddCategory}
+                disabled={addingCategory || !newCategoryInput.trim()}
+                className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-smooth disabled:opacity-50"
+              >
+                {addingCategory ? '…' : 'Add'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 mb-4 mt-3">
           <div className="relative flex-1">
             <Icon
               name="MagnifyingGlassIcon"
@@ -548,132 +756,255 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
 
         {loading ? (
           <p className="text-sm text-muted-foreground py-6 text-center">Loading templates…</p>
-        ) : templates.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-10 text-center">
             <Icon name="ArchiveBoxIcon" size={28} className="text-muted-foreground" variant="outline" />
-            <p className="text-sm text-muted-foreground">No templates yet. Analyze a post or create one above.</p>
+            <p className="text-sm text-muted-foreground">No templates match your filters.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {templates.map((tpl) => (
-              <div key={tpl.id} className="rounded-md border border-border bg-card p-3">
-                {editingId === tpl.id && editDraft ? (
-                  <div className="flex flex-col gap-2">
-                    <input
-                      value={editDraft.title}
-                      onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })}
-                      className={inputClass}
-                    />
-                    <input
-                      value={editDraft.description}
-                      onChange={(e) => setEditDraft({ ...editDraft, description: e.target.value })}
-                      placeholder="Description"
-                      className={inputClass}
-                    />
-                    <textarea
-                      value={editDraft.content}
-                      onChange={(e) => setEditDraft({ ...editDraft, content: e.target.value })}
-                      rows={4}
-                      className={`${inputClass} resize-none`}
-                    />
-                    <input
-                      value={editDraft.tags}
-                      onChange={(e) => setEditDraft({ ...editDraft, tags: e.target.value })}
-                      placeholder="Tags, comma separated"
-                      className={inputClass}
-                    />
-                    <div className="flex items-center gap-2">
+            {filteredItems.map((item) => {
+              if (item.source === 'mine') {
+                const tpl = item.template;
+                const isExpanded = expandedKey === item.key;
+                return (
+                  <div key={item.key} className="rounded-md border border-border bg-card p-3">
+                    {editingId === tpl.id && editDraft ? (
+                      <div className="flex flex-col gap-2">
+                        <input
+                          value={editDraft.title}
+                          onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })}
+                          className={inputClass}
+                        />
+                        <input
+                          value={editDraft.description}
+                          onChange={(e) => setEditDraft({ ...editDraft, description: e.target.value })}
+                          placeholder="Description"
+                          className={inputClass}
+                        />
+                        <textarea
+                          value={editDraft.content}
+                          onChange={(e) => setEditDraft({ ...editDraft, content: e.target.value })}
+                          rows={4}
+                          className={`${inputClass} resize-none`}
+                        />
+                        <input
+                          value={editDraft.tags}
+                          onChange={(e) => setEditDraft({ ...editDraft, tags: e.target.value })}
+                          placeholder="Tags, comma separated"
+                          className={inputClass}
+                        />
+                        <select
+                          value={editDraft.category}
+                          onChange={(e) => setEditDraft({ ...editDraft, category: e.target.value })}
+                          className={inputClass}
+                        >
+                          <option value="">No category</option>
+                          {categories.map((cat) => (
+                            <option key={cat.id} value={cat.name}>
+                              {cat.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={saveEdit}
+                            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-smooth"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setEditingId(null); setEditDraft(null); }}
+                            className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-smooth"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SOURCE_META.mine.badgeClass}`}>
+                                {SOURCE_META.mine.label}
+                              </span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${TYPE_META[tpl.type].badgeClass}`}>
+                                {TYPE_META[tpl.type].label}
+                              </span>
+                              <h4 className="text-sm font-medium text-foreground truncate">{tpl.title}</h4>
+                            </div>
+                            {tpl.category && (
+                              <p className="text-xs text-muted-foreground mt-1">{tpl.category}</p>
+                            )}
+                            {tpl.description && (
+                              <p className="text-xs text-muted-foreground mt-1">{tpl.description}</p>
+                            )}
+                            {!isExpanded && (
+                              <p className="mt-1 text-xs text-muted-foreground line-clamp-1 whitespace-pre-wrap">
+                                {tpl.content}
+                              </p>
+                            )}
+                            {tpl.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {tpl.tags.map((tag) => (
+                                  <span key={tag} className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                    #{tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => toggleFavorite(tpl)}
+                              aria-label="Toggle favorite"
+                              className={tpl.isFavorite ? 'text-amber-500' : 'text-muted-foreground hover:text-foreground'}
+                            >
+                              <Icon name="StarIcon" size={15} variant={tpl.isFavorite ? 'solid' : 'outline'} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(item.key, tpl.content)}
+                              aria-label="Copy content"
+                              title="Copy"
+                              className="text-muted-foreground hover:text-foreground transition-smooth"
+                            >
+                              <Icon name={copiedKey === item.key ? 'CheckIcon' : 'ClipboardDocumentIcon'} size={15} variant="outline" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedKey(isExpanded ? null : item.key)}
+                              aria-label="Preview"
+                              className="text-muted-foreground hover:text-foreground transition-smooth"
+                            >
+                              <Icon name={isExpanded ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={15} variant="outline" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => startEdit(tpl)}
+                              aria-label="Edit"
+                              className="text-muted-foreground hover:text-foreground transition-smooth"
+                            >
+                              <Icon name="PencilSquareIcon" size={15} variant="outline" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDuplicate(tpl.id)}
+                              aria-label="Duplicate"
+                              className="text-muted-foreground hover:text-foreground transition-smooth"
+                            >
+                              <Icon name="DocumentDuplicateIcon" size={15} variant="outline" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(tpl.id)}
+                              aria-label="Delete"
+                              className="text-muted-foreground hover:text-destructive transition-smooth"
+                            >
+                              <Icon name="TrashIcon" size={15} variant="outline" />
+                            </button>
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          <p className="mt-2.5 rounded-md bg-muted/40 p-2.5 text-xs text-foreground whitespace-pre-wrap">
+                            {tpl.content}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              }
+
+              const post = item.post;
+              const isExpanded = expandedKey === item.key;
+              return (
+                <div key={item.key} className="rounded-md border border-border bg-card p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SOURCE_META.inspiration.badgeClass}`}>
+                          {SOURCE_META.inspiration.label}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${TYPE_META[post.suggestedType].badgeClass}`}>
+                          {TYPE_META[post.suggestedType].label}
+                        </span>
+                        <h4 className="text-sm font-medium text-foreground truncate">{post.title}</h4>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{post.category}</p>
+                      {!isExpanded && (
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-1 whitespace-pre-wrap">
+                          {post.content}
+                        </p>
+                      )}
+                      {post.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {post.tags.map((tag) => (
+                            <span key={tag} className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         type="button"
-                        onClick={saveEdit}
-                        className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-smooth"
+                        onClick={() => handleCopy(item.key, post.content)}
+                        aria-label="Copy post"
+                        title="Copy"
+                        className="text-muted-foreground hover:text-foreground transition-smooth"
                       >
-                        Save
+                        <Icon name={copiedKey === item.key ? 'CheckIcon' : 'ClipboardDocumentIcon'} size={15} variant="outline" />
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setEditingId(null); setEditDraft(null); }}
-                        className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-smooth"
+                        onClick={() => setExpandedKey(isExpanded ? null : item.key)}
+                        aria-label="Preview"
+                        className="text-muted-foreground hover:text-foreground transition-smooth"
                       >
-                        Cancel
+                        <Icon name={isExpanded ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={15} variant="outline" />
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${TYPE_META[tpl.type].badgeClass}`}>
-                            {TYPE_META[tpl.type].label}
-                          </span>
-                          <h4 className="text-sm font-medium text-foreground truncate">{tpl.title}</h4>
-                        </div>
-                        {tpl.description && (
-                          <p className="text-xs text-muted-foreground mt-1">{tpl.description}</p>
-                        )}
-                        {tpl.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {tpl.tags.map((tag) => (
-                              <span key={tag} className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                #{tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+
+                  {isExpanded && (
+                    <div className="mt-3 flex flex-col gap-3 border-t border-border pt-3">
+                      <p className="rounded-md bg-muted/40 p-2.5 text-xs text-foreground whitespace-pre-wrap">
+                        {post.content}
+                      </p>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                          Why it works
+                        </p>
+                        <ul className="flex flex-col gap-1">
+                          {post.whyItWorks.map((point, i) => (
+                            <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground leading-relaxed">
+                              <Icon name="CheckCircleIcon" size={13} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                              {point}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      <div>
                         <button
                           type="button"
-                          onClick={() => toggleFavorite(tpl)}
-                          aria-label="Toggle favorite"
-                          className={tpl.isFavorite ? 'text-amber-500' : 'text-muted-foreground hover:text-foreground'}
+                          onClick={() => openSaveFromInspiration(post)}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-smooth"
                         >
-                          <Icon name="StarIcon" size={15} variant={tpl.isFavorite ? 'solid' : 'outline'} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedId(expandedId === tpl.id ? null : tpl.id)}
-                          aria-label="Preview"
-                          className="text-muted-foreground hover:text-foreground transition-smooth"
-                        >
-                          <Icon name={expandedId === tpl.id ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={15} variant="outline" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => startEdit(tpl)}
-                          aria-label="Edit"
-                          className="text-muted-foreground hover:text-foreground transition-smooth"
-                        >
-                          <Icon name="PencilSquareIcon" size={15} variant="outline" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDuplicate(tpl.id)}
-                          aria-label="Duplicate"
-                          className="text-muted-foreground hover:text-foreground transition-smooth"
-                        >
-                          <Icon name="DocumentDuplicateIcon" size={15} variant="outline" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(tpl.id)}
-                          aria-label="Delete"
-                          className="text-muted-foreground hover:text-destructive transition-smooth"
-                        >
-                          <Icon name="TrashIcon" size={15} variant="outline" />
+                          <Icon name="PlusIcon" size={13} variant="outline" />
+                          Save as My Template
                         </button>
                       </div>
                     </div>
-                    {expandedId === tpl.id && (
-                      <p className="mt-2.5 rounded-md bg-muted/40 p-2.5 text-xs text-foreground whitespace-pre-wrap">
-                        {tpl.content}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

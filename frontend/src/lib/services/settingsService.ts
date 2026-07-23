@@ -43,4 +43,14 @@ export const settingsService = {
       throw error;
     }
   },
+
+  async getOllamaModels(url: string): Promise<string[]> {
+    const res = await fetch(`${API_BASE_URL}/settings/ollama-models?url=${encodeURIComponent(url)}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.detail || `HTTP error! status: ${res.status}`);
+    }
+    const data = await res.json();
+    return data.models || [];
+  },
 };

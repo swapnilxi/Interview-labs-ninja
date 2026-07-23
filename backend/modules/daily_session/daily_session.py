@@ -207,6 +207,17 @@ async def save_settings_endpoint(payload: UserSettingsSchema) -> dict:
     return {"status": "success"}
 
 
+@router.get("/settings/ollama-models")
+async def list_ollama_models(url: str = Query(default="http://localhost:11434")) -> dict:
+    req = urllib.request.Request(f"{url.rstrip('/')}/api/tags", method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not reach Ollama at {url}: {exc}")
+    return {"models": [m["name"] for m in data.get("models", [])]}
+
+
 # ── Lab question generation ────────────────────────────────────────────────────
 
 class GenerateQuestionsPayload(BaseModel):

@@ -49,6 +49,8 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         cursor.execute("ALTER TABLE linkedin_templates ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;")
     if "updated_at" not in columns:
         cursor.execute("ALTER TABLE linkedin_templates ADD COLUMN updated_at TEXT;")
+    if "category" not in columns:
+        cursor.execute("ALTER TABLE linkedin_templates ADD COLUMN category TEXT;")
 
 
 def register(cursor: sqlite3.Cursor) -> None:

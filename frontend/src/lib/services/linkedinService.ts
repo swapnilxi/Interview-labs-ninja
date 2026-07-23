@@ -27,6 +27,7 @@ export interface LinkedInTemplate {
   isFavorite: boolean;
   createdAt: string;
   updatedAt?: string | null;
+  category?: string | null;
 }
 
 export interface TemplateInput {
@@ -39,6 +40,7 @@ export interface TemplateInput {
   tone?: string;
   postType?: string;
   isFavorite?: boolean;
+  category?: string;
 }
 
 export interface GeneratePostInput {
@@ -109,12 +111,14 @@ export const linkedinService = {
     type?: LinkedInTemplateType;
     search?: string;
     favoritesOnly?: boolean;
+    category?: string;
   }): Promise<LinkedInTemplate[]> {
     try {
       const params = new URLSearchParams();
       if (opts?.type) params.set('type', opts.type);
       if (opts?.search) params.set('search', opts.search);
       if (opts?.favoritesOnly) params.set('favoritesOnly', 'true');
+      if (opts?.category) params.set('category', opts.category);
       const query = params.toString();
       const res = await fetch(`${API_BASE_URL}/linkedin/templates${query ? `?${query}` : ''}`);
       if (!res.ok) throw new Error(await parseErrorDetail(res));
