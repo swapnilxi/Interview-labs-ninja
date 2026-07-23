@@ -5,7 +5,7 @@
  * Follows the same pattern as questionsService.ts.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

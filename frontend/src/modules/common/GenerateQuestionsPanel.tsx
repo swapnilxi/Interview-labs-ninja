@@ -13,7 +13,7 @@ interface Props {
 
 type GenQ = { id: string; text: string; difficulty: string; subType: string; deleted: boolean };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
 
 function diffBadge(d: string) {
   if (d === 'Easy') return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';

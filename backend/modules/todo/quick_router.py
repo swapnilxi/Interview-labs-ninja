@@ -61,6 +61,7 @@ class QuickTaskUpdate(BaseModel):
     pareto_score: Optional[float] = None
     due_date: Optional[str] = None
     time_estimate: Optional[str] = None
+    context: Optional[str] = None
 
 
 class AIDayPlanRequest(BaseModel):

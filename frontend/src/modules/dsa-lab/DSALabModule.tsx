@@ -214,7 +214,7 @@ export default function DSALabInteractive() {
 
   /* ── fetch ── */
   useEffect(() => {
-    fetch('http://localhost:8000/dsa/sections')
+    fetch('http://localhost:8082/dsa/sections')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: { id: number; labName: string; name: string; isCustom: boolean }[]) => {
         setSectionsData(data);
@@ -222,7 +222,7 @@ export default function DSALabInteractive() {
       })
       .catch(e => console.error('sections:', e));
 
-    fetch('http://localhost:8000/dsa/topics')
+    fetch('http://localhost:8082/dsa/topics')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: DSATopic[]) => { if (data?.length) { setTopics(data); } else { setTopics(STATIC_DSA_TOPICS); } })
       .catch(e => { console.error('topics:', e); setTopics(STATIC_DSA_TOPICS); });
@@ -338,7 +338,7 @@ export default function DSALabInteractive() {
     if (!newSecInput.trim()) return;
     setAddingSec(true);
     const name = newSecInput.trim();
-    fetch('http://localhost:8000/dsa/sections', {
+    fetch('http://localhost:8082/dsa/sections', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, isCustom: true }),
     })
@@ -360,7 +360,7 @@ export default function DSALabInteractive() {
       brief: 'Custom topic.', category: sectionName,
       difficulty: 'Medium', prerequisites: [], subtopics: [], isCustom: true,
     };
-    fetch('http://localhost:8000/dsa/topics', {
+    fetch('http://localhost:8082/dsa/topics', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTopic),
     }).catch(e => console.error('addTopic:', e)).finally(() => {
@@ -375,7 +375,7 @@ export default function DSALabInteractive() {
     if (!parent) return;
     const newSub = { id: `sub-${Date.now()}`, name: newSubInput.trim(), brief: 'Custom subtopic.' };
     const updated = { ...parent, subtopics: [...parent.subtopics, newSub] };
-    fetch('http://localhost:8000/dsa/topics', {
+    fetch('http://localhost:8082/dsa/topics', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated),
     }).catch(e => console.error('addSub:', e));

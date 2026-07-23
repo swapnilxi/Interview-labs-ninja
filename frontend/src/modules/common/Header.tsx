@@ -50,7 +50,7 @@ function SystemStatus() {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch('http://localhost:8000/health', { signal: controller.signal });
+        const res = await fetch('http://localhost:8082/health', { signal: controller.signal });
         clearTimeout(timeoutId);
         setApiStatus(res.ok ? 'online' : 'offline');
       } catch (err) {
@@ -61,7 +61,7 @@ function SystemStatus() {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch('http://localhost:8000/settings', { signal: controller.signal });
+        const res = await fetch('http://localhost:8082/settings', { signal: controller.signal });
         clearTimeout(timeoutId);
         setDbStatus(res.ok ? 'online' : 'offline');
       } catch (err) {

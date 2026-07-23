@@ -176,7 +176,7 @@ export default function DailySessionInteractive() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch('http://localhost:8000/sessions/upload-resume', {
+      const res = await fetch('http://localhost:8082/sessions/upload-resume', {
         method: 'POST',
         body: formData,
       });
@@ -257,7 +257,7 @@ export default function DailySessionInteractive() {
     setLoading(true);
     try {
       // 1. Create session in backend SQLite
-      const res = await fetch('http://localhost:8000/sessions', {
+      const res = await fetch('http://localhost:8082/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -285,7 +285,7 @@ export default function DailySessionInteractive() {
       }));
 
       // 3. Save questions batch in backend SQLite
-      await fetch('http://localhost:8000/sessions/questions', {
+      await fetch('http://localhost:8082/sessions/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -332,7 +332,7 @@ export default function DailySessionInteractive() {
 
   const handleExport = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/export?session_date=${sessionDate}`);
+      const res = await fetch(`http://localhost:8082/export?session_date=${sessionDate}`);
       if (!res.ok) throw new Error('No questions generated for this date');
       const text = await res.json();
 
@@ -367,7 +367,7 @@ export default function DailySessionInteractive() {
     setIsGeneratingHint(true);
     setDynamicAiAnswer(null);
     try {
-      const res = await fetch('http://localhost:8000/sessions/generate-answer', {
+      const res = await fetch('http://localhost:8082/sessions/generate-answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

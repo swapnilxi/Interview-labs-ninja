@@ -42,7 +42,7 @@ export default function ParetoModal({
     try {
       const apiTable = table === 'projects' ? 'projects' : table;
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/pareto/reanalyze/${apiTable}/${itemId}`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082'}/pareto/reanalyze/${apiTable}/${itemId}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

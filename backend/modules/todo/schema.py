@@ -225,6 +225,8 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE quick_tasks ADD COLUMN exported_project_id INTEGER DEFAULT NULL;")
     if "is_exported" not in qt_cols:
         cursor.execute("ALTER TABLE quick_tasks ADD COLUMN is_exported INTEGER DEFAULT 0;")
+    if "context" not in qt_cols:
+        cursor.execute("ALTER TABLE quick_tasks ADD COLUMN context TEXT DEFAULT NULL;")
 
     # 3. project_nodes table
     cursor.execute("PRAGMA table_info(project_nodes);")
@@ -235,6 +237,16 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE project_nodes ADD COLUMN is_top_20 INTEGER DEFAULT 0;")
     if "eisenhower_quadrant" not in pn_cols:
         cursor.execute("ALTER TABLE project_nodes ADD COLUMN eisenhower_quadrant TEXT DEFAULT 'schedule';")
+    if "context" not in pn_cols:
+        cursor.execute("ALTER TABLE project_nodes ADD COLUMN context TEXT DEFAULT NULL;")
+    if "due_date" not in pn_cols:
+        cursor.execute("ALTER TABLE project_nodes ADD COLUMN due_date TEXT DEFAULT NULL;")
+    if "time_estimate" not in pn_cols:
+        cursor.execute("ALTER TABLE project_nodes ADD COLUMN time_estimate TEXT DEFAULT NULL;")
+    if "intention" not in pn_cols:
+        cursor.execute("ALTER TABLE project_nodes ADD COLUMN intention TEXT DEFAULT NULL;")
+    if "definition_of_done" not in pn_cols:
+        cursor.execute("ALTER TABLE project_nodes ADD COLUMN definition_of_done TEXT DEFAULT NULL;")
 
     # 4. projects table — add pareto + is_top_20 if missing
     cursor.execute("PRAGMA table_info(projects);")

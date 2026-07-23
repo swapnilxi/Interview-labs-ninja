@@ -1,6 +1,6 @@
 'use client';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
 
 export type QuadrantType = 'do_now' | 'schedule' | 'delegate' | 'eliminate';
 export type QuickTaskSource = 'manual' | 'brain_dump' | 'handwriting' | 'moved_from_smart' | 'moved_from_plan';
@@ -22,6 +22,7 @@ export interface QuickTask {
   is_exported?: boolean;
   exported_task_id?: number | null;
   exported_project_id?: number | null;
+  context?: string | null;
 }
 
 export interface QuickTaskCreate {
@@ -41,6 +42,7 @@ export interface QuickTaskUpdate {
   pareto_score?: number | null;
   due_date?: string | null;
   time_estimate?: string | null;
+  context?: string | null;
 }
 
 export interface ParsedBrainDumpTask {

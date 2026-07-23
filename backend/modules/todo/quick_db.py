@@ -28,12 +28,13 @@ def _quick_task_row_to_dict(row: tuple) -> Dict[str, Any]:
         "is_exported": bool(row[13]) if len(row) > 13 and row[13] is not None else False,
         "due_date": row[14] if len(row) > 14 else None,
         "time_estimate": row[15] if len(row) > 15 else None,
+        "context": row[16] if len(row) > 16 else None,
     }
 
 
 _QT_COLUMNS = (
     "id, title, done, quadrant, date, source, original_task_id, order_index, created_at, "
-    "pareto_score, is_top_20, exported_task_id, exported_project_id, is_exported, due_date, time_estimate"
+    "pareto_score, is_top_20, exported_task_id, exported_project_id, is_exported, due_date, time_estimate, context"
 )
 
 
@@ -84,7 +85,7 @@ def get_quick_tasks_for_date(task_date: str) -> List[Dict[str, Any]]:
 
 def update_quick_task(task_id: int, **fields) -> Optional[Dict[str, Any]]:
     """Update specific fields on a quick task."""
-    allowed = {"title", "done", "quadrant", "order_index", "pareto_score", "is_top_20", "due_date", "time_estimate"}
+    allowed = {"title", "done", "quadrant", "order_index", "pareto_score", "is_top_20", "due_date", "time_estimate", "context"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_quick_task(task_id)

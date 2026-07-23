@@ -44,6 +44,20 @@ You can integrate this package into any agent runtime or UI stack
 
 ## Running Locally
 
+### Quick Start (Start Both Frontend and Backend)
+
+You can run both services concurrently using the startup script in the workspace root:
+
+```bash
+# 1. Make the script executable (one-time)
+chmod +x startup.sh
+
+# 2. Run both services
+./startup.sh
+```
+
+To stop both services, simply press `Ctrl+C`.
+
 ### Backend (FastAPI)
 
 - Requires [`uv`](https://docs.astral.sh/uv/) installed locally.
@@ -52,10 +66,10 @@ You can integrate this package into any agent runtime or UI stack
 - Initialize the SQLite DB (one-time convenience):
   - `cd backend && uv run python main.py`
 - Run the API server (for local dev):
-  - `cd backend && uv run uvicorn main:app --reload --port 8000`
+  - `cd backend && uv run uvicorn main:app --reload --port 8082`
 
-The API will be available at `http://localhost:8000` with an OpenAPI UI
-at `http://localhost:8000/docs`.
+The API will be available at `http://localhost:8082` with an OpenAPI UI
+at `http://localhost:8082/docs`.
 
 ### Frontend (Next.js)
 
@@ -63,7 +77,8 @@ at `http://localhost:8000/docs`.
   - `npm install` (first time only, if needed)
   - `npm run dev`
 
-By default the app runs at `http://localhost:3000`.
+By default the app runs at `http://localhost:4028`.
 
 You can then wire the frontend to call the FastAPI endpoints under
-`http://localhost:8000` for sessions, questions, and exports.
+`http://localhost:8082` for sessions, questions, and exports.
+

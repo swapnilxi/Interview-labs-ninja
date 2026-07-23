@@ -83,8 +83,8 @@ async def health() -> dict:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8082)))
 
 # To run locally:
 #   python main.py                                  (bootstraps uv automatically)
-#   uv run uvicorn main:app --reload --port 8000     (with autoreload, from backend/)
+#   uv run uvicorn main:app --reload --port 8082     (with autoreload, from backend/)

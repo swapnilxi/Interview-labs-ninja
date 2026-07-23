@@ -933,7 +933,7 @@ export default function SystemDesignLabInteractive() {
   const [recentTopics,  setRecentTopics]  = useState<{ id: string; name: string; subId?: string; subName?: string }[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:8000/system-design/sections')
+    fetch('http://localhost:8082/system-design/sections')
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -944,7 +944,7 @@ export default function SystemDesignLabInteractive() {
       })
       .catch(err => console.error("Error fetching sections:", err));
 
-    fetch('http://localhost:8000/system-design/topics')
+    fetch('http://localhost:8082/system-design/topics')
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -985,7 +985,7 @@ export default function SystemDesignLabInteractive() {
     if (!customSectionInput.trim()) return;
     setAddingSection(true);
     const newSection = { name: customSectionInput.trim(), isCustom: true };
-    fetch('http://localhost:8000/system-design/sections', {
+    fetch('http://localhost:8082/system-design/sections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSection)
@@ -1022,7 +1022,7 @@ export default function SystemDesignLabInteractive() {
       subtopics: [...parentTopic.subtopics, newSubtopic]
     };
 
-    fetch('http://localhost:8000/system-design/topics', {
+    fetch('http://localhost:8082/system-design/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedTopic)
@@ -1134,7 +1134,7 @@ export default function SystemDesignLabInteractive() {
       subtopics: []
     };
 
-    fetch('http://localhost:8000/system-design/topics', {
+    fetch('http://localhost:8082/system-design/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTopic)
@@ -1177,7 +1177,7 @@ export default function SystemDesignLabInteractive() {
       subtopics: []
     };
 
-    fetch('http://localhost:8000/system-design/topics', {
+    fetch('http://localhost:8082/system-design/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTopic)

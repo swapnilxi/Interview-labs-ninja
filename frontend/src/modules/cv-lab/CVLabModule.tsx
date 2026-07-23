@@ -709,7 +709,7 @@ export default function CVLabInteractive() {
   const [recentTopics,  setRecentTopics]  = useState<{ id: string; name: string; subId?: string; subName?: string }[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:8000/cv/sections')
+    fetch('http://localhost:8082/cv/sections')
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -744,7 +744,7 @@ export default function CVLabInteractive() {
     if (!customSectionInput.trim()) return;
     setAddingSection(true);
     const newSection = { name: customSectionInput.trim(), isCustom: true };
-    fetch('http://localhost:8000/cv/sections', {
+    fetch('http://localhost:8082/cv/sections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSection)
@@ -777,7 +777,7 @@ export default function CVLabInteractive() {
       subtopics: []
     };
 
-    fetch('http://localhost:8000/cv/topics', {
+    fetch('http://localhost:8082/cv/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTopic)
@@ -801,7 +801,7 @@ export default function CVLabInteractive() {
 
 
   useEffect(() => {
-    fetch('http://localhost:8000/cv/topics')
+    fetch('http://localhost:8082/cv/topics')
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -835,7 +835,7 @@ export default function CVLabInteractive() {
       subtopics: [...parentTopic.subtopics, newSubtopic]
     };
 
-    fetch('http://localhost:8000/cv/topics', {
+    fetch('http://localhost:8082/cv/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedTopic)
@@ -957,7 +957,7 @@ export default function CVLabInteractive() {
       subtopics: [{ id: `sub-${Date.now()}`, name: 'Core Concepts', brief: 'Fundamental concepts.' }]
     };
 
-    fetch('http://localhost:8000/cv/topics', {
+    fetch('http://localhost:8082/cv/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTopic)
