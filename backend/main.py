@@ -32,6 +32,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from modules.common import __version__
 from modules.common.db import init_db
 
+# Config / settings module
+from modules.common.config_router import router as config_router
+
 # Lab modules
 from modules.dsa_lab.router import router as dsa_router
 from modules.cv_lab.router import router as cv_router
@@ -63,6 +66,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(config_router)
 app.include_router(session_router)
 app.include_router(dsa_router)
 app.include_router(cv_router)

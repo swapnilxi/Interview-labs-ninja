@@ -272,6 +272,58 @@ export const todoService = {
     }
   },
 
+  async eisenhowerAuto(model: 'ollama' | 'gemini'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/eisenhower-auto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to auto-sort tasks', error);
+      return { assignments: [] };
+    }
+  },
+
+  async aiWeeklyPlan(model: 'ollama' | 'gemini'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/ai-weekly-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to generate weekly plan', error);
+      return { weekly_plan: {} };
+    }
+  },
+
+  async moveToQuick(taskId: number): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/move-to-quick`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to move task ${taskId} to quick`, error);
+      return null;
+    }
+  },
+
+  async moveToPlan(taskId: number): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/move-to-plan`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`Failed to move task ${taskId} to plan`, error);
+      return null;
+    }
+  },
+
   async regenerate(taskId: number, model: 'ollama' | 'gemini' = 'gemini'): Promise<Task[]> {
     try {
       const res = await fetch(`${API_BASE_URL}/todo/tasks/${taskId}/regenerate`, {
@@ -671,5 +723,3 @@ export interface Note {
   note_type: 'manual' | 'ai_explanation' | 'ai_expansion' | 'ai_summary';
   created_at: string;
 }
-
-};

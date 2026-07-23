@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import { settingsService, UserSettings } from '@/lib/services/settingsService';
+import { settingsService, UserSettings, OllamaStatus } from '@/lib/services/settingsService';
 
 const PROVIDERS = [
   {
@@ -148,9 +148,33 @@ export default function ConfigInteractive() {
 
   useEffect(() => {
     settingsService.getSettings()
-      .then(data => { if (data) setSettings({ ...DEFAULT_SETTINGS, ...data }); })
+      .then(data => {
+        if (data) setSettings({ ...DEFAULT_SETTINGS, ...data });
+        // Auto-detect Ollama on page load
+        detectOllama(data?.ollamaUrl);
+      })
       .catch(err => console.error('Failed to load settings:', err))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const detectOllama = useCallback(async (url?: string) => {
+    setOllamaLoading(true);
+    try {
+      const status = await settingsService.getOllamaStatus(url);
+      setOllamaStatus(status);
+      // Auto-select first model if none configured
+      if (status.running && status.models.length > 0) {
+        setSettings(prev => ({
+          ...prev,
+          ollamaModel: prev.ollamaModel || status.models[0].name,
+        }));
+      }
+    } catch {
+      setOllamaStatus({ running: false, url: url || '', models: [], error: 'Could not reach backend' });
+    } finally {
+      setOllamaLoading(false);
+    }
   }, []);
 
   const fetchOllamaModels = async (url: string) => {
@@ -168,8 +192,41 @@ export default function ConfigInteractive() {
     }
   };
 
-  const handleChange = (key: keyof UserSettings, value: string) =>
+  const fetchOllamaModels = async (url: string) => {
+    setOllamaModelsLoading(true);
+    setOllamaModelsError('');
+    try {
+      const models = await settingsService.getOllamaModels(url);
+      setOllamaModels(models);
+      if (models.length === 0) setOllamaModelsError('Ollama is reachable but has no models pulled yet.');
+    } catch (err) {
+      setOllamaModels([]);
+      setOllamaModelsError(err instanceof Error ? err.message : 'Could not reach Ollama.');
+    } finally {
+      setOllamaModelsLoading(false);
+    }
+  };
+
+  const handleChange = (key: keyof UserSettings, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+    // Re-probe Ollama with a debounce when URL field changes
+    if (key === 'ollamaUrl') {
+      if (detectDebounceRef.current) clearTimeout(detectDebounceRef.current);
+      detectDebounceRef.current = setTimeout(() => detectOllama(value), 800);
+    }
+  };
+
+  const handleModelSelectChange = (key: 'textGenerationModel' | 'answerModel') => (value: string) => {
+    if (value.startsWith('ollama::')) {
+      const model = value.slice('ollama::'.length);
+      setSettings(prev => ({ ...prev, [key]: 'ollama', ollamaModel: model }));
+      return;
+    }
+    handleChange(key, value);
+  };
+
+  const modelSelectValue = (key: 'textGenerationModel' | 'answerModel') =>
+    settings[key] === 'ollama' ? `ollama::${settings.ollamaModel}` : settings[key];
 
   const handleModelSelectChange = (key: 'textGenerationModel' | 'answerModel') => (value: string) => {
     if (value.startsWith('ollama::')) {
@@ -304,17 +361,51 @@ export default function ConfigInteractive() {
           </div>
         </div>
 
-        {/* Ollama Local Config — shown only when Ollama is selected */}
+        {/* Ollama Local Config */}
         {usesOllama && (
           <div className="bg-card border border-border rounded-lg p-24 shadow-md space-y-18">
-            <div className="flex items-center gap-12 pb-12 border-b border-border">
-              <Icon name="ComputerDesktopIcon" size={24} className="text-slate-400" />
-              <div>
-                <h3 className="font-heading text-lg font-semibold text-foreground">Ollama Local Settings</h3>
-                <p className="text-xs text-muted-foreground">Configure your local Ollama instance. Run <code className="bg-muted px-1 rounded text-[11px]">ollama serve</code> before using.</p>
+            <div className="flex items-center justify-between pb-12 border-b border-border">
+              <div className="flex items-center gap-12">
+                <Icon name="ComputerDesktopIcon" size={24} className="text-slate-400" />
+                <div>
+                  <h3 className="font-heading text-lg font-semibold text-foreground">Ollama Local Settings</h3>
+                  <p className="text-xs text-muted-foreground">Auto-detects pulled models from your running Ollama instance.</p>
+                </div>
+              </div>
+
+              {/* Live status badge */}
+              <div className="flex items-center gap-2">
+                {ollamaLoading ? (
+                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                    <span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                    Detecting...
+                  </span>
+                ) : ollamaStatus?.running ? (
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Online · {ollamaStatus.models.length} model{ollamaStatus.models.length !== 1 ? 's' : ''}
+                  </span>
+                ) : ollamaStatus ? (
+                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-red-500 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    Offline
+                  </span>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => detectOllama(settings.ollamaUrl)}
+                  disabled={ollamaLoading}
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-smooth disabled:opacity-40"
+                  title="Re-detect Ollama"
+                >
+                  <Icon name="ArrowPathIcon" size={14} className={ollamaLoading ? 'animate-spin' : ''} />
+                </button>
               </div>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-18">
+              {/* URL field */}
               <div className="space-y-6">
                 <label htmlFor="ollamaUrl" className="block text-sm font-medium text-foreground">Ollama Server URL</label>
                 <input
@@ -325,8 +416,17 @@ export default function ConfigInteractive() {
                   placeholder="http://localhost:11434"
                   className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring font-code"
                 />
-                <span className="text-[11px] text-muted-foreground/60">Default: http://localhost:11434</span>
+                {ollamaStatus && !ollamaStatus.running && ollamaStatus.error && (
+                  <p className="text-[11px] text-red-500">{ollamaStatus.error}</p>
+                )}
+                {!ollamaStatus?.running && (
+                  <span className="text-[11px] text-muted-foreground/60">
+                    Run <code className="bg-muted px-1 rounded text-[10px]">ollama serve</code> to start the server
+                  </span>
+                )}
               </div>
+
+              {/* Model — dropdown if detected, text input if offline */}
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <label htmlFor="ollamaModel" className="block text-sm font-medium text-foreground">Ollama Model Name</label>
@@ -391,6 +491,39 @@ export default function ConfigInteractive() {
                 )}
               </div>
             </div>
+
+            {/* Detected model cards */}
+            {ollamaStatus?.running && ollamaStatus.models.length > 0 && (
+              <div className="pt-12 border-t border-border">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-12">Pulled Models</p>
+                <div className="flex flex-wrap gap-2">
+                  {ollamaStatus.models.map(m => (
+                    <button
+                      key={m.name}
+                      type="button"
+                      onClick={() => handleChange('ollamaModel', m.name)}
+                      className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-smooth ${
+                        settings.ollamaModel === m.name
+                          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          : 'border-border text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground'
+                      }`}
+                    >
+                      <span className="font-code">{m.name}</span>
+                      {m.size_gb && (
+                        <span className={`text-[9px] font-semibold px-1 rounded ${
+                          settings.ollamaModel === m.name ? 'bg-emerald-500/20 text-emerald-500' : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {m.size_gb} GB
+                        </span>
+                      )}
+                      {settings.ollamaModel === m.name && (
+                        <Icon name="CheckIcon" size={10} className="text-emerald-500" variant="solid" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
