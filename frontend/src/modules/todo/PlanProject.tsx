@@ -9,6 +9,7 @@ import ProjectExplorer from './ProjectExplorer';
 import ProjectRoadmap from './ProjectRoadmap';
 import CreateProjectModal from './CreateProjectModal';
 import { Project, ProjectNodeFlat, projectService } from '@/lib/services/projectService';
+import { paretoService } from '@/lib/services/paretoService';
 
 type PlanSubView = 'projects' | 'matrix' | 'roadmap';
 const VALID_VIEWS: PlanSubView[] = ['projects', 'matrix', 'roadmap'];
@@ -133,8 +134,11 @@ export default function PlanProject({ model }: PlanProjectProps) {
   const [loading, setLoading] = useState(true);
   const [nodesLoading, setNodesLoading] = useState(false);
   const [autoSortLoading, setAutoSortLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [analyzeToast, setAnalyzeToast] = useState<string | null>(null);
 
   const loadProjects = async () => {
     setLoading(true);
@@ -176,9 +180,15 @@ export default function PlanProject({ model }: PlanProjectProps) {
 
   const handleNodeAutoSort = async () => {
     setAutoSortLoading(true);
-    await projectService.eisenhowerAutoNodes(model);
-    await loadProjectNodes();
-    setAutoSortLoading(false);
+    setAiError(null);
+    try {
+      await projectService.eisenhowerAutoNodes(model);
+      await loadProjectNodes();
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Auto-sort failed.');
+    } finally {
+      setAutoSortLoading(false);
+    }
   };
 
   const handleActionClick = (project: Project, action: 'dive' | 'chunk' | 'roadmap') => {
@@ -187,6 +197,26 @@ export default function PlanProject({ model }: PlanProjectProps) {
       setActiveSubView('roadmap');
     } else {
       setActiveProject(project);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (paretoService.hasAnalyzedToday('plan')) {
+      if (!confirm('You already ran analysis today. Results may be similar. Continue?')) return;
+    }
+    if (!confirm('AI will analyze all your projects and topics and identify the top 20% that will drive 80% of your results. This takes a few seconds.')) return;
+    setAnalyzeLoading(true);
+    try {
+      const result = await paretoService.analyze('plan', model);
+      paretoService.markAnalyzedToday('plan');
+      await loadProjects();
+      if (activeSubView === 'matrix') await loadProjectNodes();
+      setAnalyzeToast(`⭐ Found ${result.top20_count ?? 0} high-leverage item${(result.top20_count ?? 0) === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total`);
+    } catch (err) {
+      setAnalyzeToast(err instanceof Error ? `⚠️ ${err.message}` : '⚠️ Analysis failed.');
+    } finally {
+      setAnalyzeLoading(false);
+      setTimeout(() => setAnalyzeToast(null), 4000);
     }
   };
 
@@ -240,13 +270,44 @@ export default function PlanProject({ model }: PlanProjectProps) {
           })}
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-smooth flex items-center gap-2 shrink-0 justify-center"
-        >
-          <Icon name="PlusIcon" size={14} variant="solid" /> New Project
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleAnalyze}
+            disabled={analyzeLoading}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-amber-400/50 bg-amber-400/5 text-amber-600 dark:text-amber-400 hover:bg-amber-400/10 transition-smooth flex items-center gap-1.5 disabled:opacity-50"
+            title="Run AI 80/20 analysis on all projects"
+          >
+            {analyzeLoading ? (
+              <span className="w-3 h-3 border border-amber-500/40 border-t-amber-500 rounded-full animate-spin" />
+            ) : '⭐'}
+            <span className="hidden sm:inline">80/20 Analyze</span>
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-smooth flex items-center gap-2 justify-center"
+          >
+            <Icon name="PlusIcon" size={14} variant="solid" /> New Project
+          </button>
+        </div>
       </div>
+
+      {/* 80/20 Analyze toast */}
+      {analyzeToast && (
+        <div className="fixed top-20 right-6 z-[200] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold bg-amber-500 text-white animate-slide-up">
+          {analyzeToast}
+        </div>
+      )}
+
+      {/* AI action error */}
+      {aiError && (
+        <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+          <span className="text-xs shrink-0">⚠️</span>
+          <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
+          <button onClick={() => setAiError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
+            <Icon name="XMarkIcon" size={12} />
+          </button>
+        </div>
+      )}
 
       {/* ── How-to guide banner ─────────────────────────────────────────── */}
       {showGuide && (

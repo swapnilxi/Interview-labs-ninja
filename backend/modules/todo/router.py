@@ -15,18 +15,25 @@ Endpoints:
 
 from __future__ import annotations
 
+import base64
 import json
+import io
 import os
 import re
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from modules.common.db import fetch_settings
+from modules.common.ai_client import (
+    AISettings,
+    call_ai_text as _call_ai,
+    call_ai_vision as _call_vision_ai,
+    stream_ai_text as _stream_ai,
+    extract_json_array as _extract_json_array,
+)
 from .db import (
     create_subtasks_batch,
     create_task,
@@ -39,6 +46,18 @@ from .db import (
     get_task_tree,
     update_task,
     get_all_tasks,
+    create_note,
+    get_task_notes,
+    get_note,
+    get_unprocessed_inbox_items,
+    create_daily_plan,
+    get_daily_plan,
+    update_daily_plan_summary,
+    update_daily_plan_tasks,
+    create_inbox_item,
+    delete_inbox_item,
+    get_user_stats_summary,
+    create_handwriting_extraction,
 )
 
 router = APIRouter(prefix="/todo", tags=["todo"])
@@ -58,6 +77,11 @@ class TaskCreate(BaseModel):
     due_date: Optional[str] = None
     context: Optional[str] = None
     attachments: Optional[List[str]] = None
+    is_recurring: int = 0
+    recurrence_interval: Optional[str] = None
+    recurrence_custom_days: Optional[str] = None
+    intention: Optional[str] = None
+    definition_of_done: Optional[str] = None
 
 
 class TaskUpdate(BaseModel):
@@ -68,78 +92,81 @@ class TaskUpdate(BaseModel):
     due_date: Optional[str] = None
     context: Optional[str] = None
     attachments: Optional[List[str]] = None
+    is_recurring: Optional[int] = None
+    recurrence_interval: Optional[str] = None
+    recurrence_custom_days: Optional[str] = None
+    intention: Optional[str] = None
+    definition_of_done: Optional[str] = None
+    eisenhower_quadrant: Optional[str] = None
+    is_top_20: Optional[bool] = None
+    pareto_score: Optional[float] = None
+    pareto_reason: Optional[str] = None
 
 
-class AIBreakdownRequest(BaseModel):
-    model: str = "gemini"  # "ollama" or "gemini"
+class AIBreakdownRequest(AISettings):
+    pass
 
 
-class RegenerateRequest(BaseModel):
-    model: str = "gemini"
+class RegenerateRequest(AISettings):
+    pass
 
 
-class CopilotAskRequest(BaseModel):
+class CopilotAskRequest(AISettings):
     question: str
-    model: str = "gemini"
 
 
-# ── AI utility helpers ────────────────────────────────────────────────────────
+class NoteCreateRequest(BaseModel):
+    content: str
 
 
-def _extract_json_array(text: str) -> List[dict]:
-    """Extract the first JSON array from an LLM response string."""
-    text = text.strip()
-    text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
-    start = text.find("[")
-    end = text.rfind("]")
-    if start == -1 or end == -1:
-        raise ValueError("No JSON array found in response")
-    return json.loads(text[start : end + 1])
+class NoteAIRequest(AISettings):
+    pass
 
 
-def _call_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash") -> str:
-    """Call Gemini and return raw text response."""
-    safe_model = model.replace("gemini-2.5-flash", "gemini-2.0-flash").replace("gemini-2.5-pro", "gemini-1.5-pro")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{safe_model}:generateContent?key={api_key}"
-    body = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048},
-    }).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read())
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+class IntentionSuggestGeneralRequest(AISettings):
+    title: str
+    context: Optional[str] = None
 
 
-def _call_ollama(prompt: str, base_url: str, model: str) -> str:
-    """Call Ollama and return raw text response."""
-    body = json.dumps({"model": model, "prompt": prompt, "stream": False}).encode()
-    req = urllib.request.Request(
-        f"{base_url.rstrip('/')}/api/generate",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read())
-    return data.get("response", "")
+class DailyKickstartRequest(AISettings):
+    available_hours: float
 
 
-def _call_ai(prompt: str, model_choice: str) -> str:
-    """Route AI call to the appropriate provider."""
-    settings = fetch_settings()
+class DailyPlanSaveRequest(BaseModel):
+    available_hours: float
+    task_ids: List[int]
+    reasoning: dict
 
-    if model_choice == "ollama":
-        return _call_ollama(
-            prompt,
-            settings.get("ollamaUrl", "http://localhost:11434"),
-            settings.get("ollamaModel", "llama3.2"),
-        )
-    else:
-        api_key = settings.get("geminiKey", "")
-        if not api_key:
-            raise ValueError("No Gemini API key configured. Add one in Config.")
-        return _call_gemini(prompt, api_key, settings.get("questionModel", "gemini-2.0-flash"))
+
+class DailyEndRequest(AISettings):
+    completed_task_ids: List[int]
+    incomplete_reschedule: dict  # map of task_id (str) to "tomorrow" | "next_week" | "remove"
+
+
+class BrainDumpRequest(AISettings):
+    text: str
+
+
+class BulkSaveTask(BaseModel):
+    temp_id: int
+    parent_temp_id: Optional[int] = None
+    title: str
+    priority: str = "p3"
+    time_estimate: Optional[str] = None
+    context: Optional[str] = None
+
+
+class BulkSaveRequest(BaseModel):
+    tasks: List[BulkSaveTask]
+
+
+class InboxCreateRequest(BaseModel):
+    content: str
+
+
+
+
+
 
 
 # ── CRUD Endpoints ───────────────────────────────────────────────────────────
@@ -181,6 +208,10 @@ async def get_children_endpoint(task_id: int) -> List[dict]:
 @router.patch("/tasks/{task_id}")
 async def update_task_endpoint(task_id: int, payload: TaskUpdate) -> dict:
     updates = payload.model_dump(exclude_none=True)
+    if "is_top_20" in updates:
+        # A human explicitly toggled this via the Pareto modal — lock it so the
+        # bulk /pareto/analyze sweep never silently overwrites the override.
+        updates["pareto_locked"] = 1
     task = update_task(task_id, **updates)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -224,6 +255,12 @@ def _build_ai_prompt(task: dict, breakdown_type: str) -> str:
             "Use this to make subtasks more specific and relevant."
         )
 
+    # Add intention and definition of done context (Feature 5)
+    if task.get("intention"):
+        context_addendum += f"\nWhy this task matters: {task['intention']}"
+    if task.get("definition_of_done"):
+        context_addendum += f"\nThis task is done when: {task['definition_of_done']}"
+
     return (
         f"{instruction}{sibling_context}{context_addendum}\n\n"
         'Return ONLY a JSON array: [{"title": "...", "time_estimate": "...", "priority": "p1|p2|p3|p4"}]. '
@@ -240,7 +277,7 @@ async def dive_deeper_endpoint(task_id: int, payload: AIBreakdownRequest) -> dic
     prompt = _build_ai_prompt(task, "dive_deeper")
 
     try:
-        raw_response = _call_ai(prompt, payload.model)
+        raw_response = _call_ai(prompt, payload)
         subtasks_data = _extract_json_array(raw_response)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
@@ -258,7 +295,7 @@ async def chunk_endpoint(task_id: int, payload: AIBreakdownRequest) -> dict:
     prompt = _build_ai_prompt(task, "chunk")
 
     try:
-        raw_response = _call_ai(prompt, payload.model)
+        raw_response = _call_ai(prompt, payload)
         subtasks_data = _extract_json_array(raw_response)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
@@ -291,7 +328,7 @@ async def regenerate_endpoint(task_id: int, payload: RegenerateRequest) -> dict:
     prompt = _build_ai_prompt(task, breakdown_type)
 
     try:
-        raw_response = _call_ai(prompt, payload.model)
+        raw_response = _call_ai(prompt, payload)
         subtasks_data = _extract_json_array(raw_response)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI regeneration failed: {exc}")
@@ -302,40 +339,105 @@ async def regenerate_endpoint(task_id: int, payload: RegenerateRequest) -> dict:
 
 # ── Context Upload Endpoint ──────────────────────────────────────────────────
 
+_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+
+_HANDWRITING_PROMPT = """This is a photo or scan of handwritten notes. Please:
+1. Transcribe ALL handwritten text exactly as written, preserving structure (bullet points, numbered lists, headings, underlines) where visible
+2. Fix obvious spelling errors caused by handwriting ambiguity but preserve intentional abbreviations
+3. If there are diagrams or drawings, describe them briefly in [brackets] and extract any text labels within them
+4. Separate distinct sections with a blank line
+5. At the end, add a "Key Points" section summarizing the most important items in 3-5 bullet points
+Return plain text only. No markdown formatting."""
+
+
+def _image_to_base64_jpeg(content: bytes, ext: str) -> str:
+    """Convert image bytes to base64-encoded JPEG. Handles HEIC conversion via Pillow."""
+    from PIL import Image
+
+    if ext == ".heic":
+        # Pillow with pillow-heif plugin, or convert via raw bytes
+        try:
+            img = Image.open(io.BytesIO(content))
+            buf = io.BytesIO()
+            img.convert("RGB").save(buf, format="JPEG", quality=90)
+            return base64.b64encode(buf.getvalue()).decode("utf-8")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Failed to convert HEIC image. Ensure pillow-heif is installed.")
+    else:
+        # Standard image — re-encode as JPEG for consistency
+        try:
+            img = Image.open(io.BytesIO(content))
+            buf = io.BytesIO()
+            img.convert("RGB").save(buf, format="JPEG", quality=90)
+            return base64.b64encode(buf.getvalue()).decode("utf-8")
+        except Exception:
+            # Fallback: send raw bytes as base64
+            return base64.b64encode(content).decode("utf-8")
+
+
+def _call_vision_ai_safe(image_b64: str, prompt: str, settings: AISettings) -> str:
+    """Wraps call_ai_vision, converting failures into a user-facing HTTPException."""
+    try:
+        return _call_vision_ai(image_b64, prompt, settings)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not read handwriting. Try a clearer photo with better lighting. Error: {exc}",
+        )
+
+
+def _is_scanned_pdf(file_path: str) -> bool:
+    """Check if a PDF is scanned (image-based) by attempting text extraction.
+    Returns True if very little text is found across pages."""
+    try:
+        import pdfplumber
+        with pdfplumber.open(file_path) as pdf:
+            total_chars = 0
+            for page in pdf.pages[:3]:  # Check first 3 pages
+                text = page.extract_text() or ""
+                total_chars += len(text.strip())
+            # If fewer than 50 chars across first 3 pages, it's likely scanned
+            return total_chars < 50
+    except Exception:
+        return False
+
 
 @router.post("/tasks/upload-context")
-async def upload_context(file: UploadFile = File(...)) -> dict:
-    """Accept .txt, .pdf, .docx uploads and extract plain text."""
+async def upload_context(
+    file: UploadFile = File(...),
+    vision_model: str = Form("gemini-flash-latest"),
+    geminiKey: str = Form(""),
+    ollamaUrl: str = Form("http://localhost:11434"),
+    ollamaModel: str = Form("llama3.2"),
+) -> dict:
+    """Accept .txt, .pdf, .docx, and image (.jpg/.png/.webp/.heic) uploads and extract text.
+    Image files use vision LLM for handwriting recognition."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
+    ai_settings = AISettings(model=vision_model, geminiKey=geminiKey, ollamaUrl=ollamaUrl, ollamaModel=ollamaModel)
+
     ext = Path(file.filename).suffix.lower()
-    if ext not in (".txt", ".pdf", ".docx"):
-        raise HTTPException(status_code=400, detail="Only .txt, .pdf, .docx files are supported")
+    allowed = {".txt", ".pdf", ".docx"} | _IMAGE_EXTENSIONS
+    if ext not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Accepted: .txt, .pdf, .docx, .jpg, .jpeg, .png, .webp, .heic",
+        )
 
     _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
     file_path = _UPLOAD_DIR / file.filename
     content = await file.read()
     file_path.write_bytes(content)
 
     extracted_text = ""
+    is_handwriting = False
+    confidence_note = None
+
     try:
+        # ── Existing text-based extraction (unchanged) ────────────────────
         if ext == ".txt":
             extracted_text = content.decode("utf-8", errors="replace")
-
-        elif ext == ".pdf":
-            try:
-                import pdfplumber
-            except ImportError:
-                raise HTTPException(status_code=500, detail="pdfplumber not installed")
-            with pdfplumber.open(str(file_path)) as pdf:
-                pages_text = []
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        pages_text.append(page_text)
-                extracted_text = "\n\n".join(pages_text)
 
         elif ext == ".docx":
             try:
@@ -345,19 +447,106 @@ async def upload_context(file: UploadFile = File(...)) -> dict:
             doc = docx.Document(str(file_path))
             extracted_text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
 
+        elif ext == ".pdf":
+            # Check if scanned/image-based PDF
+            if _is_scanned_pdf(str(file_path)):
+                # Scanned PDF — process each page as image via vision LLM
+                is_handwriting = True
+                try:
+                    from pdf2image import convert_from_path
+                except ImportError:
+                    raise HTTPException(status_code=500, detail="pdf2image not installed. Run: pip install pdf2image")
+
+                pages = convert_from_path(str(file_path), dpi=200)
+                page_texts = []
+                for i, page_img in enumerate(pages):
+                    buf = io.BytesIO()
+                    page_img.save(buf, format="JPEG", quality=85)
+                    page_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                    page_text = _call_vision_ai_safe(page_b64, _HANDWRITING_PROMPT, ai_settings)
+                    page_texts.append(f"--- Page {i + 1} ---\n{page_text}")
+
+                extracted_text = "\n\n".join(page_texts)
+                confidence_note = f"Scanned PDF processed via vision LLM ({len(pages)} pages)"
+            else:
+                # Text-based PDF — use existing pdfplumber extraction
+                try:
+                    import pdfplumber
+                except ImportError:
+                    raise HTTPException(status_code=500, detail="pdfplumber not installed")
+                with pdfplumber.open(str(file_path)) as pdf:
+                    pages_text = []
+                    for page in pdf.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            pages_text.append(page_text)
+                    extracted_text = "\n\n".join(pages_text)
+
+        # ── NEW: Image-based handwriting extraction ───────────────────────
+        elif ext in _IMAGE_EXTENSIONS:
+            is_handwriting = True
+            image_b64 = _image_to_base64_jpeg(content, ext)
+            extracted_text = _call_vision_ai_safe(image_b64, _HANDWRITING_PROMPT, ai_settings)
+
+            # Check for empty/unclear results
+            if not extracted_text or len(extracted_text.strip()) < 10:
+                extracted_text = "No text detected in this image."
+                confidence_note = "No text detected"
+            elif any(kw in extracted_text.lower() for kw in ["unclear", "blurry", "cannot read", "illegible"]):
+                confidence_note = "Some text may be unclear due to image quality. Please review carefully."
+
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to extract text: {exc}")
 
-    return {
+    # Save handwriting extraction record
+    if is_handwriting and extracted_text.strip():
+        create_handwriting_extraction(
+            original_filename=file.filename,
+            extracted_text=extracted_text.strip(),
+            vision_model_used=vision_model,
+            source="task_context",
+            confidence_note=confidence_note,
+        )
+
+    result = {
         "filename": file.filename,
         "extracted_text": extracted_text.strip(),
         "char_count": len(extracted_text.strip()),
     }
+    if is_handwriting:
+        result["is_handwriting"] = True
+        if confidence_note:
+            result["confidence_note"] = confidence_note
+    return result
+
 
 
 # ── Copilot Q&A Endpoint (🟢 feedback #12 — smarter context) ─────────────────
+
+
+def _get_top20_titles_across_tabs(limit: int = 15) -> List[str]:
+    """Fetch Top 20% (is_top_20=1) titles across tasks, quick_tasks, and project_nodes for Copilot bias."""
+    import sqlite3
+    from modules.common.db import get_db_path
+
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        titles: List[str] = []
+        cursor.execute("SELECT title FROM tasks WHERE is_top_20 = 1 AND status != 'done' LIMIT ?", (limit,))
+        titles += [row[0] for row in cursor.fetchall()]
+        cursor.execute(
+            "SELECT title FROM quick_tasks WHERE is_top_20 = 1 AND done = 0 AND date = date('now') LIMIT ?",
+            (limit,),
+        )
+        titles += [row[0] for row in cursor.fetchall()]
+        cursor.execute("SELECT title FROM project_nodes WHERE is_top_20 = 1 LIMIT ?", (limit,))
+        titles += [row[0] for row in cursor.fetchall()]
+        return titles[:limit]
+    finally:
+        conn.close()
 
 
 def _build_task_summary(tasks: List[dict], indent: int = 0) -> str:
@@ -369,13 +558,29 @@ def _build_task_summary(tasks: List[dict], indent: int = 0) -> str:
         priority = task.get("priority", "p3")
         time_est = task.get("time_estimate", "no estimate")
         due = task.get("due_date", "no due date")
-        context_snippet = ""
+        
+        detail_pieces = []
         if task.get("context"):
-            context_snippet = f' | Context: {task["context"][:80]}...'
+            detail_pieces.append(f'Context: {task["context"][:100]}...')
+        if task.get("intention"):
+            detail_pieces.append(f'Why it matters: {task["intention"]}')
+        if task.get("definition_of_done"):
+            detail_pieces.append(f'Done when: {task["definition_of_done"]}')
+            
+        # Include last 3 notes
+        notes = get_task_notes(task["id"])
+        if notes:
+            notes_str = "; ".join(f"[{n['note_type']}]: {n['content'][:50]}..." for n in notes[:3])
+            detail_pieces.append(f'Recent Notes: {notes_str}')
+            
+        details = " | ".join(detail_pieces)
+        details_str = f" | {details}" if details else ""
+        
         lines.append(
             f'{prefix}- [{status.upper()}] [{priority.upper()}] {task["title"]} '
-            f'(Time: {time_est}, Due: {due}){context_snippet}'
+            f'(Time: {time_est}, Due: {due}){details_str}'
         )
+        
         children = task.get("children", [])
         if children:
             lines.append(_build_task_summary(children, indent + 1))
@@ -384,9 +589,9 @@ def _build_task_summary(tasks: List[dict], indent: int = 0) -> str:
 
 @router.post("/copilot/ask")
 async def copilot_ask(payload: CopilotAskRequest) -> dict:
-    """Answer productivity questions based on the user's task tree.
+    """Answer productivity questions based on the user's task tree and inbox context.
 
-    Uses smarter context: only active tasks in detail, done/backlog summarized as counts.
+    Uses smarter context: active tasks detailed with notes/intentions, plus captured distractions.
     """
     copilot_data = get_active_tasks_for_copilot()
     active_tree = copilot_data["active_tree"]
@@ -394,18 +599,31 @@ async def copilot_ask(payload: CopilotAskRequest) -> dict:
 
     task_summary = _build_task_summary(active_tree) if active_tree else "No active tasks."
 
-    prompt = f"""You are a productivity copilot. Here are the user's current active tasks with priorities, statuses, time estimates, due dates, and subtask trees:
+    # Fetch captured inbox/distraction items for context
+    inbox_items = get_unprocessed_inbox_items()
+    inbox_summary = "\n".join(f"- {item['content']} (captured: {item['created_at']})" for item in inbox_items) if inbox_items else "No unprocessed items in inbox."
+
+    top20_titles = _get_top20_titles_across_tabs()
+    top20_block = (
+        f"\nTasks marked as Top 20% (high leverage, Pareto-analyzed): {', '.join(top20_titles)}. "
+        "Bias your recommendations strongly toward these tasks — they're the ones that matter most "
+        "right now.\n"
+        if top20_titles else ""
+    )
+
+    prompt = f"""You are a productivity copilot. Here are the user's current active tasks with priorities, statuses, time estimates, due dates, intentions, definition of done criteria, recent activity/notes, and subtask trees:
 
 {task_summary}
 
 Summary: {summary['total']} total tasks, {summary['done_count']} completed, {summary['backlog_no_date_count']} in backlog without due dates, {summary['active_count']} active.
+{top20_block}
+Inbox/Distractions Captured (needs processing later):
+{inbox_summary}
 
-Answer the user's question helpfully and concisely based on these tasks. Be specific — reference actual task names. Keep responses under 200 words unless the user asks for detail.
-
-User's question: {payload.question}"""
+Answer the user's question helpfully and concisely based on these tasks and distractions. Be specific — reference actual task or distraction names. Keep responses under 200 words unless the user asks for detail."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI call failed: {exc}")
 
@@ -452,7 +670,7 @@ Task Context: {task.get('context') or 'No additional context.'}{intention_contex
 Provide a comprehensive, professional explanation. Make it directly useful, structured with clear paragraphs or bullets, and keep it under 300 words."""
 
     try:
-        explanation = _call_ai(prompt, payload.model)
+        explanation = _call_ai(prompt, payload)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
 
@@ -477,7 +695,7 @@ Expand this note into a detailed explanation of what this means, why this decisi
 Write a clean, detailed, and professional expansion under 150 words."""
 
     try:
-        expanded_content = _call_ai(prompt, payload.model)
+        expanded_content = _call_ai(prompt, payload)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
 
@@ -506,7 +724,7 @@ Notes:
 Provide a concise, bulleted summary under 200 words."""
 
     try:
-        summary_text = _call_ai(prompt, payload.model)
+        summary_text = _call_ai(prompt, payload)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
 
@@ -532,7 +750,7 @@ Return ONLY a JSON object:
 No markdown formatting, no comments, no extra text."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         import re
         text = response_text.strip()
         text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
@@ -562,7 +780,7 @@ Return ONLY a JSON object:
 No markdown formatting, no comments, no extra text."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         import re
         text = response_text.strip()
         text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
@@ -577,78 +795,14 @@ No markdown formatting, no comments, no extra text."""
     return result
 
 
-def _stream_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash"):
-    """Streams responses from the Gemini API."""
-    safe_model = model.replace("gemini-2.5-flash", "gemini-2.0-flash").replace("gemini-2.5-pro", "gemini-1.5-pro")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{safe_model}:streamGenerateContent?alt=sse&key={api_key}"
-    body = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048},
-    }).encode()
-    
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            for line in resp:
-                line_str = line.decode("utf-8").strip()
-                if line_str.startswith("data:"):
-                    try:
-                        data_json = json.loads(line_str[5:].strip())
-                        chunk_text = data_json["candidates"][0]["content"]["parts"][0]["text"]
-                        yield chunk_text
-                    except Exception:
-                        pass
-    except Exception as e:
-        yield f"\n[Streaming error: {e}]"
-
-
-def _stream_ollama(prompt: str, base_url: str, model: str):
-    """Streams responses from the local Ollama API."""
-    url = f"{base_url.rstrip('/')}/api/generate"
-    body = json.dumps({
-        "model": model,
-        "prompt": prompt,
-        "stream": True
-    }).encode()
-    
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            for line in resp:
-                if line:
-                    try:
-                        data_json = json.loads(line.decode("utf-8").strip())
-                        chunk_text = data_json.get("response", "")
-                        yield chunk_text
-                    except Exception:
-                        pass
-    except Exception as e:
-        yield f"\n[Streaming error: {e}]"
-
-
-def _stream_ai(prompt: str, model_choice: str):
-    """Route AI stream to the chosen model choice."""
-    settings = fetch_settings()
-    if model_choice == "ollama":
-        yield from _stream_ollama(
-            prompt,
-            settings.get("ollamaUrl", "http://localhost:11434"),
-            settings.get("ollamaModel", "llama3.2"),
-        )
-    else:
-        api_key = settings.get("geminiKey", "")
-        if not api_key:
-            yield "No Gemini API key configured. Add one in Config."
-            return
-        yield from _stream_gemini(
-            prompt,
-            api_key,
-            settings.get("questionModel", "gemini-2.0-flash"),
-        )
-
-
 @router.get("/tasks/{task_id}/resume")
-async def resume_task_endpoint(task_id: int, model: str = "gemini") -> StreamingResponse:
+async def resume_task_endpoint(
+    task_id: int,
+    model: str = "gemini-flash-latest",
+    geminiKey: str = "",
+    ollamaUrl: str = "http://localhost:11434",
+    ollamaModel: str = "llama3.2",
+) -> StreamingResponse:
     """Stream an AI briefing for resuming a task inactive for 2+ days."""
     task = get_task(task_id)
     if not task:
@@ -690,7 +844,8 @@ Generate a "Where You Left Off" briefing in exactly 3 sections:
 
 Keep the briefing clean, actionable, and under 250 words."""
 
-    return StreamingResponse(_stream_ai(prompt, model), media_type="text/plain")
+    ai_settings = AISettings(model=model, geminiKey=geminiKey, ollamaUrl=ollamaUrl, ollamaModel=ollamaModel)
+    return StreamingResponse(_stream_ai(prompt, ai_settings), media_type="text/plain")
 
 
 # ── Daily Kickstart Endpoints ────────────────────────────────────────────────
@@ -723,7 +878,10 @@ async def daily_kickstart_endpoint(payload: DailyKickstartRequest) -> dict:
         return {"tasks": [], "raw_ai_response": ""}
 
     task_list = []
+    top20_count = 0
     for t in pending:
+        if t.get("is_top_20"):
+            top20_count += 1
         task_list.append({
             "id": t["id"],
             "title": t["title"],
@@ -731,14 +889,23 @@ async def daily_kickstart_endpoint(payload: DailyKickstartRequest) -> dict:
             "due_date": t["due_date"] or "none",
             "time_estimate": t["time_estimate"] or "none",
             "intention": t.get("intention") or "none",
-            "definition_of_done": t.get("definition_of_done") or "none"
+            "definition_of_done": t.get("definition_of_done") or "none",
+            "is_top_20": bool(t.get("is_top_20")),
         })
     task_list_str = json.dumps(task_list, indent=2)
+
+    top20_note = (
+        f"\nIMPORTANT: {top20_count} tasks are marked is_top_20=true — these are the highest-leverage "
+        "Pareto tasks. Always select these FIRST, before any other task, even if it means fewer total "
+        "tasks fit the available time. If only 1-2 tasks can fit, they must be the is_top_20 ones with "
+        "the strongest fit.\n"
+        if top20_count else ""
+    )
 
     prompt = f"""You are a productivity coach. The user has {payload.available_hours} hours today.
 Here are their pending tasks with priorities, due dates, time estimates, intentions, and definition of done criteria:
 {task_list_str}
-
+{top20_note}
 Select 3-5 tasks that best fit their available time of {payload.available_hours} hours. Prioritize overdue tasks, high priority (p1/p2) tasks, and tasks with imminent due dates.
 Return ONLY a valid JSON array:
 [
@@ -747,7 +914,7 @@ Return ONLY a valid JSON array:
 No extra text, no markdown block, just raw JSON array."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         subtasks_data = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Daily Kickstart failed: {exc}")
@@ -762,7 +929,10 @@ No extra text, no markdown block, just raw JSON array."""
                 "task": pending_map[tid],
                 "reason": item.get("reason", "Curated for your day.")
             })
-            
+
+    # Guarantee top-20 bias regardless of AI compliance: pin any top-20 suggestions first.
+    suggestions.sort(key=lambda s: 0 if s["task"].get("is_top_20") else 1)
+
     # Also return other alternatives in case user wants to swap
     alternatives = []
     suggested_ids = {s["task"]["id"] for s in suggestions}
@@ -817,15 +987,25 @@ async def daily_end_endpoint(payload: DailyEndRequest) -> dict:
     # 2. Get task titles for Completed vs Incomplete
     completed_titles = []
     incomplete_titles = []
+    top20_incomplete_count = 0
     for cid in payload.completed_task_ids:
         t = get_task(cid)
         if t: completed_titles.append(t["title"])
     for iid_str in payload.incomplete_reschedule.keys():
         try:
             t = get_task(int(iid_str))
-            if t: incomplete_titles.append(t["title"])
+            if t:
+                incomplete_titles.append(t["title"])
+                if t.get("is_top_20"):
+                    top20_incomplete_count += 1
         except Exception:
             pass
+
+    top20_warning = (
+        f"⚠️ {top20_incomplete_count} high-leverage task{'s' if top20_incomplete_count != 1 else ''} "
+        "still incomplete — prioritize these tomorrow"
+        if top20_incomplete_count else None
+    )
 
     prompt = f"""You are a productivity coach. The user is finishing their work day.
 They completed the following tasks today:
@@ -837,7 +1017,7 @@ They did not complete these planned tasks:
 Generate a short (1-2 sentences), highly encouraging and positive summary of their day. Keep it positive and motivating."""
 
     try:
-        encouragement = _call_ai(prompt, payload.model)
+        encouragement = _call_ai(prompt, payload)
     except Exception as exc:
         encouragement = f"Great work completing {len(completed_titles)} tasks today. Tomorrow is a new start!"
 
@@ -855,6 +1035,8 @@ Generate a short (1-2 sentences), highly encouraging and positive summary of the
         "summary": encouragement.strip(),
         "completed_count": len(completed_titles),
         "incomplete_count": len(incomplete_titles),
+        "top20_incomplete_count": top20_incomplete_count,
+        "top20_warning": top20_warning,
     }
 
 
@@ -882,7 +1064,7 @@ Return ONLY a valid JSON array:
 No extra text, no markdown blocks, just raw JSON array."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         tasks_data = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Brain Dump failed: {exc}")
@@ -968,12 +1150,12 @@ async def get_stats_endpoint() -> dict:
 # ── Smart To-Do: Eisenhower + Weekly Plan + Cross-tab Move ────────────────────
 
 
-class EisenhowerAutoRequest(BaseModel):
-    model: str = "gemini"
+class EisenhowerAutoRequest(AISettings):
+    pass
 
 
-class WeeklyPlanRequest(BaseModel):
-    model: str = "gemini"
+class WeeklyPlanRequest(AISettings):
+    pass
 
 
 @router.post("/tasks/eisenhower-auto")
@@ -992,6 +1174,7 @@ async def eisenhower_auto_tasks_endpoint(payload: EisenhowerAutoRequest) -> dict
             "due_date": t["due_date"] or "none",
             "status": t["status"],
             "intention": t.get("intention") or "none",
+            "is_top_20": bool(t.get("is_top_20")),
         }
         for t in pending[:30]  # Limit to avoid token overflow
     ]
@@ -1006,6 +1189,10 @@ Categorize each task into one of 4 quadrants:
 
 Consider priority level (p1 is highest), due dates, status, and intention.
 
+RULE: Any task with is_top_20=true is a Pareto high-leverage task — weight it toward
+"do_now" unless it is clearly not urgent, in which case use "schedule". Never place a
+is_top_20=true task in "delegate" or "eliminate".
+
 Tasks:
 {task_json}
 
@@ -1016,7 +1203,7 @@ Return ONLY a valid JSON array:
 No extra text."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         assignments = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Eisenhower sort failed: {exc}")
@@ -1047,6 +1234,8 @@ async def ai_weekly_plan_endpoint(payload: WeeklyPlanRequest) -> dict:
     if not pending:
         return {"weekly_plan": {}}
 
+    top20_by_id = {t["id"]: True for t in pending if t.get("is_top_20")}
+
     task_list = [
         {
             "task_id": t["id"],
@@ -1055,15 +1244,23 @@ async def ai_weekly_plan_endpoint(payload: WeeklyPlanRequest) -> dict:
             "time_estimate": t["time_estimate"] or "unknown",
             "due_date": t["due_date"] or "none",
             "status": t["status"],
+            "is_top_20": bool(t.get("is_top_20")),
         }
         for t in pending[:25]
     ]
     task_json = json.dumps(task_list, indent=2)
 
+    top20_note = (
+        f"\nIMPORTANT: {len(top20_by_id)} tasks are marked is_top_20=true — these are the "
+        "highest-leverage Pareto tasks. Pin each of them to the EARLIEST available slot in "
+        "whichever day you place them, before any other task that day.\n"
+        if top20_by_id else ""
+    )
+
     prompt = f"""You are a productivity coach. Create a structured weekly execution plan (Monday through Friday).
 Distribute these tasks across the 5 weekdays, considering priority, due dates, and estimated time.
 Aim for 3-5 hours of focused work per day.
-
+{top20_note}
 Tasks:
 {task_json}
 
@@ -1078,7 +1275,7 @@ Return ONLY a valid JSON object (not an array):
 No extra text."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         # Extract JSON object
         import re
         text = response_text.strip()
@@ -1090,6 +1287,18 @@ No extra text."""
         weekly_plan = json.loads(text[start:end + 1])
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Weekly Plan failed: {exc}")
+
+    # Guarantee top-20 pinning regardless of AI compliance: annotate is_top_20 and
+    # move any top-20 tasks to the front of whichever day they landed on.
+    for day, day_tasks in weekly_plan.items():
+        if not isinstance(day_tasks, list):
+            continue
+        for dt in day_tasks:
+            if isinstance(dt, dict) and dt.get("task_id") in top20_by_id:
+                dt["is_top_20"] = True
+        weekly_plan[day] = sorted(
+            day_tasks, key=lambda dt: 0 if (isinstance(dt, dict) and dt.get("is_top_20")) else 1
+        )
 
     return {"weekly_plan": weekly_plan}
 
@@ -1131,23 +1340,21 @@ async def move_task_to_plan_endpoint(task_id: int) -> dict:
 # ── AI Fast Capture, Auto-Prioritize, DoD Generator & Smart Schedule ─────────────
 
 
-class TaskNLPParseRequest(BaseModel):
+class TaskNLPParseRequest(AISettings):
     raw_text: str
-    model: str = "gemini"
 
 
-class AIPrioritizeAllRequest(BaseModel):
-    model: str = "gemini"
+class AIPrioritizeAllRequest(AISettings):
+    pass
 
 
-class SmartScheduleRequest(BaseModel):
+class SmartScheduleRequest(AISettings):
     available_hours: float = 6.0
     energy_level: str = "medium"  # "high", "medium", "low"
-    model: str = "gemini"
 
 
-class GenerateDoDRequest(BaseModel):
-    model: str = "gemini"
+class GenerateDoDRequest(AISettings):
+    pass
 
 
 @router.post("/ai/parse-task")
@@ -1174,7 +1381,7 @@ Extract the following JSON fields:
 Return ONLY a valid JSON object matching the schema above."""
 
     try:
-        raw_res = _call_ai(prompt, payload.model)
+        raw_res = _call_ai(prompt, payload)
         text = raw_res.strip()
         text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
         start = text.find("{")
@@ -1224,7 +1431,7 @@ For each task item, assign:
 Return ONLY a valid JSON array of objects with the exact schema above."""
 
     try:
-        raw_res = _call_ai(prompt, payload.model)
+        raw_res = _call_ai(prompt, payload)
         evaluations = _extract_json_array(raw_res)
         updated_count = 0
 
@@ -1269,7 +1476,7 @@ Return ONLY a valid JSON object matching:
 }}"""
 
     try:
-        raw_res = _call_ai(prompt, payload.model)
+        raw_res = _call_ai(prompt, payload)
         text = raw_res.strip()
         text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
         start = text.find("{")
@@ -1336,7 +1543,7 @@ Schema:
 Return ONLY a valid JSON object matching the schema above."""
 
     try:
-        raw_res = _call_ai(prompt, payload.model)
+        raw_res = _call_ai(prompt, payload)
         text = raw_res.strip()
         text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
         start = text.find("{")

@@ -29,12 +29,15 @@ def _quick_task_row_to_dict(row: tuple) -> Dict[str, Any]:
         "due_date": row[14] if len(row) > 14 else None,
         "time_estimate": row[15] if len(row) > 15 else None,
         "context": row[16] if len(row) > 16 else None,
+        "pareto_reason": row[17] if len(row) > 17 else None,
+        "pareto_locked": bool(row[18]) if len(row) > 18 and row[18] is not None else False,
     }
 
 
 _QT_COLUMNS = (
     "id, title, done, quadrant, date, source, original_task_id, order_index, created_at, "
-    "pareto_score, is_top_20, exported_task_id, exported_project_id, is_exported, due_date, time_estimate, context"
+    "pareto_score, is_top_20, exported_task_id, exported_project_id, is_exported, due_date, time_estimate, context, "
+    "pareto_reason, pareto_locked"
 )
 
 
@@ -85,7 +88,8 @@ def get_quick_tasks_for_date(task_date: str) -> List[Dict[str, Any]]:
 
 def update_quick_task(task_id: int, **fields) -> Optional[Dict[str, Any]]:
     """Update specific fields on a quick task."""
-    allowed = {"title", "done", "quadrant", "order_index", "pareto_score", "is_top_20", "due_date", "time_estimate", "context"}
+    allowed = {"title", "done", "quadrant", "order_index", "pareto_score", "is_top_20", "due_date", "time_estimate",
+               "context", "pareto_reason", "pareto_locked"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_quick_task(task_id)
@@ -165,8 +169,8 @@ def archive_completed_quick_tasks(task_date: str) -> int:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO quick_tasks_archive (original_id, title, quadrant, date, source, original_task_id)
-            SELECT id, title, quadrant, date, source, original_task_id
+            INSERT INTO quick_tasks_archive (original_id, title, quadrant, date, source, original_task_id, done, pareto_score, is_top_20)
+            SELECT id, title, quadrant, date, source, original_task_id, done, pareto_score, is_top_20
             FROM quick_tasks WHERE date = ? AND done = 1
             """,
             (task_date,),
@@ -192,6 +196,20 @@ def move_quick_tasks_to_tomorrow(task_ids: List[int]) -> int:
         )
         conn.commit()
         return cursor.rowcount
+    finally:
+        conn.close()
+
+
+def count_incomplete_top20(task_date: str) -> int:
+    """Count today's quick tasks that are Top 20% and still not done (for end-of-day warnings)."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM quick_tasks WHERE date = ? AND done = 0 AND is_top_20 = 1",
+            (task_date,),
+        )
+        return cursor.fetchone()[0]
     finally:
         conn.close()
 

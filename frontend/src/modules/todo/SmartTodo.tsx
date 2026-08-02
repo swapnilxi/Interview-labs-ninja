@@ -5,6 +5,7 @@ import TaskTree from './TaskTree';
 import EisenhowerMatrix, { MatrixItem } from '@/components/ui/EisenhowerMatrix';
 import WeeklyPlan from './WeeklyPlan';
 import { todoService, Task } from '@/lib/services/todoService';
+import { paretoService } from '@/lib/services/paretoService';
 import TaskNode from './TaskNode';
 import Icon from '@/components/ui/AppIcon';
 
@@ -21,11 +22,14 @@ export default function SmartTodo({ model }: SmartTodoProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [autoSortLoading, setAutoSortLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // NLP Capture state
   const [nlpInput, setNlpInput] = useState('');
   const [nlpLoading, setNlpLoading] = useState(false);
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [analyzeToast, setAnalyzeToast] = useState<string | null>(null);
 
   const loadMatrixTasks = async () => {
     setLoading(true);
@@ -44,6 +48,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
     e.preventDefault();
     if (!nlpInput.trim()) return;
     setNlpLoading(true);
+    setAiError(null);
     try {
       const parsed = await todoService.parseTaskWithAI(nlpInput.trim(), model);
       if (parsed && parsed.title) {
@@ -63,7 +68,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
       setTreeRefreshKey(prev => prev + 1);
       if (activeSubView === 'matrix') loadMatrixTasks();
     } catch (err) {
-      console.error(err);
+      setAiError(err instanceof Error ? err.message : 'Failed to parse task.');
     } finally {
       setNlpLoading(false);
     }
@@ -75,11 +80,37 @@ export default function SmartTodo({ model }: SmartTodoProps) {
     await todoService.updateTask(id, { eisenhower_quadrant: newQuadrant });
   };
 
+  const handleAnalyze = async () => {
+    if (paretoService.hasAnalyzedToday('smart')) {
+      if (!confirm('You already ran analysis today. Results may be similar. Continue?')) return;
+    }
+    if (!confirm('AI will analyze all your tasks and identify the top 20% that will drive 80% of your results. This takes a few seconds.')) return;
+    setAnalyzeLoading(true);
+    try {
+      const result = await paretoService.analyze('smart', model);
+      paretoService.markAnalyzedToday('smart');
+      setTreeRefreshKey(prev => prev + 1);
+      if (activeSubView === 'matrix') await loadMatrixTasks();
+      setAnalyzeToast(`⭐ Found ${result.top20_count ?? 0} high-leverage task${(result.top20_count ?? 0) === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total`);
+    } catch (err) {
+      setAnalyzeToast(err instanceof Error ? `⚠️ ${err.message}` : '⚠️ Analysis failed.');
+    } finally {
+      setAnalyzeLoading(false);
+      setTimeout(() => setAnalyzeToast(null), 4000);
+    }
+  };
+
   const handleAutoSort = async () => {
     setAutoSortLoading(true);
-    await todoService.prioritizeAllWithAI(model);
-    await loadMatrixTasks();
-    setAutoSortLoading(false);
+    setAiError(null);
+    try {
+      await todoService.prioritizeAllWithAI(model);
+      await loadMatrixTasks();
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Auto-sort failed.');
+    } finally {
+      setAutoSortLoading(false);
+    }
   };
 
   const matrixItems = tasks.map(t => ({
@@ -90,6 +121,13 @@ export default function SmartTodo({ model }: SmartTodoProps) {
 
   return (
     <div className="flex flex-col h-full gap-4">
+      {/* 80/20 Analyze toast */}
+      {analyzeToast && (
+        <div className="fixed top-20 right-6 z-[200] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold bg-amber-500 text-white animate-slide-up">
+          {analyzeToast}
+        </div>
+      )}
+
       {/* AI Fast Task Capture Input Bar */}
       <form onSubmit={handleNlpSubmit} className="relative w-full">
         <div className="flex items-center gap-2 p-1.5 bg-card border border-primary/30 rounded-xl shadow-md focus-within:ring-2 focus-within:ring-primary/40 transition-all">
@@ -118,8 +156,30 @@ export default function SmartTodo({ model }: SmartTodoProps) {
         </div>
       </form>
 
+      {/* AI action error */}
+      {aiError && (
+        <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+          <span className="text-xs shrink-0">⚠️</span>
+          <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
+          <button onClick={() => setAiError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
+            <Icon name="XMarkIcon" size={12} />
+          </button>
+        </div>
+      )}
+
       {/* Sub-view Switcher */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-center relative">
+        <button
+          onClick={handleAnalyze}
+          disabled={analyzeLoading}
+          className="absolute left-0 text-[10px] px-2.5 py-1.5 rounded-lg border border-amber-400/50 bg-amber-400/5 text-amber-600 dark:text-amber-400 hover:bg-amber-400/10 transition-smooth flex items-center gap-1 font-semibold disabled:opacity-50"
+          title="Run AI 80/20 analysis on all tasks"
+        >
+          {analyzeLoading ? (
+            <span className="w-3 h-3 border border-amber-500/40 border-t-amber-500 rounded-full animate-spin" />
+          ) : '⭐'}
+          <span className="hidden md:inline">{analyzeLoading ? 'Identifying your high-leverage tasks...' : '80/20 Analyze'}</span>
+        </button>
         <div className="inline-flex items-center p-1 bg-muted/50 rounded-lg border border-border">
           <button
             onClick={() => setActiveSubView('tree')}

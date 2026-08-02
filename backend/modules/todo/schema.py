@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 def register(cursor) -> None:
-    """Create the tasks table if it does not exist and run migrations."""
+    """Create the tasks table and other related tables if they do not exist, and run safe migrations."""
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,11 +20,18 @@ def register(cursor) -> None:
             attachments TEXT DEFAULT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            last_activity_at TEXT DEFAULT NULL,
+            is_recurring INTEGER DEFAULT 0,
+            recurrence_interval TEXT DEFAULT NULL,
+            recurrence_custom_days TEXT DEFAULT NULL,
+            recurrence_template_id INTEGER DEFAULT NULL,
+            intention TEXT DEFAULT NULL,
+            definition_of_done TEXT DEFAULT NULL,
             FOREIGN KEY (parent_id) REFERENCES tasks(id) ON DELETE CASCADE
         )
     """)
 
-    # Safe migrations — add columns if they don't exist yet
+    # Safe migrations — add columns to tasks if they don't exist yet
     cursor.execute("PRAGMA table_info(tasks);")
     columns = [row[1] for row in cursor.fetchall()]
 
@@ -38,9 +45,23 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE tasks ADD COLUMN depth_level INTEGER NOT NULL DEFAULT 1;")
     if "due_date" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN due_date TEXT DEFAULT NULL;")
+    if "last_activity_at" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN last_activity_at TEXT DEFAULT NULL;")
+    if "is_recurring" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN is_recurring INTEGER DEFAULT 0;")
+    if "recurrence_interval" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN recurrence_interval TEXT DEFAULT NULL;")
+    if "recurrence_custom_days" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN recurrence_custom_days TEXT DEFAULT NULL;")
+    if "recurrence_template_id" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN recurrence_template_id INTEGER DEFAULT NULL;")
+    if "intention" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN intention TEXT DEFAULT NULL;")
+    if "definition_of_done" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN definition_of_done TEXT DEFAULT NULL;")
+    if "eisenhower_quadrant" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN eisenhower_quadrant TEXT DEFAULT NULL;")
 
-<<<<<<< HEAD
-=======
     # Create daily_plans table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS daily_plans (
@@ -206,6 +227,10 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE tasks ADD COLUMN pareto_score REAL DEFAULT NULL;")
     if "is_top_20" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN is_top_20 INTEGER DEFAULT 0;")
+    if "pareto_reason" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN pareto_reason TEXT DEFAULT NULL;")
+    if "pareto_locked" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN pareto_locked INTEGER DEFAULT 0;")
 
     # 2. quick_tasks table
     cursor.execute("PRAGMA table_info(quick_tasks);")
@@ -227,6 +252,20 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE quick_tasks ADD COLUMN is_exported INTEGER DEFAULT 0;")
     if "context" not in qt_cols:
         cursor.execute("ALTER TABLE quick_tasks ADD COLUMN context TEXT DEFAULT NULL;")
+    if "pareto_reason" not in qt_cols:
+        cursor.execute("ALTER TABLE quick_tasks ADD COLUMN pareto_reason TEXT DEFAULT NULL;")
+    if "pareto_locked" not in qt_cols:
+        cursor.execute("ALTER TABLE quick_tasks ADD COLUMN pareto_locked INTEGER DEFAULT 0;")
+
+    # 2b. quick_tasks_archive table — preserve done/pareto data instead of losing it on archive
+    cursor.execute("PRAGMA table_info(quick_tasks_archive);")
+    qta_cols = [row[1] for row in cursor.fetchall()]
+    if "done" not in qta_cols:
+        cursor.execute("ALTER TABLE quick_tasks_archive ADD COLUMN done INTEGER DEFAULT 0;")
+    if "pareto_score" not in qta_cols:
+        cursor.execute("ALTER TABLE quick_tasks_archive ADD COLUMN pareto_score REAL DEFAULT NULL;")
+    if "is_top_20" not in qta_cols:
+        cursor.execute("ALTER TABLE quick_tasks_archive ADD COLUMN is_top_20 INTEGER DEFAULT 0;")
 
     # 3. project_nodes table
     cursor.execute("PRAGMA table_info(project_nodes);")
@@ -247,6 +286,10 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE project_nodes ADD COLUMN intention TEXT DEFAULT NULL;")
     if "definition_of_done" not in pn_cols:
         cursor.execute("ALTER TABLE project_nodes ADD COLUMN definition_of_done TEXT DEFAULT NULL;")
+    if "pareto_reason" not in pn_cols:
+        cursor.execute("ALTER TABLE project_nodes ADD COLUMN pareto_reason TEXT DEFAULT NULL;")
+    if "pareto_locked" not in pn_cols:
+        cursor.execute("ALTER TABLE project_nodes ADD COLUMN pareto_locked INTEGER DEFAULT 0;")
 
     # 4. projects table — add pareto + is_top_20 if missing
     cursor.execute("PRAGMA table_info(projects);")
@@ -255,4 +298,7 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE projects ADD COLUMN pareto_score REAL DEFAULT NULL;")
     if "is_top_20" not in proj_cols:
         cursor.execute("ALTER TABLE projects ADD COLUMN is_top_20 INTEGER DEFAULT 0;")
->>>>>>> f2f3bfe (ai-to-do)
+    if "pareto_reason" not in proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN pareto_reason TEXT DEFAULT NULL;")
+    if "pareto_locked" not in proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN pareto_locked INTEGER DEFAULT 0;")

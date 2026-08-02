@@ -18,11 +18,14 @@ interface Filters {
   genType: string;
   search: string;
   view: ViewMode;
+  top20: boolean;
 }
 
 interface FilterBarProps {
   filters: Filters;
   onChange: (filters: Filters) => void;
+  onAnalyze?: () => void;
+  analyzeLoading?: boolean;
 }
 
 type ChipDef = { key: string; label: string; color?: string };
@@ -57,7 +60,7 @@ const VIEW_MODES: { key: ViewMode; label: string; icon: string }[] = [
   { key: 'focus', label: 'Focus', icon: '🎯' },
 ];
 
-export default function FilterBar({ filters, onChange }: FilterBarProps) {
+export default function FilterBar({ filters, onChange, onAnalyze, analyzeLoading }: FilterBarProps) {
   const [expanded, setExpanded] = useState(false);
 
   const update = (key: keyof Filters, value: string) => {
@@ -115,6 +118,34 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
           )}
         </div>
 
+        {/* Top 20% toggle */}
+        <button
+          onClick={() => onChange({ ...filters, top20: !filters.top20 })}
+          className={`text-[10px] px-2.5 py-1.5 rounded-lg border transition-smooth flex items-center gap-1 font-semibold whitespace-nowrap ${
+            filters.top20
+              ? 'border-amber-400/60 bg-amber-400/10 text-amber-600 dark:text-amber-400'
+              : 'border-border text-muted-foreground hover:text-foreground'
+          }`}
+          title="Show only Top 20% high-leverage tasks"
+        >
+          ⭐ <span className="hidden sm:inline">Top 20%</span>
+        </button>
+
+        {/* 80/20 Analyze button */}
+        {onAnalyze && (
+          <button
+            onClick={onAnalyze}
+            disabled={analyzeLoading}
+            className="text-[10px] px-2.5 py-1.5 rounded-lg border border-amber-400/50 bg-amber-400/5 text-amber-600 dark:text-amber-400 hover:bg-amber-400/10 transition-smooth flex items-center gap-1 font-semibold disabled:opacity-50 whitespace-nowrap"
+            title="Run AI 80/20 analysis on all tasks"
+          >
+            {analyzeLoading ? (
+              <span className="w-3 h-3 border border-amber-500/40 border-t-amber-500 rounded-full animate-spin" />
+            ) : '⭐'}
+            <span className="hidden sm:inline">80/20 Analyze</span>
+          </button>
+        )}
+
         {/* View toggle */}
         <div className="flex items-center bg-muted rounded-lg p-0.5 border border-border">
           {VIEW_MODES.map(mode => (
@@ -155,9 +186,9 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
           <ChipGroup label="Type" chips={GEN_CHIPS} activeKey={filters.genType} filterKey="genType" />
 
           {/* Clear all */}
-          {(filters.status !== 'all' || filters.priority !== 'all' || filters.time !== 'all' || filters.genType !== 'all') && (
+          {(filters.status !== 'all' || filters.priority !== 'all' || filters.time !== 'all' || filters.genType !== 'all' || filters.top20) && (
             <button
-              onClick={() => onChange({ ...filters, status: 'all', priority: 'all', time: 'all', genType: 'all' })}
+              onClick={() => onChange({ ...filters, status: 'all', priority: 'all', time: 'all', genType: 'all', top20: false })}
               className="text-[10px] text-primary hover:text-primary/80 transition-smooth font-medium"
             >
               Clear all filters

@@ -16,6 +16,8 @@ import {
   getRelativeDueDate,
   todoService,
 } from '@/lib/services/todoService';
+import { paretoService } from '@/lib/services/paretoService';
+import { aiQueryString } from '@/lib/services/settingsService';
 
 interface TaskTreeProps {
   model: 'ollama' | 'gemini';
@@ -30,6 +32,7 @@ interface Filters {
   genType: string;
   search: string;
   view: ViewMode;
+  top20: boolean;
 }
 
 const DEFAULT_FILTERS: Filters = {
@@ -39,16 +42,84 @@ const DEFAULT_FILTERS: Filters = {
   genType: 'all',
   search: '',
   view: 'tree',
+  top20: false,
 };
 
 export default function TaskTree({ model }: TaskTreeProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddTitle, setQuickAddTitle] = useState('');
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const quickAddInputRef = useRef<HTMLInputElement>(null);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [focusedTaskId, setFocusedTaskId] = useState<number | null>(null);
   const [undoInfo, setUndoInfo] = useState<{ parentId: number; previousChildren: Task[] } | null>(null);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [resumeTask, setResumeTask] = useState<Task | null>(null);
+  const [stats, setStats] = useState<any | null>(null);
+
+  const loadStats = useCallback(async () => {
+    const data = await todoService.getStats();
+    if (data) {
+      setStats(data);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  // ── 80/20 Analyze ────────────────────────────────────────────────────────
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [revealDelays, setRevealDelays] = useState<Record<number, number>>({});
+  const [analyzeToast, setAnalyzeToast] = useState<string | null>(null);
+
+  const handleAnalyze = useCallback(async () => {
+    if (paretoService.hasAnalyzedToday('smart')) {
+      if (!confirm('You already ran analysis today. Results may be similar. Continue?')) return;
+    }
+    if (!confirm('AI will analyze all your tasks and identify the top 20% that will drive 80% of your results. This takes a few seconds.')) return;
+
+    setAnalyzeLoading(true);
+    try {
+      const result = await paretoService.analyze('smart', model);
+      paretoService.markAnalyzedToday('smart');
+      await loadTasks();
+
+      const newTop20Ids = result.results.filter(r => r.table === 'tasks' && r.is_top_20).map(r => r.id);
+      const delays: Record<number, number> = {};
+      newTop20Ids.forEach((id, i) => { delays[id] = i * 100; });
+      setRevealDelays(delays);
+      setTimeout(() => setRevealDelays({}), newTop20Ids.length * 100 + 600);
+
+      setAnalyzeToast(`⭐ Found ${result.top20_count ?? 0} high-leverage task${(result.top20_count ?? 0) === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total`);
+      setTimeout(() => setAnalyzeToast(null), 4000);
+    } catch (err) {
+      setAnalyzeToast(err instanceof Error ? `⚠️ ${err.message}` : '⚠️ Analysis failed.');
+      setTimeout(() => setAnalyzeToast(null), 4000);
+    } finally {
+      setAnalyzeLoading(false);
+    }
+  }, [model]);
+
+  const [activePlan, setActivePlan] = useState<any | null>(null);
+  const [showStartDayModal, setShowStartDayModal] = useState(false);
+  const [showEndDayModal, setShowEndDayModal] = useState(false);
+
+  const loadDailyPlan = useCallback(async () => {
+    const res = await todoService.getDailyPlan();
+    if (res && res.status === 'active') {
+      setActivePlan(res.plan);
+    } else {
+      setActivePlan(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDailyPlan();
+  }, [loadDailyPlan]);
 
   // ── Load tasks ──────────────────────────────────────────────────────────
 
@@ -64,6 +135,12 @@ export default function TaskTree({ model }: TaskTreeProps) {
   // ── Task tree mutation helpers ──────────────────────────────────────────
 
   const updateTaskInTree = useCallback((taskId: number, updates: Partial<Task>) => {
+    if ('status' in updates) {
+      loadStats();
+      setTimeout(() => {
+        loadDailyPlan();
+      }, 300);
+    }
     setTasks(prev => {
       function walk(nodes: Task[]): Task[] {
         return nodes.map(n => {
@@ -74,7 +151,7 @@ export default function TaskTree({ model }: TaskTreeProps) {
       }
       return walk(prev);
     });
-  }, []);
+  }, [loadStats, loadDailyPlan]);
 
   const deleteTaskFromTree = useCallback((taskId: number) => {
     setTasks(prev => {
@@ -159,17 +236,34 @@ export default function TaskTree({ model }: TaskTreeProps) {
   const handleTaskCreated = useCallback((task: Task) => {
     setTasks(prev => [...prev, { ...task, children: [] }]);
     setShowAddModal(false);
-  }, []);
+    loadStats();
+  }, [loadStats]);
+
+  const handleQuickAdd = useCallback(async () => {
+    const title = quickAddTitle.trim();
+    if (!title) return;
+    setQuickAddLoading(true);
+    const task = await todoService.createTask({ title, parent_id: null });
+    if (task) {
+      setTasks(prev => [...prev, { ...task, children: [] }]);
+      loadStats();
+    }
+    setQuickAddTitle('');
+    setQuickAddLoading(false);
+    // keep the input open so user can add more
+    quickAddInputRef.current?.focus();
+  }, [quickAddTitle, loadStats]);
 
   // ── Filtering ───────────────────────────────────────────────────────────
 
   const filterTasks = useCallback((nodes: Task[]): Task[] => {
-    const { status, priority, time, genType, search } = filters;
+    const { status, priority, time, genType, search, top20 } = filters;
 
     function matches(task: Task): boolean {
       if (status !== 'all' && task.status !== status) return false;
       if (priority !== 'all' && task.priority !== priority) return false;
       if (genType !== 'all' && task.generation_type !== genType) return false;
+      if (top20 && !task.is_top_20) return false;
       if (search && !task.title.toLowerCase().includes(search.toLowerCase()) &&
           !(task.context || '').toLowerCase().includes(search.toLowerCase())) return false;
       if (time !== 'all') {
@@ -199,10 +293,13 @@ export default function TaskTree({ model }: TaskTreeProps) {
 
     if (filters.view === 'focus') {
       const flat = flattenTree(nodes);
-      return flat.filter(t => t.status === 'in_progress' || (getRelativeDueDate(t.due_date)?.isOverdue));
+      return flat.filter(t =>
+        (t.status === 'in_progress' || (getRelativeDueDate(t.due_date)?.isOverdue)) &&
+        (!top20 || t.is_top_20)
+      );
     }
 
-    const hasAnyFilter = status !== 'all' || priority !== 'all' || time !== 'all' || genType !== 'all' || search;
+    const hasAnyFilter = status !== 'all' || priority !== 'all' || time !== 'all' || genType !== 'all' || search || top20;
     if (!hasAnyFilter) return nodes;
 
     return walkFilter(nodes);
@@ -231,6 +328,213 @@ export default function TaskTree({ model }: TaskTreeProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Visual Stats Bar & 7-day chart (Feature 8) */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2 animate-fade-in">
+          {/* Daily Completions */}
+          <div className="p-4 rounded-xl bg-card border border-border flex flex-col justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Today's completions</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-heading font-bold text-foreground">{stats.completed_today}</span>
+                <span className="text-xs text-muted-foreground">/ 3 target</span>
+              </div>
+            </div>
+            {stats.completed_today >= 3 ? (
+              <span className="text-[10px] text-emerald-500 font-semibold mt-2 flex items-center gap-1">
+                🎉 Daily target achieved!
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground mt-2">
+                {3 - stats.completed_today} more to hit daily goal
+              </span>
+            )}
+          </div>
+
+          {/* Active Streak */}
+          <div className="p-4 rounded-xl bg-card border border-border flex flex-col justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Active Streak</span>
+              <div className="flex items-center gap-2">
+                <span className="text-3xl font-heading font-bold text-amber-500 flex items-center gap-1">
+                  🔥 {stats.streak}
+                </span>
+                <span className="text-xs text-muted-foreground">days</span>
+              </div>
+            </div>
+            <span className="text-[10px] text-muted-foreground mt-2">
+              Keep checking off tasks daily!
+            </span>
+          </div>
+
+          {/* Last 7 Days completion chart */}
+          <div className="p-4 rounded-xl bg-card border border-border shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">Last 7 Days</span>
+            <div className="flex items-end justify-between h-14 px-1 gap-1">
+              {stats.last_7_days.map((count: number, idx: number) => {
+                const maxVal = Math.max(...stats.last_7_days, 1);
+                const heightPct = Math.round((count / maxVal) * 100);
+                return (
+                  <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative">
+                    <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-900 text-white text-[9px] rounded py-0.5 px-1.5 z-10 whitespace-nowrap shadow">
+                      {count} tasks
+                    </div>
+                    <div
+                      className="w-full bg-primary/20 group-hover:bg-primary rounded-t transition-all duration-300"
+                      style={{ height: `${Math.max(5, heightPct)}%` }}
+                    />
+                    <span className="text-[8px] text-muted-foreground font-semibold">
+                      {stats.last_7_dates[idx] || ''}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Daily Kickstart header section (Feature 1) */}
+      <div className="flex items-center justify-between pb-2 border-b border-border">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Tasks</h2>
+        <div className="flex items-center gap-2">
+          {/* Quick-add toggle button */}
+          <button
+            onClick={() => {
+              setShowQuickAdd(v => !v);
+              if (!showQuickAdd) setTimeout(() => quickAddInputRef.current?.focus(), 60);
+            }}
+            title="Add task without opening modal"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs hover:shadow-md hover:scale-[1.02] transition-smooth active:scale-95 border ${
+              showQuickAdd
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-muted/60 text-foreground border-border hover:bg-muted'
+            }`}
+          >
+            <span className="text-sm leading-none">+</span> New Todo
+          </button>
+
+          {!activePlan ? (
+            <button
+              onClick={() => setShowStartDayModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-primary text-white font-semibold text-xs hover:shadow-md hover:scale-[1.02] transition-smooth active:scale-95"
+            >
+              🌅 Start Day
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowEndDayModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs hover:shadow-md hover:scale-[1.02] transition-smooth active:scale-95"
+            >
+              🌇 End Day
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Inline quick-add row */}
+      {showQuickAdd && (
+        <div className="flex items-center gap-2 p-2.5 rounded-xl border border-primary/40 bg-primary/5 animate-fade-in">
+          <input
+            ref={quickAddInputRef}
+            type="text"
+            value={quickAddTitle}
+            onChange={e => setQuickAddTitle(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleQuickAdd();
+              if (e.key === 'Escape') { setShowQuickAdd(false); setQuickAddTitle(''); }
+            }}
+            placeholder="Task title… press Enter to add"
+            className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground"
+            disabled={quickAddLoading}
+          />
+          <button
+            onClick={handleQuickAdd}
+            disabled={!quickAddTitle.trim() || quickAddLoading}
+            className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 hover:bg-primary/90 transition-smooth"
+            title="Add task (Enter)"
+          >
+            {quickAddLoading
+              ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              : <Icon name="PlusIcon" size={14} variant="solid" />}
+          </button>
+          <button
+            onClick={() => { setShowQuickAdd(false); setQuickAddTitle(''); }}
+            className="flex-shrink-0 w-7 h-7 rounded-lg bg-muted/60 text-muted-foreground flex items-center justify-center hover:bg-muted transition-smooth"
+            title="Cancel (Esc)"
+          >
+            <Icon name="XMarkIcon" size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Pinned Today's Focus Plan (Feature 1) */}
+      {activePlan && activePlan.tasks && activePlan.tasks.length > 0 && (
+        <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-primary/10 border border-primary/20 shadow-md">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎯</span>
+              <h2 className="font-heading text-sm font-bold text-foreground">Today's Focus</h2>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary font-semibold">
+                {activePlan.plan_date}
+              </span>
+            </div>
+            <span className="text-xs font-semibold text-primary">
+              {activePlan.tasks.filter((t: any) => t.status === 'done').length} / {activePlan.tasks.length} Done
+            </span>
+          </div>
+          {/* Progress bar */}
+          <div className="w-full bg-muted dark:bg-muted/40 h-1.5 rounded-full overflow-hidden mb-3">
+            <div
+              className="bg-primary h-full transition-all duration-500"
+              style={{
+                width: `${
+                  (activePlan.tasks.filter((t: any) => t.status === 'done').length /
+                    activePlan.tasks.length) *
+                  100
+                }%`,
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            {activePlan.tasks.map((task: any) => (
+              <div
+                key={task.id}
+                className="flex items-center justify-between p-2.5 rounded-lg bg-card border border-border/60 hover:border-primary/30 transition-smooth"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={task.status === 'done'}
+                    onChange={async () => {
+                      const newStatus = task.status === 'done' ? 'in_progress' : 'done';
+                      const updated = await todoService.updateTask(task.id, { status: newStatus });
+                      if (updated) {
+                        updateTaskInTree(task.id, { status: newStatus });
+                        loadDailyPlan();
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-border text-primary focus-ring cursor-pointer"
+                  />
+                  <span className={`text-xs font-medium truncate ${task.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                    {task.title}
+                  </span>
+                  {activePlan.reasoning[task.id] && (
+                    <span className="text-[10px] text-muted-foreground/80 italic truncate hidden md:inline">
+                      • {activePlan.reasoning[task.id]}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    {task.time_estimate || 'no est'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Depth color legend */}
       <div className="flex items-center gap-3 flex-wrap">
         <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Depth</span>
@@ -242,8 +546,15 @@ export default function TaskTree({ model }: TaskTreeProps) {
         ))}
       </div>
 
+      {/* 80/20 Analyze toast */}
+      {analyzeToast && (
+        <div className="fixed top-20 right-6 z-[200] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold bg-amber-500 text-white animate-slide-up">
+          {analyzeToast}
+        </div>
+      )}
+
       {/* Filter bar */}
-      <FilterBar filters={filters} onChange={setFilters} />
+      <FilterBar filters={filters} onChange={setFilters} onAnalyze={handleAnalyze} analyzeLoading={analyzeLoading} />
 
       {/* Undo toast (feedback #1) */}
       {undoInfo && (
@@ -315,6 +626,8 @@ export default function TaskTree({ model }: TaskTreeProps) {
                 onChildrenGenerated={handleChildrenGenerated}
                 onUndoAvailable={handleUndoAvailable}
                 searchQuery={filters.search}
+                onResumeTask={setResumeTask}
+                revealDelays={revealDelays}
               />
             ))
           ) : (
@@ -330,6 +643,8 @@ export default function TaskTree({ model }: TaskTreeProps) {
                 onChildrenGenerated={handleChildrenGenerated}
                 onUndoAvailable={handleUndoAvailable}
                 searchQuery={filters.search}
+                onResumeTask={setResumeTask}
+                revealDelays={revealDelays}
               />
             ))
           )}
@@ -379,11 +694,11 @@ export default function TaskTree({ model }: TaskTreeProps) {
         </div>
       )}
 
-      {/* Add Task FAB */}
+      {/* Add Task FAB — opens full modal for detailed task creation */}
       <button
         onClick={() => setShowAddModal(true)}
         className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 transition-smooth flex items-center justify-center"
-        title="Add new task"
+        title="Add task with details (opens modal)"
       >
         <Icon name="PlusIcon" size={24} variant="solid" />
       </button>
@@ -393,6 +708,49 @@ export default function TaskTree({ model }: TaskTreeProps) {
         <AddTaskModal
           onClose={() => setShowAddModal(false)}
           onCreated={handleTaskCreated}
+        />
+      )}
+
+      {/* Resume Briefing Slide-in Panel (Feature 2) */}
+      {resumeTask && (
+        <ResumePanel
+          task={resumeTask}
+          model={model}
+          onClose={() => setResumeTask(null)}
+          onStartWorking={async () => {
+            const updated = await todoService.updateTask(resumeTask.id, { status: 'in_progress' });
+            if (updated) {
+              updateTaskInTree(resumeTask.id, { status: 'in_progress' });
+            }
+            setResumeTask(null);
+          }}
+        />
+      )}
+
+      {/* Start Day Modal (Feature 1) */}
+      {showStartDayModal && (
+        <StartDayModal
+          model={model}
+          onClose={() => setShowStartDayModal(false)}
+          onPlanAccepted={(plan) => {
+            setActivePlan(plan);
+            setShowStartDayModal(false);
+            loadTasks();
+          }}
+        />
+      )}
+
+      {/* End Day Modal (Feature 1) */}
+      {showEndDayModal && (
+        <EndDayModal
+          plan={activePlan}
+          model={model}
+          onClose={() => setShowEndDayModal(false)}
+          onDayEnded={() => {
+            setActivePlan(null);
+            setShowEndDayModal(false);
+            loadTasks();
+          }}
         />
       )}
     </div>
@@ -617,6 +975,7 @@ interface EndDayModalProps {
 function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState('');
+  const [top20Warning, setTop20Warning] = useState<string | null>(null);
   const [incompleteReschedule, setIncompleteReschedule] = useState<Record<number, 'tomorrow' | 'next_week' | 'remove'>>({});
 
   const completedTasks = plan.tasks.filter((t: any) => t.status === 'done');
@@ -636,6 +995,7 @@ function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
     const res = await todoService.endDaily(completedIds, incompleteReschedule, model);
     if (res) {
       setSummary(res.summary);
+      setTop20Warning(res.top20_warning || null);
     }
     setLoading(false);
   };
@@ -677,6 +1037,11 @@ function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 text-sm italic text-foreground leading-relaxed">
                 "{summary}"
               </div>
+              {top20Warning && (
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs font-semibold text-amber-600 dark:text-amber-400 text-left">
+                  {top20Warning}
+                </div>
+              )}
               <button
                 onClick={onDayEnded}
                 className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/95 transition-smooth"
@@ -779,7 +1144,7 @@ function ResumePanel({ task, model, onClose, onStartWorking }: ResumePanelProps)
     async function streamBriefing() {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082'}/todo/tasks/${task.id}/resume?model=${model}`
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082'}/todo/tasks/${task.id}/resume?${aiQueryString(model)}`
         );
         if (!response.ok) throw new Error('Failed to fetch resume stream');
         

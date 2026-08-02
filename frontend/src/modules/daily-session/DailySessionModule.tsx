@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { questionsService, Question } from '@/lib/services/questionsService';
 import { sessionService, SessionAnswer } from '@/lib/services/sessionService';
+import { defaultAIRequestFields } from '@/lib/services/settingsService';
 
 const DEFAULT_QUESTIONS: Omit<Question, 'id'>[] = [
   {
@@ -375,6 +376,7 @@ export default function DailySessionInteractive() {
           category: activeQuestion.category,
           sub_type: activeQuestion.subType,
           action: 'answer',
+          ...defaultAIRequestFields(),
         }),
       });
       if (res.ok) {

@@ -14,17 +14,24 @@ interface ProjectRoadmapProps {
 export default function ProjectRoadmap({ project, projects, onSelectProject, model }: ProjectRoadmapProps) {
   const [roadmap, setRoadmap] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!project) return;
     setLoading(true);
-    const result = await projectService.generateRoadmap(project.id, model);
-    if (result?.roadmap) {
-      // Backend returns {roadmap: {phases: [...]}} or legacy {roadmap: [...]}
-      const rm = result.roadmap;
-      setRoadmap(Array.isArray(rm) ? { phases: rm } : rm);
+    setError(null);
+    try {
+      const result = await projectService.generateRoadmap(project.id, model);
+      if (result?.roadmap) {
+        // Backend returns {roadmap: {phases: [...]}} or legacy {roadmap: [...]}
+        const rm = result.roadmap;
+        setRoadmap(Array.isArray(rm) ? { phases: rm } : rm);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate roadmap.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -67,6 +74,17 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
           </button>
         </div>
       </div>
+
+      {/* AI action error */}
+      {error && (
+        <div className="mb-4 p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+          <span className="text-xs shrink-0">⚠️</span>
+          <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{error}</p>
+          <button onClick={() => setError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
+            <Icon name="XMarkIcon" size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Content Area */}
       {!project && (

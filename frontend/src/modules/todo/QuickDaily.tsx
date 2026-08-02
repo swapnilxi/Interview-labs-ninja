@@ -5,7 +5,7 @@ import Icon from '@/components/ui/AppIcon';
 import EisenhowerMatrix, { QuadrantType, MatrixItem } from '@/components/ui/EisenhowerMatrix';
 import QuickTaskCard from './QuickTaskCard';
 import { QuickTask, ParsedBrainDumpTask, quickTaskService } from '@/lib/services/quickTaskService';
-import { todoService } from '@/lib/services/todoService';
+import { paretoService } from '@/lib/services/paretoService';
 
 interface QuickDailyProps {
   model: 'ollama' | 'gemini';
@@ -24,6 +24,8 @@ export default function QuickDaily({ model }: QuickDailyProps) {
   const [inputValue, setInputValue] = useState('');
   const [autoSortLoading, setAutoSortLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [top20Only, setTop20Only] = useState(false);
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
 
   // ── Brain Dump state ──────────────────────────────────────────────────────
   const [showBrainDump, setShowBrainDump] = useState(false);
@@ -36,10 +38,11 @@ export default function QuickDaily({ model }: QuickDailyProps) {
   const [uploadPreview, setUploadPreview] = useState<string | null>(null); // data URL for image preview
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── AI Smart Schedule state ───────────────────────────────────────────────
-  const [showAiSmartSchedule, setShowAiSmartSchedule] = useState(false);
-  const [smartScheduleLoading, setSmartScheduleLoading] = useState(false);
-  const [smartScheduleData, setSmartScheduleData] = useState<any>(null);
+  // ── AI Day Plan state ──────────────────────────────────────────────────────
+  const [showDayPlan, setShowDayPlan] = useState(false);
+  const [dayPlanStep, setDayPlanStep] = useState<'hours' | 'loading' | 'result'>('hours');
+  const [dayPlanHours, setDayPlanHours] = useState(4);
+  const [dayPlanData, setDayPlanData] = useState<any>(null);
 
   const showToast = useCallback((msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -110,12 +113,47 @@ export default function QuickDaily({ model }: QuickDailyProps) {
 
   const handleAutoSort = async () => {
     setAutoSortLoading(true);
-    const result = await quickTaskService.autoSort(model);
-    if (result?.assignments?.length > 0) {
-      await loadTasks();
-      showToast(`🤖 AI sorted ${result.assignments.length} tasks into quadrants!`);
+    try {
+      const result = await quickTaskService.autoSort(model);
+      if (result?.assignments?.length > 0) {
+        await loadTasks();
+        showToast(`🤖 AI sorted ${result.assignments.length} tasks into quadrants!`);
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Auto-sort failed.', 'error');
+    } finally {
+      setAutoSortLoading(false);
     }
-    setAutoSortLoading(false);
+  };
+
+  const handleGenerateDayPlan = async () => {
+    setDayPlanStep('loading');
+    try {
+      const result = await quickTaskService.aiDayPlan(dayPlanHours, model);
+      setDayPlanData(result);
+      setDayPlanStep('result');
+    } catch (err) {
+      setDayPlanStep('hours');
+      showToast(err instanceof Error ? err.message : 'Failed to generate day plan.', 'error');
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (paretoService.hasAnalyzedToday('quick')) {
+      if (!confirm('You already ran analysis today. Results may be similar. Continue?')) return;
+    }
+    if (!confirm('AI will analyze today\'s tasks and identify the top 20% that will drive 80% of your results. This takes a few seconds.')) return;
+    setAnalyzeLoading(true);
+    try {
+      const result = await paretoService.analyze('quick', model);
+      paretoService.markAnalyzedToday('quick');
+      await loadTasks();
+      showToast(`⭐ Found ${result.top20_count ?? 0} high-leverage task${(result.top20_count ?? 0) === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Analysis failed.', 'error');
+    } finally {
+      setAnalyzeLoading(false);
+    }
   };
 
   // ── Brain Dump Handlers ───────────────────────────────────────────────────
@@ -194,7 +232,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
   };
 
   // ── Matrix items ──────────────────────────────────────────────────────────
-  const activeTasks = tasks.filter(t => !t.is_exported);
+  const activeTasks = tasks.filter(t => !t.is_exported && (!top20Only || t.is_top_20));
   const matrixItems = activeTasks.map(t => ({ ...t, id: t.id.toString() })) as unknown as (MatrixItem & QuickTask)[];
 
   const completedCount = activeTasks.filter(t => t.done).length;
@@ -204,7 +242,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
     <div className="flex flex-col h-full gap-6">
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-20 right-6 z-[200] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 animate-slide-up ${
+        <div className={`fixed top-20 right-6 z-[200] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 whitespace-pre-line animate-slide-up ${
           toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
         }`}>
           {toast.msg}
@@ -232,20 +270,18 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               >
                 <span className="text-sm">🧠</span>
               </button>
-              {/* AI Smart Schedule */}
+              {/* AI Day Plan — top-20 aware */}
               <button
                 type="button"
-                onClick={async () => {
-                  setShowAiSmartSchedule(true);
-                  setSmartScheduleLoading(true);
-                  const sched = await todoService.getSmartDailySchedule(6.0, 'medium', model);
-                  setSmartScheduleData(sched);
-                  setSmartScheduleLoading(false);
+                onClick={() => {
+                  setDayPlanStep('hours');
+                  setDayPlanData(null);
+                  setShowDayPlan(true);
                 }}
                 className="p-1.5 rounded-md transition-smooth text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                title="AI Smart Daily Schedule"
+                title="AI Day Plan"
               >
-                <span className="text-sm">🤖</span>
+                <span className="text-sm">🌅</span>
               </button>
               <div className="w-px h-5 bg-border mx-1" />
               <button
@@ -300,6 +336,32 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         </form>
       </div>
 
+      {/* 80/20 Toolbar */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setTop20Only(!top20Only)}
+          className={`text-[10px] px-2.5 py-1.5 rounded-lg border transition-smooth flex items-center gap-1 font-semibold ${
+            top20Only
+              ? 'border-amber-400/60 bg-amber-400/10 text-amber-600 dark:text-amber-400'
+              : 'border-border text-muted-foreground hover:text-foreground'
+          }`}
+          title="Show only Top 20% high-leverage tasks"
+        >
+          ⭐ Top 20%
+        </button>
+        <button
+          onClick={handleAnalyze}
+          disabled={analyzeLoading}
+          className="text-[10px] px-2.5 py-1.5 rounded-lg border border-amber-400/50 bg-amber-400/5 text-amber-600 dark:text-amber-400 hover:bg-amber-400/10 transition-smooth flex items-center gap-1 font-semibold disabled:opacity-50"
+          title="Run AI 80/20 analysis on today's tasks"
+        >
+          {analyzeLoading ? (
+            <span className="w-3 h-3 border border-amber-500/40 border-t-amber-500 rounded-full animate-spin" />
+          ) : '⭐'}
+          {analyzeLoading ? 'Identifying your high-leverage tasks...' : '80/20 Analyze'}
+        </button>
+      </div>
+
       {/* Main Content */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 flex-1 min-h-0">
         {/* Left: Eisenhower Matrix */}
@@ -334,7 +396,10 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             <button
               onClick={async () => {
                 const res = await quickTaskService.endOfDay(model);
-                if (res) { loadTasks(); showToast(`🌙 ${res.summary}`); }
+                if (res) {
+                  loadTasks();
+                  showToast(`🌙 ${res.summary}${res.top20_warning ? `\n${res.top20_warning}` : ''}`);
+                }
               }}
               className="px-3 py-1.5 text-[10px] font-bold bg-muted hover:bg-muted/80 text-foreground rounded-md transition-smooth flex items-center gap-1.5"
             >
@@ -649,51 +714,80 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         </div>
       )}
 
-      {/* AI Smart Schedule Modal */}
-      {showAiSmartSchedule && (
+      {/* AI Day Plan Modal — top-20 aware */}
+      {showDayPlan && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-xl shadow-2xl max-w-xl w-full p-6 space-y-4 animate-scale-up">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🤖</span>
-                <h3 className="font-heading text-lg font-bold text-foreground">AI Smart Daily Schedule</h3>
+                <span className="text-xl">🌅</span>
+                <h3 className="font-heading text-lg font-bold text-foreground">AI Day Plan</h3>
               </div>
-              <button onClick={() => setShowAiSmartSchedule(false)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => setShowDayPlan(false)} className="text-muted-foreground hover:text-foreground">
                 <Icon name="XMarkIcon" size={18} />
               </button>
             </div>
 
-            {smartScheduleLoading ? (
+            {dayPlanStep === 'hours' && (
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground">How many hours do you have today?</p>
+                <input
+                  type="number"
+                  min={0.5}
+                  step={0.5}
+                  value={dayPlanHours}
+                  onChange={e => setDayPlanHours(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
+                />
+                <button
+                  onClick={handleGenerateDayPlan}
+                  className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg hover:bg-primary/90 transition-smooth"
+                >
+                  Generate My Day Plan
+                </button>
+              </div>
+            )}
+
+            {dayPlanStep === 'loading' && (
               <div className="py-12 flex flex-col items-center justify-center gap-3">
                 <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
                 <p className="text-xs text-muted-foreground">AI is planning your day...</p>
               </div>
-            ) : smartScheduleData ? (
+            )}
+
+            {dayPlanStep === 'result' && dayPlanData && (
               <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 scrollbar-clean">
-                {smartScheduleData.top_advice && (
-                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs leading-relaxed font-medium">
-                    💡 <strong>Coach Advice:</strong> {smartScheduleData.top_advice}
-                  </div>
-                )}
-                <div className="space-y-2">
-                  {(smartScheduleData.schedule || []).map((slot: any, idx: number) => (
-                    <div key={idx} className="p-3 border border-border rounded-lg bg-muted/20 flex flex-col gap-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-primary">{slot.time_slot}</span>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">{slot.focus_type || 'Task'}</span>
+                {(dayPlanData.plan || []).length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-6 text-center">No tasks available for planning.</p>
+                ) : (
+                  <>
+                    {(dayPlanData.plan || []).some((t: any) => t.is_top_20) && (
+                      <div>
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-2">⭐ High Leverage</h4>
+                        <div className="space-y-2">
+                          {(dayPlanData.plan || []).filter((t: any) => t.is_top_20).map((task: any, idx: number) => (
+                            <PlanSlot key={idx} task={task} />
+                          ))}
+                        </div>
                       </div>
-                      <p className="text-xs font-semibold text-foreground">{slot.task_title}</p>
-                      {slot.rationale && <p className="text-[11px] text-muted-foreground leading-normal">{slot.rationale}</p>}
-                    </div>
-                  ))}
-                </div>
+                    )}
+                    {(dayPlanData.plan || []).some((t: any) => !t.is_top_20) && (
+                      <div>
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Other Tasks</h4>
+                        <div className="space-y-2">
+                          {(dayPlanData.plan || []).filter((t: any) => !t.is_top_20).map((task: any, idx: number) => (
+                            <PlanSlot key={idx} task={task} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground py-6 text-center">Could not generate schedule. Check API key in Config.</p>
             )}
 
             <div className="pt-2 flex justify-end">
-              <button onClick={() => setShowAiSmartSchedule(false)}
+              <button onClick={() => setShowDayPlan(false)}
                 className="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 transition-smooth">
                 Close
               </button>
@@ -701,6 +795,25 @@ export default function QuickDaily({ model }: QuickDailyProps) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PlanSlot({ task }: { task: any }) {
+  return (
+    <div className={`p-2.5 rounded-lg border bg-card shadow-sm ${task.is_top_20 ? 'border-amber-400/50 ring-1 ring-amber-400/20' : 'border-border'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+          {task.is_top_20 && <span title="Top 20% Task">⭐</span>}
+          {task.title}
+        </span>
+        {task.allocated_time && (
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 shrink-0">
+            {task.allocated_time}
+          </span>
+        )}
+      </div>
+      {task.reason && <p className="text-[10px] text-muted-foreground mt-1 leading-snug">{task.reason}</p>}
     </div>
   );
 }

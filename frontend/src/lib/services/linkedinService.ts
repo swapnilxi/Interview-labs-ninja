@@ -1,5 +1,7 @@
 'use client';
 
+import { defaultAIRequestFields } from './settingsService';
+
 export interface LinkedInCategory {
   id: number;
   name: string;
@@ -70,7 +72,7 @@ export interface AnalyzePostResult {
   regeneratedPost: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
 
 async function parseErrorDetail(res: Response): Promise<string> {
   try {
@@ -177,7 +179,7 @@ export const linkedinService = {
     const res = await fetch(`${API_BASE_URL}/linkedin/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      body: JSON.stringify({ ...input, ...defaultAIRequestFields() }),
     });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
     const data = await res.json();
@@ -188,7 +190,7 @@ export const linkedinService = {
     const res = await fetch(`${API_BASE_URL}/linkedin/refine`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ post, action, tone }),
+      body: JSON.stringify({ post, action, tone, ...defaultAIRequestFields() }),
     });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
     const data = await res.json();
@@ -199,7 +201,7 @@ export const linkedinService = {
     const res = await fetch(`${API_BASE_URL}/linkedin/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postText }),
+      body: JSON.stringify({ postText, ...defaultAIRequestFields() }),
     });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
     return await res.json();

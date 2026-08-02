@@ -147,11 +147,13 @@ def init_db() -> None:
         from modules.cv_lab.schema import register as cv_register
         from modules.dsa_lab.schema import register as dsa_register
         from modules.linkedin_post_generator.schema import register as linkedin_register
+        from modules.todo.schema import register as todo_register
 
         sd_register(cursor)
         cv_register(cursor)
         dsa_register(cursor)
         linkedin_register(cursor)
+        todo_register(cursor)
 
         # ── seed lab_sections from topic categories ────────────────────────────
         for lab, table in [
@@ -446,73 +448,11 @@ def fetch_progress_stats() -> dict:
         conn.close()
 
 
-def fetch_settings() -> dict:
-    """Retrieve user configurations, or return defaults if unset."""
-    conn = sqlite3.connect(get_db_path())
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            """SELECT text_generation_model, answer_model, openai_key, gemini_key, anthropic_key,
-                      deepseek_key, groq_key, ollama_url, ollama_model
-               FROM user_settings LIMIT 1"""
-        )
-        row = cursor.fetchone()
-        if row:
-            return {
-                "textGenerationModel": row[0],
-                "answerModel": row[1],
-                "openaiKey": row[2] or "",
-                "geminiKey": row[3] or "",
-                "anthropicKey": row[4] or "",
-                "deepseekKey": row[5] or "",
-                "groqKey": row[6] or "",
-                "ollamaUrl": row[7] or "http://localhost:11434",
-                "ollamaModel": row[8] or "llama3.2",
-            }
-        else:
-            return {
-                "textGenerationModel": "gemini-2.5-flash",
-                "answerModel": "gemini-2.5-flash",
-                "openaiKey": "",
-                "geminiKey": "",
-                "anthropicKey": "",
-                "deepseekKey": "",
-                "groqKey": "",
-                "ollamaUrl": "http://localhost:11434",
-                "ollamaModel": "llama3.2",
-            }
-    finally:
-        conn.close()
-
-
-def save_settings(settings: dict) -> None:
-    """Save or update user configurations."""
-    conn = sqlite3.connect(get_db_path())
-    try:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM user_settings")
-        cursor.execute(
-            """
-            INSERT INTO user_settings (
-                text_generation_model, answer_model, openai_key, gemini_key, anthropic_key,
-                deepseek_key, groq_key, ollama_url, ollama_model
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                settings["textGenerationModel"],
-                settings["answerModel"],
-                settings.get("openaiKey", ""),
-                settings.get("geminiKey", ""),
-                settings.get("anthropicKey", ""),
-                settings.get("deepseekKey", ""),
-                settings.get("groqKey", ""),
-                settings.get("ollamaUrl", "http://localhost:11434"),
-                settings.get("ollamaModel", "llama3.2"),
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+## NOTE: There used to be fetch_settings()/save_settings() functions here backing
+## a single shared `user_settings` row of AI provider keys. That's gone — keys now
+## live only in each browser's localStorage and are sent per-request (see
+## modules/common/ai_client.py). The user_settings table above is kept only so
+## existing installs don't need a migration; nothing reads or writes it anymore.
 
 
 def fetch_lab_sections(lab_name: str) -> List[dict]:

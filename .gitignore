@@ -30,9 +30,9 @@ htmlcov/
 .pytype/
 .ruff_cache/
 
-# SQLite databases (local dev only)
-# *.sqlite3
-# *.db
+# SQLite databases (local dev only — can contain data entered at runtime)
+*.sqlite3
+*.db
 
 # ── Node / Frontend ───────────────────────────────────────────────────────────
 node_modules/

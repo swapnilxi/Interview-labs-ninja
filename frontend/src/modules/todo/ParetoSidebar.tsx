@@ -1,67 +1,82 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import { paretoService, Top20Response, TopTask, ParetoTable } from '@/lib/services/paretoService';
 
-interface TopTask {
-  id: number;
-  title: string;
-  pareto_score: number;
+const TAB_LABELS: Record<'smart' | 'quick' | 'plan', string> = {
+  smart: 'Smart',
+  quick: 'Quick',
+  plan: 'Plan',
+};
+
+const TABLE_TO_TAB: Record<ParetoTable, 'smart' | 'quick' | 'plan'> = {
+  tasks: 'smart',
+  quick_tasks: 'quick',
+  project_nodes: 'plan',
+  projects: 'plan',
+};
+
+interface ParetoSidebarProps {
+  model?: 'ollama' | 'gemini';
 }
 
-interface ParetoData {
-  smart: TopTask[];
-  quick: TopTask[];
-  plan: TopTask[];
-}
-
-export default function ParetoSidebar() {
-  const [data, setData] = useState<ParetoData | null>(null);
+export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) {
+  const router = useRouter();
+  const [data, setData] = useState<Top20Response | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
 
   const fetchTop20 = async () => {
     setLoading(true);
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082'}/pareto/top20`);
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
-    } catch (err) {
-      console.error('Failed to fetch top 20', err);
-    } finally {
-      setLoading(false);
-    }
+    const json = await paretoService.getTop20();
+    setData(json);
+    setLoading(false);
   };
 
   useEffect(() => {
     fetchTop20();
   }, []);
 
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  };
+
   const runAnalysis = async () => {
+    if (paretoService.hasAnalyzedToday('all')) {
+      if (!confirm('You already ran analysis today. Results may be similar. Continue?')) return;
+    }
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082'}/pareto/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: 'all', model: 'gemini' }),
-      });
-      if (res.ok) {
-        await fetchTop20();
-      }
+      const result = await paretoService.analyze('all', model);
+      paretoService.markAnalyzedToday('all');
+      await fetchTop20();
+      showToast(`⭐ Found ${result.top20_count ?? 0} high-leverage task${result.top20_count === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total`);
     } catch (err) {
-      console.error('Failed to run Pareto analysis', err);
+      showToast(err instanceof Error ? `⚠️ ${err.message}` : '⚠️ Analysis failed.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleFocus = (task: TopTask) => {
+    const tab = task.table ? TABLE_TO_TAB[task.table] : 'smart';
+    router.push(`/todo?tab=${tab}`);
+  };
+
   const totalTasks = data ? data.smart.length + data.quick.length + data.plan.length : 0;
 
   return (
-    <div className="border-b border-border bg-surface flex-shrink-0 flex flex-col max-h-[40%] transition-all">
-      <div 
+    <div className="border-b border-border bg-surface flex-shrink-0 flex flex-col max-h-[40%] transition-all relative">
+      {toast && (
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-foreground text-background text-[9px] font-semibold shadow-lg whitespace-nowrap">
+          {toast}
+        </div>
+      )}
+      <div
         className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-smooth"
         onClick={() => setExpanded(!expanded)}
       >
@@ -82,16 +97,9 @@ export default function ParetoSidebar() {
             }}
             disabled={loading}
             className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-smooth flex items-center gap-1 disabled:opacity-50"
-            title="Run AI 80/20 Analysis on all tasks"
+            title="Re-run AI 80/20 analysis across all tabs"
           >
-            {loading ? '⏳' : '⚡ 80/20'}
-          </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); fetchTop20(); }}
-            className={`text-muted-foreground hover:text-foreground transition-smooth ${loading ? 'animate-spin' : ''}`}
-            title="Refresh"
-          >
-            <Icon name="ArrowPathIcon" size={12} />
+            {loading ? '⏳' : '↺ Re-analyze'}
           </button>
           <Icon name="ChevronDownIcon" size={12} className={`text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </div>
@@ -102,7 +110,7 @@ export default function ParetoSidebar() {
           {totalTasks === 0 && !loading ? (
             <div className="py-3 text-center space-y-2">
               <p className="text-[10px] text-muted-foreground italic">
-                Discover your highest-leverage tasks with AI.
+                Run 80/20 analysis to discover your highest-leverage tasks.
               </p>
               <button
                 onClick={runAnalysis}
@@ -117,10 +125,10 @@ export default function ParetoSidebar() {
               {/* Smart Tasks */}
               {data?.smart && data.smart.length > 0 && (
                 <div>
-                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">Smart To-Do</div>
+                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{TAB_LABELS.smart}</div>
                   <div className="space-y-1">
                     {data.smart.map(t => (
-                      <TaskRow key={`smart-${t.id}`} task={t} tab="smart" />
+                      <TaskRow key={`smart-${t.id}`} task={t} onFocus={handleFocus} />
                     ))}
                   </div>
                 </div>
@@ -128,21 +136,21 @@ export default function ParetoSidebar() {
               {/* Quick Tasks */}
               {data?.quick && data.quick.length > 0 && (
                 <div>
-                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">Quick Daily</div>
+                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{TAB_LABELS.quick}</div>
                   <div className="space-y-1">
                     {data.quick.map(t => (
-                      <TaskRow key={`quick-${t.id}`} task={t} tab="quick" />
+                      <TaskRow key={`quick-${t.id}`} task={t} onFocus={handleFocus} />
                     ))}
                   </div>
                 </div>
               )}
-              {/* Plan Nodes */}
+              {/* Plan Nodes/Projects */}
               {data?.plan && data.plan.length > 0 && (
                 <div>
-                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">Plan & Project</div>
+                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{TAB_LABELS.plan}</div>
                   <div className="space-y-1">
                     {data.plan.map(t => (
-                      <TaskRow key={`plan-${t.id}`} task={t} tab="plan" />
+                      <TaskRow key={`plan-${t.table}-${t.id}`} task={t} onFocus={handleFocus} />
                     ))}
                   </div>
                 </div>
@@ -155,22 +163,28 @@ export default function ParetoSidebar() {
   );
 }
 
-function TaskRow({ task, tab }: { task: TopTask; tab: string }) {
+function TaskRow({ task, onFocus }: { task: TopTask; onFocus: (task: TopTask) => void }) {
   return (
-    <div className="group relative bg-muted/30 border border-border/50 rounded p-2 hover:bg-muted transition-smooth">
+    <div
+      className="group relative bg-muted/30 border border-border/50 rounded p-2 hover:bg-muted transition-smooth"
+      title={task.reason || undefined}
+    >
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] font-medium text-foreground truncate pr-2">{task.title}</span>
-        <button 
+        <span className="text-[10px] font-medium text-foreground truncate pr-2 flex items-center gap-1">
+          {task.locked && <span title="Manually pinned">📌</span>}
+          {task.title}
+        </span>
+        <button
+          onClick={() => onFocus(task)}
           className="opacity-0 group-hover:opacity-100 flex-shrink-0 text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded transition-smooth hover:bg-primary hover:text-primary-foreground"
-          title={`Go to ${tab}`}
         >
           → Focus
         </button>
       </div>
       <div className="w-full h-1 bg-muted/60 rounded-full overflow-hidden">
-        <div 
-          className="h-full bg-amber-400" 
-          style={{ width: `${Math.round(task.pareto_score * 100)}%` }}
+        <div
+          className="h-full bg-amber-400"
+          style={{ width: `${Math.round((task.pareto_score || 0) * 100)}%` }}
         />
       </div>
     </div>

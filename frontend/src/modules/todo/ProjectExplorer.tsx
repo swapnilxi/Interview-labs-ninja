@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { Project, ProjectNode, projectService } from '@/lib/services/projectService';
 import ProjectNodeDetailModal from './ProjectNodeDetailModal';
+import ParetoModal from '@/components/ui/ParetoModal';
 
 interface ProjectExplorerProps {
   project: Project;
@@ -15,24 +16,29 @@ function NodeItem({
   node,
   level,
   projectId,
+  model,
   onAction,
   onAddSubtask,
   onDeleteNode,
   onOpenDetails,
+  onParetoUpdate,
 }: {
   node: ProjectNode;
   level: number;
   projectId: number;
+  model: 'ollama' | 'gemini';
   onAction: (node: ProjectNode, action: 'dive' | 'chunk' | 'smart' | 'quick') => void;
   onAddSubtask: (parentId: number, title: string, nodeType: string) => Promise<void>;
   onDeleteNode: (nodeId: number) => Promise<void>;
   onOpenDetails: (node: ProjectNode) => void;
+  onParetoUpdate: (node: ProjectNode, updates: { pareto_score?: number | null; is_top_20?: boolean }) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const [showAddSubtask, setShowAddSubtask] = useState(false);
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [subtaskType, setSubtaskType] = useState<string>('action');
   const [addingSubtask, setAddingSubtask] = useState(false);
+  const [showParetoModal, setShowParetoModal] = useState(false);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
 
   const hasChildren = node.children && node.children.length > 0;
@@ -58,10 +64,17 @@ function NodeItem({
     setTimeout(() => subtaskInputRef.current?.focus(), 50);
   };
 
+  // 80/20 styling — gold glow for high-but-not-confirmed leverage, grey dim for low leverage
+  let paretoClasses = '';
+  if (!node.is_top_20 && node.pareto_score !== undefined && node.pareto_score !== null) {
+    if (node.pareto_score >= 0.6) paretoClasses = 'shadow-[inset_2px_0_0_0_rgba(251,191,36,0.6)]';
+    else if (node.pareto_score < 0.3) paretoClasses = 'opacity-60 grayscale-[30%]';
+  }
+
   return (
     <div className="flex flex-col">
       <div
-        className="group relative flex items-start gap-2 py-2 pr-2 rounded-lg hover:bg-muted/30 transition-smooth"
+        className={`group relative flex items-start gap-2 py-2 pr-2 rounded-lg hover:bg-muted/30 transition-smooth ${paretoClasses}`}
         style={{ paddingLeft: `${level * 24}px` }}
       >
         {/* Indent Guide Line */}
@@ -110,11 +123,17 @@ function NodeItem({
               </button>
             )}
 
-            {node.is_top_20 && (
-              <span className="text-[9px] font-bold px-1 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400">
-                ⭐
-              </span>
-            )}
+            <button
+              onClick={() => setShowParetoModal(true)}
+              className={`text-[9px] font-bold px-1 py-0.5 rounded border transition-smooth ${
+                node.is_top_20
+                  ? 'border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400'
+                  : 'border-border/60 text-muted-foreground hover:bg-muted'
+              }`}
+              title="80/20 Pareto Analysis"
+            >
+              {node.is_top_20 ? (node.pareto_locked ? '📌' : '⭐') : '⭐'}
+            </button>
 
             {/* Badges */}
             <span className="text-[9px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted px-1 rounded-sm">
@@ -259,14 +278,31 @@ function NodeItem({
               node={child}
               level={level + 1}
               projectId={projectId}
+              model={model}
               onAction={onAction}
               onAddSubtask={onAddSubtask}
               onDeleteNode={onDeleteNode}
               onOpenDetails={onOpenDetails}
+              onParetoUpdate={onParetoUpdate}
             />
           ))}
         </div>
       )}
+
+      {/* 80/20 Pareto Modal */}
+      <ParetoModal
+        isOpen={showParetoModal}
+        onClose={() => setShowParetoModal(false)}
+        title={node.title}
+        table="project_nodes"
+        itemId={node.id}
+        paretoScore={node.pareto_score}
+        isTop20={node.is_top_20}
+        paretoLocked={node.pareto_locked}
+        reason={node.pareto_reason}
+        model={model}
+        onUpdate={(updates) => onParetoUpdate(node, updates)}
+      />
     </div>
   );
 }
@@ -275,6 +311,7 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
   const [nodes, setNodes] = useState<ProjectNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [detailNode, setDetailNode] = useState<ProjectNode | null>(null);
 
   // On-Page Root Node Add Form State
@@ -330,32 +367,42 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
     }
   };
 
+  const handleParetoUpdate = async (node: ProjectNode, updates: { pareto_score?: number | null; is_top_20?: boolean }) => {
+    const updated = await projectService.updateProjectNode(node.id, updates);
+    if (updated) await loadTree();
+  };
+
   const handleAction = async (node: ProjectNode, action: 'dive' | 'chunk' | 'smart' | 'quick') => {
     setActionLoading(`${action}-${node.id}`);
+    setActionError(null);
 
-    if (action === 'dive' || action === 'chunk') {
-      if (node.depth_level >= 4) {
-        if (!confirm('This node is quite deep. AI generation might lose context. Continue?')) {
-          setActionLoading(null);
-          return;
+    try {
+      if (action === 'dive' || action === 'chunk') {
+        if (node.depth_level >= 4) {
+          if (!confirm('This node is quite deep. AI generation might lose context. Continue?')) {
+            setActionLoading(null);
+            return;
+          }
         }
-      }
 
-      if (action === 'dive') {
-        await projectService.diveDeeper(node.id, model);
-      } else {
-        await projectService.chunkIt(node.id, model);
+        if (action === 'dive') {
+          await projectService.diveDeeper(node.id, model);
+        } else {
+          await projectService.chunkIt(node.id, model);
+        }
+        await loadTree();
+      } else if (action === 'smart') {
+        await projectService.moveToSmart(node.id);
+        await loadTree();
+      } else if (action === 'quick') {
+        await projectService.moveToQuick(node.id);
+        await loadTree();
       }
-      await loadTree();
-    } else if (action === 'smart') {
-      await projectService.moveToSmart(node.id);
-      await loadTree();
-    } else if (action === 'quick') {
-      await projectService.moveToQuick(node.id);
-      await loadTree();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Action failed.');
+    } finally {
+      setActionLoading(null);
     }
-
-    setActionLoading(null);
   };
 
   return (
@@ -410,6 +457,17 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
       {project.description && (
         <div className="px-4 py-2 border-b border-border/50 bg-black/5 dark:bg-white/5">
           <p className="text-xs text-muted-foreground italic">"{project.description}"</p>
+        </div>
+      )}
+
+      {/* AI action error */}
+      {actionError && (
+        <div className="mx-4 mt-3 p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+          <span className="text-xs shrink-0">⚠️</span>
+          <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{actionError}</p>
+          <button onClick={() => setActionError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
+            <Icon name="XMarkIcon" size={12} />
+          </button>
         </div>
       )}
 
@@ -474,10 +532,12 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
                 node={node}
                 level={0}
                 projectId={project.id}
+                model={model}
                 onAction={handleAction}
                 onAddSubtask={handleAddSubtask}
                 onDeleteNode={handleDeleteNode}
                 onOpenDetails={setDetailNode}
+                onParetoUpdate={handleParetoUpdate}
               />
             ))}
           </div>

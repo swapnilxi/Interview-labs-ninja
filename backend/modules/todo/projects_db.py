@@ -24,12 +24,16 @@ def _project_row_to_dict(row: tuple) -> Dict[str, Any]:
         "color": row[7],
         "icon": row[8],
         "created_at": row[9],
+        "pareto_score": row[10] if len(row) > 10 else None,
+        "is_top_20": bool(row[11]) if len(row) > 11 and row[11] is not None else False,
+        "pareto_reason": row[12] if len(row) > 12 else None,
+        "pareto_locked": bool(row[13]) if len(row) > 13 and row[13] is not None else False,
     }
 
 
 _PROJECT_COLUMNS = (
     "id, title, description, status, priority, eisenhower_quadrant, "
-    "due_date, color, icon, created_at"
+    "due_date, color, icon, created_at, pareto_score, is_top_20, pareto_reason, pareto_locked"
 )
 
 
@@ -95,7 +99,8 @@ def get_project(project_id: int) -> Optional[Dict[str, Any]]:
 
 
 def update_project(project_id: int, **fields) -> Optional[Dict[str, Any]]:
-    allowed = {"title", "description", "status", "priority", "eisenhower_quadrant", "due_date", "color", "icon"}
+    allowed = {"title", "description", "status", "priority", "eisenhower_quadrant", "due_date", "color", "icon",
+               "pareto_score", "is_top_20", "pareto_reason", "pareto_locked"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_project(project_id)
@@ -151,6 +156,8 @@ def _node_row_to_dict(row: tuple) -> Dict[str, Any]:
         "time_estimate": row[17] if len(row) > 17 else None,
         "intention": row[18] if len(row) > 18 else None,
         "definition_of_done": row[19] if len(row) > 19 else None,
+        "pareto_reason": row[20] if len(row) > 20 else None,
+        "pareto_locked": bool(row[21]) if len(row) > 21 and row[21] is not None else False,
     }
 
 
@@ -158,7 +165,8 @@ _NODE_COLUMNS = (
     "id, project_id, parent_node_id, title, node_type, generation_type, "
     "depth_level, exported_to_smart_todo, exported_task_id, exported_to_quick, "
     "order_index, created_at, pareto_score, is_top_20, eisenhower_quadrant, "
-    "context, due_date, time_estimate, intention, definition_of_done"
+    "context, due_date, time_estimate, intention, definition_of_done, "
+    "pareto_reason, pareto_locked"
 )
 
 
@@ -258,6 +266,7 @@ def update_project_node(node_id: int, **fields) -> Optional[Dict[str, Any]]:
         "title", "node_type", "exported_to_smart_todo", "exported_task_id", "exported_to_quick",
         "order_index", "pareto_score", "is_top_20", "eisenhower_quadrant",
         "context", "due_date", "time_estimate", "intention", "definition_of_done",
+        "pareto_reason", "pareto_locked",
     }
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
@@ -300,20 +309,24 @@ def create_project_nodes_batch(
         cursor = conn.cursor()
 
         depth_level = 1
+        inherited_pareto_score = None
         if parent_node_id:
-            cursor.execute("SELECT depth_level FROM project_nodes WHERE id = ?", (parent_node_id,))
+            cursor.execute("SELECT depth_level, is_top_20 FROM project_nodes WHERE id = ?", (parent_node_id,))
             parent_row = cursor.fetchone()
             if parent_row:
                 depth_level = parent_row[0] + 1
+                # Subtasks generated from a Top 20% node inherit an elevated base
+                # Pareto score (0.5) instead of null, until re-analyzed themselves.
+                inherited_pareto_score = 0.5 if parent_row[1] else None
 
         results = []
         for i, nd in enumerate(nodes_data):
             cursor.execute(
                 f"""
-                INSERT INTO project_nodes (project_id, parent_node_id, title, node_type, generation_type, depth_level, order_index)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO project_nodes (project_id, parent_node_id, title, node_type, generation_type, depth_level, order_index, pareto_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (project_id, parent_node_id, nd["title"], nd.get("node_type", "topic"), generation_type, depth_level, i),
+                (project_id, parent_node_id, nd["title"], nd.get("node_type", "topic"), generation_type, depth_level, i, inherited_pareto_score),
             )
             nid = cursor.lastrowid
             cursor.execute(f"SELECT {_NODE_COLUMNS} FROM project_nodes WHERE id = ?", (nid,))

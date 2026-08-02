@@ -1,5 +1,8 @@
 'use client';
 
+import { parseApiError } from './todoService';
+import { aiRequestFields } from './settingsService';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
 
 export type QuadrantType = 'do_now' | 'schedule' | 'delegate' | 'eliminate';
@@ -19,6 +22,8 @@ export interface QuickTask {
   created_at: string;
   pareto_score: number | null;
   is_top_20: boolean;
+  pareto_reason?: string | null;
+  pareto_locked?: boolean;
   is_exported?: boolean;
   exported_task_id?: number | null;
   exported_project_id?: number | null;
@@ -40,6 +45,7 @@ export interface QuickTaskUpdate {
   order_index?: number;
   is_top_20?: boolean;
   pareto_score?: number | null;
+  pareto_reason?: string | null;
   due_date?: string | null;
   time_estimate?: string | null;
   context?: string | null;
@@ -137,7 +143,7 @@ export const quickTaskService = {
   async brainDumpUpload(file: File, model: 'ollama' | 'gemini'): Promise<BrainDumpResult> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('model', model);
+    Object.entries(aiRequestFields(model)).forEach(([key, value]) => formData.append(key, value));
     const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/brain-dump-upload`, {
       method: 'POST',
       body: formData,
@@ -166,47 +172,32 @@ export const quickTaskService = {
   },
 
   async autoSort(model: 'ollama' | 'gemini'): Promise<any> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/eisenhower-auto`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error('Failed to auto-sort quick tasks', err);
-      return { assignments: [] };
-    }
+    const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/eisenhower-auto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiRequestFields(model)),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return await res.json();
   },
 
   async aiDayPlan(available_hours: number, model: 'ollama' | 'gemini'): Promise<any> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/ai-day-plan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ available_hours, model }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error('Failed to generate AI day plan', err);
-      return { plan: [] };
-    }
+    const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/ai-day-plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ available_hours, ...aiRequestFields(model) }),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return await res.json();
   },
 
   async endOfDay(model: 'ollama' | 'gemini' = 'gemini'): Promise<any> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/end-of-day`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error('Failed to run end of day', err);
-      return null;
-    }
+    const res = await fetch(`${API_BASE_URL}/todo/quick-tasks/end-of-day`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiRequestFields(model)),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return await res.json();
   }
 };

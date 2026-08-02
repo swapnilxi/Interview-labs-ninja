@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { todoService } from '@/lib/services/todoService';
+import { onTopTaskCompleted } from '@/lib/services/paretoService';
+import ParetoSidebar from './ParetoSidebar';
 
 interface Message {
   id: string;
@@ -17,13 +19,13 @@ interface TodoCopilotProps {
 }
 
 const QUICK_PROMPTS = [
+  { emoji: '⭐', text: 'What is my highest leverage task right now?' },
+  { emoji: '📉', text: 'What tasks am I doing that have low impact?' },
+  { emoji: '🎯', text: 'If I only had 1 hour, what should I do?' },
+  { emoji: '🔍', text: 'Which of my projects will give the biggest return?' },
   { emoji: '💬', text: 'I have 30 mins, what can I do?' },
   { emoji: '📅', text: 'What should I focus on this weekend?' },
   { emoji: '✂️', text: 'How can I chunk my biggest task?' },
-  { emoji: '🔍', text: 'How can I go deeper on my current task?' },
-  { emoji: '🧠', text: "What's my most important task right now?" },
-  { emoji: '⚠️', text: 'What tasks are delayed or at risk?' },
-  { emoji: '📊', text: 'Give me a summary of my progress' },
 ];
 
 export default function TodoCopilot({ model, onModelChange, onCollapse }: TodoCopilotProps) {
@@ -41,6 +43,17 @@ export default function TodoCopilot({ model, onModelChange, onCollapse }: TodoCo
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, generating]);
+
+  // Proactive nudge whenever a Top 20% task is completed anywhere in the app.
+  useEffect(() => {
+    return onTopTaskCompleted((title) => {
+      setMessages(prev => [...prev, {
+        id: `top20-${Date.now()}`,
+        role: 'ai',
+        content: `⭐ You just completed a high-leverage task: **${title}**. Great work! Want me to identify your next top 20% task?`,
+      }]);
+    });
+  }, []);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || generating) return;
@@ -124,6 +137,9 @@ export default function TodoCopilot({ model, onModelChange, onCollapse }: TodoCo
           </button>
         </div>
       </div>
+
+      {/* 80/20 Sidebar Panel */}
+      <ParetoSidebar model={model} />
 
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 scrollbar-clean">

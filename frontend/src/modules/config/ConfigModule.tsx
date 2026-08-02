@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import { settingsService, UserSettings, OllamaStatus } from '@/lib/services/settingsService';
+import { settingsService, DEFAULT_SETTINGS, UserSettings, OllamaStatus } from '@/lib/services/settingsService';
 
 const PROVIDERS = [
   {
@@ -12,8 +12,14 @@ const PROVIDERS = [
     color: 'text-blue-500',
     bg: 'bg-blue-500/10',
     models: [
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', badge: 'Fast · Recommended' },
-      { id: 'gemini-2.5-pro',   name: 'Gemini 2.5 Pro',   badge: 'High Quality' },
+      { id: 'gemini-flash-latest', name: 'Gemini Flash (Latest)', badge: 'Fast · Auto-updates · Recommended' },
+      { id: 'gemini-pro-latest',   name: 'Gemini Pro (Latest)',   badge: 'High Quality · Auto-updates' },
+      { id: 'gemini-3.5-flash',       name: 'Gemini 3.5 Flash',        badge: 'Newest Gen' },
+      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro',          badge: 'Preview · Most Capable' },
+      { id: 'gemini-3-pro-preview',   name: 'Gemini 3 Pro',            badge: 'Preview' },
+      { id: 'gemini-2.5-flash',       name: 'Gemini 2.5 Flash',        badge: 'Stable' },
+      { id: 'gemini-2.5-pro',         name: 'Gemini 2.5 Pro',          badge: 'Stable · High Quality' },
+      { id: 'gemini-2.5-flash-lite',  name: 'Gemini 2.5 Flash-Lite',   badge: 'Cheapest' },
     ],
   },
   {
@@ -84,18 +90,6 @@ const API_KEY_FIELDS = [
   { key: 'anthropicKey',  label: 'Anthropic Claude API Key', placeholder: 'sk-ant-…',    note: 'Required for Claude models',   provider: 'Anthropic' },
 ] as const;
 
-const DEFAULT_SETTINGS: UserSettings = {
-  textGenerationModel: 'gemini-2.5-flash',
-  answerModel: 'gemini-2.5-pro',
-  openaiKey: '',
-  geminiKey: '',
-  anthropicKey: '',
-  deepseekKey: '',
-  groqKey: '',
-  ollamaUrl: 'http://localhost:11434',
-  ollamaModel: 'llama3.2',
-};
-
 function ModelSelect({
   id, value, onChange, ollamaModels, currentOllamaModel,
 }: {
@@ -146,6 +140,10 @@ export default function ConfigInteractive() {
   const [ollamaModelsError, setOllamaModelsError] = useState('');
   const [customOllamaModel, setCustomOllamaModel] = useState(false);
 
+  const [ollamaLoading, setOllamaLoading] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
+  const detectDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     settingsService.getSettings()
       .then(data => {
@@ -192,21 +190,6 @@ export default function ConfigInteractive() {
     }
   };
 
-  const fetchOllamaModels = async (url: string) => {
-    setOllamaModelsLoading(true);
-    setOllamaModelsError('');
-    try {
-      const models = await settingsService.getOllamaModels(url);
-      setOllamaModels(models);
-      if (models.length === 0) setOllamaModelsError('Ollama is reachable but has no models pulled yet.');
-    } catch (err) {
-      setOllamaModels([]);
-      setOllamaModelsError(err instanceof Error ? err.message : 'Could not reach Ollama.');
-    } finally {
-      setOllamaModelsLoading(false);
-    }
-  };
-
   const handleChange = (key: keyof UserSettings, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
     // Re-probe Ollama with a debounce when URL field changes
@@ -215,18 +198,6 @@ export default function ConfigInteractive() {
       detectDebounceRef.current = setTimeout(() => detectOllama(value), 800);
     }
   };
-
-  const handleModelSelectChange = (key: 'textGenerationModel' | 'answerModel') => (value: string) => {
-    if (value.startsWith('ollama::')) {
-      const model = value.slice('ollama::'.length);
-      setSettings(prev => ({ ...prev, [key]: 'ollama', ollamaModel: model }));
-      return;
-    }
-    handleChange(key, value);
-  };
-
-  const modelSelectValue = (key: 'textGenerationModel' | 'answerModel') =>
-    settings[key] === 'ollama' ? `ollama::${settings.ollamaModel}` : settings[key];
 
   const handleModelSelectChange = (key: 'textGenerationModel' | 'answerModel') => (value: string) => {
     if (value.startsWith('ollama::')) {
@@ -249,11 +220,11 @@ export default function ConfigInteractive() {
     setToast(null);
     try {
       await settingsService.saveSettings(settings);
-      setToast({ type: 'success', message: 'Configuration saved successfully!' });
+      setToast({ type: 'success', message: 'Saved to this browser’s local storage.' });
       setTimeout(() => setToast(null), 4000);
     } catch (err) {
       console.error(err);
-      setToast({ type: 'error', message: 'Failed to save. Check backend connection.' });
+      setToast({ type: 'error', message: 'Failed to save — this browser may be blocking local storage (e.g. private/incognito mode).' });
     } finally {
       setSaving(false);
     }
@@ -533,9 +504,21 @@ export default function ConfigInteractive() {
             <Icon name="KeyIcon" size={24} className="text-secondary" />
             <div>
               <h3 className="font-heading text-lg font-semibold text-foreground">API Keys</h3>
-              <p className="text-xs text-muted-foreground">Stored securely in your local SQLite database. Only enter keys for providers you use.</p>
+              <p className="text-xs text-muted-foreground">Only enter keys for providers you use.</p>
             </div>
           </div>
+
+          <div className="flex items-start gap-10 p-14 rounded-lg bg-primary/5 border border-primary/20">
+            <Icon name="ShieldCheckIcon" size={18} className="text-primary shrink-0 mt-1" />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              <span className="font-semibold text-foreground">Stored only in this browser's local storage.</span>{' '}
+              Your keys never touch our servers or database — each request sends the key straight from your
+              browser to the AI provider you chose, for that request only. That also means keys don't sync
+              across devices or browsers, and clearing site data will remove them. If other people use this
+              app, everyone brings and stores their own keys locally — nobody shares or sees anyone else's.
+            </p>
+          </div>
+
           <div className="space-y-18">
             {API_KEY_FIELDS.map(field => (
               <div key={field.key} className="space-y-6">

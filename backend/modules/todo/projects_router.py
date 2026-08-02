@@ -24,12 +24,15 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from modules.common.ai_client import AISettings
+
 class NodeUpdate(BaseModel):
     title: Optional[str] = None
     node_type: Optional[str] = None
     eisenhower_quadrant: Optional[str] = None
     is_top_20: Optional[bool] = None
     pareto_score: Optional[float] = None
+    pareto_reason: Optional[str] = None
     order_index: Optional[int] = None
     context: Optional[str] = None
     due_date: Optional[str] = None
@@ -80,6 +83,9 @@ class ProjectUpdate(BaseModel):
     due_date: Optional[str] = None
     color: Optional[str] = None
     icon: Optional[str] = None
+    is_top_20: Optional[bool] = None
+    pareto_score: Optional[float] = None
+    pareto_reason: Optional[str] = None
 
 
 class NodeCreate(BaseModel):
@@ -88,8 +94,8 @@ class NodeCreate(BaseModel):
     node_type: str = "topic"
 
 
-class AIRequest(BaseModel):
-    model: str = "gemini"
+class AIRequest(AISettings):
+    pass
 
 
 # ── AI helpers ───────────────────────────────────────────────────────────────
@@ -121,6 +127,8 @@ async def list_projects_endpoint() -> List[dict]:
 @router.patch("/projects/{project_id}")
 async def update_project_endpoint(project_id: int, payload: ProjectUpdate) -> dict:
     updates = payload.model_dump(exclude_none=True)
+    if "is_top_20" in updates:
+        updates["pareto_locked"] = 1
     project = update_project(project_id, **updates)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -183,7 +191,7 @@ Return ONLY a valid JSON array:
 No extra text, no markdown blocks, just raw JSON array."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         subtopics = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Dive Deeper failed: {exc}")
@@ -220,7 +228,7 @@ Each action should be specific and completable. Return ONLY a valid JSON array:
 No extra text."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         actions = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Chunk failed: {exc}")
@@ -284,6 +292,8 @@ async def get_all_project_nodes_endpoint() -> List[dict]:
 async def update_project_node_endpoint(node_id: int, payload: NodeUpdate) -> dict:
     """Update a project node (e.g. title, quadrant, order_index)."""
     updates = payload.model_dump(exclude_none=True)
+    if "is_top_20" in updates:
+        updates["pareto_locked"] = 1
     updated = update_project_node(node_id, **updates)
     if not updated:
         raise HTTPException(status_code=404, detail="Node not found")
@@ -306,6 +316,7 @@ async def eisenhower_auto_nodes_endpoint(payload: AIRequest) -> dict:
             "node_type": n["node_type"],
             "project_title": n.get("project_title", "Unknown"),
             "depth_level": n["depth_level"],
+            "is_top_20": bool(n.get("is_top_20")),
         }
         for n in nodes
     ]
@@ -318,6 +329,9 @@ Categorize each task/subtask into:
 - delegate: Urgent + Not Important
 - eliminate: Not Urgent + Not Important
 
+RULE: Any task/subtask with is_top_20=true is a Pareto high-leverage item — weight it toward
+"do_now" (or "schedule" if clearly not urgent). Never place it in "delegate" or "eliminate".
+
 Tasks & Subtasks:
 {node_json}
 
@@ -327,13 +341,17 @@ Return ONLY a valid JSON array:
 ]"""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         assignments = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Eisenhower sort failed: {exc}")
 
     bulk_update_node_quadrants(assignments)
     return {"assignments": assignments}
+
+
+@router.post("/projects/eisenhower-auto")
+async def eisenhower_auto_projects_endpoint(payload: AIRequest) -> dict:
     """AI assigns quadrants to all active projects."""
     _call_ai, _extract_json_array = _get_ai_helpers()
 
@@ -344,7 +362,8 @@ Return ONLY a valid JSON array:
 
     project_list = [
         {"project_id": p["id"], "title": p["title"], "priority": p["priority"],
-         "due_date": p["due_date"] or "none", "description": (p["description"] or "")[:100]}
+         "due_date": p["due_date"] or "none", "description": (p["description"] or "")[:100],
+         "is_top_20": bool(p.get("is_top_20"))}
         for p in active
     ]
     project_json = json.dumps(project_list, indent=2)
@@ -356,6 +375,9 @@ Categorize each project:
 - delegate: Urgent + Not Important
 - eliminate: Not Urgent + Not Important
 
+RULE: Any project with is_top_20=true is a Pareto high-leverage project — weight it toward
+"do_now" (or "schedule" if clearly not urgent). Never place it in "delegate" or "eliminate".
+
 Projects:
 {project_json}
 
@@ -365,7 +387,7 @@ Return ONLY a valid JSON array:
 ]"""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         assignments = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Eisenhower sort failed: {exc}")
@@ -406,7 +428,7 @@ Return ONLY a valid JSON array of phases:
 Create 3-5 phases. Use 'name' (not 'phase') as the key. No extra text."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         phases = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Roadmap failed: {exc}")

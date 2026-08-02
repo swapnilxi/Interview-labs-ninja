@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { QuickTask, quickTaskService } from '@/lib/services/quickTaskService';
 import { triggerConfetti } from '@/lib/services/todoService';
+import { notifyTopTaskCompleted } from '@/lib/services/paretoService';
 
 import ParetoModal from '@/components/ui/ParetoModal';
 import QuickTaskDetailModal from './QuickTaskDetailModal';
@@ -40,6 +41,7 @@ export default function QuickTaskCard({
     const newDone = !task.done;
     if (newDone) {
       triggerConfetti(e.clientX, e.clientY);
+      if (task.is_top_20) notifyTopTaskCompleted(task.title);
     }
     const updated = await quickTaskService.updateTask(task.id, { done: newDone });
     if (updated) onUpdate(task.id, { done: newDone });
@@ -102,10 +104,13 @@ export default function QuickTaskCard({
             </div>
           </button>
 
-          {/* Top 20 Badge */}
+          {/* Top 20 Badge — pin icon distinguishes a manual override from an AI-assigned one */}
           {task.is_top_20 && (
-            <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center gap-0.5 shadow-sm">
-              ⭐ 20%
+            <span
+              className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center gap-0.5 shadow-sm"
+              title={task.pareto_locked ? 'Manually pinned as Top 20%' : 'AI-assigned Top 20%'}
+            >
+              {task.pareto_locked ? '📌' : '⭐'} 20%
             </span>
           )}
 
@@ -314,6 +319,8 @@ export default function QuickTaskCard({
           itemId={task.id}
           paretoScore={task.pareto_score}
           isTop20={task.is_top_20}
+          paretoLocked={task.pareto_locked}
+          reason={task.pareto_reason}
           model={model}
           onUpdate={async (updates) => {
             const updated = await quickTaskService.updateTask(task.id, updates);

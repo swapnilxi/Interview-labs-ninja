@@ -13,7 +13,11 @@ export const metadata: Metadata = {
   description: 'Modern interview preparation labs for DSA, computer vision, and system design.',
   icons: {
     icon: [
-      { url: '/favicon.ico', type: 'image/x-icon' }
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', type: 'image/x-icon' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', type: 'image/png' },
     ],
   },
 };

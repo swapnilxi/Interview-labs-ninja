@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
-import urllib.error
 import urllib.request
 from datetime import date
 from typing import List, Literal, Optional
@@ -21,10 +19,9 @@ from modules.common.db import (
     save_session_progress,
     fetch_session_progress,
     fetch_progress_stats,
-    fetch_settings,
-    save_settings,
 )
 from modules.common.export_md import render_markdown_for_day
+from modules.common.ai_client import AISettings, call_ai_text, extract_json_array
 
 
 router = APIRouter(tags=["daily-session"])
@@ -94,18 +91,6 @@ class SessionAnswerIn(BaseModel):
     sessionDate: str
 
 
-class UserSettingsSchema(BaseModel):
-    questionModel: str
-    answerModel: str
-    openaiKey: str = ''
-    geminiKey: str = ''
-    anthropicKey: str = ''
-    deepseekKey: str = ''
-    groqKey: str = ''
-    ollamaUrl: str = 'http://localhost:11434'
-    ollamaModel: str = 'llama3.2'
-
-
 import io
 try:
     import pdfplumber
@@ -135,9 +120,12 @@ class SessionCreateResponse(BaseModel):
     session_code: str
 
 
-class AnswerGenerationRequest(BaseModel):
+class AnswerGenerationRequest(AISettings):
     question_text: str
+    category: Optional[str] = None
+    sub_type: Optional[str] = None
     question_type: Optional[str] = None
+    action: str = "answer"
 
 
 class QuestionOut(BaseModel):
@@ -174,18 +162,6 @@ class SessionAnswerIn(BaseModel):
     questionType: str
     isCompleted: bool
     sessionDate: str
-
-
-class UserSettingsSchema(BaseModel):
-    textGenerationModel: str
-    answerModel: str
-    openaiKey: str = ''
-    geminiKey: str = ''
-    anthropicKey: str = ''
-    deepseekKey: str = ''
-    groqKey: str = ''
-    ollamaUrl: str = 'http://localhost:11434'
-    ollamaModel: str = 'llama3.2'
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -244,9 +220,6 @@ async def upload_resume(file: UploadFile = File(...)) -> dict:
 
 @router.post("/sessions/generate-answer")
 async def generate_dynamic_answer(payload: AnswerGenerationRequest) -> dict:
-    settings = fetch_settings()
-    model = settings.get("answerModel", "gemini-2.0-flash")
-
     if payload.action == "explain":
         prompt = f"""You are Interview-Ninja, an elite technical interviewer.
 Provide a deep, step-by-step technical explanation for this question:
@@ -269,21 +242,10 @@ Provide:
 1. Concise Direct Answer (3-4 bullet points or short paragraph)
 2. Detailed Explanation / Code snippet / Algorithm steps if applicable."""
 
-    # Call AI using settings
-    last_err = None
+    # Call AI using the caller-supplied provider settings
     try:
-        if settings.get("geminiKey"):
-            safe_model = model.replace("gemini-2.5-flash", "gemini-2.0-flash").replace("gemini-2.5-pro", "gemini-1.5-pro")
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{safe_model}:generateContent?key={settings['geminiKey']}"
-            body = json.dumps({
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048},
-            }).encode()
-            req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read())
-            res_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return {"answer": res_text, "model_used": safe_model}
+        res_text = call_ai_text(prompt, payload)
+        return {"answer": res_text, "model_used": payload.model}
     except Exception as e:
         last_err = str(e)
 
@@ -366,17 +328,6 @@ async def get_progress_stats_endpoint() -> dict:
     return fetch_progress_stats()
 
 
-@router.get("/settings", response_model=UserSettingsSchema)
-async def get_settings_endpoint() -> UserSettingsSchema:
-    return UserSettingsSchema(**fetch_settings())
-
-
-@router.post("/settings")
-async def save_settings_endpoint(payload: UserSettingsSchema) -> dict:
-    save_settings(payload.model_dump())
-    return {"status": "success"}
-
-
 @router.get("/settings/ollama-models")
 async def list_ollama_models(url: str = Query(default="http://localhost:11434")) -> dict:
     req = urllib.request.Request(f"{url.rstrip('/')}/api/tags", method="GET")
@@ -390,7 +341,7 @@ async def list_ollama_models(url: str = Query(default="http://localhost:11434"))
 
 # ── Lab question generation ────────────────────────────────────────────────────
 
-class GenerateQuestionsPayload(BaseModel):
+class GenerateQuestionsPayload(AISettings):
     topic: str
     subtopic: Optional[str] = None
     lab: str = "general"
@@ -402,64 +353,6 @@ class GeneratedQuestionItem(BaseModel):
     text: str
     difficulty: str = "Medium"
     sub_type: str = "conceptual"
-
-
-def _extract_json_array(text: str) -> List[dict]:
-    """Extract the first JSON array from an LLM response string."""
-    text = text.strip()
-    # Strip markdown code fences
-    text = re.sub(r"```[a-z]*\n?", "", text).strip("`").strip()
-    start = text.find("[")
-    end = text.rfind("]")
-    if start == -1 or end == -1:
-        raise ValueError("No JSON array found in response")
-    return json.loads(text[start : end + 1])
-
-
-def _call_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash") -> List[dict]:
-    safe_model = model.replace("gemini-2.5-flash", "gemini-2.0-flash").replace("gemini-2.5-pro", "gemini-1.5-pro")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{safe_model}:generateContent?key={api_key}"
-    body = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048},
-    }).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read())
-    text = data["candidates"][0]["content"]["parts"][0]["text"]
-    return _extract_json_array(text)
-
-
-def _call_openai_compatible(prompt: str, api_key: str, base_url: str, model: str) -> List[dict]:
-    body = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-        "max_tokens": 2048,
-    }).encode()
-    req = urllib.request.Request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        data=body,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read())
-    text = data["choices"][0]["message"]["content"]
-    return _extract_json_array(text)
-
-
-def _call_ollama(prompt: str, base_url: str, model: str) -> List[dict]:
-    body = json.dumps({"model": model, "prompt": prompt, "stream": False}).encode()
-    req = urllib.request.Request(
-        f"{base_url.rstrip('/')}/api/generate",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read())
-    return _extract_json_array(data.get("response", ""))
 
 
 def _build_prompt(payload: GenerateQuestionsPayload) -> str:
@@ -486,53 +379,16 @@ Respond with ONLY a valid JSON array (no markdown, no text outside the array):
 
 @router.post("/lab/generate-questions")
 async def generate_lab_questions(payload: GenerateQuestionsPayload) -> dict:
-    settings = fetch_settings()
-    model = settings.get("textGenerationModel", "gemini-2.5-flash")
     prompt = _build_prompt(payload)
-
-    provider_order: List[str] = []
-    if model.startswith("gemini"):
-        provider_order = ["gemini", "deepseek", "groq", "openai", "ollama"]
-    elif model.startswith("deepseek"):
-        provider_order = ["deepseek", "gemini", "groq", "openai", "ollama"]
-    elif model in ("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768"):
-        provider_order = ["groq", "gemini", "deepseek", "openai", "ollama"]
-    elif model.startswith("gpt"):
-        provider_order = ["openai", "gemini", "groq", "deepseek", "ollama"]
-    elif model.startswith("claude"):
-        provider_order = ["anthropic", "gemini", "groq", "deepseek", "openai", "ollama"]
-    elif model == "ollama":
-        provider_order = ["ollama"]
-    else:
-        provider_order = ["gemini", "deepseek", "groq", "openai", "ollama"]
-
-    last_error: Optional[str] = None
-    for provider in provider_order:
-        try:
-            if provider == "gemini" and settings.get("geminiKey"):
-                qs = _call_gemini(prompt, settings["geminiKey"], model)
-                return {"questions": qs[:payload.count]}
-            elif provider == "deepseek" and settings.get("deepseekKey"):
-                qs = _call_openai_compatible(prompt, settings["deepseekKey"], "https://api.deepseek.com", model if model.startswith("deepseek") else "deepseek-chat")
-                return {"questions": qs[:payload.count]}
-            elif provider == "groq" and settings.get("groqKey"):
-                groq_model = model if model in ("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768") else "llama-3.3-70b-versatile"
-                qs = _call_openai_compatible(prompt, settings["groqKey"], "https://api.groq.com/openai/v1", groq_model)
-                return {"questions": qs[:payload.count]}
-            elif provider == "openai" and settings.get("openaiKey"):
-                qs = _call_openai_compatible(prompt, settings["openaiKey"], "https://api.openai.com/v1", model if model.startswith("gpt") else "gpt-4o-mini")
-                return {"questions": qs[:payload.count]}
-            elif provider == "ollama":
-                qs = _call_ollama(prompt, settings.get("ollamaUrl", "http://localhost:11434"), settings.get("ollamaModel", "llama3.2"))
-                return {"questions": qs[:payload.count]}
-        except Exception as exc:
-            last_error = str(exc)
-            continue
-
-    raise HTTPException(
-        status_code=400,
-        detail=f"No API key configured or all providers failed. Add a key in Config. Last error: {last_error}",
-    )
+    try:
+        response_text = call_ai_text(prompt, payload)
+        questions = extract_json_array(response_text)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No API key configured or all providers failed. Add a key in Config. Last error: {exc}",
+        )
+    return {"questions": questions[:payload.count]}
 
 
 @router.get("/export", response_model=str)

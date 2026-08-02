@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { questionsService } from '@/lib/services/questionsService';
+import { defaultAIRequestFields } from '@/lib/services/settingsService';
 
 interface Props {
   topicName: string;
@@ -51,6 +52,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
           lab: labName,
           context: context.trim() || undefined,
           count: 5,
+          ...defaultAIRequestFields(),
         }),
       });
       if (!res.ok) {

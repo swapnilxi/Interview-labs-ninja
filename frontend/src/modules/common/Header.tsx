@@ -57,11 +57,11 @@ function SystemStatus() {
         setApiStatus('offline');
       }
 
-      // Check DB
+      // Check DB (a lightweight endpoint that reads from SQLite, no secrets involved)
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch('http://localhost:8082/settings', { signal: controller.signal });
+        const res = await fetch('http://localhost:8082/todo/stats', { signal: controller.signal });
         clearTimeout(timeoutId);
         setDbStatus(res.ok ? 'online' : 'offline');
       } catch (err) {
@@ -161,20 +161,11 @@ export default function Header() {
                   className="transition-smooth"
                 >
                   <rect width="40" height="40" rx="8" fill="url(#gradient)" />
-                  <path
-                    d="M20 10L12 16V28L20 34L28 28V16L20 10Z"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                  <polygon
+                    points="20,6.4 23.39,16.61 33.6,20 23.39,23.39 20,33.6 16.61,23.39 6.4,20 16.61,16.61"
+                    fill="white"
                   />
-                  <path
-                    d="M20 10V22M20 22L12 28M20 22L28 28"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  <circle cx="20" cy="20" r="1.8" fill="#2563EB" />
                   <defs>
                     <linearGradient
                       id="gradient"

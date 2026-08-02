@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from modules.common.db import delete_lab_section, fetch_lab_sections, save_lab_section
+from modules.common.ai_client import AISettings
 
 from .llm import generate_json, generate_text
 from .prompt_builder import build_analyze_prompt, build_generate_prompt, build_refine_prompt
@@ -57,7 +58,7 @@ class TemplateUpdate(BaseModel):
     category: Optional[str] = None
 
 
-class GeneratePostPayload(BaseModel):
+class GeneratePostPayload(AISettings):
     topic: str
     category: Optional[str] = None
     tone: Optional[str] = None
@@ -68,11 +69,11 @@ class GeneratePostPayload(BaseModel):
     variation: bool = False
 
 
-class AnalyzePostPayload(BaseModel):
+class AnalyzePostPayload(AISettings):
     postText: str
 
 
-class RefinePostPayload(BaseModel):
+class RefinePostPayload(AISettings):
     post: str
     action: Literal["improve_hook", "shorten", "expand", "change_tone"]
     tone: Optional[str] = None
@@ -167,7 +168,7 @@ async def generate_post(payload: GeneratePostPayload) -> dict:
         variation=payload.variation,
     )
     try:
-        text = generate_text(prompt)
+        text = generate_text(prompt, payload)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"post": text.strip()}
@@ -177,7 +178,7 @@ async def generate_post(payload: GeneratePostPayload) -> dict:
 async def refine_post(payload: RefinePostPayload) -> dict:
     prompt = build_refine_prompt(post=payload.post, action=payload.action, tone=payload.tone)
     try:
-        text = generate_text(prompt)
+        text = generate_text(prompt, payload)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"post": text.strip()}
@@ -189,7 +190,7 @@ async def refine_post(payload: RefinePostPayload) -> dict:
 async def analyze_post(payload: AnalyzePostPayload) -> dict:
     prompt = build_analyze_prompt(payload.postText)
     try:
-        result = generate_json(prompt)
+        result = generate_json(prompt, payload)
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {

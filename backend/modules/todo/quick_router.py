@@ -23,6 +23,7 @@ from typing import List, Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from modules.common.ai_client import AISettings
 from .quick_db import (
     create_quick_task,
     get_quick_tasks_for_date,
@@ -33,6 +34,7 @@ from .quick_db import (
     archive_completed_quick_tasks,
     move_quick_tasks_to_tomorrow,
     bulk_update_quadrants,
+    count_incomplete_top20,
 )
 from .db import create_task, get_all_tasks
 from .projects_db import create_project
@@ -59,29 +61,28 @@ class QuickTaskUpdate(BaseModel):
     order_index: Optional[int] = None
     is_top_20: Optional[bool] = None
     pareto_score: Optional[float] = None
+    pareto_reason: Optional[str] = None
     due_date: Optional[str] = None
     time_estimate: Optional[str] = None
     context: Optional[str] = None
 
 
-class AIDayPlanRequest(BaseModel):
+class AIDayPlanRequest(AISettings):
     available_hours: float = 4.0
-    model: str = "gemini"
 
 
-class AIEisenhowerRequest(BaseModel):
-    model: str = "gemini"
+class AIEisenhowerRequest(AISettings):
+    pass
 
 
 class BulkCreateQuickTasksRequest(BaseModel):
     tasks: List[dict]   # [{title, quadrant, time_estimate, context}]
 
 
-class EndOfDayRequest(BaseModel):
+class EndOfDayRequest(AISettings):
     move_to_tomorrow: List[int] = []
     move_to_smart: List[int] = []
     discard: List[int] = []
-    model: str = "gemini"
 
 
 # ── AI helpers ───────────────────────────────────────────────────────────────
@@ -160,6 +161,9 @@ async def get_today_tasks_endpoint() -> List[dict]:
 @router.patch("/{task_id}")
 async def update_quick_task_endpoint(task_id: int, payload: QuickTaskUpdate) -> dict:
     updates = payload.model_dump(exclude_none=True)
+    if "is_top_20" in updates:
+        # Human toggle via the Pareto modal — lock so bulk /pareto/analyze won't overwrite it.
+        updates["pareto_locked"] = 1
     task = update_quick_task(task_id, **updates)
     if not task:
         raise HTTPException(status_code=404, detail="Quick task not found")
@@ -220,7 +224,14 @@ async def move_to_plan_endpoint(task_id: int) -> dict:
 @router.post("/brain-dump-upload")
 async def brain_dump_upload_endpoint(
     file: UploadFile = File(...),
-    model: str = Form("gemini"),
+    model: str = Form("gemini-flash-latest"),
+    geminiKey: str = Form(""),
+    deepseekKey: str = Form(""),
+    groqKey: str = Form(""),
+    openaiKey: str = Form(""),
+    anthropicKey: str = Form(""),
+    ollamaUrl: str = Form("http://localhost:11434"),
+    ollamaModel: str = Form("llama3.2"),
 ) -> dict:
     """Accept a handwriting image/scan of a brain dump.
 
@@ -247,6 +258,10 @@ async def brain_dump_upload_endpoint(
 
     # ── Step 1: Vision AI — extract handwriting text ──────────────────────
     _call_ai, _extract_json_array, _call_vision_ai, _image_to_base64_jpeg = _get_ai_helpers()
+    ai_settings = AISettings(
+        model=model, geminiKey=geminiKey, deepseekKey=deepseekKey, groqKey=groqKey,
+        openaiKey=openaiKey, anthropicKey=anthropicKey, ollamaUrl=ollamaUrl, ollamaModel=ollamaModel,
+    )
 
     today_str = date.today().isoformat()
     extracted_text = ""
@@ -269,12 +284,12 @@ async def brain_dump_upload_endpoint(
                 buf = io.BytesIO()
                 page_img.save(buf, format="JPEG", quality=85)
                 page_b64 = b64_mod.b64encode(buf.getvalue()).decode("utf-8")
-                page_text = _call_vision_ai(page_b64, _BRAIN_DUMP_EXTRACT_PROMPT, model)
+                page_text = _call_vision_ai(page_b64, _BRAIN_DUMP_EXTRACT_PROMPT, ai_settings)
                 page_texts.append(f"[Page {i+1}]\n{page_text}")
             extracted_text = "\n\n".join(page_texts)
         else:
             image_b64 = _image_to_base64_jpeg(content, ext)
-            extracted_text = _call_vision_ai(image_b64, _BRAIN_DUMP_EXTRACT_PROMPT, model)
+            extracted_text = _call_vision_ai(image_b64, _BRAIN_DUMP_EXTRACT_PROMPT, ai_settings)
 
     except HTTPException:
         raise
@@ -299,7 +314,7 @@ async def brain_dump_upload_endpoint(
     )
 
     try:
-        parse_response = _call_ai(parse_prompt, model)
+        parse_response = _call_ai(parse_prompt, ai_settings)
         parsed_tasks = _extract_json_array(parse_response)
     except Exception as exc:
         # If parsing fails, still return the extracted text so the user isn't stuck
@@ -406,7 +421,7 @@ Return ONLY a valid JSON array:
 No extra text, just raw JSON array."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         plan = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Day Plan failed: {exc}")
@@ -451,7 +466,7 @@ Return ONLY a valid JSON array:
 No extra text."""
 
     try:
-        response_text = _call_ai(prompt, payload.model)
+        response_text = _call_ai(prompt, payload)
         assignments = _extract_json_array(response_text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Eisenhower sort failed: {exc}")
@@ -466,6 +481,14 @@ async def end_of_day_endpoint(payload: EndOfDayRequest) -> dict:
     _call_ai, *_ = _get_ai_helpers()
 
     today_str = date.today().isoformat()
+
+    # Check before any mutation whether any Top 20% tasks are still incomplete today.
+    top20_incomplete_count = count_incomplete_top20(today_str)
+    top20_warning = (
+        f"⚠️ {top20_incomplete_count} high-leverage task{'s' if top20_incomplete_count != 1 else ''} "
+        "still incomplete — prioritize these tomorrow"
+        if top20_incomplete_count else None
+    )
 
     # 1. Archive completed tasks
     archived_count = archive_completed_quick_tasks(today_str)
@@ -497,7 +520,7 @@ They moved {moved_tomorrow} tasks to tomorrow, {moved_smart} to their full task 
 Write a short (1-2 sentences), warm, encouraging summary. Be positive and motivating."""
 
     try:
-        encouragement = _call_ai(prompt, payload.model)
+        encouragement = _call_ai(prompt, payload)
     except Exception:
         encouragement = f"Great work completing {archived_count} tasks today! Tomorrow is a fresh start."
 
@@ -507,4 +530,6 @@ Write a short (1-2 sentences), warm, encouraging summary. Be positive and motiva
         "moved_tomorrow": moved_tomorrow,
         "moved_smart": moved_smart,
         "discarded": discarded,
+        "top20_incomplete_count": top20_incomplete_count,
+        "top20_warning": top20_warning,
     }

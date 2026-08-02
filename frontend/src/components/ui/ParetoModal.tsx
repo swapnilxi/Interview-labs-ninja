@@ -2,16 +2,18 @@
 
 import React, { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import { paretoService, ParetoTable } from '@/lib/services/paretoService';
 
 interface ParetoModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  table: 'tasks' | 'quick_tasks' | 'project_nodes' | 'projects';
+  table: ParetoTable;
   itemId: number;
   paretoScore: number | null | undefined;
   isTop20: boolean | undefined;
-  reason?: string;
+  paretoLocked?: boolean;
+  reason?: string | null;
   model?: 'ollama' | 'gemini';
   onUpdate: (updates: { pareto_score?: number | null; is_top_20?: boolean }) => void;
 }
@@ -24,12 +26,14 @@ export default function ParetoModal({
   itemId,
   paretoScore,
   isTop20,
+  paretoLocked,
   reason,
   model = 'gemini',
   onUpdate,
 }: ParetoModalProps) {
   const [loading, setLoading] = useState(false);
-  const [currentReason, setCurrentReason] = useState<string | undefined>(reason);
+  const [currentReason, setCurrentReason] = useState<string | undefined | null>(reason);
+  const [locked, setLocked] = useState(!!paretoLocked);
 
   if (!isOpen) return null;
 
@@ -40,30 +44,25 @@ export default function ParetoModal({
   const handleRescore = async () => {
     setLoading(true);
     try {
-      const apiTable = table === 'projects' ? 'projects' : table;
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082'}/pareto/reanalyze/${apiTable}/${itemId}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model }),
-        }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'success') {
-          setCurrentReason(data.reason);
-          onUpdate({
-            pareto_score: data.pareto_score,
-            is_top_20: data.is_top_20,
-          });
-        }
+      const data = await paretoService.reanalyze(table, itemId, model);
+      if (data.status === 'success') {
+        setCurrentReason(data.reason);
+        setLocked(false); // re-scoring is an explicit user action; it unlocks any manual pin
+        onUpdate({
+          pareto_score: data.pareto_score,
+          is_top_20: data.is_top_20,
+        });
       }
     } catch (err) {
       console.error('Failed to re-score task', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleManualToggle = (checked: boolean) => {
+    setLocked(true); // manual toggles always lock — mirrors the backend's PATCH behavior
+    onUpdate({ is_top_20: checked });
   };
 
   return (
@@ -110,7 +109,14 @@ export default function ParetoModal({
               </div>
             </div>
             <div>
-              {isTop20 ? (
+              {isTop20 && locked ? (
+                <span
+                  className="inline-flex items-center gap-1 text-xs font-bold bg-gradient-to-r from-sky-500 to-sky-600 text-white px-3 py-1 rounded-full shadow-sm"
+                  title="Manually pinned — AI re-analysis will never overwrite this unless you re-score it yourself"
+                >
+                  📌 Manually Pinned
+                </span>
+              ) : isTop20 ? (
                 <span className="inline-flex items-center gap-1 text-xs font-bold bg-gradient-to-r from-amber-500 to-amber-600 text-white px-3 py-1 rounded-full shadow-sm">
                   ⭐ Top 20% Task
                 </span>
@@ -156,12 +162,12 @@ export default function ParetoModal({
 
           <label className="flex items-center justify-between p-3 rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/40 cursor-pointer transition-smooth">
             <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <span>⭐</span> Pin as Top 20% Priority Task
+              <span>📌</span> Mark as Top 20% manually
             </span>
             <input
               type="checkbox"
               checked={!!isTop20}
-              onChange={(e) => onUpdate({ is_top_20: e.target.checked })}
+              onChange={(e) => handleManualToggle(e.target.checked)}
               className="w-4 h-4 rounded border-border text-amber-500 focus:ring-amber-500 cursor-pointer"
             />
           </label>
@@ -169,7 +175,9 @@ export default function ParetoModal({
 
         {/* Footer */}
         <div className="text-[10px] text-muted-foreground text-center pt-1 border-t border-border/40">
-          The 80/20 Principle focuses effort on the top 20% of tasks that create 80% of your results.
+          {locked && isTop20
+            ? 'Manually pinned — safe from AI re-analysis until you unlock it by re-scoring.'
+            : 'The 80/20 Principle focuses effort on the top 20% of tasks that create 80% of your results.'}
         </div>
       </div>
     </div>

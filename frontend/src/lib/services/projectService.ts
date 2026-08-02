@@ -1,5 +1,8 @@
 'use client';
 
+import { parseApiError } from './todoService';
+import { aiRequestFields } from './settingsService';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
 
 export interface Project {
@@ -14,6 +17,8 @@ export interface Project {
   icon: string | null;
   pareto_score: number | null;
   is_top_20: boolean;
+  pareto_reason?: string | null;
+  pareto_locked?: boolean;
   created_at: string;
   node_count?: number; // Added in GET /projects response
 }
@@ -32,6 +37,8 @@ export interface ProjectNode {
   eisenhower_quadrant?: 'do_now' | 'schedule' | 'delegate' | 'eliminate' | null;
   pareto_score: number | null;
   is_top_20: boolean;
+  pareto_reason?: string | null;
+  pareto_locked?: boolean;
   order_index: number;
   created_at: string;
   context?: string | null;
@@ -150,35 +157,25 @@ export const projectService = {
   },
 
   async diveDeeper(nodeId: number, model: string = 'gemini'): Promise<ProjectNode[]> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}/dive-deeper`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      return data.nodes || [];
-    } catch (err) {
-      console.error(`Failed to dive deeper for node ${nodeId}`, err);
-      return [];
-    }
+    const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}/dive-deeper`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiRequestFields(model)),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    const data = await res.json();
+    return data.nodes || [];
   },
 
   async chunkIt(nodeId: number, model: string = 'gemini'): Promise<ProjectNode[]> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}/chunk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      return data.nodes || [];
-    } catch (err) {
-      console.error(`Failed to chunk node ${nodeId}`, err);
-      return [];
-    }
+    const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}/chunk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiRequestFields(model)),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    const data = await res.json();
+    return data.nodes || [];
   },
 
   async moveToSmart(nodeId: number): Promise<any> {
@@ -230,47 +227,32 @@ export const projectService = {
   },
 
   async eisenhowerAutoNodes(model: string = 'gemini'): Promise<any> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/todo/project-nodes/eisenhower-auto`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error('Failed to auto-sort project nodes', err);
-      return { assignments: [] };
-    }
+    const res = await fetch(`${API_BASE_URL}/todo/project-nodes/eisenhower-auto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiRequestFields(model)),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return await res.json();
   },
 
   async eisenhowerAuto(model: string = 'gemini'): Promise<any> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/todo/projects/eisenhower-auto`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error('Failed to auto-sort projects', err);
-      return { assignments: [] };
-    }
+    const res = await fetch(`${API_BASE_URL}/todo/projects/eisenhower-auto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiRequestFields(model)),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return await res.json();
   },
 
   async generateRoadmap(projectId: number, model: string = 'gemini'): Promise<any> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/todo/projects/${projectId}/ai-roadmap`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error(`Failed to generate roadmap for project ${projectId}`, err);
-      return null;
-    }
+    const res = await fetch(`${API_BASE_URL}/todo/projects/${projectId}/ai-roadmap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiRequestFields(model)),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return await res.json();
   },
 };
