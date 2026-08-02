@@ -20,9 +20,10 @@ import json
 from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from modules.auth.dependencies import get_current_user_id
 from modules.common.ai_client import AISettings
 from .quick_db import (
     create_quick_task,
@@ -39,7 +40,7 @@ from .quick_db import (
 from .db import create_task, get_all_tasks
 from .projects_db import create_project
 
-router = APIRouter(prefix="/todo/quick-tasks", tags=["quick-tasks"])
+router = APIRouter(prefix="/todo/quick-tasks", tags=["quick-tasks"], dependencies=[Depends(get_current_user_id)])
 
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
@@ -94,6 +95,7 @@ def _get_ai_helpers():
 
 
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 
 _BRAIN_DUMP_EXTRACT_PROMPT = """This is a handwritten brain dump — a person's unfiltered thoughts, tasks, and ideas.
 Please:
@@ -137,9 +139,10 @@ Return ONLY a valid JSON array. No prose:
 # ── CRUD Endpoints ───────────────────────────────────────────────────────────
 
 @router.post("")
-async def create_quick_task_endpoint(payload: QuickTaskCreate) -> dict:
+async def create_quick_task_endpoint(payload: QuickTaskCreate, user_id: int = Depends(get_current_user_id)) -> dict:
     today_str = date.today().isoformat()
     task = create_quick_task(
+        user_id=user_id,
         title=payload.title,
         task_date=today_str,
         quadrant=payload.quadrant,
@@ -153,26 +156,26 @@ async def create_quick_task_endpoint(payload: QuickTaskCreate) -> dict:
 
 
 @router.get("/today")
-async def get_today_tasks_endpoint() -> List[dict]:
+async def get_today_tasks_endpoint(user_id: int = Depends(get_current_user_id)) -> List[dict]:
     today_str = date.today().isoformat()
-    return get_quick_tasks_for_date(today_str)
+    return get_quick_tasks_for_date(user_id, today_str)
 
 
 @router.patch("/{task_id}")
-async def update_quick_task_endpoint(task_id: int, payload: QuickTaskUpdate) -> dict:
+async def update_quick_task_endpoint(task_id: int, payload: QuickTaskUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
     updates = payload.model_dump(exclude_none=True)
     if "is_top_20" in updates:
         # Human toggle via the Pareto modal — lock so bulk /pareto/analyze won't overwrite it.
         updates["pareto_locked"] = 1
-    task = update_quick_task(task_id, **updates)
+    task = update_quick_task(task_id, user_id, **updates)
     if not task:
         raise HTTPException(status_code=404, detail="Quick task not found")
     return task
 
 
 @router.delete("/{task_id}")
-async def delete_quick_task_endpoint(task_id: int) -> dict:
-    if not delete_quick_task(task_id):
+async def delete_quick_task_endpoint(task_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    if not delete_quick_task(task_id, user_id):
         raise HTTPException(status_code=404, detail="Quick task not found")
     return {"status": "deleted", "id": task_id}
 
@@ -180,42 +183,44 @@ async def delete_quick_task_endpoint(task_id: int) -> dict:
 # ── Move Endpoints (Non-Destructive) ─────────────────────────────────────────
 
 @router.post("/{task_id}/move-to-smart")
-async def move_to_smart_endpoint(task_id: int) -> dict:
+async def move_to_smart_endpoint(task_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
     """Convert quick task into a full Smart To-Do task.
 
     ✅ Fixed: keeps the quick_tasks row (marks is_exported=1).
     Previously, this deleted the row.
     """
-    qt = get_quick_task(task_id)
+    qt = get_quick_task(task_id, user_id)
     if not qt:
         raise HTTPException(status_code=404, detail="Quick task not found")
 
     new_task = create_task(
+        user_id=user_id,
         title=qt["title"],
         context=f"Moved from Quick Daily ({qt['date']})",
     )
     # Keep row — just mark as exported
-    mark_quick_task_exported(task_id, exported_task_id=new_task["id"])
+    mark_quick_task_exported(task_id, user_id, exported_task_id=new_task["id"])
     return {"status": "moved", "new_task_id": new_task["id"], "task": new_task}
 
 
 @router.post("/{task_id}/move-to-plan")
-async def move_to_plan_endpoint(task_id: int) -> dict:
+async def move_to_plan_endpoint(task_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
     """Convert quick task into a new project.
 
     ✅ Fixed: keeps the quick_tasks row (marks is_exported=1).
     Previously, this deleted the row.
     """
-    qt = get_quick_task(task_id)
+    qt = get_quick_task(task_id, user_id)
     if not qt:
         raise HTTPException(status_code=404, detail="Quick task not found")
 
     project = create_project(
+        user_id=user_id,
         title=qt["title"],
         description=f"Created from Quick Daily task ({qt['date']})",
     )
     # Keep row — just mark as exported
-    mark_quick_task_exported(task_id, exported_project_id=project["id"])
+    mark_quick_task_exported(task_id, user_id, exported_project_id=project["id"])
     return {"status": "moved", "project_id": project["id"], "project": project}
 
 
@@ -255,6 +260,8 @@ async def brain_dump_upload_endpoint(
         )
 
     content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large. Max size is {_MAX_UPLOAD_BYTES // (1024 * 1024)}MB.")
 
     # ── Step 1: Vision AI — extract handwriting text ──────────────────────
     _call_ai, _extract_json_array, _call_vision_ai, _image_to_base64_jpeg = _get_ai_helpers()
@@ -333,7 +340,7 @@ async def brain_dump_upload_endpoint(
 
 
 @router.post("/bulk-create")
-async def bulk_create_quick_tasks_endpoint(payload: BulkCreateQuickTasksRequest) -> dict:
+async def bulk_create_quick_tasks_endpoint(payload: BulkCreateQuickTasksRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Bulk-create quick tasks from confirmed brain dump preview.
 
     Called after user reviews and approves the brain dump parsed tasks.
@@ -342,6 +349,7 @@ async def bulk_create_quick_tasks_endpoint(payload: BulkCreateQuickTasksRequest)
     created = []
     for t in payload.tasks:
         task = create_quick_task(
+            user_id=user_id,
             title=t.get("title", "Unnamed task"),
             task_date=today_str,
             quadrant=t.get("quadrant", "do_now"),
@@ -354,7 +362,7 @@ async def bulk_create_quick_tasks_endpoint(payload: BulkCreateQuickTasksRequest)
 # ── AI Endpoints ─────────────────────────────────────────────────────────────
 
 @router.post("/ai-day-plan")
-async def ai_day_plan_endpoint(payload: AIDayPlanRequest) -> dict:
+async def ai_day_plan_endpoint(payload: AIDayPlanRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """AI selects the best tasks for available hours.
 
     ✅ Fixed: Top 20% tasks (is_top_20=True) are always included first.
@@ -362,8 +370,8 @@ async def ai_day_plan_endpoint(payload: AIDayPlanRequest) -> dict:
     _call_ai, _extract_json_array, *_ = _get_ai_helpers()
 
     today_str = date.today().isoformat()
-    quick_tasks = get_quick_tasks_for_date(today_str)
-    all_smart = get_all_tasks()
+    quick_tasks = get_quick_tasks_for_date(user_id, today_str)
+    all_smart = get_all_tasks(user_id)
     smart_urgent = [
         t for t in all_smart
         if t["status"] not in ("done",) and t["priority"] in ("p1", "p2")
@@ -430,12 +438,12 @@ No extra text, just raw JSON array."""
 
 
 @router.post("/eisenhower-auto")
-async def eisenhower_auto_endpoint(payload: AIEisenhowerRequest) -> dict:
+async def eisenhower_auto_endpoint(payload: AIEisenhowerRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """AI auto-assigns quadrants to today's quick tasks."""
     _call_ai, _extract_json_array, *_ = _get_ai_helpers()
 
     today_str = date.today().isoformat()
-    tasks = get_quick_tasks_for_date(today_str)
+    tasks = get_quick_tasks_for_date(user_id, today_str)
     undone = [t for t in tasks if not t["done"] and not t.get("is_exported")]
 
     if not undone:
@@ -471,19 +479,19 @@ No extra text."""
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Eisenhower sort failed: {exc}")
 
-    bulk_update_quadrants(assignments)
+    bulk_update_quadrants(user_id, assignments)
     return {"assignments": assignments}
 
 
 @router.post("/end-of-day")
-async def end_of_day_endpoint(payload: EndOfDayRequest) -> dict:
+async def end_of_day_endpoint(payload: EndOfDayRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Archive completed tasks, handle incomplete based on user choices."""
     _call_ai, *_ = _get_ai_helpers()
 
     today_str = date.today().isoformat()
 
     # Check before any mutation whether any Top 20% tasks are still incomplete today.
-    top20_incomplete_count = count_incomplete_top20(today_str)
+    top20_incomplete_count = count_incomplete_top20(user_id, today_str)
     top20_warning = (
         f"⚠️ {top20_incomplete_count} high-leverage task{'s' if top20_incomplete_count != 1 else ''} "
         "still incomplete — prioritize these tomorrow"
@@ -491,26 +499,26 @@ async def end_of_day_endpoint(payload: EndOfDayRequest) -> dict:
     )
 
     # 1. Archive completed tasks
-    archived_count = archive_completed_quick_tasks(today_str)
+    archived_count = archive_completed_quick_tasks(user_id, today_str)
 
     # 2. Move to tomorrow
     moved_tomorrow = 0
     if payload.move_to_tomorrow:
-        moved_tomorrow = move_quick_tasks_to_tomorrow(payload.move_to_tomorrow)
+        moved_tomorrow = move_quick_tasks_to_tomorrow(user_id, payload.move_to_tomorrow)
 
     # 3. Move to Smart To-Do (non-destructive)
     moved_smart = 0
     for tid in payload.move_to_smart:
-        qt = get_quick_task(tid)
+        qt = get_quick_task(tid, user_id)
         if qt:
-            new_task = create_task(title=qt["title"], context=f"Moved from Quick Daily ({qt['date']})")
-            mark_quick_task_exported(tid, exported_task_id=new_task["id"])
+            new_task = create_task(user_id=user_id, title=qt["title"], context=f"Moved from Quick Daily ({qt['date']})")
+            mark_quick_task_exported(tid, user_id, exported_task_id=new_task["id"])
             moved_smart += 1
 
     # 4. Discard
     discarded = 0
     for tid in payload.discard:
-        if delete_quick_task(tid):
+        if delete_quick_task(tid, user_id):
             discarded += 1
 
     # 5. AI day-end encouragement

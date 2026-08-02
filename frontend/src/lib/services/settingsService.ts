@@ -5,9 +5,9 @@
  *
  * These live ONLY in this browser's localStorage. They are never sent to or
  * stored by our backend's database; each AI request carries the relevant
- * fields (see aiRequestFields/appendAIFormFields below) straight from here,
- * used for that one call, and nothing is persisted server-side. This is what
- * lets one deployment be shared by multiple people, each using their own keys.
+ * fields (see aiRequestFields below) straight from here, used for that one
+ * call, and nothing is persisted server-side. This is what lets one
+ * deployment be shared by multiple people, each using their own keys.
  */
 
 export interface UserSettings {
@@ -20,6 +20,7 @@ export interface UserSettings {
   groqKey: string;
   ollamaUrl: string;
   ollamaModel: string;
+  youtubeApiKey: string;
 }
 
 export interface OllamaModel {
@@ -48,6 +49,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   groqKey: '',
   ollamaUrl: 'http://localhost:11434',
   ollamaModel: 'llama3.2',
+  youtubeApiKey: '',
 };
 
 function readStoredSettings(): UserSettings {
@@ -66,14 +68,62 @@ function writeStoredSettings(settings: UserSettings): void {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
+/** Model/provider fields synced server-side for logged-in users. API keys never leave the browser. */
+const SYNCABLE_FIELDS = ['textGenerationModel', 'answerModel', 'ollamaUrl', 'ollamaModel'] as const;
+type SyncableSettings = Pick<UserSettings, (typeof SYNCABLE_FIELDS)[number]>;
+
+function toServerProfile(settings: Partial<UserSettings>) {
+  return {
+    text_generation_model: settings.textGenerationModel,
+    answer_model: settings.answerModel,
+    ollama_url: settings.ollamaUrl,
+    ollama_model: settings.ollamaModel,
+  };
+}
+
+function fromServerProfile(profile: any): Partial<SyncableSettings> {
+  const out: Partial<SyncableSettings> = {};
+  if (profile.text_generation_model) out.textGenerationModel = profile.text_generation_model;
+  if (profile.answer_model) out.answerModel = profile.answer_model;
+  if (profile.ollama_url) out.ollamaUrl = profile.ollama_url;
+  if (profile.ollama_model) out.ollamaModel = profile.ollama_model;
+  return out;
+}
+
+/** Called right after login/signup so a returning user's model choice loads on a new browser. */
+export async function pullServerSettingsIfLoggedIn(): Promise<void> {
+  const { isLoggedIn } = await import('../auth/tokenStore');
+  if (!isLoggedIn()) return;
+  try {
+    const { apiFetch } = await import('../http/apiClient');
+    const res = await apiFetch('/auth/profile');
+    if (!res.ok) return;
+    const profile = await res.json();
+    const current = readStoredSettings();
+    writeStoredSettings({ ...current, ...fromServerProfile(profile) });
+  } catch {
+    // offline or backend down — local settings stay as-is
+  }
+}
+
 export const settingsService = {
-  /** Reads settings from this browser's localStorage (async for backward-compat with existing callers). */
+  /** Reads settings from localStorage; for logged-in users, refreshes the syncable subset from the server first (server wins), falling back to local on failure. */
   async getSettings(): Promise<UserSettings> {
+    await pullServerSettingsIfLoggedIn();
     return readStoredSettings();
   },
 
   async saveSettings(settings: UserSettings): Promise<void> {
     writeStoredSettings(settings);
+    const { isLoggedIn } = await import('../auth/tokenStore');
+    if (isLoggedIn()) {
+      try {
+        const { apiFetch } = await import('../http/apiClient');
+        await apiFetch('/auth/profile', { method: 'PUT', body: JSON.stringify(toServerProfile(settings)) });
+      } catch {
+        // best-effort sync; local save already succeeded
+      }
+    }
   },
 
   /** Probe the Ollama server and return running status + pulled model list. No key involved — safe to ask the backend to do the network probe. */
@@ -127,11 +177,6 @@ export function aiRequestFields(choice: string, settings: UserSettings = readSto
     ollamaUrl: settings.ollamaUrl,
     ollamaModel: settings.ollamaModel,
   };
-}
-
-/** Same fields as aiRequestFields, appended onto FormData — for multipart file-upload endpoints. */
-export function appendAIFormFields(formData: FormData, choice: string, settings: UserSettings = readStoredSettings()): void {
-  Object.entries(aiRequestFields(choice, settings)).forEach(([key, value]) => formData.append(key, value));
 }
 
 /** Same fields as aiRequestFields, URL-encoded — for GET/SSE endpoints that can't carry a JSON body. */

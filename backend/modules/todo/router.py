@@ -1,16 +1,47 @@
-"""FastAPI router for the To-Do module.
+"""FastAPI router for the To-Do module (Smart Todo / "tasks" tree).
 
 Endpoints:
-  POST   /todo/tasks                     — Create a task
-  GET    /todo/tasks/tree                — Full nested task tree
-  GET    /todo/tasks/{id}/children       — Lazy-load children
-  PATCH  /todo/tasks/{id}                — Update task fields
-  DELETE /todo/tasks/{id}                — Delete task (cascade)
-  POST   /todo/tasks/{id}/dive-deeper    — AI strategic breakdown
-  POST   /todo/tasks/{id}/chunk          — AI actionable breakdown
-  POST   /todo/tasks/{id}/regenerate     — Delete children + re-run AI
-  POST   /todo/tasks/upload-context      — File upload + text extraction
-  POST   /todo/copilot/ask              — Copilot productivity Q&A
+  CRUD
+    POST   /todo/tasks                          — Create a task
+    GET    /todo/tasks/tree                      — Full nested task tree
+    GET    /todo/tasks/{id}                      — Single task
+    GET    /todo/tasks/{id}/children             — Lazy-load children
+    PATCH  /todo/tasks/{id}                      — Update task fields
+    DELETE /todo/tasks/{id}                      — Delete task (cascade)
+  AI breakdown
+    POST   /todo/tasks/{id}/dive-deeper          — AI strategic breakdown
+    POST   /todo/tasks/{id}/chunk                — AI actionable breakdown
+    POST   /todo/tasks/{id}/regenerate           — Delete children + re-run AI
+    POST   /todo/tasks/{id}/generate-dod         — AI Definition of Done + subtasks
+  Files / notes / copilot
+    POST   /todo/tasks/upload-context            — File upload + text extraction
+    POST   /todo/copilot/ask                      — Copilot productivity Q&A
+    GET    /todo/tasks/{id}/notes                 — List notes
+    POST   /todo/tasks/{id}/notes                 — Add note
+    POST   /todo/tasks/{id}/notes/explain          — AI-explain task as a note
+    POST   /todo/tasks/{id}/notes/{note_id}/expand — AI-expand a note
+    POST   /todo/tasks/{id}/notes/summarize        — AI-summarize all notes
+    POST   /todo/tasks/{id}/suggest-intention      — AI intention/DoD for existing task
+    POST   /todo/tasks/suggest-intention           — AI intention/DoD before creation
+    GET    /todo/tasks/{id}/resume                 — Streamed AI "where was I" resume
+  Daily planning / inbox / stats
+    GET    /todo/daily/plan                       — Today's saved plan, if any
+    POST   /todo/daily/kickstart                  — AI-suggested plan for the day
+    POST   /todo/daily/plan                       — Save a day's plan
+    POST   /todo/daily/end                        — End-of-day summary + reschedule
+    POST   /todo/brain-dump                        — AI-parse free text into tasks
+    POST   /todo/tasks/bulk                        — Bulk-save a parsed task tree
+    GET/POST/DELETE /todo/inbox[/{id}]             — Distraction inbox capture
+    GET    /todo/stats                             — Completion streak stats
+  Bulk AI actions
+    POST   /todo/tasks/eisenhower-auto             — AI-assign Eisenhower quadrants
+    POST   /todo/tasks/ai-weekly-plan              — AI Mon-Fri weekly plan
+    POST   /todo/ai/parse-task                     — AI-parse one NLP task string
+    POST   /todo/ai/prioritize-all                 — AI priority/quadrant/Pareto sweep
+    POST   /todo/ai/smart-schedule                  — AI energy-aware day schedule
+  Cross-module moves
+    POST   /todo/tasks/{id}/move-to-quick          — Smart task -> Quick Daily
+    POST   /todo/tasks/{id}/move-to-plan           — Smart task -> Plan & Project
 """
 
 from __future__ import annotations
@@ -20,13 +51,15 @@ import json
 import io
 import os
 import re
+import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from modules.auth.dependencies import get_current_user_id
 from modules.common.ai_client import (
     AISettings,
     call_ai_text as _call_ai,
@@ -60,7 +93,7 @@ from .db import (
     create_handwriting_extraction,
 )
 
-router = APIRouter(prefix="/todo", tags=["todo"])
+router = APIRouter(prefix="/todo", tags=["todo"], dependencies=[Depends(get_current_user_id)])
 
 _UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
 
@@ -173,8 +206,9 @@ class InboxCreateRequest(BaseModel):
 
 
 @router.post("/tasks")
-async def create_task_endpoint(payload: TaskCreate) -> dict:
+async def create_task_endpoint(payload: TaskCreate, user_id: int = Depends(get_current_user_id)) -> dict:
     task = create_task(
+        user_id=user_id,
         title=payload.title,
         parent_id=payload.parent_id,
         status=payload.status,
@@ -183,44 +217,49 @@ async def create_task_endpoint(payload: TaskCreate) -> dict:
         due_date=payload.due_date,
         context=payload.context,
         attachments=payload.attachments,
+        is_recurring=payload.is_recurring,
+        recurrence_interval=payload.recurrence_interval,
+        recurrence_custom_days=payload.recurrence_custom_days,
+        intention=payload.intention,
+        definition_of_done=payload.definition_of_done,
     )
     return task
 
 
 @router.get("/tasks/tree")
-async def get_task_tree_endpoint() -> List[dict]:
-    return get_task_tree()
+async def get_task_tree_endpoint(user_id: int = Depends(get_current_user_id)) -> List[dict]:
+    return get_task_tree(user_id)
 
 
 @router.get("/tasks/{task_id}")
-async def get_single_task_endpoint(task_id: int) -> dict:
-    task = get_task(task_id)
+async def get_single_task_endpoint(task_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    task = get_task(task_id, user_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
 
 @router.get("/tasks/{task_id}/children")
-async def get_children_endpoint(task_id: int) -> List[dict]:
-    return get_children(task_id)
+async def get_children_endpoint(task_id: int, user_id: int = Depends(get_current_user_id)) -> List[dict]:
+    return get_children(task_id, user_id)
 
 
 @router.patch("/tasks/{task_id}")
-async def update_task_endpoint(task_id: int, payload: TaskUpdate) -> dict:
+async def update_task_endpoint(task_id: int, payload: TaskUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
     updates = payload.model_dump(exclude_none=True)
     if "is_top_20" in updates:
         # A human explicitly toggled this via the Pareto modal — lock it so the
         # bulk /pareto/analyze sweep never silently overwrites the override.
         updates["pareto_locked"] = 1
-    task = update_task(task_id, **updates)
+    task = update_task(task_id, user_id, **updates)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
 
 @router.delete("/tasks/{task_id}")
-async def delete_task_endpoint(task_id: int) -> dict:
-    if not delete_task(task_id):
+async def delete_task_endpoint(task_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    if not delete_task(task_id, user_id):
         raise HTTPException(status_code=404, detail="Task not found")
     return {"status": "deleted", "id": task_id}
 
@@ -228,7 +267,7 @@ async def delete_task_endpoint(task_id: int) -> dict:
 # ── AI Breakdown Endpoints ───────────────────────────────────────────────────
 
 
-def _build_ai_prompt(task: dict, breakdown_type: str) -> str:
+def _build_ai_prompt(task: dict, breakdown_type: str, user_id: int) -> str:
     """Build the AI prompt with sibling awareness and context."""
     # Core instruction differs by type
     if breakdown_type == "dive_deeper":
@@ -239,7 +278,7 @@ def _build_ai_prompt(task: dict, breakdown_type: str) -> str:
     # Add sibling context to avoid duplicates (🟢 feedback #9)
     sibling_context = ""
     if task.get("parent_id"):
-        siblings = get_sibling_titles(task["parent_id"])
+        siblings = get_sibling_titles(task["parent_id"], user_id)
         if siblings:
             sibling_list = "\n".join(f"  - {s}" for s in siblings)
             sibling_context = (
@@ -269,12 +308,12 @@ def _build_ai_prompt(task: dict, breakdown_type: str) -> str:
 
 
 @router.post("/tasks/{task_id}/dive-deeper")
-async def dive_deeper_endpoint(task_id: int, payload: AIBreakdownRequest) -> dict:
-    task = get_task(task_id)
+async def dive_deeper_endpoint(task_id: int, payload: AIBreakdownRequest, user_id: int = Depends(get_current_user_id)) -> dict:
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    prompt = _build_ai_prompt(task, "dive_deeper")
+    prompt = _build_ai_prompt(task, "dive_deeper", user_id)
 
     try:
         raw_response = _call_ai(prompt, payload)
@@ -282,17 +321,17 @@ async def dive_deeper_endpoint(task_id: int, payload: AIBreakdownRequest) -> dic
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
 
-    created = create_subtasks_batch(task_id, subtasks_data[:5], "dive_deeper")
+    created = create_subtasks_batch(task_id, user_id, subtasks_data[:5], "dive_deeper")
     return {"subtasks": created}
 
 
 @router.post("/tasks/{task_id}/chunk")
-async def chunk_endpoint(task_id: int, payload: AIBreakdownRequest) -> dict:
-    task = get_task(task_id)
+async def chunk_endpoint(task_id: int, payload: AIBreakdownRequest, user_id: int = Depends(get_current_user_id)) -> dict:
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    prompt = _build_ai_prompt(task, "chunk")
+    prompt = _build_ai_prompt(task, "chunk", user_id)
 
     try:
         raw_response = _call_ai(prompt, payload)
@@ -300,7 +339,7 @@ async def chunk_endpoint(task_id: int, payload: AIBreakdownRequest) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
 
-    created = create_subtasks_batch(task_id, subtasks_data[:5], "chunk")
+    created = create_subtasks_batch(task_id, user_id, subtasks_data[:5], "chunk")
     return {"subtasks": created}
 
 
@@ -308,13 +347,13 @@ async def chunk_endpoint(task_id: int, payload: AIBreakdownRequest) -> dict:
 
 
 @router.post("/tasks/{task_id}/regenerate")
-async def regenerate_endpoint(task_id: int, payload: RegenerateRequest) -> dict:
+async def regenerate_endpoint(task_id: int, payload: RegenerateRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Delete existing children of a task and regenerate using AI.
 
     Reads the task's generation_type to determine whether to use dive_deeper or chunk.
     If the task is manual (root-level), defaults to dive_deeper.
     """
-    task = get_task(task_id)
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -323,9 +362,9 @@ async def regenerate_endpoint(task_id: int, payload: RegenerateRequest) -> dict:
     breakdown_type = gen_type if gen_type in ("dive_deeper", "chunk") else "dive_deeper"
 
     # Delete existing children first
-    deleted_count = delete_children(task_id)
+    deleted_count = delete_children(task_id, user_id)
 
-    prompt = _build_ai_prompt(task, breakdown_type)
+    prompt = _build_ai_prompt(task, breakdown_type, user_id)
 
     try:
         raw_response = _call_ai(prompt, payload)
@@ -333,13 +372,14 @@ async def regenerate_endpoint(task_id: int, payload: RegenerateRequest) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI regeneration failed: {exc}")
 
-    created = create_subtasks_batch(task_id, subtasks_data[:5], breakdown_type)
+    created = create_subtasks_batch(task_id, user_id, subtasks_data[:5], breakdown_type)
     return {"subtasks": created, "deleted_count": deleted_count}
 
 
 # ── Context Upload Endpoint ──────────────────────────────────────────────────
 
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 
 _HANDWRITING_PROMPT = """This is a photo or scan of handwritten notes. Please:
 1. Transcribe ALL handwritten text exactly as written, preserving structure (bullet points, numbered lists, headings, underlines) where visible
@@ -409,6 +449,7 @@ async def upload_context(
     geminiKey: str = Form(""),
     ollamaUrl: str = Form("http://localhost:11434"),
     ollamaModel: str = Form("llama3.2"),
+    user_id: int = Depends(get_current_user_id),
 ) -> dict:
     """Accept .txt, .pdf, .docx, and image (.jpg/.png/.webp/.heic) uploads and extract text.
     Image files use vision LLM for handwriting recognition."""
@@ -426,8 +467,15 @@ async def upload_context(
         )
 
     _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    file_path = _UPLOAD_DIR / file.filename
+    # Basename-only + a random prefix: the raw filename is client-supplied and
+    # must never be trusted as a path (a name like "../../etc/cron.d/x" would
+    # otherwise write outside _UPLOAD_DIR), and the prefix keeps concurrent
+    # uploads from different people from colliding on the same filename.
+    safe_name = os.path.basename(file.filename)
+    file_path = _UPLOAD_DIR / f"{uuid.uuid4().hex}_{safe_name}"
     content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large. Max size is {_MAX_UPLOAD_BYTES // (1024 * 1024)}MB.")
     file_path.write_bytes(content)
 
     extracted_text = ""
@@ -503,6 +551,7 @@ async def upload_context(
     # Save handwriting extraction record
     if is_handwriting and extracted_text.strip():
         create_handwriting_extraction(
+            user_id=user_id,
             original_filename=file.filename,
             extracted_text=extracted_text.strip(),
             vision_model_used=vision_model,
@@ -526,7 +575,7 @@ async def upload_context(
 # ── Copilot Q&A Endpoint (🟢 feedback #12 — smarter context) ─────────────────
 
 
-def _get_top20_titles_across_tabs(limit: int = 15) -> List[str]:
+def _get_top20_titles_across_tabs(user_id: int, limit: int = 15) -> List[str]:
     """Fetch Top 20% (is_top_20=1) titles across tasks, quick_tasks, and project_nodes for Copilot bias."""
     import sqlite3
     from modules.common.db import get_db_path
@@ -535,21 +584,26 @@ def _get_top20_titles_across_tabs(limit: int = 15) -> List[str]:
     try:
         cursor = conn.cursor()
         titles: List[str] = []
-        cursor.execute("SELECT title FROM tasks WHERE is_top_20 = 1 AND status != 'done' LIMIT ?", (limit,))
-        titles += [row[0] for row in cursor.fetchall()]
         cursor.execute(
-            "SELECT title FROM quick_tasks WHERE is_top_20 = 1 AND done = 0 AND date = date('now') LIMIT ?",
-            (limit,),
+            "SELECT title FROM tasks WHERE user_id = ? AND is_top_20 = 1 AND status != 'done' LIMIT ?",
+            (user_id, limit),
         )
         titles += [row[0] for row in cursor.fetchall()]
-        cursor.execute("SELECT title FROM project_nodes WHERE is_top_20 = 1 LIMIT ?", (limit,))
+        cursor.execute(
+            "SELECT title FROM quick_tasks WHERE user_id = ? AND is_top_20 = 1 AND done = 0 AND date = date('now') LIMIT ?",
+            (user_id, limit),
+        )
+        titles += [row[0] for row in cursor.fetchall()]
+        cursor.execute(
+            "SELECT title FROM project_nodes WHERE user_id = ? AND is_top_20 = 1 LIMIT ?", (user_id, limit)
+        )
         titles += [row[0] for row in cursor.fetchall()]
         return titles[:limit]
     finally:
         conn.close()
 
 
-def _build_task_summary(tasks: List[dict], indent: int = 0) -> str:
+def _build_task_summary(tasks: List[dict], user_id: int, indent: int = 0) -> str:
     """Recursively build a text summary of the task tree for the copilot prompt."""
     lines = []
     prefix = "  " * indent
@@ -568,42 +622,42 @@ def _build_task_summary(tasks: List[dict], indent: int = 0) -> str:
             detail_pieces.append(f'Done when: {task["definition_of_done"]}')
             
         # Include last 3 notes
-        notes = get_task_notes(task["id"])
+        notes = get_task_notes(task["id"], user_id)
         if notes:
             notes_str = "; ".join(f"[{n['note_type']}]: {n['content'][:50]}..." for n in notes[:3])
             detail_pieces.append(f'Recent Notes: {notes_str}')
-            
+
         details = " | ".join(detail_pieces)
         details_str = f" | {details}" if details else ""
-        
+
         lines.append(
             f'{prefix}- [{status.upper()}] [{priority.upper()}] {task["title"]} '
             f'(Time: {time_est}, Due: {due}){details_str}'
         )
-        
+
         children = task.get("children", [])
         if children:
-            lines.append(_build_task_summary(children, indent + 1))
+            lines.append(_build_task_summary(children, user_id, indent + 1))
     return "\n".join(lines)
 
 
 @router.post("/copilot/ask")
-async def copilot_ask(payload: CopilotAskRequest) -> dict:
+async def copilot_ask(payload: CopilotAskRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Answer productivity questions based on the user's task tree and inbox context.
 
     Uses smarter context: active tasks detailed with notes/intentions, plus captured distractions.
     """
-    copilot_data = get_active_tasks_for_copilot()
+    copilot_data = get_active_tasks_for_copilot(user_id)
     active_tree = copilot_data["active_tree"]
     summary = copilot_data["summary"]
 
-    task_summary = _build_task_summary(active_tree) if active_tree else "No active tasks."
+    task_summary = _build_task_summary(active_tree, user_id) if active_tree else "No active tasks."
 
     # Fetch captured inbox/distraction items for context
-    inbox_items = get_unprocessed_inbox_items()
+    inbox_items = get_unprocessed_inbox_items(user_id)
     inbox_summary = "\n".join(f"- {item['content']} (captured: {item['created_at']})" for item in inbox_items) if inbox_items else "No unprocessed items in inbox."
 
-    top20_titles = _get_top20_titles_across_tabs()
+    top20_titles = _get_top20_titles_across_tabs(user_id)
     top20_block = (
         f"\nTasks marked as Top 20% (high leverage, Pareto-analyzed): {', '.join(top20_titles)}. "
         "Bias your recommendations strongly toward these tasks — they're the ones that matter most "
@@ -634,26 +688,25 @@ Answer the user's question helpfully and concisely based on these tasks and dist
 # ── Notes Endpoints ─────────────────────────────────────────────────────────
 
 @router.get("/tasks/{task_id}/notes")
-async def get_notes_endpoint(task_id: int) -> List[dict]:
-    return get_task_notes(task_id)
+async def get_notes_endpoint(task_id: int, user_id: int = Depends(get_current_user_id)) -> List[dict]:
+    return get_task_notes(task_id, user_id)
 
 
 @router.post("/tasks/{task_id}/notes")
-async def create_note_endpoint(task_id: int, payload: NoteCreateRequest) -> dict:
-    task = get_task(task_id)
-    if not task:
+async def create_note_endpoint(task_id: int, payload: NoteCreateRequest, user_id: int = Depends(get_current_user_id)) -> dict:
+    note = create_note(task_id, user_id, payload.content, "manual")
+    if note is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    note = create_note(task_id, payload.content, "manual")
     return note
 
 
 @router.post("/tasks/{task_id}/notes/explain")
-async def explain_task_endpoint(task_id: int, payload: NoteAIRequest) -> dict:
-    task = get_task(task_id)
+async def explain_task_endpoint(task_id: int, payload: NoteAIRequest, user_id: int = Depends(get_current_user_id)) -> dict:
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
-    notes = get_task_notes(task_id)
+
+    notes = get_task_notes(task_id, user_id)
     notes_context = ""
     if notes:
         notes_context = "\nExisting Notes:\n" + "\n".join(f"- {n['content']}" for n in notes)
@@ -674,17 +727,17 @@ Provide a comprehensive, professional explanation. Make it directly useful, stru
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
 
-    note = create_note(task_id, explanation.strip(), "ai_explanation")
+    note = create_note(task_id, user_id, explanation.strip(), "ai_explanation")
     return note
 
 
 @router.post("/tasks/{task_id}/notes/{note_id}/expand")
-async def expand_note_endpoint(task_id: int, note_id: int, payload: NoteAIRequest) -> dict:
-    task = get_task(task_id)
+async def expand_note_endpoint(task_id: int, note_id: int, payload: NoteAIRequest, user_id: int = Depends(get_current_user_id)) -> dict:
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
-    note = get_note(note_id)
+
+    note = get_note(note_id, user_id)
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
@@ -699,17 +752,17 @@ Write a clean, detailed, and professional expansion under 150 words."""
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
 
-    new_note = create_note(task_id, expanded_content.strip(), "ai_expansion")
+    new_note = create_note(task_id, user_id, expanded_content.strip(), "ai_expansion")
     return new_note
 
 
 @router.post("/tasks/{task_id}/notes/summarize")
-async def summarize_notes_endpoint(task_id: int, payload: NoteAIRequest) -> dict:
-    task = get_task(task_id)
+async def summarize_notes_endpoint(task_id: int, payload: NoteAIRequest, user_id: int = Depends(get_current_user_id)) -> dict:
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
-    notes = get_task_notes(task_id)
+
+    notes = get_task_notes(task_id, user_id)
     if not notes:
         return {"summary": "No notes available to summarize."}
 
@@ -732,8 +785,8 @@ Provide a concise, bulleted summary under 200 words."""
 
 
 @router.post("/tasks/{task_id}/suggest-intention")
-async def suggest_intention_endpoint(task_id: int, payload: NoteAIRequest) -> dict:
-    task = get_task(task_id)
+async def suggest_intention_endpoint(task_id: int, payload: NoteAIRequest, user_id: int = Depends(get_current_user_id)) -> dict:
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -802,17 +855,18 @@ async def resume_task_endpoint(
     geminiKey: str = "",
     ollamaUrl: str = "http://localhost:11434",
     ollamaModel: str = "llama3.2",
+    user_id: int = Depends(get_current_user_id),
 ) -> StreamingResponse:
     """Stream an AI briefing for resuming a task inactive for 2+ days."""
-    task = get_task(task_id)
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    children = get_children(task_id)
+    children = get_children(task_id, user_id)
     completed_subtasks = [c["title"] for c in children if c["status"] == "done"]
     remaining_subtasks = [c["title"] for c in children if c["status"] != "done"]
 
-    notes = get_task_notes(task_id)
+    notes = get_task_notes(task_id, user_id)
     recent_notes = "\n".join(f"- [{n['note_type']}]: {n['content']}" for n in notes[:5])
 
     from datetime import datetime
@@ -851,17 +905,17 @@ Keep the briefing clean, actionable, and under 250 words."""
 # ── Daily Kickstart Endpoints ────────────────────────────────────────────────
 
 @router.get("/daily/plan")
-async def get_daily_plan_endpoint() -> dict:
+async def get_daily_plan_endpoint(user_id: int = Depends(get_current_user_id)) -> dict:
     from datetime import date
     today_str = date.today().isoformat()
-    plan = get_daily_plan(today_str)
+    plan = get_daily_plan(user_id, today_str)
     if not plan:
         return {"status": "none", "plan": None}
-    
+
     # Hydrate tasks
     hydrated_tasks = []
     for tid in plan["task_ids"]:
-        t = get_task(tid)
+        t = get_task(tid, user_id)
         if t:
             hydrated_tasks.append(t)
     plan["tasks"] = hydrated_tasks
@@ -869,9 +923,9 @@ async def get_daily_plan_endpoint() -> dict:
 
 
 @router.post("/daily/kickstart")
-async def daily_kickstart_endpoint(payload: DailyKickstartRequest) -> dict:
+async def daily_kickstart_endpoint(payload: DailyKickstartRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     # Get all pending tasks (non-Done)
-    all_tasks = get_all_tasks()
+    all_tasks = get_all_tasks(user_id)
     pending = [t for t in all_tasks if t["status"] != "done"]
     
     if not pending:
@@ -947,10 +1001,11 @@ No extra text, no markdown block, just raw JSON array."""
 
 
 @router.post("/daily/plan")
-async def save_daily_plan_endpoint(payload: DailyPlanSaveRequest) -> dict:
+async def save_daily_plan_endpoint(payload: DailyPlanSaveRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     from datetime import date
     today_str = date.today().isoformat()
     plan = create_daily_plan(
+        user_id=user_id,
         plan_date=today_str,
         available_hours=payload.available_hours,
         task_ids=payload.task_ids,
@@ -959,7 +1014,7 @@ async def save_daily_plan_endpoint(payload: DailyPlanSaveRequest) -> dict:
     # Hydrate tasks
     hydrated_tasks = []
     for tid in plan["task_ids"]:
-        t = get_task(tid)
+        t = get_task(tid, user_id)
         if t:
             hydrated_tasks.append(t)
     plan["tasks"] = hydrated_tasks
@@ -967,20 +1022,20 @@ async def save_daily_plan_endpoint(payload: DailyPlanSaveRequest) -> dict:
 
 
 @router.post("/daily/end")
-async def daily_end_endpoint(payload: DailyEndRequest) -> dict:
+async def daily_end_endpoint(payload: DailyEndRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     from datetime import date, timedelta
     today_str = date.today().isoformat()
-    
+
     # 1. Update due dates for rescheduled tasks
     for tid_str, action in payload.incomplete_reschedule.items():
         try:
             tid = int(tid_str)
             if action == "tomorrow":
                 due = (date.today() + timedelta(days=1)).isoformat()
-                update_task(tid, due_date=due)
+                update_task(tid, user_id, due_date=due)
             elif action == "next_week":
                 due = (date.today() + timedelta(days=7)).isoformat()
-                update_task(tid, due_date=due)
+                update_task(tid, user_id, due_date=due)
         except Exception:
             pass
 
@@ -989,11 +1044,11 @@ async def daily_end_endpoint(payload: DailyEndRequest) -> dict:
     incomplete_titles = []
     top20_incomplete_count = 0
     for cid in payload.completed_task_ids:
-        t = get_task(cid)
+        t = get_task(cid, user_id)
         if t: completed_titles.append(t["title"])
     for iid_str in payload.incomplete_reschedule.keys():
         try:
-            t = get_task(int(iid_str))
+            t = get_task(int(iid_str), user_id)
             if t:
                 incomplete_titles.append(t["title"])
                 if t.get("is_top_20"):
@@ -1022,14 +1077,14 @@ Generate a short (1-2 sentences), highly encouraging and positive summary of the
         encouragement = f"Great work completing {len(completed_titles)} tasks today. Tomorrow is a new start!"
 
     # 3. Save AI Day Summary
-    update_daily_plan_summary(today_str, encouragement.strip())
+    update_daily_plan_summary(user_id, today_str, encouragement.strip())
 
     # 4. Remove rescheduled/removed tasks from today's daily_plan task list
-    plan = get_daily_plan(today_str)
+    plan = get_daily_plan(user_id, today_str)
     if plan:
         rem_set = {int(k) for k in payload.incomplete_reschedule.keys()}
         new_task_ids = [tid for tid in plan["task_ids"] if tid not in rem_set]
-        update_daily_plan_tasks(today_str, new_task_ids)
+        update_daily_plan_tasks(user_id, today_str, new_task_ids)
 
     return {
         "summary": encouragement.strip(),
@@ -1073,7 +1128,7 @@ No extra text, no markdown blocks, just raw JSON array."""
 
 
 @router.post("/tasks/bulk")
-async def bulk_save_endpoint(payload: BulkSaveRequest) -> dict:
+async def bulk_save_endpoint(payload: BulkSaveRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Save a list of tasks topologically to respect parent-child relationships."""
     temp_to_db = {}
     unprocessed = list(payload.tasks)
@@ -1087,6 +1142,7 @@ async def bulk_save_endpoint(payload: BulkSaveRequest) -> dict:
         parent_temp = current.parent_temp_id
         if parent_temp is None:
             db_task = create_task(
+                user_id=user_id,
                 title=current.title,
                 priority=current.priority,
                 time_estimate=current.time_estimate,
@@ -1097,6 +1153,7 @@ async def bulk_save_endpoint(payload: BulkSaveRequest) -> dict:
             if parent_temp in temp_to_db:
                 db_parent_id = temp_to_db[parent_temp]
                 db_task = create_task(
+                    user_id=user_id,
                     title=current.title,
                     priority=current.priority,
                     time_estimate=current.time_estimate,
@@ -1111,6 +1168,7 @@ async def bulk_save_endpoint(payload: BulkSaveRequest) -> dict:
     if unprocessed:
         for current in unprocessed:
             create_task(
+                user_id=user_id,
                 title=current.title,
                 priority=current.priority,
                 time_estimate=current.time_estimate,
@@ -1123,28 +1181,28 @@ async def bulk_save_endpoint(payload: BulkSaveRequest) -> dict:
 # ── Distraction Capture (Inbox) Endpoints ────────────────────────────────────
 
 @router.post("/inbox")
-async def create_inbox_item_endpoint(payload: InboxCreateRequest) -> dict:
-    item = create_inbox_item(payload.content.strip())
+async def create_inbox_item_endpoint(payload: InboxCreateRequest, user_id: int = Depends(get_current_user_id)) -> dict:
+    item = create_inbox_item(user_id, payload.content.strip())
     return item
 
 
 @router.get("/inbox")
-async def get_inbox_items_endpoint() -> List[dict]:
-    items = get_unprocessed_inbox_items()
+async def get_inbox_items_endpoint(user_id: int = Depends(get_current_user_id)) -> List[dict]:
+    items = get_unprocessed_inbox_items(user_id)
     return items
 
 
 @router.delete("/inbox/{inbox_id}")
-async def delete_inbox_item_endpoint(inbox_id: int) -> dict:
-    success = delete_inbox_item(inbox_id)
+async def delete_inbox_item_endpoint(inbox_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    success = delete_inbox_item(inbox_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Inbox item not found")
     return {"status": "deleted", "id": inbox_id}
 
 
 @router.get("/stats")
-async def get_stats_endpoint() -> dict:
-    return get_user_stats_summary()
+async def get_stats_endpoint(user_id: int = Depends(get_current_user_id)) -> dict:
+    return get_user_stats_summary(user_id)
 
 
 # ── Smart To-Do: Eisenhower + Weekly Plan + Cross-tab Move ────────────────────
@@ -1159,9 +1217,9 @@ class WeeklyPlanRequest(AISettings):
 
 
 @router.post("/tasks/eisenhower-auto")
-async def eisenhower_auto_tasks_endpoint(payload: EisenhowerAutoRequest) -> dict:
+async def eisenhower_auto_tasks_endpoint(payload: EisenhowerAutoRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """AI assigns Eisenhower quadrants to all non-done tasks."""
-    all_tasks = get_all_tasks()
+    all_tasks = get_all_tasks(user_id)
     pending = [t for t in all_tasks if t["status"] != "done"]
     if not pending:
         return {"assignments": []}
@@ -1215,10 +1273,13 @@ No extra text."""
     try:
         cursor = conn.cursor()
         for a in assignments:
-            cursor.execute(
-                "UPDATE tasks SET eisenhower_quadrant = ? WHERE id = ?",
-                (a["quadrant"], a["task_id"]),
-            )
+            task_id_val = a.get("task_id")
+            quadrant_val = a.get("quadrant")
+            if task_id_val and quadrant_val:
+                cursor.execute(
+                    "UPDATE tasks SET eisenhower_quadrant = ? WHERE id = ? AND user_id = ?",
+                    (quadrant_val, task_id_val, user_id),
+                )
         conn.commit()
     finally:
         conn.close()
@@ -1227,9 +1288,9 @@ No extra text."""
 
 
 @router.post("/tasks/ai-weekly-plan")
-async def ai_weekly_plan_endpoint(payload: WeeklyPlanRequest) -> dict:
+async def ai_weekly_plan_endpoint(payload: WeeklyPlanRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """AI generates a structured Mon-Fri weekly plan."""
-    all_tasks = get_all_tasks()
+    all_tasks = get_all_tasks(user_id)
     pending = [t for t in all_tasks if t["status"] != "done"]
     if not pending:
         return {"weekly_plan": {}}
@@ -1304,15 +1365,16 @@ No extra text."""
 
 
 @router.post("/tasks/{task_id}/move-to-quick")
-async def move_task_to_quick_endpoint(task_id: int) -> dict:
+async def move_task_to_quick_endpoint(task_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
     """Add a Smart To-Do task to today's Quick Daily."""
-    task = get_task(task_id)
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
     from datetime import date as date_mod
     from .quick_db import create_quick_task
     qt = create_quick_task(
+        user_id=user_id,
         title=task["title"],
         task_date=date_mod.today().isoformat(),
         source="moved_from_smart",
@@ -1322,14 +1384,15 @@ async def move_task_to_quick_endpoint(task_id: int) -> dict:
 
 
 @router.post("/tasks/{task_id}/move-to-plan")
-async def move_task_to_plan_endpoint(task_id: int) -> dict:
+async def move_task_to_plan_endpoint(task_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
     """Create a project from a Smart To-Do task."""
-    task = get_task(task_id)
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
     from .projects_db import create_project
     project = create_project(
+        user_id=user_id,
         title=task["title"],
         description=task.get("context") or f"Created from task: {task['title']}",
         priority=task["priority"],
@@ -1403,9 +1466,9 @@ Return ONLY a valid JSON object matching the schema above."""
 
 
 @router.post("/ai/prioritize-all")
-async def ai_prioritize_all_endpoint(payload: AIPrioritizeAllRequest) -> dict:
+async def ai_prioritize_all_endpoint(payload: AIPrioritizeAllRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Run AI analysis on all active tasks to assign priorities, Eisenhower quadrants, and Pareto scores."""
-    all_tasks = get_all_tasks()
+    all_tasks = get_all_tasks(user_id)
     active_tasks = [t for t in all_tasks if t.get("status") != "done"]
 
     if not active_tasks:
@@ -1438,13 +1501,14 @@ Return ONLY a valid JSON array of objects with the exact schema above."""
         for item in evaluations:
             t_id = item.get("id")
             if t_id:
-                update_task(
-                    task_id=int(t_id),
-                    priority=item.get("priority", "p3"),
-                    eisenhower_quadrant=item.get("eisenhower_quadrant"),
-                    pareto_score=item.get("pareto_score"),
-                    is_top_20=1 if item.get("is_top_20") else 0,
-                )
+                fields: Dict[str, Any] = {"priority": item.get("priority", "p3")}
+                if item.get("eisenhower_quadrant") is not None:
+                    fields["eisenhower_quadrant"] = item["eisenhower_quadrant"]
+                if item.get("pareto_score") is not None:
+                    fields["pareto_score"] = item["pareto_score"]
+                if "is_top_20" in item:
+                    fields["is_top_20"] = 1 if item.get("is_top_20") else 0
+                update_task(task_id=int(t_id), user_id=user_id, **fields)
                 updated_count += 1
 
         return {"updated": updated_count, "evaluations": evaluations}
@@ -1453,9 +1517,9 @@ Return ONLY a valid JSON array of objects with the exact schema above."""
 
 
 @router.post("/tasks/{task_id}/generate-dod")
-async def generate_task_dod_endpoint(task_id: int, payload: GenerateDoDRequest) -> dict:
+async def generate_task_dod_endpoint(task_id: int, payload: GenerateDoDRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Generate Definition of Done criteria and auto-create initial subtasks for a task."""
-    task = get_task(task_id)
+    task = get_task(task_id, user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -1486,7 +1550,7 @@ Return ONLY a valid JSON object matching:
         dod = data.get("definition_of_done", "")
         subtasks_data = data.get("subtasks", [])
 
-        update_task(task_id=task_id, definition_of_done=dod)
+        update_task(task_id=task_id, user_id=user_id, definition_of_done=dod)
 
         created_subtasks = []
         if subtasks_data:
@@ -1495,12 +1559,12 @@ Return ONLY a valid JSON object matching:
                     "title": st["title"],
                     "priority": st.get("priority", "p3"),
                     "time_estimate": st.get("time_estimate", "30m"),
-                    "generation_type": "chunk",
-                    "status": "backlog",
                 }
                 for st in subtasks_data
             ]
-            created_subtasks = create_subtasks_batch(parent_id=task_id, subtasks=st_payloads)
+            created_subtasks = create_subtasks_batch(
+                parent_id=task_id, user_id=user_id, subtasks=st_payloads, generation_type="chunk"
+            )
 
         return {
             "task_id": task_id,
@@ -1512,9 +1576,9 @@ Return ONLY a valid JSON object matching:
 
 
 @router.post("/ai/smart-schedule")
-async def ai_smart_schedule_endpoint(payload: SmartScheduleRequest) -> dict:
+async def ai_smart_schedule_endpoint(payload: SmartScheduleRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Generate an AI-curated time-blocked schedule based on user energy level and available hours."""
-    all_tasks = get_all_tasks()
+    all_tasks = get_all_tasks(user_id)
     active_tasks = [t for t in all_tasks if t.get("status") != "done"]
 
     prompt = f"""You are an executive productivity coach.

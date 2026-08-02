@@ -163,7 +163,17 @@ def duplicate_template(template_id: int) -> Optional[int]:
     original = fetch_template(template_id)
     if not original:
         return None
-    return save_template({**original, "title": f"{original['title']} (copy)"})
+    return save_template({**original, "title": f"{original['title']} (copy)", "isFavorite": False})
+
+
+def count_templates_by_category(category: str) -> int:
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM linkedin_templates WHERE category = ?", (category,))
+        return cursor.fetchone()[0]
+    finally:
+        conn.close()
 
 
 def delete_template(template_id: int) -> None:

@@ -1,4 +1,4 @@
-"""Database CRUD operations for the projects and project_nodes tables."""
+"""Database CRUD operations for the projects and project_nodes tables. All access is scoped to a user_id."""
 
 from __future__ import annotations
 
@@ -38,6 +38,7 @@ _PROJECT_COLUMNS = (
 
 
 def create_project(
+    user_id: int,
     title: str,
     description: Optional[str] = None,
     priority: str = "p3",
@@ -50,11 +51,11 @@ def create_project(
     try:
         cursor = conn.cursor()
         cursor.execute(
-            f"""
-            INSERT INTO projects (title, description, priority, color, icon, due_date, eisenhower_quadrant)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """
+            INSERT INTO projects (user_id, title, description, priority, color, icon, due_date, eisenhower_quadrant)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (title, description, priority, color, icon, due_date, eisenhower_quadrant),
+            (user_id, title, description, priority, color, icon, due_date, eisenhower_quadrant),
         )
         conn.commit()
         pid = cursor.lastrowid
@@ -64,22 +65,22 @@ def create_project(
         conn.close()
 
 
-def get_all_projects() -> List[Dict[str, Any]]:
+def get_all_projects(user_id: int) -> List[Dict[str, Any]]:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute(f"SELECT {_PROJECT_COLUMNS} FROM projects ORDER BY id DESC")
+        cursor.execute(f"SELECT {_PROJECT_COLUMNS} FROM projects WHERE user_id = ? ORDER BY id DESC", (user_id,))
         projects = [_project_row_to_dict(row) for row in cursor.fetchall()]
 
         # Attach node counts and export stats per project
         for p in projects:
             cursor.execute(
-                "SELECT COUNT(*) FROM project_nodes WHERE project_id = ?", (p["id"],)
+                "SELECT COUNT(*) FROM project_nodes WHERE project_id = ? AND user_id = ?", (p["id"], user_id)
             )
             p["node_count"] = cursor.fetchone()[0]
             cursor.execute(
-                "SELECT COUNT(*) FROM project_nodes WHERE project_id = ? AND exported_to_smart_todo = 1",
-                (p["id"],),
+                "SELECT COUNT(*) FROM project_nodes WHERE project_id = ? AND user_id = ? AND exported_to_smart_todo = 1",
+                (p["id"], user_id),
             )
             p["exported_count"] = cursor.fetchone()[0]
         return projects
@@ -87,31 +88,31 @@ def get_all_projects() -> List[Dict[str, Any]]:
         conn.close()
 
 
-def get_project(project_id: int) -> Optional[Dict[str, Any]]:
+def get_project(project_id: int, user_id: int) -> Optional[Dict[str, Any]]:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute(f"SELECT {_PROJECT_COLUMNS} FROM projects WHERE id = ?", (project_id,))
+        cursor.execute(f"SELECT {_PROJECT_COLUMNS} FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id))
         row = cursor.fetchone()
         return _project_row_to_dict(row) if row else None
     finally:
         conn.close()
 
 
-def update_project(project_id: int, **fields) -> Optional[Dict[str, Any]]:
+def update_project(project_id: int, user_id: int, **fields) -> Optional[Dict[str, Any]]:
     allowed = {"title", "description", "status", "priority", "eisenhower_quadrant", "due_date", "color", "icon",
                "pareto_score", "is_top_20", "pareto_reason", "pareto_locked"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
-        return get_project(project_id)
+        return get_project(project_id, user_id)
 
     set_clause = ", ".join(f"{k} = ?" for k in updates)
-    values = list(updates.values()) + [project_id]
+    values = list(updates.values()) + [project_id, user_id]
 
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute(f"UPDATE projects SET {set_clause} WHERE id = ?", values)
+        cursor.execute(f"UPDATE projects SET {set_clause} WHERE id = ? AND user_id = ?", values)
         conn.commit()
         cursor.execute(f"SELECT {_PROJECT_COLUMNS} FROM projects WHERE id = ?", (project_id,))
         row = cursor.fetchone()
@@ -120,12 +121,12 @@ def update_project(project_id: int, **fields) -> Optional[Dict[str, Any]]:
         conn.close()
 
 
-def delete_project(project_id: int) -> bool:
+def delete_project(project_id: int, user_id: int) -> bool:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
-        cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        cursor.execute("DELETE FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id))
         conn.commit()
         return cursor.rowcount > 0
     finally:
@@ -172,30 +173,40 @@ _NODE_COLUMNS = (
 
 def create_project_node(
     project_id: int,
+    user_id: int,
     title: str,
     parent_node_id: Optional[int] = None,
     node_type: str = "topic",
     generation_type: str = "manual",
     order_index: int = 0,
-) -> Dict[str, Any]:
+) -> Optional[Dict[str, Any]]:
+    """Create a node under a project. Returns None if the project isn't owned by user_id."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
 
-        # Calculate depth_level
+        cursor.execute("SELECT id FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id))
+        if cursor.fetchone() is None:
+            return None
+
+        # Calculate depth_level (only from a parent node this user owns)
         depth_level = 1
         if parent_node_id:
-            cursor.execute("SELECT depth_level FROM project_nodes WHERE id = ?", (parent_node_id,))
+            cursor.execute(
+                "SELECT depth_level FROM project_nodes WHERE id = ? AND user_id = ?", (parent_node_id, user_id)
+            )
             parent_row = cursor.fetchone()
             if parent_row:
                 depth_level = parent_row[0] + 1
+            else:
+                parent_node_id = None
 
         cursor.execute(
-            f"""
-            INSERT INTO project_nodes (project_id, parent_node_id, title, node_type, generation_type, depth_level, order_index)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """
+            INSERT INTO project_nodes (user_id, project_id, parent_node_id, title, node_type, generation_type, depth_level, order_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (project_id, parent_node_id, title, node_type, generation_type, depth_level, order_index),
+            (user_id, project_id, parent_node_id, title, node_type, generation_type, depth_level, order_index),
         )
         conn.commit()
         nid = cursor.lastrowid
@@ -205,14 +216,14 @@ def create_project_node(
         conn.close()
 
 
-def get_project_node_tree(project_id: int) -> List[Dict[str, Any]]:
+def get_project_node_tree(project_id: int, user_id: int) -> List[Dict[str, Any]]:
     """Fetch all nodes and assemble into nested tree."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute(
-            f"SELECT {_NODE_COLUMNS} FROM project_nodes WHERE project_id = ? ORDER BY order_index ASC, id ASC",
-            (project_id,),
+            f"SELECT {_NODE_COLUMNS} FROM project_nodes WHERE project_id = ? AND user_id = ? ORDER BY order_index ASC, id ASC",
+            (project_id, user_id),
         )
         all_nodes = [_node_row_to_dict(row) for row in cursor.fetchall()]
 
@@ -230,38 +241,38 @@ def get_project_node_tree(project_id: int) -> List[Dict[str, Any]]:
         conn.close()
 
 
-def get_project_node(node_id: int) -> Optional[Dict[str, Any]]:
+def get_project_node(node_id: int, user_id: int) -> Optional[Dict[str, Any]]:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute(f"SELECT {_NODE_COLUMNS} FROM project_nodes WHERE id = ?", (node_id,))
+        cursor.execute(f"SELECT {_NODE_COLUMNS} FROM project_nodes WHERE id = ? AND user_id = ?", (node_id, user_id))
         row = cursor.fetchone()
         return _node_row_to_dict(row) if row else None
     finally:
         conn.close()
 
 
-def get_node_sibling_titles(parent_node_id: Optional[int], project_id: int) -> List[str]:
+def get_node_sibling_titles(parent_node_id: Optional[int], project_id: int, user_id: int) -> List[str]:
     """Fetch sibling node titles for AI context."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         if parent_node_id:
             cursor.execute(
-                "SELECT title FROM project_nodes WHERE parent_node_id = ? AND project_id = ?",
-                (parent_node_id, project_id),
+                "SELECT title FROM project_nodes WHERE parent_node_id = ? AND project_id = ? AND user_id = ?",
+                (parent_node_id, project_id, user_id),
             )
         else:
             cursor.execute(
-                "SELECT title FROM project_nodes WHERE parent_node_id IS NULL AND project_id = ?",
-                (project_id,),
+                "SELECT title FROM project_nodes WHERE parent_node_id IS NULL AND project_id = ? AND user_id = ?",
+                (project_id, user_id),
             )
         return [row[0] for row in cursor.fetchall()]
     finally:
         conn.close()
 
 
-def update_project_node(node_id: int, **fields) -> Optional[Dict[str, Any]]:
+def update_project_node(node_id: int, user_id: int, **fields) -> Optional[Dict[str, Any]]:
     allowed = {
         "title", "node_type", "exported_to_smart_todo", "exported_task_id", "exported_to_quick",
         "order_index", "pareto_score", "is_top_20", "eisenhower_quadrant",
@@ -270,27 +281,27 @@ def update_project_node(node_id: int, **fields) -> Optional[Dict[str, Any]]:
     }
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
-        return get_project_node(node_id)
+        return get_project_node(node_id, user_id)
 
     set_clause = ", ".join(f"{k} = ?" for k in updates)
-    values = list(updates.values()) + [node_id]
+    values = list(updates.values()) + [node_id, user_id]
 
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute(f"UPDATE project_nodes SET {set_clause} WHERE id = ?", values)
+        cursor.execute(f"UPDATE project_nodes SET {set_clause} WHERE id = ? AND user_id = ?", values)
         conn.commit()
-        return get_project_node(node_id)
+        return get_project_node(node_id, user_id)
     finally:
         conn.close()
 
 
-def delete_project_node(node_id: int) -> bool:
+def delete_project_node(node_id: int, user_id: int) -> bool:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
-        cursor.execute("DELETE FROM project_nodes WHERE id = ?", (node_id,))
+        cursor.execute("DELETE FROM project_nodes WHERE id = ? AND user_id = ?", (node_id, user_id))
         conn.commit()
         return cursor.rowcount > 0
     finally:
@@ -299,6 +310,7 @@ def delete_project_node(node_id: int) -> bool:
 
 def create_project_nodes_batch(
     project_id: int,
+    user_id: int,
     parent_node_id: Optional[int],
     nodes_data: List[Dict[str, Any]],
     generation_type: str = "dive_deeper",
@@ -308,10 +320,17 @@ def create_project_nodes_batch(
     try:
         cursor = conn.cursor()
 
+        cursor.execute("SELECT id FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id))
+        if cursor.fetchone() is None:
+            return []
+
         depth_level = 1
         inherited_pareto_score = None
         if parent_node_id:
-            cursor.execute("SELECT depth_level, is_top_20 FROM project_nodes WHERE id = ?", (parent_node_id,))
+            cursor.execute(
+                "SELECT depth_level, is_top_20 FROM project_nodes WHERE id = ? AND user_id = ?",
+                (parent_node_id, user_id),
+            )
             parent_row = cursor.fetchone()
             if parent_row:
                 depth_level = parent_row[0] + 1
@@ -322,11 +341,11 @@ def create_project_nodes_batch(
         results = []
         for i, nd in enumerate(nodes_data):
             cursor.execute(
-                f"""
-                INSERT INTO project_nodes (project_id, parent_node_id, title, node_type, generation_type, depth_level, order_index, pareto_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                INSERT INTO project_nodes (user_id, project_id, parent_node_id, title, node_type, generation_type, depth_level, order_index, pareto_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (project_id, parent_node_id, nd["title"], nd.get("node_type", "topic"), generation_type, depth_level, i, inherited_pareto_score),
+                (user_id, project_id, parent_node_id, nd["title"], nd.get("node_type", "topic"), generation_type, depth_level, i, inherited_pareto_score),
             )
             nid = cursor.lastrowid
             cursor.execute(f"SELECT {_NODE_COLUMNS} FROM project_nodes WHERE id = ?", (nid,))
@@ -338,38 +357,42 @@ def create_project_nodes_batch(
         conn.close()
 
 
-def bulk_update_project_quadrants(updates: List[Dict[str, Any]]) -> None:
-    """Batch update eisenhower_quadrant for multiple projects."""
+def bulk_update_project_quadrants(user_id: int, updates: List[Dict[str, Any]]) -> None:
+    """Batch update eisenhower_quadrant for multiple projects (only ones this user owns)."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         for u in updates:
-            cursor.execute(
-                "UPDATE projects SET eisenhower_quadrant = ? WHERE id = ?",
-                (u["quadrant"], u["project_id"]),
-            )
+            project_id = u.get("project_id")
+            quadrant = u.get("quadrant")
+            if project_id and quadrant:
+                cursor.execute(
+                    "UPDATE projects SET eisenhower_quadrant = ? WHERE id = ? AND user_id = ?",
+                    (quadrant, project_id, user_id),
+                )
         conn.commit()
     finally:
         conn.close()
 
 
-def get_all_flat_project_nodes() -> List[Dict[str, Any]]:
-    """Fetch all tasks/subtasks across active projects with project metadata."""
+def get_all_flat_project_nodes(user_id: int) -> List[Dict[str, Any]]:
+    """Fetch all tasks/subtasks across this user's active projects with project metadata."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT 
+            SELECT
                 n.id, n.project_id, n.parent_node_id, n.title, n.node_type, n.generation_type,
                 n.depth_level, n.exported_to_smart_todo, n.exported_task_id, n.exported_to_quick,
                 n.order_index, n.created_at, n.pareto_score, n.is_top_20, n.eisenhower_quadrant,
                 p.title as project_title, p.color as project_color, p.icon as project_icon
             FROM project_nodes n
             JOIN projects p ON n.project_id = p.id
-            WHERE p.status = 'active'
+            WHERE p.status = 'active' AND n.user_id = ? AND p.user_id = ?
             ORDER BY n.order_index ASC, n.id ASC
-            """
+            """,
+            (user_id, user_id),
         )
         nodes = []
         for row in cursor.fetchall():
@@ -383,8 +406,8 @@ def get_all_flat_project_nodes() -> List[Dict[str, Any]]:
         conn.close()
 
 
-def bulk_update_node_quadrants(updates: List[Dict[str, Any]]) -> None:
-    """Batch update eisenhower_quadrant for multiple project nodes."""
+def bulk_update_node_quadrants(user_id: int, updates: List[Dict[str, Any]]) -> None:
+    """Batch update eisenhower_quadrant for multiple project nodes (only ones this user owns)."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
@@ -393,10 +416,9 @@ def bulk_update_node_quadrants(updates: List[Dict[str, Any]]) -> None:
             quad = u.get("quadrant")
             if nid and quad:
                 cursor.execute(
-                    "UPDATE project_nodes SET eisenhower_quadrant = ? WHERE id = ?",
-                    (quad, nid),
+                    "UPDATE project_nodes SET eisenhower_quadrant = ? WHERE id = ? AND user_id = ?",
+                    (quad, nid, user_id),
                 )
         conn.commit()
     finally:
         conn.close()
-

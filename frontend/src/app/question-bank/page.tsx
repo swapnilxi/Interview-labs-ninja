@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import QuestionBankInteractive from '@/modules/question-bank/QuestionBankModule';
+import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
   title: 'Question Bank - InterviewNinja',
@@ -11,7 +12,9 @@ export default function QuestionBankPage() {
   return (
     <>
       <Header />
-      <QuestionBankInteractive />
+      <RequireAuth feature="the Question Bank">
+        <QuestionBankInteractive />
+      </RequireAuth>
     </>
   );
 }

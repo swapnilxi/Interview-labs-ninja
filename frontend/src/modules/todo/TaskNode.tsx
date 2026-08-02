@@ -62,7 +62,7 @@ export default function TaskNode({
   revealDelays,
 }: TaskNodeProps) {
   const [expanded, setExpanded] = useState(depth <= 2);
-  const [loading, setLoading] = useState<'dive' | 'chunk' | 'regen' | null>(null);
+  const [loading, setLoading] = useState<'dive' | 'chunk' | 'regen' | 'dod' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showContext, setShowContext] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -84,7 +84,6 @@ export default function TaskNode({
   // 80/20 State
   const [showParetoModal, setShowParetoModal] = useState(false);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
-  const [reanalyzing, setReanalyzing] = useState(false);
 
   // Fetch notes count on mount or when the task updates
   useEffect(() => {
@@ -650,7 +649,7 @@ export default function TaskNode({
             {/* Generate DoD & Subtasks */}
             <button
               onClick={async () => {
-                setLoading('dod' as any);
+                setLoading('dod');
                 setAiError(null);
                 try {
                   const res = await todoService.generateTaskDoD(task.id, model);
@@ -670,7 +669,7 @@ export default function TaskNode({
               className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-500 hover:bg-amber-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1 font-medium"
               title="Generate Definition of Done & Subtasks with AI"
             >
-              {loading === ('dod' as any) ? (
+              {loading === 'dod' ? (
                 <span className="w-3 h-3 border border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
               ) : '✨'}
               <span>DoD</span>

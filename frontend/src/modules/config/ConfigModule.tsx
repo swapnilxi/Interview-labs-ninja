@@ -549,6 +549,61 @@ export default function ConfigInteractive() {
           </div>
         </div>
 
+        {/* YouTube Video Generator */}
+        <div className="bg-card border border-border rounded-lg p-24 shadow-md space-y-18">
+          <div className="flex items-center gap-12 pb-12 border-b border-border">
+            <Icon name="PlayCircleIcon" size={24} className="text-red-500" />
+            <div>
+              <h3 className="font-heading text-lg font-semibold text-foreground">YouTube Video Generator</h3>
+              <p className="text-xs text-muted-foreground">Used by the &quot;From YouTube Video&quot; tool in each lab&apos;s question generator.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-10 p-14 rounded-lg bg-primary/5 border border-primary/20">
+            <Icon name="InformationCircleIcon" size={18} className="text-primary shrink-0 mt-1" />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              <span className="font-semibold text-foreground">Optional.</span>{' '}
+              The video&apos;s transcript is always fetched automatically — no key needed for that. This key only adds
+              the video&apos;s title/description as extra context, which can improve generation quality. Without it,
+              generation still works from the transcript alone.
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <label htmlFor="youtubeApiKey" className="block text-sm font-medium text-foreground">YouTube Data API Key</label>
+              <span className="text-xs text-muted-foreground">Optional — enriches context only</span>
+            </div>
+            <div className="relative">
+              <input
+                id="youtubeApiKey"
+                type={visibleKeys.youtubeApiKey ? 'text' : 'password'}
+                value={settings.youtubeApiKey}
+                onChange={e => handleChange('youtubeApiKey', e.target.value)}
+                placeholder="AIzaSy…"
+                className="w-full rounded-md border border-border bg-input pl-12 pr-48 py-9 text-sm text-foreground focus-ring font-code"
+              />
+              <button
+                type="button"
+                onClick={() => toggleKeyVisibility('youtubeApiKey')}
+                className="absolute right-12 top-1/2 -translate-y-1/2 p-6 text-muted-foreground hover:text-foreground transition-smooth"
+                aria-label={visibleKeys.youtubeApiKey ? 'Hide key' : 'Show key'}
+              >
+                <Icon name={visibleKeys.youtubeApiKey ? 'EyeSlashIcon' : 'EyeIcon'} size={18} />
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
+              To get one: open the{' '}
+              <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                Google Cloud Console
+              </a>{' '}
+              → create or select a project → enable <span className="font-code">YouTube Data API v3</span> → go to
+              &quot;Credentials&quot; → &quot;Create Credentials&quot; → &quot;API key&quot;. Optionally restrict the key to the
+              YouTube Data API v3 for safety.
+            </p>
+          </div>
+        </div>
+
         {/* Save */}
         <div className="flex justify-end gap-12">
           <button

@@ -8,6 +8,7 @@ import { todoService, Task } from '@/lib/services/todoService';
 import { paretoService } from '@/lib/services/paretoService';
 import TaskNode from './TaskNode';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
 export type SmartSubView = 'tree' | 'matrix' | 'weekly';
 
@@ -16,6 +17,7 @@ interface SmartTodoProps {
 }
 
 export default function SmartTodo({ model }: SmartTodoProps) {
+  const { isGuest } = useAuth();
   const [activeSubView, setActiveSubView] = useState<SmartSubView>('tree');
   
   // Matrix specific state
@@ -50,19 +52,29 @@ export default function SmartTodo({ model }: SmartTodoProps) {
     setNlpLoading(true);
     setAiError(null);
     try {
-      const parsed = await todoService.parseTaskWithAI(nlpInput.trim(), model);
-      if (parsed && parsed.title) {
-        await todoService.createTask({
-          title: parsed.title,
-          priority: parsed.priority || 'p3',
-          due_date: parsed.due_date,
-          time_estimate: parsed.time_estimate,
-          intention: parsed.intention,
-          context: parsed.context,
-          status: 'backlog',
-        });
+      if (isGuest) {
+        // AI parsing requires login — do a light manual parse instead (mirrors
+        // the backend's own regex fallback for when AI parsing fails) so
+        // guests can still add tasks from this box.
+        const pMatch = nlpInput.match(/#p([1-4])/i);
+        const priority = pMatch ? (`p${pMatch[1]}` as Task['priority']) : 'p3';
+        const title = nlpInput.replace(/#p[1-4]/i, '').trim();
+        await todoService.createTask({ title, priority, status: 'backlog' });
       } else {
-        await todoService.createTask({ title: nlpInput.trim(), priority: 'p3', status: 'backlog' });
+        const parsed = await todoService.parseTaskWithAI(nlpInput.trim(), model);
+        if (parsed && parsed.title) {
+          await todoService.createTask({
+            title: parsed.title,
+            priority: parsed.priority || 'p3',
+            due_date: parsed.due_date,
+            time_estimate: parsed.time_estimate,
+            intention: parsed.intention,
+            context: parsed.context,
+            status: 'backlog',
+          });
+        } else {
+          await todoService.createTask({ title: nlpInput.trim(), priority: 'p3', status: 'backlog' });
+        }
       }
       setNlpInput('');
       setTreeRefreshKey(prev => prev + 1);

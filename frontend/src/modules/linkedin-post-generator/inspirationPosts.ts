@@ -10,17 +10,6 @@ export interface InspirationPost {
   suggestedType: LinkedInTemplateType;
 }
 
-export const INSPIRATION_CATEGORIES = [
-  'Personal Story',
-  'Contrarian Take',
-  'Career Milestone',
-  'Lessons Learned',
-  'Listicle / Framework',
-  'Case Study',
-  'Thought Leadership',
-  'Achievement',
-] as const;
-
 export const INSPIRATION_POSTS: InspirationPost[] = [
   {
     id: 'rejection-that-changed-everything',
@@ -58,7 +47,7 @@ What's the "rejection" that ended up pushing you forward?`,
   },
   {
     id: 'unpopular-opinion-hustle',
-    category: 'Contrarian Take',
+    category: 'Thought Leadership',
     title: 'Unpopular opinion: hustle culture is a productivity tax',
     content: `Unpopular opinion: the 12-hour workday is making you slower, not faster.
 
@@ -92,7 +81,7 @@ What's one habit you dropped that made you MORE productive, not less?`,
   },
   {
     id: 'promoted-twice-in-a-year',
-    category: 'Career Milestone',
+    category: 'Career',
     title: 'Promoted twice in one year — here is what actually got me there',
     content: `I got promoted twice this year. Not because I worked the most hours, and not because I was the most technically skilled person on my team.
 
@@ -121,7 +110,7 @@ If you're waiting for a title to start acting like the next level — you have i
   },
   {
     id: 'shipped-broke-prod',
-    category: 'Lessons Learned',
+    category: 'Educational',
     title: 'I broke production on my first week. Here is what I learned.',
     content: `Day 4 on the job, I took down production for 40 minutes.
 
@@ -152,7 +141,7 @@ What's a mistake early in your career that permanently changed how you work?`,
   },
   {
     id: 'five-questions-before-quitting',
-    category: 'Listicle / Framework',
+    category: 'Career',
     title: '5 questions to ask before you quit your job',
     content: `Before you hand in your resignation, ask yourself these 5 questions. I wish someone had asked me these before my last "impulse quit."
 
@@ -185,7 +174,7 @@ Which of these hits hardest for you right now?`,
   },
   {
     id: 'reduced-onboarding-time-case-study',
-    category: 'Case Study',
+    category: 'Software Engineering',
     title: 'How we cut new-hire ramp time from 6 weeks to 9 days',
     content: `Our new engineers took 6 weeks to ship their first PR. Now it takes 9 days. Here's exactly what we changed.
 

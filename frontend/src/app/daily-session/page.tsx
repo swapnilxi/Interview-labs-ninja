@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import DailySessionInteractive from '@/modules/daily-session/DailySessionModule';
+import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
   title: 'Daily Session - InterviewNinja',
@@ -11,6 +12,7 @@ export default function DailySessionPage() {
   return (
     <>
       <Header />
+      <RequireAuth feature="Daily Session">
       <div className="min-h-screen bg-background pt-[60px]">
         {/* Gradient page header */}
         <div className="relative overflow-hidden border-b border-border">
@@ -46,6 +48,7 @@ export default function DailySessionPage() {
           <DailySessionInteractive />
         </div>
       </div>
+      </RequireAuth>
     </>
   );
 }

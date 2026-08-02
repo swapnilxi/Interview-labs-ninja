@@ -2,8 +2,7 @@
 
 import { parseApiError } from './todoService';
 import { aiRequestFields } from './settingsService';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
+import { apiFetch } from '../http/apiClient';
 
 export type ParetoTable = 'tasks' | 'quick_tasks' | 'project_nodes' | 'projects';
 export type ParetoScope = 'smart' | 'quick' | 'plan' | 'all';
@@ -40,9 +39,8 @@ export const SCOPE_TO_TAB: Record<ParetoScope, 'quick' | 'smart' | 'plan' | null
 
 export const paretoService = {
   async analyze(scope: ParetoScope, model: 'ollama' | 'gemini' = 'gemini'): Promise<AnalyzeResult> {
-    const res = await fetch(`${API_BASE_URL}/pareto/analyze`, {
+    const res = await apiFetch('/pareto/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scope, ...aiRequestFields(model) }),
     });
     if (!res.ok) throw new Error(await parseApiError(res));
@@ -51,7 +49,7 @@ export const paretoService = {
 
   async getTop20(): Promise<Top20Response> {
     try {
-      const res = await fetch(`${API_BASE_URL}/pareto/top20`);
+      const res = await apiFetch('/pareto/top20');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (err) {
@@ -63,9 +61,8 @@ export const paretoService = {
   async reanalyze(table: ParetoTable, itemId: number, model: 'ollama' | 'gemini' = 'gemini'): Promise<{
     status: string; pareto_score: number; is_top_20: boolean; reason?: string;
   }> {
-    const res = await fetch(`${API_BASE_URL}/pareto/reanalyze/${table}/${itemId}`, {
+    const res = await apiFetch(`/pareto/reanalyze/${table}/${itemId}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(aiRequestFields(model)),
     });
     if (!res.ok) throw new Error(await parseApiError(res));

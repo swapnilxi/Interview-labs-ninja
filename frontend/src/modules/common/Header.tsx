@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Sidebar from '@/modules/common/Sidebar';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiFetch } from '@/lib/http/apiClient';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
 
 interface NavigationItem {
   label: string;
@@ -47,25 +50,34 @@ function SystemStatus() {
   useEffect(() => {
     const checkStatus = async () => {
       // Check API
+      let apiOk = false;
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
         const res = await fetch('http://localhost:8082/health', { signal: controller.signal });
         clearTimeout(timeoutId);
+        apiOk = res.ok;
         setApiStatus(res.ok ? 'online' : 'offline');
       } catch (err) {
         setApiStatus('offline');
       }
 
-      // Check DB (a lightweight endpoint that reads from SQLite, no secrets involved)
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch('http://localhost:8082/todo/stats', { signal: controller.signal });
-        clearTimeout(timeoutId);
-        setDbStatus(res.ok ? 'online' : 'offline');
-      } catch (err) {
-        setDbStatus('offline');
+      // Check DB via a lightweight endpoint that reads from SQLite. Guests have
+      // no server-side data and /todo/* now requires login, so for guests we
+      // just mirror the API status instead of hitting an endpoint that would
+      // always 401 and misreport "offline".
+      if (!isLoggedIn()) {
+        setDbStatus(apiOk ? 'online' : 'offline');
+      } else {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const res = await apiFetch('/todo/stats', { signal: controller.signal });
+          clearTimeout(timeoutId);
+          setDbStatus(res.ok ? 'online' : 'offline');
+        } catch (err) {
+          setDbStatus('offline');
+        }
       }
     };
     
@@ -91,6 +103,34 @@ function SystemStatus() {
     <div className="flex flex-col gap-0.5 px-2 py-1 rounded-md bg-muted/50 border border-border mr-3">
       <StatusRow label="API" status={apiStatus} />
       <StatusRow label="DB" status={dbStatus} />
+    </div>
+  );
+}
+
+function AuthStatus() {
+  const { user, isGuest, logout } = useAuth();
+  if (isGuest) {
+    return (
+      <Link href="/login" className="app-nav-link">
+        <Icon name="UserCircleIcon" size={18} variant="outline" />
+        <span>Log in</span>
+      </Link>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground max-w-[140px] truncate" title={user?.email}>
+        {user?.display_name || user?.email}
+      </span>
+      <button
+        type="button"
+        onClick={logout}
+        className="theme-toggle"
+        aria-label="Log out"
+        title="Log out"
+      >
+        <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
+      </button>
     </div>
   );
 }
@@ -212,6 +252,7 @@ export default function Header() {
             >
               <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
             </button>
+            <AuthStatus />
           </div>
 
           <div className="flex items-center gap-2 lg:hidden">
@@ -223,6 +264,7 @@ export default function Header() {
             >
               <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
             </button>
+            <AuthStatus />
           </div>
         </nav>
       </header>

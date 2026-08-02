@@ -34,6 +34,15 @@ htmlcov/
 *.sqlite3
 *.db
 
+# ...except the actual app database, which is tracked on request so it can be
+# committed as a backup/checkpoint across machines.
+!backend/modules/lab_ninja.sqlite3
+
+# User-uploaded files (resumes, handwriting photos/scans, PDFs — can contain
+# other people's personal data; never belongs in git)
+backend/data/uploads/*
+!backend/data/uploads/.gitkeep
+
 # ── Node / Frontend ───────────────────────────────────────────────────────────
 node_modules/
 .pnp

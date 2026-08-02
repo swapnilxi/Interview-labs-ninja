@@ -12,4 +12,9 @@ dependencies = [
     "python-docx>=1.1.0",
     "python-multipart>=0.0.32",
     "Pillow>=10.0.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pyjwt>=2.13.0",
+    "bcrypt<4.1",
+    "youtube-transcript-api>=1.0.3",
+    "python-dotenv>=1.2.2",
 ]

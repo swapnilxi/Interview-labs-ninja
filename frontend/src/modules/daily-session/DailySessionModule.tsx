@@ -6,6 +6,7 @@ import Icon from '@/components/ui/AppIcon';
 import { questionsService, Question } from '@/lib/services/questionsService';
 import { sessionService, SessionAnswer } from '@/lib/services/sessionService';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
+import { apiFetch } from '@/lib/http/apiClient';
 
 const DEFAULT_QUESTIONS: Omit<Question, 'id'>[] = [
   {
@@ -177,7 +178,7 @@ export default function DailySessionInteractive() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch('http://localhost:8082/sessions/upload-resume', {
+      const res = await apiFetch('/sessions/upload-resume', {
         method: 'POST',
         body: formData,
       });
@@ -258,9 +259,8 @@ export default function DailySessionInteractive() {
     setLoading(true);
     try {
       // 1. Create session in backend SQLite
-      const res = await fetch('http://localhost:8082/sessions', {
+      const res = await apiFetch('/sessions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           difficulty_hint: difficulty,
           cv_present: !!cvText,
@@ -286,9 +286,8 @@ export default function DailySessionInteractive() {
       }));
 
       // 3. Save questions batch in backend SQLite
-      await fetch('http://localhost:8082/sessions/questions', {
+      await apiFetch('/sessions/questions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: newSessionId,
           questions: payloadQuestions,
@@ -333,7 +332,7 @@ export default function DailySessionInteractive() {
 
   const handleExport = async () => {
     try {
-      const res = await fetch(`http://localhost:8082/export?session_date=${sessionDate}`);
+      const res = await apiFetch(`/export?session_date=${sessionDate}`);
       if (!res.ok) throw new Error('No questions generated for this date');
       const text = await res.json();
 
@@ -368,9 +367,8 @@ export default function DailySessionInteractive() {
     setIsGeneratingHint(true);
     setDynamicAiAnswer(null);
     try {
-      const res = await fetch('http://localhost:8082/sessions/generate-answer', {
+      const res = await apiFetch('/sessions/generate-answer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question_text: activeQuestion.questionText,
           category: activeQuestion.category,

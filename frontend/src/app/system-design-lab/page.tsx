@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import SystemDesignLabInteractive from '@/modules/system-design-lab/SystemDesignLabModule';
 
 import Header from '@/components/common/Header';
+import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
   title: 'System Design Lab — InterviewNinja',
@@ -12,7 +13,9 @@ export default function SystemDesignLabPage() {
   return (
     <>
       <Header />
-      <SystemDesignLabInteractive />
+      <RequireAuth feature="the System Design Lab">
+        <SystemDesignLabInteractive />
+      </RequireAuth>
     </>
   );
 }

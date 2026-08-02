@@ -13,6 +13,7 @@ from .llm import generate_json, generate_text
 from .prompt_builder import build_analyze_prompt, build_generate_prompt, build_refine_prompt
 from .schema import CATEGORY_LAB
 from .store import (
+    count_templates_by_category,
     delete_template,
     duplicate_template,
     fetch_template,
@@ -25,6 +26,8 @@ from .store import (
 router = APIRouter(prefix="/linkedin", tags=["linkedin-post-generator"])
 
 TemplateType = Literal["prompt", "reference_post", "creator_post", "writing_style", "post_structure", "custom"]
+
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 
 
 # ── Pydantic models ────────────────────────────────────────────────────────────
@@ -83,18 +86,31 @@ class RefinePostPayload(AISettings):
 
 @router.get("/categories")
 async def get_categories() -> List[dict]:
-    return fetch_lab_sections(CATEGORY_LAB)
+    # NOTE: linkedin_post_generator hasn't been migrated to per-user auth yet;
+    # its categories remain global (user_id=None) — see fetch_lab_sections docstring.
+    return fetch_lab_sections(None, CATEGORY_LAB)
 
 
 @router.post("/categories")
 async def add_category(payload: CategoryIn) -> dict:
-    save_lab_section(CATEGORY_LAB, payload.name, 1)
+    save_lab_section(None, CATEGORY_LAB, payload.name)
     return {"status": "success"}
 
 
 @router.delete("/categories/{section_id}")
 async def remove_category(section_id: int) -> dict:
-    delete_lab_section(section_id)
+    section = next((s for s in fetch_lab_sections(None, CATEGORY_LAB) if s["id"] == section_id), None)
+    if section is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    in_use = count_templates_by_category(section["name"])
+    if in_use:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{in_use} template{'s' if in_use != 1 else ''} still use this category. Reassign or delete them first.",
+        )
+
+    delete_lab_section(None, section_id)
     return {"status": "success"}
 
 
@@ -143,6 +159,8 @@ async def extract_pdf(file: UploadFile = File(...)) -> dict:
     from pypdf import PdfReader
 
     data = await file.read()
+    if len(data) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large. Max size is {_MAX_UPLOAD_BYTES // (1024 * 1024)}MB.")
     try:
         reader = PdfReader(io.BytesIO(data))
         text = "\n".join((page.extract_text() or "") for page in reader.pages)

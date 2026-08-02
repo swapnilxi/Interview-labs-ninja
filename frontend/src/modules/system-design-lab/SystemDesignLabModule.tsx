@@ -5,7 +5,9 @@ import Icon from '@/components/ui/AppIcon';
 import LabCopilot from '@/components/common/LabCopilot';
 import OnDemandSection from '@/components/lab/OnDemandSection';
 import QuizCarousel from '@/components/lab/QuizCarousel';
-import GenerateQuestionsPanel from '@/modules/common/GenerateQuestionsPanel';
+import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/GenerateQuestionsPanel';
+import MarkdownLite from '@/modules/common/lab/MarkdownLite';
+import { apiFetch } from '@/lib/http/apiClient';
 
 interface SDTopic {
   id: string;
@@ -15,7 +17,7 @@ interface SDTopic {
   scale: string;
   difficulty: 'Easy' | 'Easy-Medium' | 'Medium' | 'Medium-Hard' | 'Hard';
   isLLD?: boolean;
-  subtopics: { id: string; name: string; brief: string }[];
+  subtopics: { id: string; name: string; brief: string; content?: string; sourceUrl?: string }[];
 }
 interface SectionState { generated: boolean; generating: boolean; content: string }
 
@@ -933,7 +935,7 @@ export default function SystemDesignLabInteractive() {
   const [recentTopics,  setRecentTopics]  = useState<{ id: string; name: string; subId?: string; subName?: string }[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:8082/system-design/sections')
+    apiFetch('/system-design/sections')
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -944,7 +946,7 @@ export default function SystemDesignLabInteractive() {
       })
       .catch(err => console.error("Error fetching sections:", err));
 
-    fetch('http://localhost:8082/system-design/topics')
+    apiFetch('/system-design/topics')
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -985,7 +987,7 @@ export default function SystemDesignLabInteractive() {
     if (!customSectionInput.trim()) return;
     setAddingSection(true);
     const newSection = { name: customSectionInput.trim(), isCustom: true };
-    fetch('http://localhost:8082/system-design/sections', {
+    apiFetch('/system-design/sections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSection)
@@ -1022,7 +1024,7 @@ export default function SystemDesignLabInteractive() {
       subtopics: [...parentTopic.subtopics, newSubtopic]
     };
 
-    fetch('http://localhost:8082/system-design/topics', {
+    apiFetch('/system-design/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedTopic)
@@ -1042,6 +1044,35 @@ export default function SystemDesignLabInteractive() {
         setTopics(prev => prev.map(t => t.id === topicId ? updatedTopic : t));
         setNewSubtopicInput('');
         setAddingSubtopicTo(null);
+        setExpandedTopics(prev => new Set([...prev, topicId]));
+      });
+  };
+
+  const handleAddGeneratedSubtopic = (topicId: string, generated: GeneratedSubtopic) => {
+    const parentTopic = allTopics.find(t => t.id === topicId);
+    if (!parentTopic) return;
+
+    const updatedTopic = {
+      ...parentTopic,
+      subtopics: [...parentTopic.subtopics, generated],
+    };
+
+    apiFetch('/system-design/topics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedTopic)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("HTTP error " + res.status);
+        return res.json();
+      })
+      .then(() => {
+        setTopics(prev => prev.map(t => t.id === topicId ? updatedTopic : t));
+        setExpandedTopics(prev => new Set([...prev, topicId]));
+      })
+      .catch(err => {
+        console.error("Error saving generated subtopic to DB, saving in client state as fallback:", err);
+        setTopics(prev => prev.map(t => t.id === topicId ? updatedTopic : t));
         setExpandedTopics(prev => new Set([...prev, topicId]));
       });
   };
@@ -1134,7 +1165,7 @@ export default function SystemDesignLabInteractive() {
       subtopics: []
     };
 
-    fetch('http://localhost:8082/system-design/topics', {
+    apiFetch('/system-design/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTopic)
@@ -1177,7 +1208,7 @@ export default function SystemDesignLabInteractive() {
       subtopics: []
     };
 
-    fetch('http://localhost:8082/system-design/topics', {
+    apiFetch('/system-design/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTopic)
@@ -1508,6 +1539,23 @@ export default function SystemDesignLabInteractive() {
                 </div>
               </div>
 
+              {/* ── Video-based lab content (from YouTube generator) ── */}
+              {currentSubtopic?.content && (
+                <div className="lab-card border border-border p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Video-based Lab</p>
+                    {currentSubtopic.sourceUrl && (
+                      <a href={currentSubtopic.sourceUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[11px] text-amber-400 hover:underline">
+                        <Icon name="PlayCircleIcon" size={12} />
+                        Watch source video
+                      </a>
+                    )}
+                  </div>
+                  <MarkdownLite content={currentSubtopic.content} />
+                </div>
+              )}
+
               {/* ── Content Outline (quick-jump) ── */}
               <div className="lab-card-muted p-4">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Content Outline</p>
@@ -1531,6 +1579,7 @@ export default function SystemDesignLabInteractive() {
                 subtopicName={currentSubtopic?.name}
                 labName="system-design"
                 accentVar="--lab-system"
+                onAddSubtopic={generated => handleAddGeneratedSubtopic(currentTopic.id, generated)}
               />
 
               {/* ── On-demand sections ── */}

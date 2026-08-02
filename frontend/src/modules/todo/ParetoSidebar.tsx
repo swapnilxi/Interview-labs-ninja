@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { paretoService, Top20Response, TopTask, ParetoTable } from '@/lib/services/paretoService';
+import { useAuth } from '@/contexts/AuthContext';
 
 const TAB_LABELS: Record<'smart' | 'quick' | 'plan', string> = {
   smart: 'Smart',
@@ -24,6 +25,7 @@ interface ParetoSidebarProps {
 
 export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) {
   const router = useRouter();
+  const { isGuest } = useAuth();
   const [data, setData] = useState<Top20Response | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -37,8 +39,10 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
   };
 
   useEffect(() => {
-    fetchTop20();
-  }, []);
+    // Pareto analysis is an AI feature and requires login — skip the call
+    // entirely for guests rather than firing a request that always 401s.
+    if (!isGuest) fetchTop20();
+  }, [isGuest]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -90,24 +94,38 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              runAnalysis();
-            }}
-            disabled={loading}
-            className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-smooth flex items-center gap-1 disabled:opacity-50"
-            title="Re-run AI 80/20 analysis across all tabs"
-          >
-            {loading ? '⏳' : '↺ Re-analyze'}
-          </button>
+          {!isGuest && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                runAnalysis();
+              }}
+              disabled={loading}
+              className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-smooth flex items-center gap-1 disabled:opacity-50"
+              title="Re-run AI 80/20 analysis across all tabs"
+            >
+              {loading ? '⏳' : '↺ Re-analyze'}
+            </button>
+          )}
           <Icon name="ChevronDownIcon" size={12} className={`text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </div>
       </div>
 
       {expanded && (
         <div className="px-3 pb-3 overflow-y-auto scrollbar-clean">
-          {totalTasks === 0 && !loading ? (
+          {isGuest ? (
+            <div className="py-3 text-center space-y-2">
+              <p className="text-[10px] text-muted-foreground italic">
+                Log in to unlock AI-powered 80/20 analysis of your tasks.
+              </p>
+              <a
+                href="/login"
+                className="inline-block text-[10px] font-bold px-3 py-1 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-smooth shadow-sm"
+              >
+                Log in
+              </a>
+            </div>
+          ) : totalTasks === 0 && !loading ? (
             <div className="py-3 text-center space-y-2">
               <p className="text-[10px] text-muted-foreground italic">
                 Run 80/20 analysis to discover your highest-leverage tasks.

@@ -19,12 +19,13 @@ from datetime import date
 from typing import Any, Dict, List
 
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from modules.auth.dependencies import get_current_user_id
 from modules.common.db import get_db_path
 from modules.common.ai_client import AISettings
 
-router = APIRouter(prefix="/pareto", tags=["pareto"])
+router = APIRouter(prefix="/pareto", tags=["pareto"], dependencies=[Depends(get_current_user_id)])
 
 _VALID_TABLES = ("tasks", "quick_tasks", "project_nodes", "projects")
 
@@ -38,14 +39,15 @@ def _get_ai_helpers():
     return _call_ai, _extract_json_array
 
 
-def _fetch_scope_items(cursor: sqlite3.Cursor, scope: str) -> List[Dict[str, Any]]:
-    """Collect un-locked, not-done items for the requested scope."""
+def _fetch_scope_items(cursor: sqlite3.Cursor, scope: str, user_id: int) -> List[Dict[str, Any]]:
+    """Collect un-locked, not-done items for the requested scope, owned by user_id."""
     items: List[Dict[str, Any]] = []
 
     if scope in ("smart", "all"):
         cursor.execute(
             "SELECT id, title, priority, due_date, intention, definition_of_done, time_estimate "
-            "FROM tasks WHERE status != 'done' AND (pareto_locked IS NULL OR pareto_locked = 0)"
+            "FROM tasks WHERE user_id = ? AND status != 'done' AND (pareto_locked IS NULL OR pareto_locked = 0)",
+            (user_id,),
         )
         for row in cursor.fetchall():
             items.append({
@@ -58,8 +60,8 @@ def _fetch_scope_items(cursor: sqlite3.Cursor, scope: str) -> List[Dict[str, Any
         today_str = date.today().isoformat()
         cursor.execute(
             "SELECT id, title, quadrant FROM quick_tasks "
-            "WHERE date = ? AND done = 0 AND (pareto_locked IS NULL OR pareto_locked = 0)",
-            (today_str,),
+            "WHERE user_id = ? AND date = ? AND done = 0 AND (pareto_locked IS NULL OR pareto_locked = 0)",
+            (user_id, today_str),
         )
         for row in cursor.fetchall():
             items.append({"table": "quick_tasks", "id": row[0], "title": row[1], "quadrant": row[2]})
@@ -68,7 +70,9 @@ def _fetch_scope_items(cursor: sqlite3.Cursor, scope: str) -> List[Dict[str, Any
         cursor.execute(
             "SELECT n.id, n.title, p.title, p.priority "
             "FROM project_nodes n JOIN projects p ON n.project_id = p.id "
-            "WHERE p.status = 'active' AND (n.pareto_locked IS NULL OR n.pareto_locked = 0)"
+            "WHERE p.status = 'active' AND n.user_id = ? AND p.user_id = ? "
+            "AND (n.pareto_locked IS NULL OR n.pareto_locked = 0)",
+            (user_id, user_id),
         )
         for row in cursor.fetchall():
             items.append({
@@ -78,7 +82,8 @@ def _fetch_scope_items(cursor: sqlite3.Cursor, scope: str) -> List[Dict[str, Any
 
         cursor.execute(
             "SELECT id, title, priority, due_date, description FROM projects "
-            "WHERE status = 'active' AND (pareto_locked IS NULL OR pareto_locked = 0)"
+            "WHERE user_id = ? AND status = 'active' AND (pareto_locked IS NULL OR pareto_locked = 0)",
+            (user_id,),
         )
         for row in cursor.fetchall():
             items.append({
@@ -90,12 +95,12 @@ def _fetch_scope_items(cursor: sqlite3.Cursor, scope: str) -> List[Dict[str, Any
 
 
 @router.post("/analyze")
-async def analyze_pareto_endpoint(payload: AnalyzeRequest) -> dict:
+async def analyze_pareto_endpoint(payload: AnalyzeRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Score all non-done, un-locked tasks in the requested scope and flag the top 20%."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        items = _fetch_scope_items(cursor, payload.scope)
+        items = _fetch_scope_items(cursor, payload.scope, user_id)
     finally:
         conn.close()
 
@@ -138,10 +143,12 @@ No extra text."""
             top20 = 1 if res.get("is_top_20") else 0
             reason = res.get("reason")
             if table in _VALID_TABLES and tid and score is not None:
+                # table is re-checked against _VALID_TABLES right before interpolation —
+                # never build this query from an unvalidated table name.
                 cursor.execute(
                     f"UPDATE {table} SET pareto_score = ?, is_top_20 = ?, pareto_reason = ? "
-                    f"WHERE id = ? AND (pareto_locked IS NULL OR pareto_locked = 0)",
-                    (score, top20, reason, tid),
+                    f"WHERE id = ? AND user_id = ? AND (pareto_locked IS NULL OR pareto_locked = 0)",
+                    (score, top20, reason, tid, user_id),
                 )
         conn.commit()
     finally:
@@ -152,7 +159,7 @@ No extra text."""
 
 
 @router.get("/top20")
-async def get_top20_endpoint() -> dict:
+async def get_top20_endpoint(user_id: int = Depends(get_current_user_id)) -> dict:
     """Return all is_top_20=true items across all tables, grouped by tab."""
     conn = sqlite3.connect(get_db_path())
     try:
@@ -160,7 +167,8 @@ async def get_top20_endpoint() -> dict:
 
         cursor.execute(
             "SELECT id, title, pareto_score, pareto_reason, pareto_locked FROM tasks "
-            "WHERE is_top_20 = 1 AND status != 'done'"
+            "WHERE user_id = ? AND is_top_20 = 1 AND status != 'done'",
+            (user_id,),
         )
         smart = [
             {"id": r[0], "title": r[1], "pareto_score": r[2], "reason": r[3], "locked": bool(r[4]), "table": "tasks"}
@@ -169,7 +177,8 @@ async def get_top20_endpoint() -> dict:
 
         cursor.execute(
             "SELECT id, title, pareto_score, pareto_reason, pareto_locked FROM quick_tasks "
-            "WHERE is_top_20 = 1 AND done = 0"
+            "WHERE user_id = ? AND is_top_20 = 1 AND done = 0",
+            (user_id,),
         )
         quick = [
             {"id": r[0], "title": r[1], "pareto_score": r[2], "reason": r[3], "locked": bool(r[4]), "table": "quick_tasks"}
@@ -177,7 +186,8 @@ async def get_top20_endpoint() -> dict:
         ]
 
         cursor.execute(
-            "SELECT id, title, pareto_score, pareto_reason, pareto_locked FROM project_nodes WHERE is_top_20 = 1"
+            "SELECT id, title, pareto_score, pareto_reason, pareto_locked FROM project_nodes WHERE user_id = ? AND is_top_20 = 1",
+            (user_id,),
         )
         plan = [
             {"id": r[0], "title": r[1], "pareto_score": r[2], "reason": r[3], "locked": bool(r[4]), "table": "project_nodes"}
@@ -186,7 +196,8 @@ async def get_top20_endpoint() -> dict:
 
         cursor.execute(
             "SELECT id, title, pareto_score, pareto_reason, pareto_locked FROM projects "
-            "WHERE is_top_20 = 1 AND status = 'active'"
+            "WHERE user_id = ? AND is_top_20 = 1 AND status = 'active'",
+            (user_id,),
         )
         plan += [
             {"id": r[0], "title": r[1], "pareto_score": r[2], "reason": r[3], "locked": bool(r[4]), "table": "projects"}
@@ -199,7 +210,7 @@ async def get_top20_endpoint() -> dict:
 
 
 @router.post("/reanalyze/{table}/{item_id}")
-async def reanalyze_single_endpoint(table: str, item_id: int, payload: AnalyzeRequest) -> dict:
+async def reanalyze_single_endpoint(table: str, item_id: int, payload: AnalyzeRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Re-score a single item. Explicit single-item action, so it unlocks any manual pin."""
     if table not in _VALID_TABLES:
         raise HTTPException(status_code=400, detail="Invalid table")
@@ -207,7 +218,7 @@ async def reanalyze_single_endpoint(table: str, item_id: int, payload: AnalyzeRe
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM {table} WHERE id = ?", (item_id,))
+        cursor.execute(f"SELECT * FROM {table} WHERE id = ? AND user_id = ?", (item_id, user_id))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Item not found")
@@ -246,8 +257,8 @@ No extra text."""
     try:
         cursor = conn.cursor()
         cursor.execute(
-            f"UPDATE {table} SET pareto_score = ?, is_top_20 = ?, pareto_reason = ?, pareto_locked = 0 WHERE id = ?",
-            (score, top20, reason, item_id),
+            f"UPDATE {table} SET pareto_score = ?, is_top_20 = ?, pareto_reason = ?, pareto_locked = 0 WHERE id = ? AND user_id = ?",
+            (score, top20, reason, item_id, user_id),
         )
         conn.commit()
     finally:

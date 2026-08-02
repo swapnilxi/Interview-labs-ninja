@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '../http/apiClient';
+
 export interface SessionAnswer {
   questionId?: string;
   questionText: string;
@@ -22,14 +24,11 @@ export interface SessionProgressRow {
   isCompleted: boolean;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
-
 export const sessionService = {
   async saveSessionAnswers(answers: SessionAnswer[]): Promise<void> {
     try {
-      const res = await fetch(`${API_BASE_URL}/session-progress`, {
+      const res = await apiFetch('/session-progress', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(answers),
       });
       if (!res.ok) {
@@ -42,7 +41,7 @@ export const sessionService = {
 
   async getSessionByDate(date: string): Promise<SessionProgressRow[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/session-progress?session_date=${encodeURIComponent(date)}`);
+      const res = await apiFetch(`/session-progress?session_date=${encodeURIComponent(date)}`);
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
@@ -60,7 +59,7 @@ export const sessionService = {
     recentDates: string[];
   }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/session-progress/stats`);
+      const res = await apiFetch('/session-progress/stats');
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }

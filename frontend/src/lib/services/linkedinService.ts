@@ -16,6 +16,16 @@ export type LinkedInTemplateType =
   | 'post_structure'
   | 'custom';
 
+/** Shared display metadata for template types — used by both the Template Library and the Generate tab's template picker. */
+export const TEMPLATE_TYPE_META: Record<LinkedInTemplateType, { label: string; badgeClass: string }> = {
+  prompt: { label: 'Prompt Template', badgeClass: 'bg-violet-500/10 text-violet-600 dark:text-violet-300' },
+  reference_post: { label: 'Reference Post', badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-300' },
+  creator_post: { label: 'Creator Post', badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-300' },
+  writing_style: { label: 'AI Writing Style', badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300' },
+  post_structure: { label: 'Post Structure', badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-300' },
+  custom: { label: 'Custom Template', badgeClass: 'bg-muted text-muted-foreground' },
+};
+
 export interface LinkedInTemplate {
   id: number;
   type: LinkedInTemplateType;

@@ -7,9 +7,10 @@ import urllib.request
 from datetime import date
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from modules.auth.dependencies import get_current_user_id
 from modules.common.db import (
     Category,
     create_session,
@@ -21,10 +22,17 @@ from modules.common.db import (
     fetch_progress_stats,
 )
 from modules.common.export_md import render_markdown_for_day
-from modules.common.ai_client import AISettings, call_ai_text, extract_json_array
+from modules.common.ai_client import AISettings, call_ai_text, extract_json_array, extract_json_object
+from modules.common.youtube_client import extract_video_id, fetch_transcript, fetch_video_metadata
 
 
-router = APIRouter(tags=["daily-session"])
+router = APIRouter(tags=["daily-session"], dependencies=[Depends(get_current_user_id)])
+
+# Utility endpoints that don't touch any user data (just proxy to a locally-running
+# Ollama server) and are used from the Config page, which guests can use without
+# logging in — kept off the `router` above so they aren't swept into its auth
+# requirement.
+public_router = APIRouter(tags=["daily-session"])
 
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
@@ -167,10 +175,13 @@ class SessionAnswerIn(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/sessions", response_model=SessionCreateResponse)
-async def create_session_endpoint(payload: SessionCreate) -> SessionCreateResponse:
+async def create_session_endpoint(
+    payload: SessionCreate, user_id: int = Depends(get_current_user_id)
+) -> SessionCreateResponse:
     today_date = date.today()
     session_date = today_date.isoformat()
     session_id = create_session(
+        user_id=user_id,
         session_date=session_date,
         difficulty_hint=payload.difficulty_hint,
         cv_present=payload.cv_present,
@@ -184,12 +195,17 @@ async def create_session_endpoint(payload: SessionCreate) -> SessionCreateRespon
     )
 
 
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+
+
 @router.post("/sessions/upload-resume")
 async def upload_resume(file: UploadFile = File(...)) -> dict:
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename missing")
 
     contents = await file.read()
+    if len(contents) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large. Max size is {_MAX_UPLOAD_BYTES // (1024 * 1024)}MB.")
     filename_lower = file.filename.lower()
     text = ""
 
@@ -258,14 +274,19 @@ Provide:
 
 
 @router.post("/sessions/questions")
-async def persist_questions(payload: QuestionBatchCreate) -> dict:
+async def persist_questions(
+    payload: QuestionBatchCreate, user_id: int = Depends(get_current_user_id)
+) -> dict:
     if not payload.questions:
         raise HTTPException(status_code=400, detail="questions list must not be empty")
 
     ids = insert_questions(
+        user_id=user_id,
         session_id=payload.session_id,
         questions=[q.model_dump() for q in payload.questions],
     )
+    if ids is None:
+        raise HTTPException(status_code=404, detail="Session not found")
     return {"inserted_ids": ids}
 
 
@@ -274,8 +295,9 @@ async def list_questions(
     category: Optional[Category] = Query(default=None),
     session_date: Optional[str] = Query(default=None),
     topic: Optional[str] = Query(default=None),
+    user_id: int = Depends(get_current_user_id),
 ) -> List[QuestionOut]:
-    records = list(fetch_questions(category=category, session_date=session_date, topic=topic))
+    records = list(fetch_questions(user_id=user_id, category=category, session_date=session_date, topic=topic))
 
     out: List[QuestionOut] = []
     for r in records:
@@ -302,33 +324,42 @@ async def list_questions(
 
 @router.patch("/questions/{question_id}/performance")
 async def update_performance_endpoint(
-    question_id: int, payload: PerformanceUpdatePayload
+    question_id: int,
+    payload: PerformanceUpdatePayload,
+    user_id: int = Depends(get_current_user_id),
 ) -> dict:
-    update_question_performance(
+    updated = update_question_performance(
+        user_id=user_id,
         question_id=question_id,
         user_performance=payload.user_performance,
         last_reviewed=date.today().isoformat(),
     )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Question not found")
     return {"status": "success"}
 
 
 @router.post("/session-progress")
-async def save_session_progress_endpoint(payload: List[SessionAnswerIn]) -> dict:
-    save_session_progress([item.model_dump() for item in payload])
+async def save_session_progress_endpoint(
+    payload: List[SessionAnswerIn], user_id: int = Depends(get_current_user_id)
+) -> dict:
+    save_session_progress(user_id=user_id, answers=[item.model_dump() for item in payload])
     return {"status": "success"}
 
 
 @router.get("/session-progress")
-async def get_session_progress_endpoint(session_date: str = Query(...)) -> List[dict]:
-    return fetch_session_progress(session_date)
+async def get_session_progress_endpoint(
+    session_date: str = Query(...), user_id: int = Depends(get_current_user_id)
+) -> List[dict]:
+    return fetch_session_progress(user_id=user_id, session_date=session_date)
 
 
 @router.get("/session-progress/stats")
-async def get_progress_stats_endpoint() -> dict:
-    return fetch_progress_stats()
+async def get_progress_stats_endpoint(user_id: int = Depends(get_current_user_id)) -> dict:
+    return fetch_progress_stats(user_id=user_id)
 
 
-@router.get("/settings/ollama-models")
+@public_router.get("/settings/ollama-models")
 async def list_ollama_models(url: str = Query(default="http://localhost:11434")) -> dict:
     req = urllib.request.Request(f"{url.rstrip('/')}/api/tags", method="GET")
     try:
@@ -391,14 +422,97 @@ async def generate_lab_questions(payload: GenerateQuestionsPayload) -> dict:
     return {"questions": questions[:payload.count]}
 
 
+# ── Lab exercise generation from a YouTube video ──────────────────────────────
+
+_MAX_TRANSCRIPT_CHARS = 12000
+
+
+class GenerateFromYoutubePayload(AISettings):
+    youtube_url: str
+    topic: str
+    lab: str = "general"
+    context: Optional[str] = None
+    manual_transcript: Optional[str] = None
+    youtube_api_key: Optional[str] = None
+
+
+def _build_youtube_prompt(payload: GenerateFromYoutubePayload, transcript: str, metadata: Optional[dict]) -> str:
+    lab_map = {"cv": "Computer Vision", "dsa": "Data Structures & Algorithms", "system-design": "System Design"}
+    domain = lab_map.get(payload.lab, payload.lab)
+
+    meta_block = ""
+    if metadata:
+        meta_block = f"\nVideo title: {metadata.get('title', '')}\nVideo description (partial): {metadata.get('description', '')[:1000]}\n"
+
+    ctx = f"\n\nAdditional context from the learner:\n{payload.context}" if payload.context else ""
+    trimmed_transcript = transcript[:_MAX_TRANSCRIPT_CHARS]
+
+    return f"""You are a senior {domain} instructor turning a YouTube video into a hands-on practice subtopic.
+
+Parent topic: {payload.topic}
+{meta_block}{ctx}
+
+Video transcript (may be auto-generated captions with minor errors):
+\"\"\"
+{trimmed_transcript}
+\"\"\"
+
+Using ONLY the material above, produce a new practice subtopic. Respond with ONLY a valid JSON object
+(no markdown fences, no text outside the object) of this exact shape:
+{{
+  "subtopic": {{"name": "short subtopic title, max 8 words", "brief": "one sentence description"}},
+  "content_markdown": "a markdown mini-lab: a short theory recap grounded in the video, then a '### Exercises' section with 2-4 short hands-on practice exercises the learner can actually do",
+  "questions": [
+    {{"text": "...", "difficulty": "Easy|Medium|Hard", "sub_type": "conceptual|implementation|practical"}}
+  ]
+}}
+Generate exactly 5 questions."""
+
+
+@router.post("/lab/generate-from-youtube")
+async def generate_lab_from_youtube(payload: GenerateFromYoutubePayload) -> dict:
+    video_id = extract_video_id(payload.youtube_url)
+    if not video_id:
+        raise HTTPException(status_code=400, detail="Could not parse a YouTube video ID from that URL.")
+
+    metadata = None
+    if payload.youtube_api_key:
+        try:
+            metadata = fetch_video_metadata(video_id, payload.youtube_api_key)
+        except Exception:
+            metadata = None  # metadata is supplementary only — never block generation on it
+
+    transcript = (payload.manual_transcript or "").strip()
+    if not transcript:
+        try:
+            transcript = fetch_transcript(video_id)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Couldn't fetch captions for this video ({exc}). Paste the transcript manually and try again.",
+            )
+
+    prompt = _build_youtube_prompt(payload, transcript, metadata)
+    try:
+        response_text = call_ai_text(prompt, payload)
+        result = extract_json_object(response_text)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No API key configured or all providers failed. Add a key in Config. Last error: {exc}",
+        )
+    return result
+
+
 @router.get("/export", response_model=str)
 async def export_markdown(
     session_date: Optional[str] = Query(default=None),
+    user_id: int = Depends(get_current_user_id),
 ) -> str:
     if session_date is None:
         session_date = date.today().isoformat()
 
-    records = list(fetch_questions(session_date=session_date))
+    records = list(fetch_questions(user_id=user_id, session_date=session_date))
     if not records:
         raise HTTPException(status_code=404, detail="No questions found for this date")
 

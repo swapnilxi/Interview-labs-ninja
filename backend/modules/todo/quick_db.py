@@ -1,4 +1,4 @@
-"""Database CRUD operations for the quick_tasks and quick_tasks_archive tables."""
+"""Database CRUD operations for the quick_tasks and quick_tasks_archive tables. All access is scoped to a user_id."""
 
 from __future__ import annotations
 
@@ -42,6 +42,7 @@ _QT_COLUMNS = (
 
 
 def create_quick_task(
+    user_id: int,
     title: str,
     task_date: Optional[str] = None,
     quadrant: str = "do_now",
@@ -58,11 +59,11 @@ def create_quick_task(
     try:
         cursor = conn.cursor()
         cursor.execute(
-            f"""
-            INSERT INTO quick_tasks (title, quadrant, date, source, original_task_id, order_index, due_date, time_estimate)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            INSERT INTO quick_tasks (user_id, title, quadrant, date, source, original_task_id, order_index, due_date, time_estimate)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (title, quadrant, task_date, source, original_task_id, order_index, due_date, time_estimate),
+            (user_id, title, quadrant, task_date, source, original_task_id, order_index, due_date, time_estimate),
         )
         conn.commit()
         task_id = cursor.lastrowid
@@ -72,35 +73,35 @@ def create_quick_task(
         conn.close()
 
 
-def get_quick_tasks_for_date(task_date: str) -> List[Dict[str, Any]]:
-    """Fetch all quick tasks for a specific date."""
+def get_quick_tasks_for_date(user_id: int, task_date: str) -> List[Dict[str, Any]]:
+    """Fetch all quick tasks for a specific user + date."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute(
-            f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE date = ? ORDER BY order_index ASC, id ASC",
-            (task_date,),
+            f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE user_id = ? AND date = ? ORDER BY order_index ASC, id ASC",
+            (user_id, task_date),
         )
         return [_quick_task_row_to_dict(row) for row in cursor.fetchall()]
     finally:
         conn.close()
 
 
-def update_quick_task(task_id: int, **fields) -> Optional[Dict[str, Any]]:
+def update_quick_task(task_id: int, user_id: int, **fields) -> Optional[Dict[str, Any]]:
     """Update specific fields on a quick task."""
     allowed = {"title", "done", "quadrant", "order_index", "pareto_score", "is_top_20", "due_date", "time_estimate",
                "context", "pareto_reason", "pareto_locked"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
-        return get_quick_task(task_id)
+        return get_quick_task(task_id, user_id)
 
     set_clause = ", ".join(f"{k} = ?" for k in updates)
-    values = list(updates.values()) + [task_id]
+    values = list(updates.values()) + [task_id, user_id]
 
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute(f"UPDATE quick_tasks SET {set_clause} WHERE id = ?", values)
+        cursor.execute(f"UPDATE quick_tasks SET {set_clause} WHERE id = ? AND user_id = ?", values)
         conn.commit()
         cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ?", (task_id,))
         row = cursor.fetchone()
@@ -109,12 +110,12 @@ def update_quick_task(task_id: int, **fields) -> Optional[Dict[str, Any]]:
         conn.close()
 
 
-def get_quick_task(task_id: int) -> Optional[Dict[str, Any]]:
-    """Fetch a single quick task by ID."""
+def get_quick_task(task_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+    """Fetch a single quick task by ID, scoped to its owner."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ?", (task_id,))
+        cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ? AND user_id = ?", (task_id, user_id))
         row = cursor.fetchone()
         return _quick_task_row_to_dict(row) if row else None
     finally:
@@ -123,6 +124,7 @@ def get_quick_task(task_id: int) -> Optional[Dict[str, Any]]:
 
 def mark_quick_task_exported(
     task_id: int,
+    user_id: int,
     exported_task_id: Optional[int] = None,
     exported_project_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -139,8 +141,8 @@ def mark_quick_task_exported(
                SET is_exported = 1,
                    exported_task_id = ?,
                    exported_project_id = ?
-               WHERE id = ?""",
-            (exported_task_id, exported_project_id, task_id),
+               WHERE id = ? AND user_id = ?""",
+            (exported_task_id, exported_project_id, task_id, user_id),
         )
         conn.commit()
         cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ?", (task_id,))
@@ -150,40 +152,40 @@ def mark_quick_task_exported(
         conn.close()
 
 
-def delete_quick_task(task_id: int) -> bool:
+def delete_quick_task(task_id: int, user_id: int) -> bool:
     """Delete a quick task. Returns True if deleted."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM quick_tasks WHERE id = ?", (task_id,))
+        cursor.execute("DELETE FROM quick_tasks WHERE id = ? AND user_id = ?", (task_id, user_id))
         conn.commit()
         return cursor.rowcount > 0
     finally:
         conn.close()
 
 
-def archive_completed_quick_tasks(task_date: str) -> int:
-    """Archive all completed quick tasks for a date. Returns count archived."""
+def archive_completed_quick_tasks(user_id: int, task_date: str) -> int:
+    """Archive all completed quick tasks for a user + date. Returns count archived."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO quick_tasks_archive (original_id, title, quadrant, date, source, original_task_id, done, pareto_score, is_top_20)
-            SELECT id, title, quadrant, date, source, original_task_id, done, pareto_score, is_top_20
-            FROM quick_tasks WHERE date = ? AND done = 1
+            INSERT INTO quick_tasks_archive (user_id, original_id, title, quadrant, date, source, original_task_id, done, pareto_score, is_top_20)
+            SELECT user_id, id, title, quadrant, date, source, original_task_id, done, pareto_score, is_top_20
+            FROM quick_tasks WHERE user_id = ? AND date = ? AND done = 1
             """,
-            (task_date,),
+            (user_id, task_date),
         )
         archived_count = cursor.rowcount
-        cursor.execute("DELETE FROM quick_tasks WHERE date = ? AND done = 1", (task_date,))
+        cursor.execute("DELETE FROM quick_tasks WHERE user_id = ? AND date = ? AND done = 1", (user_id, task_date))
         conn.commit()
         return archived_count
     finally:
         conn.close()
 
 
-def move_quick_tasks_to_tomorrow(task_ids: List[int]) -> int:
+def move_quick_tasks_to_tomorrow(user_id: int, task_ids: List[int]) -> int:
     """Move specific quick tasks to tomorrow by updating their date."""
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
     conn = sqlite3.connect(get_db_path())
@@ -191,8 +193,8 @@ def move_quick_tasks_to_tomorrow(task_ids: List[int]) -> int:
         cursor = conn.cursor()
         placeholders = ",".join("?" for _ in task_ids)
         cursor.execute(
-            f"UPDATE quick_tasks SET date = ? WHERE id IN ({placeholders})",
-            [tomorrow] + task_ids,
+            f"UPDATE quick_tasks SET date = ? WHERE user_id = ? AND id IN ({placeholders})",
+            [tomorrow, user_id] + task_ids,
         )
         conn.commit()
         return cursor.rowcount
@@ -200,30 +202,33 @@ def move_quick_tasks_to_tomorrow(task_ids: List[int]) -> int:
         conn.close()
 
 
-def count_incomplete_top20(task_date: str) -> int:
+def count_incomplete_top20(user_id: int, task_date: str) -> int:
     """Count today's quick tasks that are Top 20% and still not done (for end-of-day warnings)."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COUNT(*) FROM quick_tasks WHERE date = ? AND done = 0 AND is_top_20 = 1",
-            (task_date,),
+            "SELECT COUNT(*) FROM quick_tasks WHERE user_id = ? AND date = ? AND done = 0 AND is_top_20 = 1",
+            (user_id, task_date),
         )
         return cursor.fetchone()[0]
     finally:
         conn.close()
 
 
-def bulk_update_quadrants(updates: List[Dict[str, Any]]) -> None:
-    """Batch update quadrant for multiple quick tasks."""
+def bulk_update_quadrants(user_id: int, updates: List[Dict[str, Any]]) -> None:
+    """Batch update quadrant for multiple quick tasks (only ones this user owns)."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         for u in updates:
-            cursor.execute(
-                "UPDATE quick_tasks SET quadrant = ? WHERE id = ?",
-                (u["quadrant"], u["task_id"]),
-            )
+            task_id = u.get("task_id")
+            quadrant = u.get("quadrant")
+            if task_id and quadrant:
+                cursor.execute(
+                    "UPDATE quick_tasks SET quadrant = ? WHERE id = ? AND user_id = ?",
+                    (quadrant, task_id, user_id),
+                )
         conn.commit()
     finally:
         conn.close()

@@ -148,6 +148,20 @@ def _ollama_model_name(model: str, settings_model: str) -> str:
     return settings_model or "llama3.2"
 
 
+def _gemini_model_name(model: str) -> str:
+    """Resolve a model string to a real Gemini model id.
+
+    Bare aliases like "gemini" or "gemma" (coarse provider choices that
+    haven't been resolved to a specific id) are NOT valid Gemini API model
+    names on their own — calling the API with them 404s. Only a string that
+    actually looks like a specific id (e.g. "gemini-2.5-flash",
+    "gemini-flash-latest") is passed through as-is.
+    """
+    if model not in ("gemini", "gemma") and (model.startswith("gemini") or model.startswith("gemma")):
+        return model
+    return "gemini-flash-latest"
+
+
 def _provider_order(model: str) -> List[str]:
     if model.startswith("gemini") or model.startswith("gemma"):
         return ["gemini", "deepseek", "groq", "openai", "anthropic", "ollama"]
@@ -180,7 +194,7 @@ def call_ai_text(prompt: str, settings: AISettings) -> str:
     for provider in _provider_order(model):
         try:
             if provider == "gemini" and settings.geminiKey:
-                gemini_model = model if (model.startswith("gemini") or model.startswith("gemma")) else "gemini-flash-latest"
+                gemini_model = _gemini_model_name(model)
                 return _call_gemini(prompt, settings.geminiKey, gemini_model)
             if provider == "deepseek" and settings.deepseekKey:
                 deepseek_model = model if model.startswith("deepseek") else "deepseek-chat"
@@ -217,7 +231,7 @@ def call_ai_vision(image_b64: str, prompt: str, settings: AISettings) -> str:
         return _call_ollama(prompt, settings.ollamaUrl, vision_model, image_b64=image_b64, timeout=120)
     if not settings.geminiKey:
         raise ValueError("No Gemini API key configured. Add one in Config.")
-    gemini_model = model if model.startswith("gemini") else "gemini-flash-latest"
+    gemini_model = _gemini_model_name(model)
     return _call_gemini(prompt, settings.geminiKey, gemini_model, image_b64=image_b64, temperature=0.3, max_tokens=4096)
 
 
@@ -248,7 +262,7 @@ def stream_ai_text(prompt: str, settings: AISettings):
         yield "No Gemini API key configured. Add one in Config."
         return
 
-    gemini_model = model if model.startswith("gemini") else "gemini-flash-latest"
+    gemini_model = _gemini_model_name(model)
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:streamGenerateContent?alt=sse&key={settings.geminiKey}"
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],

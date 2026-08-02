@@ -1,3 +1,6 @@
 fastapi
 uvicorn[standard]
 pydantic
+passlib[bcrypt]
+pyjwt
+youtube-transcript-api

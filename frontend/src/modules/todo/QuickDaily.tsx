@@ -44,6 +44,9 @@ export default function QuickDaily({ model }: QuickDailyProps) {
   const [dayPlanHours, setDayPlanHours] = useState(4);
   const [dayPlanData, setDayPlanData] = useState<any>(null);
 
+  // ── End My Day state ─────────────────────────────────────────────────────
+  const [showEndDay, setShowEndDay] = useState(false);
+
   const showToast = useCallback((msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
@@ -394,13 +397,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               <p className="text-[10px] text-muted-foreground mt-0.5">{completedCount} of {totalCount} done</p>
             </div>
             <button
-              onClick={async () => {
-                const res = await quickTaskService.endOfDay(model);
-                if (res) {
-                  loadTasks();
-                  showToast(`🌙 ${res.summary}${res.top20_warning ? `\n${res.top20_warning}` : ''}`);
-                }
-              }}
+              onClick={() => setShowEndDay(true)}
               className="px-3 py-1.5 text-[10px] font-bold bg-muted hover:bg-muted/80 text-foreground rounded-md transition-smooth flex items-center gap-1.5"
             >
               🌙 End My Day
@@ -795,6 +792,139 @@ export default function QuickDaily({ model }: QuickDailyProps) {
           </div>
         </div>
       )}
+
+      {/* End My Day Modal — lets the user choose what happens to incomplete tasks */}
+      {showEndDay && (
+        <QuickEndDayModal
+          incompleteTasks={activeTasks.filter(t => !t.done)}
+          completedCount={completedCount}
+          model={model}
+          onClose={() => setShowEndDay(false)}
+          onDayEnded={(res) => {
+            setShowEndDay(false);
+            loadTasks();
+            showToast(`🌙 ${res.summary}${res.top20_warning ? ` ${res.top20_warning}` : ''}`);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface QuickEndDayModalProps {
+  incompleteTasks: QuickTask[];
+  completedCount: number;
+  model: 'ollama' | 'gemini';
+  onClose: () => void;
+  onDayEnded: (res: any) => void;
+}
+
+function QuickEndDayModal({ incompleteTasks, completedCount, model, onClose, onDayEnded }: QuickEndDayModalProps) {
+  const [loading, setLoading] = useState(false);
+  const [choices, setChoices] = useState<Record<number, 'tomorrow' | 'smart' | 'discard'>>(() => {
+    const initial: Record<number, 'tomorrow' | 'smart' | 'discard'> = {};
+    incompleteTasks.forEach(t => { initial[t.id] = 'tomorrow'; });
+    return initial;
+  });
+
+  const handleChoice = (taskId: number, choice: 'tomorrow' | 'smart' | 'discard') => {
+    setChoices(prev => ({ ...prev, [taskId]: choice }));
+  };
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    const move_to_tomorrow: number[] = [];
+    const move_to_smart: number[] = [];
+    const discard: number[] = [];
+    for (const t of incompleteTasks) {
+      const choice = choices[t.id] || 'tomorrow';
+      if (choice === 'tomorrow') move_to_tomorrow.push(t.id);
+      else if (choice === 'smart') move_to_smart.push(t.id);
+      else discard.push(t.id);
+    }
+    const res = await quickTaskService.endOfDay(model, { move_to_tomorrow, move_to_smart, discard });
+    setLoading(false);
+    if (res) onDayEnded(res);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl animate-scale-up">
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🌙</span>
+            <span className="font-heading text-base font-bold text-foreground">End My Day</span>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+            <Icon name="XMarkIcon" size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 space-y-3">
+              <span className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+              <p className="text-xs text-muted-foreground animate-pulse">Wrapping up your day...</p>
+            </div>
+          ) : (
+            <>
+              <div className="p-3 rounded-lg bg-muted/40 border border-border flex items-center justify-around text-center">
+                <div>
+                  <span className="block text-xl font-bold text-primary">{completedCount}</span>
+                  <span className="text-[10px] text-muted-foreground font-medium uppercase">Completed</span>
+                </div>
+                <div className="h-8 w-px bg-border" />
+                <div>
+                  <span className="block text-xl font-bold text-amber-500">{incompleteTasks.length}</span>
+                  <span className="text-[10px] text-muted-foreground font-medium uppercase">Incomplete</span>
+                </div>
+              </div>
+
+              {incompleteTasks.length > 0 ? (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-amber-500">📅 What should happen to incomplete tasks?</h4>
+                  <div className="space-y-2 max-h-[280px] overflow-y-auto scrollbar-clean pr-1">
+                    {incompleteTasks.map(t => (
+                      <div key={t.id} className="p-3 rounded-lg border border-border bg-card space-y-2">
+                        <p className="text-xs font-semibold truncate text-foreground">{t.title}</p>
+                        <div className="flex gap-2">
+                          {(['tomorrow', 'smart', 'discard'] as const).map(act => (
+                            <button
+                              key={act}
+                              type="button"
+                              onClick={() => handleChoice(t.id, act)}
+                              className={`flex-1 py-1 rounded text-[10px] font-semibold transition-smooth border ${
+                                choices[t.id] === act
+                                  ? 'bg-primary text-primary-foreground border-primary'
+                                  : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted'
+                              }`}
+                            >
+                              {act === 'tomorrow' ? '🌅 Tomorrow' : act === 'smart' ? '🧠 To Smart Todo' : '🗑️ Discard'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-4">Everything's done. Nice work! 🎉</p>
+              )}
+            </>
+          )}
+        </div>
+
+        {!loading && (
+          <div className="p-4 border-t border-border flex justify-end">
+            <button
+              onClick={handleConfirm}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-smooth"
+            >
+              End Day
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

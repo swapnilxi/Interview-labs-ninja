@@ -29,7 +29,6 @@ export default function QuickTaskCard({
   hideDragHandle,
 }: QuickTaskCardProps) {
   const [showParetoModal, setShowParetoModal] = useState(false);
-  const [reanalyzing, setReanalyzing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);

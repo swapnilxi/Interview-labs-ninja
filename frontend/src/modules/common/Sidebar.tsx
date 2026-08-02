@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarLink {
   label: string;
@@ -26,6 +27,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose, theme, onToggleTheme }: SidebarProps) {
   const pathname = usePathname();
+  const { user, isGuest, logout } = useAuth();
   const isLabRoute = LAB_LINKS.some((link) => link.path === pathname);
   const [labsOpen, setLabsOpen] = useState(true);
 
@@ -150,6 +152,22 @@ export default function Sidebar({ isOpen, onClose, theme, onToggleTheme }: Sideb
         </nav>
 
         <div className="flex flex-shrink-0 items-center gap-2 border-t border-border px-3 py-3">
+          {isGuest ? (
+            <Link href="/login" onClick={onClose} className="app-nav-link flex-1">
+              <Icon name="UserCircleIcon" size={18} variant="outline" />
+              <span>Log in</span>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { logout(); onClose(); }}
+              className="app-nav-link flex-1"
+              title={user?.email}
+            >
+              <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
+              <span className="truncate">Log out</span>
+            </button>
+          )}
           <Link
             href="/config"
             onClick={onClose}

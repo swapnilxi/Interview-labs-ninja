@@ -301,7 +301,7 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
                   <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs text-foreground">
                     <Icon name="DocumentIcon" size={12} className="text-muted-foreground" />
                     {name}
-                    <button onClick={() => removeAttachment(name)} className="text-muted-foreground hover:text-red-500 transition-smooth">
+                    <button type="button" onClick={() => removeAttachment(name)} className="text-muted-foreground hover:text-red-500 transition-smooth">
                       <Icon name="XMarkIcon" size={12} />
                     </button>
                   </span>

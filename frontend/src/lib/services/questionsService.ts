@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '../http/apiClient';
+
 export interface Question {
   id: string;
   questionText: string;
@@ -11,8 +13,6 @@ export interface Question {
   lastReviewed: string | null;
   userPerformance?: number;
 }
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
 
 function mapBackendQuestion(q: any): Question {
   // Map category code to frontend values
@@ -46,7 +46,7 @@ function mapBackendQuestion(q: any): Question {
 export const questionsService = {
   async getAll(): Promise<Question[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/questions`);
+      const res = await apiFetch('/questions');
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
@@ -61,9 +61,8 @@ export const questionsService = {
   async upsertMany(questions: Omit<Question, 'id'>[]): Promise<void> {
     try {
       // 1. Create a session first
-      const sessionRes = await fetch(`${API_BASE_URL}/sessions`, {
+      const sessionRes = await apiFetch('/sessions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           difficulty_hint: 'mixed',
           cv_present: false,
@@ -93,9 +92,8 @@ export const questionsService = {
       });
 
       // 3. Post questions batch
-      const res = await fetch(`${API_BASE_URL}/sessions/questions`, {
+      const res = await apiFetch('/sessions/questions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id,
           questions: backendQuestions,
@@ -109,9 +107,8 @@ export const questionsService = {
 
   async updatePerformance(id: string, performance: number): Promise<void> {
     try {
-      const res = await fetch(`${API_BASE_URL}/questions/${id}/performance`, {
+      const res = await apiFetch(`/questions/${id}/performance`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_performance: performance,
         }),

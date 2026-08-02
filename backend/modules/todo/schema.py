@@ -61,20 +61,51 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE tasks ADD COLUMN definition_of_done TEXT DEFAULT NULL;")
     if "eisenhower_quadrant" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN eisenhower_quadrant TEXT DEFAULT NULL;")
+    if "user_id" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN user_id INTEGER DEFAULT NULL;")
 
     # Create daily_plans table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS daily_plans (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            plan_date TEXT NOT NULL UNIQUE,
+            plan_date TEXT NOT NULL,
             available_hours REAL NOT NULL,
             task_ids TEXT NOT NULL,       -- JSON list of integers
             reasoning TEXT,               -- JSON map of task_id to reasoning
             summary TEXT DEFAULT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            user_id INTEGER DEFAULT NULL,
+            UNIQUE(user_id, plan_date)
         )
     """)
+
+    # Migration: daily_plans used to have a global UNIQUE(plan_date). Recreate
+    # with a composite UNIQUE(user_id, plan_date) so each user can have their
+    # own plan for the same date.
+    cursor.execute("PRAGMA table_info(daily_plans);")
+    daily_plans_cols = [row[1] for row in cursor.fetchall()]
+    if "user_id" not in daily_plans_cols:
+        cursor.execute("""
+            CREATE TABLE daily_plans_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_date TEXT NOT NULL,
+                available_hours REAL NOT NULL,
+                task_ids TEXT NOT NULL,
+                reasoning TEXT,
+                summary TEXT DEFAULT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                user_id INTEGER DEFAULT NULL,
+                UNIQUE(user_id, plan_date)
+            )
+        """)
+        cursor.execute("""
+            INSERT INTO daily_plans_new (id, plan_date, available_hours, task_ids, reasoning, summary, created_at, updated_at, user_id)
+            SELECT id, plan_date, available_hours, task_ids, reasoning, summary, created_at, updated_at, NULL FROM daily_plans
+        """)
+        cursor.execute("DROP TABLE daily_plans")
+        cursor.execute("ALTER TABLE daily_plans_new RENAME TO daily_plans")
 
     # Create inbox table
     cursor.execute("""
@@ -84,6 +115,9 @@ def register(cursor) -> None:
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
+    cursor.execute("PRAGMA table_info(inbox);")
+    if "user_id" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE inbox ADD COLUMN user_id INTEGER DEFAULT NULL;")
 
     # Create task_notes table
     cursor.execute("""
@@ -96,6 +130,9 @@ def register(cursor) -> None:
             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
         )
     """)
+    cursor.execute("PRAGMA table_info(task_notes);")
+    if "user_id" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE task_notes ADD COLUMN user_id INTEGER DEFAULT NULL;")
 
     # Create user_stats table
     cursor.execute("""
@@ -132,6 +169,30 @@ def register(cursor) -> None:
         cursor.execute("DROP TABLE user_stats")
         cursor.execute("ALTER TABLE user_stats_new RENAME TO user_stats")
 
+    # Migration: user_stats used to have a global UNIQUE(date). Recreate with a
+    # composite UNIQUE(user_id, date) so each user tracks their own stats.
+    cursor.execute("PRAGMA table_info(user_stats);")
+    stats_cols = [row[1] for row in cursor.fetchall()]
+    if "user_id" not in stats_cols:
+        cursor.execute("""
+            CREATE TABLE user_stats_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                completed_count INTEGER DEFAULT 0,
+                streak INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                user_id INTEGER DEFAULT NULL,
+                UNIQUE(user_id, date)
+            )
+        """)
+        cursor.execute("""
+            INSERT INTO user_stats_new (id, date, completed_count, streak, created_at, updated_at, user_id)
+            SELECT id, date, completed_count, streak, created_at, updated_at, NULL FROM user_stats
+        """)
+        cursor.execute("DROP TABLE user_stats")
+        cursor.execute("ALTER TABLE user_stats_new RENAME TO user_stats")
+
     # Create handwriting_extractions table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS handwriting_extractions (
@@ -146,6 +207,9 @@ def register(cursor) -> None:
             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
         )
     """)
+    cursor.execute("PRAGMA table_info(handwriting_extractions);")
+    if "user_id" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE handwriting_extractions ADD COLUMN user_id INTEGER DEFAULT NULL;")
 
     # ── Quick Daily tables ─────────────────────────────────────────────────────
     cursor.execute("""
@@ -161,6 +225,9 @@ def register(cursor) -> None:
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
+    cursor.execute("PRAGMA table_info(quick_tasks);")
+    if "user_id" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE quick_tasks ADD COLUMN user_id INTEGER DEFAULT NULL;")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS quick_tasks_archive (
@@ -174,6 +241,9 @@ def register(cursor) -> None:
             archived_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
+    cursor.execute("PRAGMA table_info(quick_tasks_archive);")
+    if "user_id" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE quick_tasks_archive ADD COLUMN user_id INTEGER DEFAULT NULL;")
 
     # ── Plan & Project tables ──────────────────────────────────────────────────
     cursor.execute("""
@@ -190,6 +260,9 @@ def register(cursor) -> None:
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
+    cursor.execute("PRAGMA table_info(projects);")
+    if "user_id" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE projects ADD COLUMN user_id INTEGER DEFAULT NULL;")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS project_nodes (
@@ -209,6 +282,9 @@ def register(cursor) -> None:
             FOREIGN KEY (parent_node_id) REFERENCES project_nodes(id) ON DELETE CASCADE
         )
     """)
+    cursor.execute("PRAGMA table_info(project_nodes);")
+    if "user_id" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE project_nodes ADD COLUMN user_id INTEGER DEFAULT NULL;")
 
     # Create indices
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_parent_id ON tasks(parent_id);")
@@ -218,6 +294,15 @@ def register(cursor) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_quick_archive_date ON quick_tasks_archive(date);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_project_nodes_project ON project_nodes(project_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_project_nodes_parent ON project_nodes(parent_node_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_inbox_user_id ON inbox(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_task_notes_user_id ON task_notes(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quick_tasks_user_id ON quick_tasks(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quick_archive_user_id ON quick_tasks_archive(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_project_nodes_user_id ON project_nodes(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_plans_user_id ON daily_plans(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_stats_user_id ON user_stats(user_id);")
 
     # ── 80/20 Principle Migrations ─────────────────────────────────────────────
     # Safe migrations to add pareto_score and is_top_20 to all task tables

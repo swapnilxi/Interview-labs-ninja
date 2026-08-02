@@ -2,8 +2,9 @@
 
 import { parseApiError } from './todoService';
 import { aiRequestFields } from './settingsService';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
+import { apiFetch } from '../http/apiClient';
+import { isLoggedIn } from '../auth/tokenStore';
+import { localProjectAdapter } from './local/localProjectAdapter';
 
 export interface Project {
   id: number;
@@ -21,6 +22,7 @@ export interface Project {
   pareto_locked?: boolean;
   created_at: string;
   node_count?: number; // Added in GET /projects response
+  exported_count?: number; // Nodes already exported to Smart Todo, added in GET /projects response
 }
 
 export interface ProjectNode {
@@ -57,8 +59,9 @@ export interface ProjectNodeFlat extends ProjectNode {
 
 export const projectService = {
   async fetchProjects(): Promise<Project[]> {
+    if (!isLoggedIn()) return localProjectAdapter.fetchProjects();
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/projects`);
+      const res = await apiFetch('/todo/projects');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       // Backend returns an array directly or wrapped in {projects:[...]}
@@ -70,10 +73,10 @@ export const projectService = {
   },
 
   async createProject(data: Partial<Project>): Promise<Project | null> {
+    if (!isLoggedIn()) return localProjectAdapter.createProject(data);
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/projects`, {
+      const res = await apiFetch('/todo/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -87,15 +90,15 @@ export const projectService = {
   },
 
   async updateProject(id: number, data: Partial<Project>): Promise<Project | null> {
+    if (!isLoggedIn()) return localProjectAdapter.updateProject(id, data);
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/projects/${id}`, {
+      const res = await apiFetch(`/todo/projects/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const resData = await res.json();
-      return resData.project || null;
+      return resData.project || resData || null;
     } catch (err) {
       console.error(`Failed to update project ${id}`, err);
       return null;
@@ -103,8 +106,9 @@ export const projectService = {
   },
 
   async deleteProject(id: number): Promise<boolean> {
+    if (!isLoggedIn()) return localProjectAdapter.deleteProject(id);
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/projects/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/todo/projects/${id}`, { method: 'DELETE' });
       return res.ok;
     } catch (err) {
       console.error(`Failed to delete project ${id}`, err);
@@ -113,8 +117,9 @@ export const projectService = {
   },
 
   async fetchProjectTree(id: number): Promise<ProjectNode[]> {
+    if (!isLoggedIn()) return localProjectAdapter.fetchProjectTree(id);
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/projects/${id}/tree`);
+      const res = await apiFetch(`/todo/projects/${id}/tree`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       return Array.isArray(data) ? data : (data.tree || []);
@@ -125,10 +130,10 @@ export const projectService = {
   },
 
   async createNode(projectId: number, data: Partial<ProjectNode>): Promise<ProjectNode | null> {
+    if (!isLoggedIn()) return localProjectAdapter.createNode(projectId, data);
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/projects/${projectId}/nodes`, {
+      const res = await apiFetch(`/todo/projects/${projectId}/nodes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -140,15 +145,10 @@ export const projectService = {
     }
   },
 
-  async updateNode(projectId: number, nodeId: number, data: Partial<ProjectNode>): Promise<ProjectNode | null> {
-    // There isn't an explicit node update endpoint in the router yet, we can add it later if needed.
-    // For now, this is a placeholder or we can implement it.
-    return null;
-  },
-
   async deleteNode(nodeId: number): Promise<boolean> {
+    if (!isLoggedIn()) return localProjectAdapter.deleteNode(nodeId);
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/todo/project-nodes/${nodeId}`, { method: 'DELETE' });
       return res.ok;
     } catch (err) {
       console.error(`Failed to delete node ${nodeId}`, err);
@@ -157,9 +157,8 @@ export const projectService = {
   },
 
   async diveDeeper(nodeId: number, model: string = 'gemini'): Promise<ProjectNode[]> {
-    const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}/dive-deeper`, {
+    const res = await apiFetch(`/todo/project-nodes/${nodeId}/dive-deeper`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(aiRequestFields(model)),
     });
     if (!res.ok) throw new Error(await parseApiError(res));
@@ -168,9 +167,8 @@ export const projectService = {
   },
 
   async chunkIt(nodeId: number, model: string = 'gemini'): Promise<ProjectNode[]> {
-    const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}/chunk`, {
+    const res = await apiFetch(`/todo/project-nodes/${nodeId}/chunk`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(aiRequestFields(model)),
     });
     if (!res.ok) throw new Error(await parseApiError(res));
@@ -179,8 +177,9 @@ export const projectService = {
   },
 
   async moveToSmart(nodeId: number): Promise<any> {
+    if (!isLoggedIn()) return localProjectAdapter.moveToSmart(nodeId);
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}/move-to-smart`, { method: 'POST' });
+      const res = await apiFetch(`/todo/project-nodes/${nodeId}/move-to-smart`, { method: 'POST' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (err) {
@@ -190,8 +189,9 @@ export const projectService = {
   },
 
   async moveToQuick(nodeId: number): Promise<any> {
+    if (!isLoggedIn()) return localProjectAdapter.moveToQuick(nodeId);
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}/move-to-quick`, { method: 'POST' });
+      const res = await apiFetch(`/todo/project-nodes/${nodeId}/move-to-quick`, { method: 'POST' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (err) {
@@ -201,8 +201,9 @@ export const projectService = {
   },
 
   async fetchFlatProjectNodes(): Promise<ProjectNodeFlat[]> {
+    if (!isLoggedIn()) return localProjectAdapter.fetchFlatProjectNodes();
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/project-nodes/all`);
+      const res = await apiFetch('/todo/project-nodes/all');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (err) {
@@ -212,10 +213,10 @@ export const projectService = {
   },
 
   async updateProjectNode(nodeId: number, data: Partial<ProjectNode>): Promise<ProjectNode | null> {
+    if (!isLoggedIn()) return localProjectAdapter.updateProjectNode(nodeId, data);
     try {
-      const res = await fetch(`${API_BASE_URL}/todo/project-nodes/${nodeId}`, {
+      const res = await apiFetch(`/todo/project-nodes/${nodeId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -227,19 +228,8 @@ export const projectService = {
   },
 
   async eisenhowerAutoNodes(model: string = 'gemini'): Promise<any> {
-    const res = await fetch(`${API_BASE_URL}/todo/project-nodes/eisenhower-auto`, {
+    const res = await apiFetch('/todo/project-nodes/eisenhower-auto', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(aiRequestFields(model)),
-    });
-    if (!res.ok) throw new Error(await parseApiError(res));
-    return await res.json();
-  },
-
-  async eisenhowerAuto(model: string = 'gemini'): Promise<any> {
-    const res = await fetch(`${API_BASE_URL}/todo/projects/eisenhower-auto`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(aiRequestFields(model)),
     });
     if (!res.ok) throw new Error(await parseApiError(res));
@@ -247,9 +237,8 @@ export const projectService = {
   },
 
   async generateRoadmap(projectId: number, model: string = 'gemini'): Promise<any> {
-    const res = await fetch(`${API_BASE_URL}/todo/projects/${projectId}/ai-roadmap`, {
+    const res = await apiFetch(`/todo/projects/${projectId}/ai-roadmap`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(aiRequestFields(model)),
     });
     if (!res.ok) throw new Error(await parseApiError(res));

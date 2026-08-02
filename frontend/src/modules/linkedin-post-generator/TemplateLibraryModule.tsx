@@ -4,20 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import {
   linkedinService,
+  TEMPLATE_TYPE_META,
   type LinkedInCategory,
   type LinkedInTemplate,
   type LinkedInTemplateType,
 } from '@/lib/services/linkedinService';
 import { INSPIRATION_POSTS, type InspirationPost } from './inspirationPosts';
 
-const TYPE_META: Record<LinkedInTemplateType, { label: string; badgeClass: string }> = {
-  prompt: { label: 'Prompt Template', badgeClass: 'bg-violet-500/10 text-violet-600 dark:text-violet-300' },
-  reference_post: { label: 'Reference Post', badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-300' },
-  creator_post: { label: 'Creator Post', badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-300' },
-  writing_style: { label: 'AI Writing Style', badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300' },
-  post_structure: { label: 'Post Structure', badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-300' },
-  custom: { label: 'Custom Template', badgeClass: 'bg-muted text-muted-foreground' },
-};
+const TYPE_META = TEMPLATE_TYPE_META;
 
 const SOURCE_META = {
   mine: { label: 'Mine', badgeClass: 'bg-blue-600/10 text-blue-600 dark:text-blue-300', icon: 'UserIcon' as const },
@@ -85,6 +79,7 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
   const [saveOriginalAs, setSaveOriginalAs] = useState<'reference_post' | 'creator_post'>('creator_post');
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   const refresh = async () => {
     setLoading(true);
@@ -112,6 +107,11 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
     setTimeout(() => setStatusMessage(''), 2500);
   };
 
+  const flashError = (err: unknown, fallback: string) => {
+    setErrorMessage(err instanceof Error ? err.message : fallback);
+    setTimeout(() => setErrorMessage(''), 4000);
+  };
+
   // ── Categories ─────────────────────────────────────────────────────────────
 
   const refreshCategories = async () => {
@@ -128,7 +128,7 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
       setNewCategoryInput('');
       await refreshCategories();
     } catch (err) {
-      console.error('Failed to add category:', err);
+      flashError(err, 'Failed to add category.');
     } finally {
       setAddingCategory(false);
     }
@@ -140,7 +140,7 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
       await linkedinService.deleteCategory(id);
       await refreshCategories();
     } catch (err) {
-      console.error('Failed to delete category:', err);
+      flashError(err, 'Failed to delete category.');
     } finally {
       setDeletingCategoryId(null);
     }
@@ -161,51 +161,71 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
 
   const saveEdit = async () => {
     if (editingId === null || !editDraft) return;
-    await linkedinService.updateTemplate(editingId, {
-      title: editDraft.title,
-      description: editDraft.description,
-      tags: editDraft.tags.split(',').map((t) => t.trim()).filter(Boolean),
-      content: editDraft.content,
-      category: editDraft.category,
-    });
-    setEditingId(null);
-    setEditDraft(null);
-    flash('Template updated');
-    notifyChanged();
+    try {
+      await linkedinService.updateTemplate(editingId, {
+        title: editDraft.title,
+        description: editDraft.description,
+        tags: editDraft.tags.split(',').map((t) => t.trim()).filter(Boolean),
+        content: editDraft.content,
+        category: editDraft.category,
+      });
+      setEditingId(null);
+      setEditDraft(null);
+      flash('Template updated');
+      notifyChanged();
+    } catch (err) {
+      flashError(err, 'Failed to update template.');
+    }
   };
 
   const toggleFavorite = async (tpl: LinkedInTemplate) => {
-    await linkedinService.updateTemplate(tpl.id, { isFavorite: !tpl.isFavorite });
-    notifyChanged();
+    try {
+      await linkedinService.updateTemplate(tpl.id, { isFavorite: !tpl.isFavorite });
+      notifyChanged();
+    } catch (err) {
+      flashError(err, 'Failed to update favorite.');
+    }
   };
 
   const handleDuplicate = async (id: number) => {
-    await linkedinService.duplicateTemplate(id);
-    flash('Template duplicated');
-    notifyChanged();
+    try {
+      await linkedinService.duplicateTemplate(id);
+      flash('Template duplicated');
+      notifyChanged();
+    } catch (err) {
+      flashError(err, 'Failed to duplicate template.');
+    }
   };
 
   const handleDelete = async (id: number) => {
     if (!window.confirm('Delete this template? This cannot be undone.')) return;
-    await linkedinService.deleteTemplate(id);
-    flash('Template deleted');
-    notifyChanged();
+    try {
+      await linkedinService.deleteTemplate(id);
+      flash('Template deleted');
+      notifyChanged();
+    } catch (err) {
+      flashError(err, 'Failed to delete template.');
+    }
   };
 
   const submitNewTemplate = async () => {
     if (!newDraft.title.trim() || !newDraft.content.trim()) return;
-    await linkedinService.addTemplate({
-      type: newDraft.type,
-      title: newDraft.title.trim(),
-      description: newDraft.description.trim() || undefined,
-      content: newDraft.content.trim(),
-      tags: newDraft.tags.split(',').map((t) => t.trim()).filter(Boolean),
-      category: newDraft.category || undefined,
-    });
-    setCreating(false);
-    setNewDraft({ type: 'prompt', title: '', description: '', tags: '', content: '', category: '' });
-    flash('Template created');
-    notifyChanged();
+    try {
+      await linkedinService.addTemplate({
+        type: newDraft.type,
+        title: newDraft.title.trim(),
+        description: newDraft.description.trim() || undefined,
+        content: newDraft.content.trim(),
+        tags: newDraft.tags.split(',').map((t) => t.trim()).filter(Boolean),
+        category: newDraft.category || undefined,
+      });
+      setCreating(false);
+      setNewDraft({ type: 'prompt', title: '', description: '', tags: '', content: '', category: '' });
+      flash('Template created');
+      notifyChanged();
+    } catch (err) {
+      flashError(err, 'Failed to create template.');
+    }
   };
 
   // ── Analyzer ───────────────────────────────────────────────────────────────
@@ -265,6 +285,8 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
       });
       flash('Saved both as templates');
       notifyChanged();
+    } catch (err) {
+      flashError(err, 'Failed to save templates.');
     } finally {
       setSavingTemplate(false);
     }
@@ -286,6 +308,8 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
       setSaveDraft(null);
       flash('Saved as template');
       notifyChanged();
+    } catch (err) {
+      flashError(err, 'Failed to save template.');
     } finally {
       setSavingTemplate(false);
     }
@@ -335,7 +359,7 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
         if (activeTab !== 'all' && item.template.type !== activeTab) return false;
         if (activeCategory !== 'all' && (item.template.category || '') !== activeCategory) return false;
         if (!q) return true;
-        const hay = `${item.template.title} ${item.template.content} ${item.template.tags.join(' ')}`.toLowerCase();
+        const hay = `${item.template.title} ${item.template.content} ${item.template.tags.join(' ')} ${item.template.description || ''} ${item.template.category || ''}`.toLowerCase();
         return hay.includes(q);
       }
       if (favoritesOnly) return false;
@@ -352,6 +376,11 @@ export default function TemplateLibraryModule({ onTemplatesChanged }: TemplateLi
       {statusMessage && (
         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-300">
           {statusMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+          {errorMessage}
         </div>
       )}
 

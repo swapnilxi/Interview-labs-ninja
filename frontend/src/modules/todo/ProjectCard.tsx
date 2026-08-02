@@ -26,6 +26,13 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
 
   const color = project.color || '#3b82f6';
 
+  // "Progress" = share of plan nodes already exported into actionable tasks.
+  const nodeCount = project.node_count || 0;
+  const exportedCount = project.exported_count || 0;
+  const progressPct = nodeCount > 0 ? Math.round((exportedCount / nodeCount) * 100) : 0;
+  const ringCircumference = 87.96;
+  const ringOffset = ringCircumference * (1 - progressPct / 100);
+
   const statusColors: Record<string, string> = {
     active: 'bg-emerald-500/10 text-emerald-500',
     paused: 'bg-amber-500/10 text-amber-500',
@@ -110,12 +117,12 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
                 ⭐ Top 20%
               </span>
             )}
-            <div className="relative w-8 h-8 flex items-center justify-center">
+            <div className="relative w-8 h-8 flex items-center justify-center" title={`${exportedCount}/${nodeCount} plan nodes exported to action`}>
               <svg className="w-full h-full transform -rotate-90">
                 <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="3" fill="transparent" className="text-muted/30" />
-                <circle cx="16" cy="16" r="14" stroke={color} strokeWidth="3" fill="transparent" strokeDasharray="87.96" strokeDashoffset="87.96" className="transition-all duration-1000" />
+                <circle cx="16" cy="16" r="14" stroke={color} strokeWidth="3" fill="transparent" strokeDasharray={ringCircumference} strokeDashoffset={ringOffset} className="transition-all duration-1000" />
               </svg>
-              <span className="absolute text-[8px] font-bold text-foreground">0%</span>
+              <span className="absolute text-[8px] font-bold text-foreground">{progressPct}%</span>
             </div>
           </div>
         </div>

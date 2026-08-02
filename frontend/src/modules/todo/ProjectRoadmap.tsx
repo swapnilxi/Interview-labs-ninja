@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { Project, projectService } from '@/lib/services/projectService';
+import { todoService } from '@/lib/services/todoService';
+import { quickTaskService } from '@/lib/services/quickTaskService';
 
 interface ProjectRoadmapProps {
   project: Project | null;
@@ -15,6 +17,29 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
   const [roadmap, setRoadmap] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [movedKeys, setMovedKeys] = useState<Set<string>>(new Set());
+  const [movingKey, setMovingKey] = useState<string | null>(null);
+
+  const handleMoveTask = async (key: string, phase: any, task: string, destination: 'smart' | 'quick') => {
+    if (!project || movingKey) return;
+    setMovingKey(key);
+    setError(null);
+    try {
+      const context = `From AI Roadmap: ${project.title} — Phase ${phase.name || ''}`.trim();
+      const created = destination === 'smart'
+        ? await todoService.createTask({ title: task, priority: 'p3', status: 'backlog', context })
+        : await quickTaskService.createTask({ title: task, source: 'moved_from_plan' });
+      if (created) {
+        setMovedKeys(prev => new Set(prev).add(key));
+      } else {
+        setError(`Failed to move "${task}" — please try again.`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to move task.');
+    } finally {
+      setMovingKey(null);
+    }
+  };
 
   const handleGenerate = async () => {
     if (!project) return;
@@ -160,24 +185,45 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                     <div>
                       <h4 className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Key Tasks</h4>
                       <ul className="space-y-1.5">
-                        {phase.key_tasks?.map((task: string, tIndex: number) => (
-                          <li key={tIndex} className="group flex items-start gap-2 p-1.5 rounded-md hover:bg-muted transition-smooth">
-                            <div className="w-3 h-3 rounded-sm border border-border mt-0.5 shrink-0" />
-                            <span className="text-[11px] text-foreground font-medium leading-tight">
-                              {task}
-                            </span>
-                            
-                            {/* Actions (Hidden until hover) */}
-                            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 ml-auto shrink-0 transition-opacity">
-                              <button title="Move to Smart To-Do" className="p-1 rounded text-muted-foreground hover:bg-blue-500/10 hover:text-blue-500 transition-smooth">
-                                <span className="text-[10px]">🧠</span>
-                              </button>
-                              <button title="Move to Quick Daily" className="p-1 rounded text-muted-foreground hover:bg-amber-500/10 hover:text-amber-500 transition-smooth">
-                                <span className="text-[10px]">⚡</span>
-                              </button>
-                            </div>
-                          </li>
-                        ))}
+                        {phase.key_tasks?.map((task: string, tIndex: number) => {
+                          const key = `${index}-${tIndex}`;
+                          const moved = movedKeys.has(key);
+                          const moving = movingKey === key;
+                          return (
+                            <li key={tIndex} className="group flex items-start gap-2 p-1.5 rounded-md hover:bg-muted transition-smooth">
+                              <div className="w-3 h-3 rounded-sm border border-border mt-0.5 shrink-0" />
+                              <span className={`text-[11px] font-medium leading-tight ${moved ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                                {task}
+                              </span>
+
+                              {/* Actions (Hidden until hover) */}
+                              {moved ? (
+                                <span className="ml-auto shrink-0 text-[9px] font-bold text-emerald-500">✓ moved</span>
+                              ) : (
+                                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 ml-auto shrink-0 transition-opacity">
+                                  <button
+                                    type="button"
+                                    title="Move to Smart To-Do"
+                                    disabled={moving}
+                                    onClick={() => handleMoveTask(key, phase, task, 'smart')}
+                                    className="p-1 rounded text-muted-foreground hover:bg-blue-500/10 hover:text-blue-500 transition-smooth disabled:opacity-50"
+                                  >
+                                    <span className="text-[10px]">🧠</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Move to Quick Daily"
+                                    disabled={moving}
+                                    onClick={() => handleMoveTask(key, phase, task, 'quick')}
+                                    className="p-1 rounded text-muted-foreground hover:bg-amber-500/10 hover:text-amber-500 transition-smooth disabled:opacity-50"
+                                  >
+                                    <span className="text-[10px]">⚡</span>
+                                  </button>
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   </div>

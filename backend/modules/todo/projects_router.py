@@ -21,9 +21,10 @@ import json
 from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from modules.auth.dependencies import get_current_user_id
 from modules.common.ai_client import AISettings
 
 class NodeUpdate(BaseModel):
@@ -60,7 +61,7 @@ from .projects_db import (
 from .db import create_task
 from .quick_db import create_quick_task
 
-router = APIRouter(prefix="/todo", tags=["projects"])
+router = APIRouter(prefix="/todo", tags=["projects"], dependencies=[Depends(get_current_user_id)])
 
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
@@ -108,8 +109,9 @@ def _get_ai_helpers():
 # ── Project CRUD ─────────────────────────────────────────────────────────────
 
 @router.post("/projects")
-async def create_project_endpoint(payload: ProjectCreate) -> dict:
+async def create_project_endpoint(payload: ProjectCreate, user_id: int = Depends(get_current_user_id)) -> dict:
     return create_project(
+        user_id=user_id,
         title=payload.title,
         description=payload.description,
         priority=payload.priority,
@@ -120,24 +122,24 @@ async def create_project_endpoint(payload: ProjectCreate) -> dict:
 
 
 @router.get("/projects")
-async def list_projects_endpoint() -> List[dict]:
-    return get_all_projects()
+async def list_projects_endpoint(user_id: int = Depends(get_current_user_id)) -> List[dict]:
+    return get_all_projects(user_id)
 
 
 @router.patch("/projects/{project_id}")
-async def update_project_endpoint(project_id: int, payload: ProjectUpdate) -> dict:
+async def update_project_endpoint(project_id: int, payload: ProjectUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
     updates = payload.model_dump(exclude_none=True)
     if "is_top_20" in updates:
         updates["pareto_locked"] = 1
-    project = update_project(project_id, **updates)
+    project = update_project(project_id, user_id, **updates)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
 
 
 @router.delete("/projects/{project_id}")
-async def delete_project_endpoint(project_id: int) -> dict:
-    if not delete_project(project_id):
+async def delete_project_endpoint(project_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    if not delete_project(project_id, user_id):
         raise HTTPException(status_code=404, detail="Project not found")
     return {"status": "deleted", "id": project_id}
 
@@ -145,37 +147,38 @@ async def delete_project_endpoint(project_id: int) -> dict:
 # ── Project Nodes ────────────────────────────────────────────────────────────
 
 @router.get("/projects/{project_id}/tree")
-async def get_project_tree_endpoint(project_id: int) -> List[dict]:
-    p = get_project(project_id)
+async def get_project_tree_endpoint(project_id: int, user_id: int = Depends(get_current_user_id)) -> List[dict]:
+    p = get_project(project_id, user_id)
     if not p:
         raise HTTPException(status_code=404, detail="Project not found")
-    return get_project_node_tree(project_id)
+    return get_project_node_tree(project_id, user_id)
 
 
 @router.post("/projects/{project_id}/nodes")
-async def create_node_endpoint(project_id: int, payload: NodeCreate) -> dict:
-    p = get_project(project_id)
-    if not p:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return create_project_node(
+async def create_node_endpoint(project_id: int, payload: NodeCreate, user_id: int = Depends(get_current_user_id)) -> dict:
+    node = create_project_node(
         project_id=project_id,
+        user_id=user_id,
         title=payload.title,
         parent_node_id=payload.parent_node_id,
         node_type=payload.node_type,
     )
+    if node is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return node
 
 
 @router.post("/project-nodes/{node_id}/dive-deeper")
-async def dive_deeper_node_endpoint(node_id: int, payload: AIRequest) -> dict:
+async def dive_deeper_node_endpoint(node_id: int, payload: AIRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """AI generates 3-5 strategic subtopics as child nodes."""
     _call_ai, _extract_json_array = _get_ai_helpers()
 
-    node = get_project_node(node_id)
+    node = get_project_node(node_id, user_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
-    project = get_project(node["project_id"])
-    siblings = get_node_sibling_titles(node["parent_node_id"], node["project_id"])
+    project = get_project(node["project_id"], user_id)
+    siblings = get_node_sibling_titles(node["parent_node_id"], node["project_id"], user_id)
 
     prompt = f"""You are a strategic project planner. Break this topic into 3-5 strategic subtopics or phases.
 
@@ -198,6 +201,7 @@ No extra text, no markdown blocks, just raw JSON array."""
 
     children = create_project_nodes_batch(
         project_id=node["project_id"],
+        user_id=user_id,
         parent_node_id=node_id,
         nodes_data=subtopics,
         generation_type="dive_deeper",
@@ -206,15 +210,15 @@ No extra text, no markdown blocks, just raw JSON array."""
 
 
 @router.post("/project-nodes/{node_id}/chunk")
-async def chunk_node_endpoint(node_id: int, payload: AIRequest) -> dict:
+async def chunk_node_endpoint(node_id: int, payload: AIRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """AI breaks node into 3-5 concrete action items."""
     _call_ai, _extract_json_array = _get_ai_helpers()
 
-    node = get_project_node(node_id)
+    node = get_project_node(node_id, user_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
-    project = get_project(node["project_id"])
+    project = get_project(node["project_id"], user_id)
 
     prompt = f"""You are a task breakdown expert. Convert this project topic into 3-5 concrete, actionable tasks.
 
@@ -235,6 +239,7 @@ No extra text."""
 
     children = create_project_nodes_batch(
         project_id=node["project_id"],
+        user_id=user_id,
         parent_node_id=node_id,
         nodes_data=actions,
         generation_type="chunk",
@@ -243,69 +248,71 @@ No extra text."""
 
 
 @router.post("/project-nodes/{node_id}/move-to-smart")
-async def move_node_to_smart_endpoint(node_id: int) -> dict:
+async def move_node_to_smart_endpoint(node_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
     """Export project node as a Smart To-Do task."""
-    node = get_project_node(node_id)
+    node = get_project_node(node_id, user_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
-    project = get_project(node["project_id"])
+    project = get_project(node["project_id"], user_id)
     new_task = create_task(
+        user_id=user_id,
         title=node["title"],
         context=f"From project: {project['title']}",
     )
-    update_project_node(node_id, exported_to_smart_todo=1, exported_task_id=new_task["id"])
+    update_project_node(node_id, user_id, exported_to_smart_todo=1, exported_task_id=new_task["id"])
     return {"status": "exported", "task": new_task}
 
 
 @router.post("/project-nodes/{node_id}/move-to-quick")
-async def move_node_to_quick_endpoint(node_id: int) -> dict:
+async def move_node_to_quick_endpoint(node_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
     """Export project node as today's quick task."""
-    node = get_project_node(node_id)
+    node = get_project_node(node_id, user_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
     today_str = date.today().isoformat()
     qt = create_quick_task(
+        user_id=user_id,
         title=node["title"],
         task_date=today_str,
         source="moved_from_plan",
     )
-    update_project_node(node_id, exported_to_quick=1)
+    update_project_node(node_id, user_id, exported_to_quick=1)
     return {"status": "exported", "quick_task": qt}
 
 
 @router.delete("/project-nodes/{node_id}")
-async def delete_project_node_endpoint(node_id: int) -> dict:
-    if not delete_project_node(node_id):
+async def delete_project_node_endpoint(node_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    if not delete_project_node(node_id, user_id):
         raise HTTPException(status_code=404, detail="Node not found")
     return {"status": "deleted", "id": node_id}
 
 
 @router.get("/project-nodes/all")
-async def get_all_project_nodes_endpoint() -> List[dict]:
+async def get_all_project_nodes_endpoint(user_id: int = Depends(get_current_user_id)) -> List[dict]:
     """Fetch all tasks/subtasks across active projects."""
-    return get_all_flat_project_nodes()
+    return get_all_flat_project_nodes(user_id)
 
 
 @router.patch("/project-nodes/{node_id}")
-async def update_project_node_endpoint(node_id: int, payload: NodeUpdate) -> dict:
+async def update_project_node_endpoint(node_id: int, payload: NodeUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
     """Update a project node (e.g. title, quadrant, order_index)."""
     updates = payload.model_dump(exclude_none=True)
     if "is_top_20" in updates:
         updates["pareto_locked"] = 1
-    updated = update_project_node(node_id, **updates)
+    updated = update_project_node(node_id, user_id, **updates)
     if not updated:
         raise HTTPException(status_code=404, detail="Node not found")
     return updated
 
 
 @router.post("/project-nodes/eisenhower-auto")
-async def eisenhower_auto_nodes_endpoint(payload: AIRequest) -> dict:
+async def eisenhower_auto_nodes_endpoint(payload: AIRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """AI assigns quadrants to project tasks/subtasks across all active projects."""
     _call_ai, _extract_json_array = _get_ai_helpers()
 
-    nodes = get_all_flat_project_nodes()
+    nodes = get_all_flat_project_nodes(user_id)
     if not nodes:
         return {"assignments": []}
 
@@ -346,16 +353,16 @@ Return ONLY a valid JSON array:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Eisenhower sort failed: {exc}")
 
-    bulk_update_node_quadrants(assignments)
+    bulk_update_node_quadrants(user_id, assignments)
     return {"assignments": assignments}
 
 
 @router.post("/projects/eisenhower-auto")
-async def eisenhower_auto_projects_endpoint(payload: AIRequest) -> dict:
+async def eisenhower_auto_projects_endpoint(payload: AIRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """AI assigns quadrants to all active projects."""
     _call_ai, _extract_json_array = _get_ai_helpers()
 
-    projects = get_all_projects()
+    projects = get_all_projects(user_id)
     active = [p for p in projects if p["status"] == "active"]
     if not active:
         return {"assignments": []}
@@ -392,20 +399,20 @@ Return ONLY a valid JSON array:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Eisenhower sort failed: {exc}")
 
-    bulk_update_project_quadrants(assignments)
+    bulk_update_project_quadrants(user_id, assignments)
     return {"assignments": assignments}
 
 
 @router.post("/projects/{project_id}/ai-roadmap")
-async def ai_roadmap_endpoint(project_id: int, payload: AIRequest) -> dict:
+async def ai_roadmap_endpoint(project_id: int, payload: AIRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """AI generates a phased roadmap for a project."""
     _call_ai, _extract_json_array = _get_ai_helpers()
 
-    project = get_project(project_id)
+    project = get_project(project_id, user_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    existing_nodes = get_project_node_tree(project_id)
+    existing_nodes = get_project_node_tree(project_id, user_id)
     node_titles = [n["title"] for n in existing_nodes] if existing_nodes else []
 
     prompt = f"""You are a project manager. Create a phased roadmap for this project.

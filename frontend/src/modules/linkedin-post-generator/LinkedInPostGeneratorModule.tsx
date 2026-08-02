@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import {
   linkedinService,
+  TEMPLATE_TYPE_META,
   type LinkedInCategory,
   type LinkedInTemplate,
   type RefineAction,
@@ -108,8 +109,11 @@ function TemplateMultiSelect({
           {selected.map((tpl) => (
             <span
               key={tpl.id}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
             >
+              <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${TEMPLATE_TYPE_META[tpl.type].badgeClass}`}>
+                {TEMPLATE_TYPE_META[tpl.type].label}
+              </span>
               {tpl.title}
               <button
                 type="button"
@@ -140,6 +144,9 @@ function TemplateMultiSelect({
                   onChange={() => toggle(tpl.id)}
                   className="accent-primary"
                 />
+                <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${TEMPLATE_TYPE_META[tpl.type].badgeClass}`}>
+                  {TEMPLATE_TYPE_META[tpl.type].label}
+                </span>
                 <span className="truncate">{tpl.title}</span>
               </label>
             ))
@@ -192,28 +199,30 @@ export default function LinkedInPostGeneratorModule() {
   };
 
   useEffect(() => {
-    linkedinService.getCategories().then((cats) => {
-      setCategories(cats);
-      if (cats.length > 0) setCategory((prev) => prev || cats[0].name);
-    });
+    refreshCategories();
     refreshTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const [categoryError, setCategoryError] = useState('');
 
   const refreshCategories = async () => {
     const cats = await linkedinService.getCategories();
     setCategories(cats);
+    setCategory((prev) => (cats.some((c) => c.name === prev) ? prev : cats[0]?.name || ''));
   };
 
   const handleAddCategory = async () => {
     const name = newCategoryInput.trim();
     if (!name) return;
     setAddingCategory(true);
+    setCategoryError('');
     try {
       await linkedinService.addCategory(name);
       setNewCategoryInput('');
       await refreshCategories();
     } catch (err) {
-      console.error('Failed to add category:', err);
+      setCategoryError(err instanceof Error ? err.message : 'Failed to add category.');
     } finally {
       setAddingCategory(false);
     }
@@ -221,11 +230,12 @@ export default function LinkedInPostGeneratorModule() {
 
   const handleDeleteCategory = async (id: number) => {
     setDeletingCategoryId(id);
+    setCategoryError('');
     try {
       await linkedinService.deleteCategory(id);
       await refreshCategories();
     } catch (err) {
-      console.error('Failed to delete category:', err);
+      setCategoryError(err instanceof Error ? err.message : 'Failed to delete category.');
     } finally {
       setDeletingCategoryId(null);
     }
@@ -444,6 +454,7 @@ export default function LinkedInPostGeneratorModule() {
                     {addingCategory ? '…' : 'Add'}
                   </button>
                 </div>
+                {categoryError && <p className="mt-2 text-xs text-destructive">{categoryError}</p>}
               </div>
             )}
           </div>

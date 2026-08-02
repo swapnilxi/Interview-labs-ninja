@@ -5,7 +5,6 @@ import Icon from '@/components/ui/AppIcon';
 import TaskNode from './TaskNode';
 import FilterBar from './FilterBar';
 import AddTaskModal from './AddTaskModal';
-import Breadcrumb from './Breadcrumb';
 import {
   type Task,
   type TaskStatus,
@@ -49,12 +48,12 @@ export default function TaskTree({ model }: TaskTreeProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showBrainDumpModal, setShowBrainDumpModal] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddTitle, setQuickAddTitle] = useState('');
   const [quickAddLoading, setQuickAddLoading] = useState(false);
   const quickAddInputRef = useRef<HTMLInputElement>(null);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [focusedTaskId, setFocusedTaskId] = useState<number | null>(null);
   const [undoInfo, setUndoInfo] = useState<{ parentId: number; previousChildren: Task[] } | null>(null);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [resumeTask, setResumeTask] = useState<Task | null>(null);
@@ -413,6 +412,14 @@ export default function TaskTree({ model }: TaskTreeProps) {
             <span className="text-sm leading-none">+</span> New Todo
           </button>
 
+          <button
+            onClick={() => setShowBrainDumpModal(true)}
+            title="Paste a text dump and let AI turn it into structured tasks"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/60 text-foreground border border-border font-semibold text-xs hover:bg-muted hover:shadow-md hover:scale-[1.02] transition-smooth active:scale-95"
+          >
+            🧠 Brain Dump
+          </button>
+
           {!activePlan ? (
             <button
               onClick={() => setShowStartDayModal(true)}
@@ -596,11 +603,6 @@ export default function TaskTree({ model }: TaskTreeProps) {
         </div>
       )}
 
-      {/* Breadcrumb (shown when a task at L3+ is focused) */}
-      {focusedTaskId && (
-        <Breadcrumb taskId={focusedTaskId} allTasks={tasks} onNavigate={setFocusedTaskId} />
-      )}
-
       {/* Loading state */}
       {loading && (
         <div className="flex flex-col gap-2">
@@ -708,6 +710,18 @@ export default function TaskTree({ model }: TaskTreeProps) {
         <AddTaskModal
           onClose={() => setShowAddModal(false)}
           onCreated={handleTaskCreated}
+        />
+      )}
+
+      {/* Brain Dump Modal — paste free text, AI parses it into a task tree */}
+      {showBrainDumpModal && (
+        <BrainDumpModal
+          model={model}
+          onClose={() => setShowBrainDumpModal(false)}
+          onTasksSaved={() => {
+            setShowBrainDumpModal(false);
+            loadTasks();
+          }}
         />
       )}
 
