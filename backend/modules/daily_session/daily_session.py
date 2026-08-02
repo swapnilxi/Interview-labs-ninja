@@ -495,11 +495,25 @@ async def generate_lab_from_youtube(payload: GenerateFromYoutubePayload) -> dict
     prompt = _build_youtube_prompt(payload, transcript, metadata)
     try:
         response_text = call_ai_text(prompt, payload)
-        result = extract_json_object(response_text)
     except Exception as exc:
         raise HTTPException(
             status_code=400,
             detail=f"No API key configured or all providers failed. Add a key in Config. Last error: {exc}",
+        )
+
+    try:
+        result = extract_json_object(response_text)
+        subtopic = result["subtopic"]
+        if not isinstance(subtopic, dict) or not subtopic.get("name"):
+            raise ValueError("'subtopic' is missing a 'name'")
+        if not isinstance(result.get("content_markdown"), str):
+            raise ValueError("'content_markdown' is missing or not a string")
+        if not isinstance(result.get("questions", []), list):
+            raise ValueError("'questions' is not a list")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"The AI response was malformed and couldn't be parsed. Try again. ({exc})",
         )
     return result
 
