@@ -29,6 +29,7 @@ interface TaskNodeProps {
   onUndoAvailable: (parentId: number, previousChildren: Task[]) => void;
   searchQuery?: string;
   onResumeTask?: (task: Task) => void;
+  revealDelays?: Record<number, number>;
 }
 
 export default function TaskNode({

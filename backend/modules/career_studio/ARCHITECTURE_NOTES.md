@@ -69,8 +69,15 @@ career_studio/
 3. Point `CAREER_STUDIO_DB_PATH` at the new home; the schema self-creates on boot.
 4. Re-add the sidebar entry + the two `main.py` lines in the new host.
 
-## Roadmap (not built in Milestone 1)
+## Built
 
-Portfolio Studio · Job-Description Matcher · Cover Letters · GitHub/LinkedIn sync · Publishing/hosting
-(`/u/{username}`) · Comments · Analytics · Template marketplace · Admin (needs a role system) ·
-PDF export (needs WeasyPrint/headless Chrome) · HTML sanitization (needs `bleach`/DOMPurify).
+- **Resume Builder** (`router.py`, `db.py`, `versions.py`) — CRUD, sections, immutable versioning, import.
+- **Portfolio Builder** (`portfolio_router.py`, `portfolio_db.py`, `portfolio_versions.py`) — widget CRUD,
+  theme, immutable versioning; portfolio analyzer in `analysis_router.py`.
+- Shared AI: resume/portfolio analyzers, streamed section rewrite, copilot, `ai_runs` audit log.
+
+## Roadmap (not built yet)
+
+Job-Description Matcher · Cover Letters · GitHub/LinkedIn sync · Publishing/hosting (`/u/{username}`) ·
+Comments · Analytics · Template marketplace · Admin (needs a role system) · PDF export (needs
+WeasyPrint/headless Chrome) · HTML sanitization (needs `bleach`/DOMPurify).

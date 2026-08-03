@@ -12,14 +12,25 @@ const PROVIDERS = [
     color: 'text-blue-500',
     bg: 'bg-blue-500/10',
     models: [
-      { id: 'gemini-flash-latest', name: 'Gemini Flash (Latest)', badge: 'Fast · Auto-updates · Recommended' },
-      { id: 'gemini-pro-latest',   name: 'Gemini Pro (Latest)',   badge: 'High Quality · Auto-updates' },
-      { id: 'gemini-3.5-flash',       name: 'Gemini 3.5 Flash',        badge: 'Newest Gen' },
-      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro',          badge: 'Preview · Most Capable' },
-      { id: 'gemini-3-pro-preview',   name: 'Gemini 3 Pro',            badge: 'Preview' },
-      { id: 'gemini-2.5-flash',       name: 'Gemini 2.5 Flash',        badge: 'Stable' },
-      { id: 'gemini-2.5-pro',         name: 'Gemini 2.5 Pro',          badge: 'Stable · High Quality' },
-      { id: 'gemini-2.5-flash-lite',  name: 'Gemini 2.5 Flash-Lite',   badge: 'Cheapest' },
+      { id: 'gemini-flash-latest', name: 'Gemini Flash (Latest)', badge: 'Fast · Auto-updates · Recommended', tier: 'free' },
+      { id: 'gemini-pro-latest',   name: 'Gemini Pro (Latest)',   badge: 'High Quality · Auto-updates', tier: 'pro' },
+      { id: 'gemini-3.5-flash',       name: 'Gemini 3.5 Flash',        badge: 'Newest Gen', tier: 'cheap' },
+      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro',          badge: 'Preview · Most Capable', tier: 'pro' },
+      { id: 'gemini-3-pro-preview',   name: 'Gemini 3 Pro',            badge: 'Preview', tier: 'pro' },
+      { id: 'gemini-2.5-flash',       name: 'Gemini 2.5 Flash',        badge: 'Stable', tier: 'free' },
+      { id: 'gemini-2.5-pro',         name: 'Gemini 2.5 Pro',          badge: 'Stable · High Quality', tier: 'pro' },
+    ],
+  },
+  {
+    key: 'Vertex',
+    label: 'Vertex AI (GCP $300)',
+    icon: 'CloudIcon',
+    color: 'text-sky-500',
+    bg: 'bg-sky-500/10',
+    models: [
+      { id: 'vertex_gemini_gemini-2.5-flash', name: 'Gemini 2.5 Flash · Vertex', badge: 'Uses GCP $300 credits', tier: 'cheap' },
+      { id: 'vertex_gemini_gemini-2.5-pro',   name: 'Gemini 2.5 Pro · Vertex',   badge: 'Uses GCP $300 credits', tier: 'pro' },
+      { id: 'vertex_gemini_gemini-2.0-flash', name: 'Gemini 2.0 Flash · Vertex', badge: 'Uses GCP $300 credits', tier: 'cheap' },
     ],
   },
   {
@@ -29,8 +40,8 @@ const PROVIDERS = [
     color: 'text-teal-500',
     bg: 'bg-teal-500/10',
     models: [
-      { id: 'deepseek-chat',     name: 'DeepSeek V3',   badge: 'Very Cheap' },
-      { id: 'deepseek-reasoner', name: 'DeepSeek R1',   badge: 'Reasoning · Cheap' },
+      { id: 'deepseek-chat',     name: 'DeepSeek V3',   badge: 'Very Cheap', tier: 'cheap' },
+      { id: 'deepseek-reasoner', name: 'DeepSeek R1',   badge: 'Reasoning · Cheap', tier: 'cheap' },
     ],
   },
   {
@@ -40,10 +51,10 @@ const PROVIDERS = [
     color: 'text-orange-500',
     bg: 'bg-orange-500/10',
     models: [
-      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B',   badge: 'Free · Powerful' },
-      { id: 'llama-3.1-8b-instant',    name: 'Llama 3.1 8B',    badge: 'Free · Very Fast' },
-      { id: 'gemma2-9b-it',            name: 'Gemma 2 9B',      badge: 'Free' },
-      { id: 'mixtral-8x7b-32768',      name: 'Mixtral 8x7B',    badge: 'Free · MoE' },
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B',   badge: 'Powerful', tier: 'free' },
+      { id: 'llama-3.1-8b-instant',    name: 'Llama 3.1 8B',    badge: 'Very Fast', tier: 'free' },
+      { id: 'gemma2-9b-it',            name: 'Gemma 2 9B',      badge: 'Lightweight', tier: 'free' },
+      { id: 'mixtral-8x7b-32768',      name: 'Mixtral 8x7B',    badge: 'MoE', tier: 'free' },
     ],
   },
   {
@@ -53,8 +64,8 @@ const PROVIDERS = [
     color: 'text-emerald-500',
     bg: 'bg-emerald-500/10',
     models: [
-      { id: 'gpt-4o',      name: 'GPT-4o',      badge: 'Premium' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', badge: 'Cost Effective' },
+      { id: 'gpt-4o',      name: 'GPT-4o',      badge: 'Premium', tier: 'pro' },
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', badge: 'Cost Effective', tier: 'cheap' },
     ],
   },
   {
@@ -64,8 +75,8 @@ const PROVIDERS = [
     color: 'text-violet-500',
     bg: 'bg-violet-500/10',
     models: [
-      { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', badge: 'State-of-the-Art' },
-      { id: 'claude-3-5-haiku-latest',  name: 'Claude 3.5 Haiku',  badge: 'Fast' },
+      { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', badge: 'State-of-the-Art', tier: 'pro' },
+      { id: 'claude-3-5-haiku-latest',  name: 'Claude 3.5 Haiku',  badge: 'Fast', tier: 'cheap' },
     ],
   },
   {
@@ -75,12 +86,29 @@ const PROVIDERS = [
     color: 'text-slate-400',
     bg: 'bg-slate-500/10',
     models: [
-      { id: 'ollama', name: 'Ollama — use configured model', badge: 'Local · Free' },
+      { id: 'ollama', name: 'Ollama — use configured model', badge: 'Local', tier: 'free' },
     ],
   },
 ];
 
 const ALL_MODELS = PROVIDERS.flatMap(p => p.models.map(m => ({ ...m, provider: p.key })));
+
+/** Pricing tier → small colored chip. free = usable at $0, cheap = low-cost paid, pro = premium paid. */
+const TIER_CHIP: Record<string, { label: string; cls: string }> = {
+  free:  { label: 'Free',  cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
+  cheap: { label: 'Cheap', cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
+  pro:   { label: 'Pro',   cls: 'bg-sky-500/15 text-sky-600 dark:text-sky-400' },
+};
+
+function TierChip({ tier }: { tier?: string }) {
+  const chip = tier ? TIER_CHIP[tier] : undefined;
+  if (!chip) return null;
+  return (
+    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide leading-none shrink-0 ${chip.cls}`}>
+      {chip.label}
+    </span>
+  );
+}
 
 const API_KEY_FIELDS = [
   { key: 'geminiKey',     label: 'Google Gemini API Key',    placeholder: 'AIzaSy…',     note: 'Required for Gemini models',   provider: 'Google'    },
@@ -90,6 +118,12 @@ const API_KEY_FIELDS = [
   { key: 'anthropicKey',  label: 'Anthropic Claude API Key', placeholder: 'sk-ant-…',    note: 'Required for Claude models',   provider: 'Anthropic' },
 ] as const;
 
+interface ModelOption { value: string; name: string; badge: string; tier?: string }
+
+/**
+ * Custom dropdown (not a native <select>) so each model row can show a small
+ * colored tier chip — native <option> elements only render plain text.
+ */
 function ModelSelect({
   id, value, onChange, ollamaModels, currentOllamaModel,
 }: {
@@ -99,32 +133,91 @@ function ModelSelect({
   ollamaModels: string[];
   currentOllamaModel: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
   const ollamaOptions = Array.from(new Set([...(currentOllamaModel ? [currentOllamaModel] : []), ...ollamaModels]));
+  const groups: { label: string; items: ModelOption[] }[] = [
+    ...PROVIDERS.filter(p => p.key !== 'Ollama').map(p => ({
+      label: p.label,
+      items: p.models.map(m => ({ value: m.id, name: m.name, badge: m.badge, tier: m.tier })),
+    })),
+    {
+      label: 'Ollama (Local)',
+      items: ollamaOptions.length === 0
+        ? [{ value: 'ollama', name: 'Ollama — use configured model', badge: 'Local', tier: 'free' }]
+        : ollamaOptions.map(name => ({ value: `ollama::${name}`, name, badge: 'Local', tier: 'free' })),
+    },
+  ];
+
+  const selected = groups.flatMap(g => g.items).find(i => i.value === value);
 
   return (
-    <select
-      id={id}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring transition-smooth"
-    >
-      {PROVIDERS.filter(p => p.key !== 'Ollama').map(p => (
-        <optgroup key={p.key} label={`── ${p.label}`}>
-          {p.models.map(m => (
-            <option key={m.id} value={m.id}>{m.name} ({m.badge})</option>
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        id={id}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring transition-smooth"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          {selected ? (
+            <>
+              <span className="truncate">{selected.name}</span>
+              <TierChip tier={selected.tier} />
+            </>
+          ) : (
+            <span className="text-muted-foreground">Select a model…</span>
+          )}
+        </span>
+        <Icon name="ChevronUpDownIcon" size={16} className="text-muted-foreground shrink-0" />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute z-30 mt-1 w-full max-h-[320px] overflow-auto rounded-md border border-border bg-popover py-1 shadow-lg"
+        >
+          {groups.map(g => (
+            <div key={g.label}>
+              <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g.label}</div>
+              {g.items.map(it => (
+                <button
+                  key={it.value}
+                  type="button"
+                  role="option"
+                  aria-selected={it.value === value}
+                  onClick={() => { onChange(it.value); setOpen(false); }}
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 text-left transition-smooth hover:bg-muted ${it.value === value ? 'bg-muted/60' : ''}`}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="truncate text-sm text-foreground">{it.name}</span>
+                    <span className="truncate text-[11px] text-muted-foreground">{it.badge}</span>
+                  </span>
+                  <TierChip tier={it.tier} />
+                </button>
+              ))}
+            </div>
           ))}
-        </optgroup>
-      ))}
-      <optgroup label="── Ollama (Local)">
-        {ollamaOptions.length === 0 ? (
-          <option value="ollama">Ollama — use configured model (Local · Free)</option>
-        ) : (
-          ollamaOptions.map(name => (
-            <option key={name} value={`ollama::${name}`}>{name} (Local · Free)</option>
-          ))
-        )}
-      </optgroup>
-    </select>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -272,10 +272,14 @@ worth picking up in a follow-up pass:
 ## Career Studio Module (`/career`)
 
 A self-contained "AI Career Studio" reachable at `/career` (menu + submenu in the sidebar).
-**Milestone 1 = the resume vertical slice**: a two-panel resume builder with debounced autosave,
-git-like immutable **versioning** (snapshot / restore / clone / branch), an **AI analyzer**
-(ATS + dimension scores + fixes), inline **AI section rewrite** (streamed), an **AI copilot**
-(reuses the labs' copilot shell), and PDF/DOCX/text **import** (AI-structured with a diff preview).
+**Resume Builder**: a two-panel resume builder with debounced autosave, git-like immutable
+**versioning** (snapshot / restore / clone / branch), an **AI analyzer** (ATS + dimension scores +
+fixes), inline **AI section rewrite** (streamed), an **AI copilot** (reuses the labs' copilot
+shell), and PDF/DOCX/text **import** (AI-structured with a diff preview).
+**Portfolio Builder** (`/career/portfolio`): a widget-based one-page portfolio (hero, projects,
+skills, stats, contact, …) with drag-drop reorder, theme (accent/font), live preview, the same
+immutable versioning, an **AI portfolio analyzer** (design/UX/branding/recruiter-friendliness), and
+the AI copilot.
 
 It owns a **separate SQLite database** (`backend/modules/career_studio/career_studio.sqlite3`, raw
 `sqlite3` — no ORM) so the module is lift-and-shift portable; see
@@ -283,13 +287,38 @@ It owns a **separate SQLite database** (`backend/modules/career_studio/career_st
 "spec-vs-repo" translation table. It's **login-required** (mirrors the `todo` module's auth +
 per-user scoping via `Depends(get_current_user_id)`); there's no guest/local-IndexedDB mode yet.
 
+### Spec vs. reality (what we changed from the original spec)
+
+The module was specced against a generic stack; we translated its intent to this repo's real
+conventions. Full backend-focused version in `career_studio/ARCHITECTURE_NOTES.md`.
+
+| # | Original spec assumed | Reality of this app | What we built |
+|---|---|---|---|
+| 1 | React Router, `routes.tsx`, `RouteObject[]` | Next.js 15 App Router (file-based) | Pages under `src/app/career/**/page.tsx` |
+| 2 | SQLAlchemy ORM + repositories | Raw `sqlite3`, `schema.register(cursor)` + hand CRUD | Raw sqlite3 in `db.py`/`versions.py`/`analysis_db.py` |
+| 3 | Separate `career_studio.db` (new engine) | Single shared `lab_ninja.sqlite3` | Kept it separate — `career_studio.sqlite3`, own `init_career_db()` |
+| 4 | `/api/v1/career/` global prefix | No global prefix; each module owns its path | Router `prefix="/career"` |
+| 5 | Zustand/Redux + React Query everywhere | Plain `useState`/`useEffect`, no store | Added Zustand (new dep) for builder state only |
+| 6 | shadcn / MUI kit | Custom Tailwind tokens + Heroicons | Reused `bg-card`/`text-foreground`/`AppIcon` |
+| 7 | `registerConfigSection()` registry | Monolithic Config page, no registry | Reuse `settingsService` values directly |
+| 8 | New `<CopilotSidebar>` + `useCopilot()` | `LabCopilot` shell; `TodoCopilot` is the wired one | `CareerCopilot` reuses the shell → `/career/copilot/ask` |
+| 9 | `{ data, meta }` envelope | Raw JSON objects | Raw JSON (`{"resume":…}`, bare arrays) |
+| 10 | Provider registry reading keys from DB | Keys ride per-request via `AISettings`, never stored | Request models subclass `AISettings` |
+| 11 | `get_current_user` + admin roles | JWT `get_current_user_id`; no roles | Mirrored `todo` (user_id scoping); admin deferred |
+| 12 | Autosave every 1.5s → new immutable version | Mutable rows are the idiom | Mutable draft autosave; immutable checkpoints on demand |
+| 13 | Own axios client with `/career` prefix | Shared `apiFetch`/`apiJson` (auto-attaches JWT) | Reused `apiFetch` — no new HTTP client |
+| 14 | `bleach` / `DOMPurify` for HTML | Not installed | Not needed for resume slice; flagged for portfolio phase |
+| 15 | PDF export (WeasyPrint/headless Chrome) | Neither installed | Deferred/flagged as roadmap blocker |
+| 16 | Build all 10 phases at once | — | Scoped to the resume vertical slice; rest is a roadmap |
+
 ### Backend layout (`backend/modules/career_studio/`)
 
 | File | Responsibility |
 |---|---|
 | `router.py` | `/career` resume CRUD, sections, versioning (snapshot/clone/branch/restore), import. |
-| `analysis_router.py` | `/career` AI analyzer, streamed section rewrite, and copilot ask. |
-| `db.py` / `versions.py` / `analysis_db.py` | Raw-sqlite CRUD against the separate DB; immutable version snapshots; analysis + `ai_runs` audit log. |
+| `portfolio_router.py` | `/career/portfolios` CRUD, widgets, versioning; portfolio analyzer lives in `analysis_router.py`. |
+| `analysis_router.py` | `/career` AI resume + portfolio analyzers, streamed section rewrite, and copilot ask. |
+| `db.py` / `versions.py` / `portfolio_db.py` / `portfolio_versions.py` / `analysis_db.py` | Raw-sqlite CRUD against the separate DB (resume + portfolio); immutable version snapshots; analysis + `ai_runs` audit log. |
 | `schema.py` | `register(cursor)` DDL (called by `db.init_career_db()`, **not** `common/db.py`). |
 | `prompt_builder.py` / `llm.py` / `ai_runs.py` | Pure prompts; thin wrapper over `common.ai_client`; per-call audit timer. |
 
@@ -301,8 +330,9 @@ helpers), Zustand store `frontend/src/modules/career/store/resumeStore.ts`, comp
 Two lines in `backend/main.py` (include the routers + `init_career_db()` in the lifespan) and one
 collapsible menu/submenu in `frontend/src/modules/common/Sidebar.tsx`. Everything else is new files.
 
-### Roadmap (not built in Milestone 1)
-Portfolio Studio, Job-Description Matcher, Cover Letters, GitHub/LinkedIn sync, publishing/hosting
-(`/u/{username}`), comments, analytics, template marketplace, admin (needs a role system), PDF export
-(needs WeasyPrint/headless Chrome), and HTML sanitization (needs `bleach`/DOMPurify).
+### Roadmap (not built yet)
+Job-Description Matcher, Cover Letters, GitHub/LinkedIn sync, publishing/hosting (`/u/{username}`),
+comments, analytics, template marketplace, admin (needs a role system), PDF export (needs
+WeasyPrint/headless Chrome), and HTML sanitization (needs `bleach`/DOMPurify, before rendering any
+user-authored HTML). Built so far: **Resume Builder** and **Portfolio Builder**.
 

@@ -103,11 +103,63 @@ def register(cursor: sqlite3.Cursor) -> None:
         )
     """)
 
-    # Helpful indexes for the common per-user / per-resume lookups.
+    # ── Portfolio: mirrors the resume model (master + immutable versions +
+    #    widgets). theme_json holds portfolio-level styling (accent, font, …).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS portfolio_master (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            current_version_id TEXT,
+            current_draft_id TEXT,
+            theme_json TEXT,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            deleted_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS portfolio_versions (
+            id TEXT PRIMARY KEY,
+            master_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            parent_version_id TEXT,
+            branch_name TEXT,
+            label TEXT,
+            is_immutable INTEGER NOT NULL DEFAULT 0,
+            is_draft INTEGER NOT NULL DEFAULT 0,
+            source TEXT NOT NULL DEFAULT 'draft',
+            content_json TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS portfolio_widgets (
+            id TEXT PRIMARY KEY,
+            version_id TEXT NOT NULL,
+            master_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            widget_type TEXT NOT NULL,
+            title TEXT,
+            content_json TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_hidden INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    # Helpful indexes for the common per-user / per-resume / per-portfolio lookups.
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_resume_master_user ON resume_master(user_id, is_deleted)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_resume_sections_version ON resume_sections(version_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_resume_versions_master ON resume_versions(master_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_resume_analysis_version ON resume_analysis(resume_version_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_master_user ON portfolio_master(user_id, is_deleted)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_widgets_version ON portfolio_widgets(version_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_versions_master ON portfolio_versions(master_id)")
 
     # Future column additions go here, guarded like the other modules:
     #   cols = _table_columns(cursor, "resume_master")

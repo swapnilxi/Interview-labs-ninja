@@ -17,4 +17,5 @@ dependencies = [
     "bcrypt<4.1",
     "youtube-transcript-api>=1.0.3",
     "python-dotenv>=1.2.2",
+    "google-auth>=2.30.0",
 ]

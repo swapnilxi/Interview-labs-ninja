@@ -22,6 +22,7 @@ const LAB_LINKS: SidebarLink[] = [
 const CAREER_LINKS: SidebarLink[] = [
   { label: 'Dashboard', path: '/career', icon: 'Squares2X2Icon' },
   { label: 'Resume Builder', path: '/career/resume', icon: 'DocumentTextIcon' },
+  { label: 'Portfolio Builder', path: '/career/portfolio', icon: 'GlobeAltIcon' },
 ];
 
 interface SidebarProps {

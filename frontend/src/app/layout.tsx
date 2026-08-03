@@ -9,8 +9,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'InterviewNinja',
-  description: 'Modern interview preparation labs for DSA, computer vision, and system design.',
+  title: 'LabNinja',
+  description: 'Modern preparation AI lms labs for DSA, computer vision, and system design and much more',
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },

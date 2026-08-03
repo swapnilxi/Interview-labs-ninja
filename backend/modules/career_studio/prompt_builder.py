@@ -111,5 +111,40 @@ Content shapes:
 Only include sections you can actually find. Output ONLY the JSON array."""
 
 
+PORTFOLIO_DIMENSIONS = [
+    "overall_score", "design_score", "ux_score", "content_score", "seo_score",
+    "accessibility_score", "personal_branding_score", "navigation_score",
+    "responsiveness_score", "recruiter_friendliness_score",
+]
+
+
+def portfolio_to_text(widgets: list[dict]) -> str:
+    """Flatten portfolio widgets into readable plain text for the LLM."""
+    blocks: list[str] = []
+    for w in widgets:
+        if w.get("is_hidden"):
+            continue
+        title = w.get("title") or w.get("widget_type", "Widget")
+        body = _stringify(w.get("content"))
+        blocks.append(f"## {title} ({w.get('widget_type')})\n{body}".strip())
+    return "\n\n".join(b for b in blocks if b).strip()
+
+
+def build_portfolio_analyze_prompt(portfolio_text: str) -> str:
+    scores = ", ".join(PORTFOLIO_DIMENSIONS)
+    return f"""You are a senior design + technical-recruiting reviewer. Assess the developer portfolio described below (content and structure) and return a STRICT JSON object (no markdown, no prose outside the JSON).
+
+PORTFOLIO CONTENT:
+{portfolio_text or "(empty portfolio)"}
+
+Return a JSON object with EXACTLY these keys:
+- Numeric scores 0-100 (integers): {scores}
+- "summary": a 2-3 sentence overall assessment string
+- List fields (arrays of objects each with "text" and "suggestion"): "missing_sections", "content_gaps", "branding_issues", "red_flags"
+- "top_suggestions": array of the 3-5 highest-impact improvements, each with "title", "severity" ("high"|"medium"|"low"), "explanation", and "suggested_rewrite"
+
+Judge clarity of personal branding, project storytelling, whether a recruiter can quickly grasp strengths, and what's missing. Output ONLY the JSON object."""
+
+
 def to_json_debug(obj: Any) -> str:
     return json.dumps(obj, indent=2)

@@ -68,6 +68,7 @@ from modules.auth.router import router as auth_router
 from modules.career_studio.db import init_career_db
 from modules.career_studio.router import router as career_router
 from modules.career_studio.analysis_router import router as career_analysis_router
+from modules.career_studio.portfolio_router import router as career_portfolio_router
 
 
 @asynccontextmanager
@@ -115,6 +116,7 @@ app.include_router(import_router)
 # CAREER STUDIO INTEGRATION
 app.include_router(career_router)
 app.include_router(career_analysis_router)
+app.include_router(career_portfolio_router)
 
 
 @app.get("/health")
