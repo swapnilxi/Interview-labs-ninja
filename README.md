@@ -269,3 +269,40 @@ worth picking up in a follow-up pass:
   swallow failures with just a `console.error`, so a failed edit due to a network
   blip currently fails silently in the UI.
 
+## Career Studio Module (`/career`)
+
+A self-contained "AI Career Studio" reachable at `/career` (menu + submenu in the sidebar).
+**Milestone 1 = the resume vertical slice**: a two-panel resume builder with debounced autosave,
+git-like immutable **versioning** (snapshot / restore / clone / branch), an **AI analyzer**
+(ATS + dimension scores + fixes), inline **AI section rewrite** (streamed), an **AI copilot**
+(reuses the labs' copilot shell), and PDF/DOCX/text **import** (AI-structured with a diff preview).
+
+It owns a **separate SQLite database** (`backend/modules/career_studio/career_studio.sqlite3`, raw
+`sqlite3` — no ORM) so the module is lift-and-shift portable; see
+`backend/modules/career_studio/ARCHITECTURE_NOTES.md` for the extraction guide and the full
+"spec-vs-repo" translation table. It's **login-required** (mirrors the `todo` module's auth +
+per-user scoping via `Depends(get_current_user_id)`); there's no guest/local-IndexedDB mode yet.
+
+### Backend layout (`backend/modules/career_studio/`)
+
+| File | Responsibility |
+|---|---|
+| `router.py` | `/career` resume CRUD, sections, versioning (snapshot/clone/branch/restore), import. |
+| `analysis_router.py` | `/career` AI analyzer, streamed section rewrite, and copilot ask. |
+| `db.py` / `versions.py` / `analysis_db.py` | Raw-sqlite CRUD against the separate DB; immutable version snapshots; analysis + `ai_runs` audit log. |
+| `schema.py` | `register(cursor)` DDL (called by `db.init_career_db()`, **not** `common/db.py`). |
+| `prompt_builder.py` / `llm.py` / `ai_runs.py` | Pure prompts; thin wrapper over `common.ai_client`; per-call audit timer. |
+
+Frontend service is `frontend/src/lib/services/careerService.ts` (reuses `apiFetch` + the AI-settings
+helpers), Zustand store `frontend/src/modules/career/store/resumeStore.ts`, components under
+`frontend/src/modules/career/`, pages under `frontend/src/app/career/`. See that module's `README.md`.
+
+### Integration points (only existing files touched, all tagged `CAREER STUDIO INTEGRATION`)
+Two lines in `backend/main.py` (include the routers + `init_career_db()` in the lifespan) and one
+collapsible menu/submenu in `frontend/src/modules/common/Sidebar.tsx`. Everything else is new files.
+
+### Roadmap (not built in Milestone 1)
+Portfolio Studio, Job-Description Matcher, Cover Letters, GitHub/LinkedIn sync, publishing/hosting
+(`/u/{username}`), comments, analytics, template marketplace, admin (needs a role system), PDF export
+(needs WeasyPrint/headless Chrome), and HTML sanitization (needs `bleach`/DOMPurify).
+

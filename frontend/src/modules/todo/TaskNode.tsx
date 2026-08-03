@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import ParetoModal from '@/components/ui/ParetoModal';
-import { notifyTopTaskCompleted } from '@/lib/services/paretoService';
 import TaskDetailModal from './TaskDetailModal';
 import {
   type Task,
@@ -19,20 +18,6 @@ import {
   triggerConfetti,
 } from '@/lib/services/todoService';
 
-const EISENHOWER_LABEL: Record<string, string> = {
-  do_now: '🔴 Now',
-  schedule: '🔵 Sched',
-  delegate: '🟡 Deleg',
-  eliminate: '⚫ Elim',
-};
-
-const EISENHOWER_BADGE: Record<string, string> = {
-  do_now: 'bg-red-500/10 text-red-500',
-  schedule: 'bg-blue-500/10 text-blue-500',
-  delegate: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  eliminate: 'bg-muted text-muted-foreground',
-};
-
 interface TaskNodeProps {
   task: Task;
   depth?: number;
@@ -44,8 +29,6 @@ interface TaskNodeProps {
   onUndoAvailable: (parentId: number, previousChildren: Task[]) => void;
   searchQuery?: string;
   onResumeTask?: (task: Task) => void;
-  /** Task id → ms delay, for the staggered Top 20% badge reveal right after an 80/20 Analyze run. */
-  revealDelays?: Record<number, number>;
 }
 
 export default function TaskNode({
@@ -59,10 +42,9 @@ export default function TaskNode({
   onUndoAvailable,
   searchQuery = '',
   onResumeTask,
-  revealDelays,
 }: TaskNodeProps) {
   const [expanded, setExpanded] = useState(depth <= 2);
-  const [loading, setLoading] = useState<'dive' | 'chunk' | 'regen' | 'dod' | null>(null);
+  const [loading, setLoading] = useState<'dive' | 'chunk' | 'regen' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showContext, setShowContext] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -71,7 +53,6 @@ export default function TaskNode({
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [showDepthWarning, setShowDepthWarning] = useState<'dive' | 'chunk' | null>(null);
-  const [aiError, setAiError] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
   const [showNotes, setShowNotes] = useState(false);
@@ -84,6 +65,7 @@ export default function TaskNode({
   // 80/20 State
   const [showParetoModal, setShowParetoModal] = useState(false);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   // Fetch notes count on mount or when the task updates
   useEffect(() => {
@@ -108,47 +90,29 @@ export default function TaskNode({
 
   const handleExplainTask = async () => {
     setAiActionLoading('explain');
-    setAiError(null);
-    try {
-      const added = await todoService.explainTask(task.id, model);
-      if (added) {
-        setNotes(prev => [added, ...prev]);
-        setNotesCount(prev => prev + 1);
-      }
-    } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Failed to explain task.');
-    } finally {
-      setAiActionLoading(null);
+    const added = await todoService.explainTask(task.id, model);
+    if (added) {
+      setNotes(prev => [added, ...prev]);
+      setNotesCount(prev => prev + 1);
     }
+    setAiActionLoading(null);
   };
 
   const handleSummarizeNotes = async () => {
     setAiActionLoading('summarize');
-    setAiError(null);
-    try {
-      const sum = await todoService.summarizeNotes(task.id, model);
-      setSummary(sum);
-    } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Failed to summarize notes.');
-    } finally {
-      setAiActionLoading(null);
-    }
+    const sum = await todoService.summarizeNotes(task.id, model);
+    setSummary(sum);
+    setAiActionLoading(null);
   };
 
   const handleExpandNote = async (noteId: number) => {
     setAiActionLoading(`expand-${noteId}`);
-    setAiError(null);
-    try {
-      const added = await todoService.expandNote(task.id, noteId, model);
-      if (added) {
-        setNotes(prev => [added, ...prev]);
-        setNotesCount(prev => prev + 1);
-      }
-    } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Failed to expand note.');
-    } finally {
-      setAiActionLoading(null);
+    const added = await todoService.expandNote(task.id, noteId, model);
+    if (added) {
+      setNotes(prev => [added, ...prev]);
+      setNotesCount(prev => prev + 1);
     }
+    setAiActionLoading(null);
   };
 
   const depthColor = getDepthColor(depth);
@@ -197,7 +161,6 @@ export default function TaskNode({
     const newStatus = task.status === 'done' ? 'backlog' : 'done';
     if (newStatus === 'done') {
       triggerConfetti(e.clientX, e.clientY);
-      if (task.is_top_20) notifyTopTaskCompleted(task.title);
     }
     const updated = await todoService.updateTask(task.id, { status: newStatus as TaskStatus });
     if (updated) onUpdate(task.id, { status: newStatus as TaskStatus });
@@ -214,7 +177,6 @@ export default function TaskNode({
     setShowDepthWarning(null);
     setLoading(type);
     setExpanded(true);
-    setAiError(null);
 
     try {
       const previousChildren = [...(task.children || [])];
@@ -227,7 +189,7 @@ export default function TaskNode({
         onUndoAvailable(task.id, previousChildren);
       }
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'AI action failed.');
+      console.error('AI action failed:', err);
     } finally {
       setLoading(null);
     }
@@ -235,14 +197,13 @@ export default function TaskNode({
 
   const handleRegenerate = async () => {
     setLoading('regen');
-    setAiError(null);
     try {
       const subtasks = await todoService.regenerate(task.id, model);
       if (subtasks.length > 0) {
         onChildrenGenerated(task.id, subtasks, task.generation_type);
       }
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Regeneration failed.');
+      console.error('Regeneration failed:', err);
     } finally {
       setLoading(null);
     }
@@ -358,23 +319,10 @@ export default function TaskNode({
             </span>
           )}
           
-          {/* Eisenhower quadrant badge */}
-          {task.eisenhower_quadrant && (
-            <span
-              className={`flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${EISENHOWER_BADGE[task.eisenhower_quadrant] || 'bg-muted text-muted-foreground'}`}
-            >
-              {EISENHOWER_LABEL[task.eisenhower_quadrant] || task.eisenhower_quadrant}
-            </span>
-          )}
-
-          {/* Top 20% Badge — pin icon distinguishes a manual override from an AI-assigned one */}
+          {/* Top 20% Badge */}
           {task.is_top_20 && (
-            <span
-              className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center gap-1 shadow-sm animate-in fade-in zoom-in-75 duration-300"
-              style={revealDelays?.[task.id] !== undefined ? { animationDelay: `${revealDelays[task.id]}ms`, animationFillMode: 'backwards' } : undefined}
-              title={task.pareto_locked ? 'Manually pinned as Top 20%' : 'AI-assigned Top 20%'}
-            >
-              {task.pareto_locked ? '📌' : '⭐'} Top 20%
+            <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center gap-1 shadow-sm">
+              ⭐ Top 20%
             </span>
           )}
 
@@ -611,8 +559,6 @@ export default function TaskNode({
               itemId={task.id}
               paretoScore={task.pareto_score}
               isTop20={task.is_top_20}
-              paretoLocked={task.pareto_locked}
-              reason={task.pareto_reason}
               model={model}
               onUpdate={async (updates) => {
                 const updated = await todoService.updateTask(task.id, updates as any);
@@ -649,8 +595,7 @@ export default function TaskNode({
             {/* Generate DoD & Subtasks */}
             <button
               onClick={async () => {
-                setLoading('dod');
-                setAiError(null);
+                setLoading('dod' as any);
                 try {
                   const res = await todoService.generateTaskDoD(task.id, model);
                   if (res && res.created_subtasks && res.created_subtasks.length > 0) {
@@ -660,7 +605,7 @@ export default function TaskNode({
                     onUpdate(task.id, { definition_of_done: res.definition_of_done });
                   }
                 } catch (e) {
-                  setAiError(e instanceof Error ? e.message : 'Failed to generate Definition of Done.');
+                  console.error(e);
                 } finally {
                   setLoading(null);
                 }
@@ -669,7 +614,7 @@ export default function TaskNode({
               className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-500 hover:bg-amber-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1 font-medium"
               title="Generate Definition of Done & Subtasks with AI"
             >
-              {loading === 'dod' ? (
+              {loading === ('dod' as any) ? (
                 <span className="w-3 h-3 border border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
               ) : '✨'}
               <span>DoD</span>
@@ -755,20 +700,6 @@ export default function TaskNode({
             </div>
           </div>
         </div>
-
-        {/* AI action error */}
-        {aiError && (
-          <div className="mt-2 p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-            <span className="text-xs shrink-0">⚠️</span>
-            <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
-            <button
-              onClick={() => setAiError(null)}
-              className="text-red-500/70 hover:text-red-500 shrink-0"
-            >
-              <Icon name="XMarkIcon" size={12} />
-            </button>
-          </div>
-        )}
 
         {/* Depth warning modal (feedback #11) */}
         {showDepthWarning && (
@@ -1032,7 +963,6 @@ export default function TaskNode({
               onUndoAvailable={onUndoAvailable}
               searchQuery={searchQuery}
               onResumeTask={onResumeTask}
-              revealDelays={revealDelays}
             />
           ))}
         </div>

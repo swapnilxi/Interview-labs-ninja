@@ -18,6 +18,12 @@ const LAB_LINKS: SidebarLink[] = [
   { label: 'System Design', path: '/system-design-lab', icon: 'ServerStackIcon' },
 ];
 
+// CAREER STUDIO INTEGRATION — sub-navigation for the /career feature.
+const CAREER_LINKS: SidebarLink[] = [
+  { label: 'Dashboard', path: '/career', icon: 'Squares2X2Icon' },
+  { label: 'Resume Builder', path: '/career/resume', icon: 'DocumentTextIcon' },
+];
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,10 +36,20 @@ export default function Sidebar({ isOpen, onClose, theme, onToggleTheme }: Sideb
   const { user, isGuest, logout } = useAuth();
   const isLabRoute = LAB_LINKS.some((link) => link.path === pathname);
   const [labsOpen, setLabsOpen] = useState(true);
+  // CAREER STUDIO INTEGRATION
+  const isCareerRoute = pathname === '/career' || pathname.startsWith('/career/');
+  const [careerOpen, setCareerOpen] = useState(true);
 
   useEffect(() => {
     if (isLabRoute) setLabsOpen(true);
   }, [isLabRoute]);
+
+  useEffect(() => {
+    if (isCareerRoute) setCareerOpen(true);
+  }, [isCareerRoute]);
+
+  const isCareerLinkActive = (path: string) =>
+    path === '/career' ? pathname === '/career' : pathname.startsWith(path);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -148,6 +164,41 @@ export default function Sidebar({ isOpen, onClose, theme, onToggleTheme }: Sideb
               <Icon name="PencilSquareIcon" size={18} variant="outline" />
               <span>LinkedIn Post Generator</span>
             </Link>
+
+            {/* CAREER STUDIO INTEGRATION — collapsible menu + submenu */}
+            <button
+              type="button"
+              onClick={() => setCareerOpen((prev) => !prev)}
+              className={`app-nav-link w-full justify-between ${isCareerRoute ? 'app-nav-link-active' : ''}`}
+              aria-expanded={careerOpen}
+            >
+              <span className="flex items-center gap-1.5">
+                <Icon name="BriefcaseIcon" size={18} variant="outline" />
+                <span>Career Studio</span>
+              </span>
+              <Icon
+                name="ChevronDownIcon"
+                size={16}
+                variant="outline"
+                className={`transition-smooth ${careerOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {careerOpen && (
+              <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
+                {CAREER_LINKS.map((link) => (
+                  <Link
+                    key={link.path}
+                    href={link.path}
+                    onClick={onClose}
+                    className={`app-nav-link w-full ${isCareerLinkActive(link.path) ? 'app-nav-link-active' : ''}`}
+                  >
+                    <Icon name={link.icon as any} size={17} variant="outline" />
+                    <span>{link.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </nav>
 
