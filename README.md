@@ -98,6 +98,31 @@ You can then wire the frontend to call the FastAPI endpoints under
 - On first login/signup, whatever the guest built up locally is migrated into the new
   account automatically (`POST /todo/import`, id-remapped, one-shot).
 
+### Admin portal & roles (added 2026-08-05)
+- `users` now has a `role` column (`'user'` default / `'admin'`), added via the standard
+  `PRAGMA table_info` + `ALTER TABLE` migration in `modules/auth/schema.py`.
+- **Bootstrapping admins:** set `LABNINJA_ADMIN_EMAILS` (comma-separated) in the backend
+  environment. On every startup, `promote_admins_from_env()` (called from `main.py`'s
+  lifespan) promotes those emails to `admin` — idempotent, and only affects accounts that
+  already exist. After the first admin exists, admins can promote/demote others from the
+  portal UI, so the env var is really just the initial seed.
+- **Backend:** `modules/auth/admin_router.py` (prefix `/admin`, every route behind the new
+  `get_current_admin` dependency → 403 for non-admins, 401 for guests) exposes
+  `GET /admin/stats`, `GET /admin/users?search=`, `PATCH /admin/users/{id}/role`,
+  `POST /admin/users/{id}/reset-password`, `DELETE /admin/users/{id}`. User-scoped tables
+  are discovered dynamically (any table with a `user_id` column), so resource counts and
+  the delete-cascade pick up new modules automatically — there are no FK cascades on those
+  tables, so `delete_user()` clears them manually. Two guardrails: you can't delete your own
+  account via the API, and you can't demote/delete the last remaining admin.
+- **Frontend:** `/admin` page → `modules/admin/AdminModule.tsx` (overview dashboard: stat
+  cards, resource-usage breakdown, searchable users table with promote/demote, reset
+  password, delete + confirmation modals) gated by `modules/admin/RequireAdmin.tsx`.
+  `AuthContext` now exposes `isAdmin`; the Header/Sidebar show an **Admin** link only to
+  admins. Service layer: `lib/services/adminService.ts` (all via `apiFetch`).
+- Career Studio data lives in a **separate** `career_studio.sqlite3`, so it is intentionally
+  **not** counted or cascaded by the admin portal (which only touches `lab_ninja.sqlite3`) —
+  a known follow-up if cross-DB admin is ever needed.
+
 ### Backend
 - New `backend/modules/auth/` package: JWT (PyJWT) + bcrypt (`passlib[bcrypt]`, pinned
   to `bcrypt<4.1` — newer bcrypt breaks passlib's backend detection). Set
@@ -271,15 +296,78 @@ worth picking up in a follow-up pass:
 
 ## Career Studio Module (`/career`)
 
-A self-contained "AI Career Studio" reachable at `/career` (menu + submenu in the sidebar).
-**Resume Builder**: a two-panel resume builder with debounced autosave, git-like immutable
-**versioning** (snapshot / restore / clone / branch), an **AI analyzer** (ATS + dimension scores +
-fixes), inline **AI section rewrite** (streamed), an **AI copilot** (reuses the labs' copilot
-shell), and PDF/DOCX/text **import** (AI-structured with a diff preview).
-**Portfolio Builder** (`/career/portfolio`): a widget-based one-page portfolio (hero, projects,
-skills, stats, contact, …) with drag-drop reorder, theme (accent/font), live preview, the same
+A self-contained "AI Career Studio" reachable at `/career` (menu + submenu in the sidebar). The
+landing page is a **tabbed shell** (`CareerStudioTabs.tsx`) — **Profiles · Generate · Resumes ·
+Portfolios · Template Designer**.
+
+**Master Profiles → live views.** A user keeps one or more **Master Profiles** (`is_profile=1` rows
+in `resume_master`) — the single place they fill their real data (personal info, experience,
+projects, skills, plus metadata like role/seniority/target industry/companies/tags). A resume or
+portfolio is a **view** (`career_views` table): it stores *no content*, only the profile it reads, a
+template/theme, and a section config (order + per-section hidden). Rendering pulls the profile's
+current content, so **editing a profile updates every view built from it**. There is no standalone
+resume/portfolio flow anymore — the pre-profile `/career/resume`, `/career/portfolio` routes and
+`ResumeBuilder.tsx`/`PortfolioBuilder.tsx` were unreachable from any nav link and have been removed
+outright; profiles + views are the only model now.
+
+- **Profile Selector** (`ProfileSelector.tsx`) — an IDE-workspace-style dropdown mounted on every
+  page that operates on a profile (Generate, the profile editor, the view editor); rename/
+  duplicate/archive/delete happen inline, no page nav needed. `activeProfileStore.ts` (localStorage)
+  remembers the last-used profile across pages.
+- **Profile Editor** — `ProfileEditor.tsx`, hosted as a full-screen modal (`ProfileEditorModal.tsx` +
+  `profileEditorStore.ts`) rather than a route, so opening it never unmounts the host page. Reuses
+  the resume section editor/preview/store; toolbar has Import, Enrich, Version history, Undo/Redo,
+  Copilot. A collapsible **Profile Details** panel (`ProfileMetadataPanel.tsx`) edits the metadata
+  fields above and autosaves via `PATCH /career/profiles/{id}/metadata`.
+- **Profile import** (`ProfileImportDialog.tsx`) — from an existing resume/profile, pasted JSON (with
+  per-section shape validation + human-readable mapping notes shown before saving), or freeform text
+  the AI structures. Can create a new profile or import into an existing one (replace or append).
+- **Profile enrichment** (`ProfileEnrichDialog.tsx`) — merges one *additional* document into an
+  existing profile (distinct from import's replace/append): classifies each piece of new content as
+  an addition, a duplicate (skipped), or a conflict (needs a decision) before writing anything, and
+  snapshots the profile first so a bad merge is always recoverable.
+- **Guided "+ Create New Profile" wizard** (`CreateProfileWizard.tsx`) — 5 methods (Manual / from a
+  Resume / Describe-yourself / JSON / **From a job posting**, `POST /career/profiles/from-job`); the
+  job-posting method builds a skills-seeded skeleton with empty experience/education fields — it
+  never fabricates a candidate's background. The resume/JSON/text methods hand off to
+  `ProfileImportDialog` rather than reimplementing import.
+- **Generate tab** — pick a profile and a job (link, pasted description, freeform context, or JSON),
+  optionally set a **target role/company** (pre-filled from the profile's metadata) to steer wording
+  independently of the posting's own title/company, and get back a **new** tailored profile + resume
+  — the source profile is untouched. Comes with a gap-analysis panel (fit score, matched/missing
+  skills, ATS keywords, experience gap, recommendations) and, when the job implies something the
+  profile genuinely lacks (e.g. Certifications), a **new proposed section** — under a strict
+  no-fabrication rule (real content or an empty placeholder, never invented credentials).
+  `POST /career/jobs/extract` separately pulls a structured breakdown (company, role, location,
+  employment type, skills, responsibilities, benefits, salary, certs) out of a posting for preview +
+  confirm before it's saved as a reusable job description.
+
+Each view editor (`/career/view/{id}`) has the profile dropdown (switch data source) with an edit
+pencil (opens the Profile Editor modal in place), a **template picker**, per-section show/hide +
+reorder, a **live iframe preview** (the backend-rendered HTML, byte-identical to the export), and
+export/share. Resume views additionally get an **AI Analyze** panel (ATS + dimension scores + fixes,
+optional job-description input) and a **Tailor to a Job** drawer (`ViewTailorPanel.tsx`): previews a
+per-section before/after diff against a saved job description, applied either **in place** (with an
+automatic safety checkpoint) or as a **new tailored profile + view** (original untouched).
+
+**Template Designer** (`TemplateDesigner.tsx`) — a visual-knob editor (font, accent, header/heading
+style, density for resumes; background pattern for portfolios) with a live iframe preview
+(`templatePreview.ts` mirrors `render.py` client-side) over user-owned, CRUD-able templates
+(`templates_router.py` / `templates_db.py`). Built-in presets (`template_presets.py`) seed each
+user's library on first visit — so they're editable/deletable like any custom template — and stay as
+a code fallback so rendering never breaks when a template is missing.
+
+**Portfolio Builder**: a widget-based one-page portfolio (hero, projects, skills, stats, contact, …)
+rendered by `PortfolioWidgetsView.tsx` (pure props, no store — shared by both the editor's live
+preview and the public page) with drag-drop reorder, theme (accent/font), **layout templates**
+(stack / centered / cards), and 4 **visual style templates** (Minimal, Isometric 3D-pattern, Aurora
+gradient-mesh, Blueprint grid — `portfolioTemplates.ts`, stored in `theme.template`), the same
 immutable versioning, an **AI portfolio analyzer** (design/UX/branding/recruiter-friendliness), and
-the AI copilot.
+the AI copilot. **Share & Export** — **publish** a frozen public snapshot to an unauthenticated
+`/p/{slug}` page (`PublicPortfolioClient.tsx`; copyable link, view counter, unpublish), and export as
+**HTML / PDF** (browser or server, via `exportUtils.ts` + `render.py`). The visual templates render
+identically across the live preview, the public page, and the export; pattern backgrounds gracefully
+degrade to a flat fill in server PDFs (xhtml2pdf has no gradient support).
 
 It owns a **separate SQLite database** (`backend/modules/career_studio/career_studio.sqlite3`, raw
 `sqlite3` — no ORM) so the module is lift-and-shift portable; see
@@ -304,35 +392,95 @@ conventions. Full backend-focused version in `career_studio/ARCHITECTURE_NOTES.m
 | 8 | New `<CopilotSidebar>` + `useCopilot()` | `LabCopilot` shell; `TodoCopilot` is the wired one | `CareerCopilot` reuses the shell → `/career/copilot/ask` |
 | 9 | `{ data, meta }` envelope | Raw JSON objects | Raw JSON (`{"resume":…}`, bare arrays) |
 | 10 | Provider registry reading keys from DB | Keys ride per-request via `AISettings`, never stored | Request models subclass `AISettings` |
-| 11 | `get_current_user` + admin roles | JWT `get_current_user_id`; no roles | Mirrored `todo` (user_id scoping); admin deferred |
+| 11 | `get_current_user` + admin roles | JWT `get_current_user_id` | Mirrored `todo` (user_id scoping). App-wide admin roles exist now (see the Admin portal section above), but they're a separate concern — Career Studio data has no role-based access of its own; every resource is still strictly owner-only. |
 | 12 | Autosave every 1.5s → new immutable version | Mutable rows are the idiom | Mutable draft autosave; immutable checkpoints on demand |
 | 13 | Own axios client with `/career` prefix | Shared `apiFetch`/`apiJson` (auto-attaches JWT) | Reused `apiFetch` — no new HTTP client |
-| 14 | `bleach` / `DOMPurify` for HTML | Not installed | Not needed for resume slice; flagged for portfolio phase |
-| 15 | PDF export (WeasyPrint/headless Chrome) | Neither installed | Deferred/flagged as roadmap blocker |
+| 14 | `bleach` / `DOMPurify` for HTML | Not installed | Renderer + public page escape all user content (`html.escape` server-side, React text nodes client-side); no raw-HTML injection, so a sanitizer isn't needed yet |
+| 15 | PDF export (WeasyPrint/headless Chrome) | Neither installed | Shipped via **xhtml2pdf** (pure-python, no system deps) for server PDFs, plus browser print + HTML download — user picks per-export |
 | 16 | Build all 10 phases at once | — | Scoped to the resume vertical slice; rest is a roadmap |
 
 ### Backend layout (`backend/modules/career_studio/`)
 
 | File | Responsibility |
 |---|---|
-| `router.py` | `/career` resume CRUD, sections, versioning (snapshot/clone/branch/restore), import. |
-| `portfolio_router.py` | `/career/portfolios` CRUD, widgets, versioning; portfolio analyzer lives in `analysis_router.py`. |
+| `router.py` | `/career` resume CRUD, sections, versioning (snapshot/clone/branch/restore), template selection, import, and **resume export** (`/export?format=html\|pdf`). |
+| `portfolio_router.py` | `/career/portfolios` CRUD, widgets, versioning, **publish/unpublish + export**, and the **unauthenticated `public_router`** (`/career/public/portfolios/{slug}`). Portfolio analyzer lives in `analysis_router.py`. |
+| `tailor_router.py` | Saved job descriptions CRUD (`/career/jobs`) + JD-driven resume **tailoring** (`/tailor` preview, `/tailor/apply` in-place or new-copy). |
+| `views_router.py` / `views_db.py` | **Master Profiles** (`/career/profiles`: CRUD, duplicate/archive/unarchive, metadata, import/import-preview, enrich/enrich-preview, `from-job`) + live **views** (`/career/views`: CRUD, export, publish, analyze, tailor/tailor-apply) + **Generate** (`/career/generate/resume`) + job extraction (`/career/jobs/extract`). Live section reconciliation against the profile; `resolved_to_widgets()` maps profile sections → portfolio widgets. |
+| `templates_router.py` / `templates_db.py` / `template_presets.py` | `/career/templates` CRUD (+ duplicate) over user-owned Template Designer specs; `template_presets.py` seeds the built-in presets into each user's library on first visit and doubles as a code fallback. |
 | `analysis_router.py` | `/career` AI resume + portfolio analyzers, streamed section rewrite, and copilot ask. |
-| `db.py` / `versions.py` / `portfolio_db.py` / `portfolio_versions.py` / `analysis_db.py` | Raw-sqlite CRUD against the separate DB (resume + portfolio); immutable version snapshots; analysis + `ai_runs` audit log. |
-| `schema.py` | `register(cursor)` DDL (called by `db.init_career_db()`, **not** `common/db.py`). |
-| `prompt_builder.py` / `llm.py` / `ai_runs.py` | Pure prompts; thin wrapper over `common.ai_client`; per-call audit timer. |
+| `render.py` | Standalone HTML renderer for resume templates + portfolio layouts, shared by browser-print / HTML-download / server-PDF; `html_to_pdf()` via xhtml2pdf. |
+| `db.py` / `versions.py` / `portfolio_db.py` / `portfolio_versions.py` / `analysis_db.py` / `jobs_db.py` / `publish_db.py` | Raw-sqlite CRUD against the separate DB (resume + portfolio + jobs + published snapshots); immutable version snapshots; analysis + `ai_runs` audit log. |
+| `schema.py` | `register(cursor)` DDL (called by `db.init_career_db()`, **not** `common/db.py`). Now also creates `job_descriptions` + `portfolio_published` and adds the `template_key` columns. |
+| `prompt_builder.py` / `llm.py` / `ai_runs.py` | Pure prompts (analyze / rewrite / copilot / import / **tailor**); thin wrapper over `common.ai_client`; per-call audit timer. |
 
 Frontend service is `frontend/src/lib/services/careerService.ts` (reuses `apiFetch` + the AI-settings
 helpers), Zustand store `frontend/src/modules/career/store/resumeStore.ts`, components under
 `frontend/src/modules/career/`, pages under `frontend/src/app/career/`. See that module's `README.md`.
 
 ### Integration points (only existing files touched, all tagged `CAREER STUDIO INTEGRATION`)
-Two lines in `backend/main.py` (include the routers + `init_career_db()` in the lifespan) and one
-collapsible menu/submenu in `frontend/src/modules/common/Sidebar.tsx`. Everything else is new files.
+A few lines in `backend/main.py` (include the seven routers — resume, analysis, portfolio, the
+unauthenticated portfolio `public_router`, `tailor_router`, `views_router`, and `templates_router` —
+plus `init_career_db()` in the lifespan) and one collapsible menu/submenu in
+`frontend/src/modules/common/Sidebar.tsx`. The public share page lives at
+`frontend/src/app/p/[slug]/page.tsx`. Everything else is new files. Backend gains one dependency:
+**`xhtml2pdf`** (pure-python HTML→PDF).
+
+### Recently added (2026-08-05)
+Two batches landed on the same day: a profile-driven rebuild, then a follow-up pass that made
+profiles the primary workflow rather than an editor accessory.
+
+- **Profile-driven rebuild:** one or more **Master Profiles** hold reusable data; resumes and
+  portfolios are **live, template-driven views** over a chosen profile (edit the profile → every
+  view updates). New tabbed `/career` shell, a profile dropdown + edit-pencil and section
+  show/hide/reorder per view, and an iframe live preview that is byte-identical to the export.
+  Backend: `career_views` table, `is_profile` flag, `views_router.py` / `views_db.py`. The earlier
+  unified dashboard (`CareerDashboard.tsx`) was superseded by the tabs, and the pre-profile
+  standalone resume/portfolio builders were later removed once nothing linked to them.
+- **Profile Selector, wizard, import, and enrichment**: `ProfileSelector.tsx` (inline rename/
+  duplicate/archive/delete, no nav) plus a guided 5-method **create-profile wizard**
+  (`CreateProfileWizard.tsx`, including a skills-only skeleton from a job posting), a hardened
+  **import** dialog (resume/JSON/AI-structured text, with per-section validation + mapping notes),
+  and a separate **enrichment** flow (`ProfileEnrichDialog.tsx`) that classifies incoming content as
+  addition/duplicate/conflict before merging, with an automatic snapshot first.
+- **Profile metadata** (`origin`, `primary_role`, `experience_level`, `target_industry`,
+  `target_roles`/`target_companies`/`tags`, `confidence_score`, `last_used_at`) — editable via a
+  collapsible **Profile Details** panel, and used to pre-fill and steer the Generate tab.
+- **Generate tab**: one-step "tailor my profile to this job" (link/description/context/JSON) →
+  a new tailored profile + resume, a gap-analysis panel (fit score, matched/missing skills, ATS
+  keywords, recommendations), and JD-driven **new-section proposals** under a strict
+  no-fabrication rule. Structured job extraction (`POST /career/jobs/extract`) previews a parsed
+  breakdown of a posting before it's saved.
+- **Unsaved-changes guard**: switching profiles or navigating away mid-autosave-debounce now prompts
+  Save/Discard/Cancel; covers the Profile Editor's own controls and browser-level unload, not
+  arbitrary Header/Sidebar nav clicks.
+- **Template Designer**: a visual-knob editor over user-owned, CRUD-able resume/portfolio templates
+  with a live preview and built-in presets that seed each user's library.
+- **Job-Description tailoring** (view-scoped): `job_descriptions` entity, `/career/jobs` CRUD, and
+  `/career/views/{id}/tailor` (preview) + `/tailor/apply` (in-place with auto-checkpoint, or a new
+  tailored profile + view).
+- **Resume templates + export** (HTML / browser-PDF / server-PDF) via a shared `render.py`.
+- **Portfolio publishing** to a public `/p/{slug}` page (frozen snapshot, view counter, unpublish) +
+  HTML/PDF export + layout templates + **4 visual style templates** (Minimal, Isometric 3D-pattern,
+  Aurora, Blueprint).
+- **Bug fixes**: streamed section rewrite now works for **all** providers (not just Gemini/Vertex/
+  Ollama — `stream_ai_text` falls back to a blocking call); the analyzer UI finally has a
+  **job-description input**; undo/redo no longer desyncs after add/delete/restore (history clears on
+  structural changes); a `gap_analysis` field missing from the LLM's response no longer crashes the
+  Generate tab (defaults added); plus small cleanups (dead `useState` initializer, reorder guard).
+
+**Explicitly excluded per user instruction:** AI Interview mode. **Deferred, not built:**
+multi-document import + enrichment across more than one extra document at a time (today's
+enrichment flow merges one document at a time), a real automated test suite for this module (or the
+repo generally — see "Working style" in this file's header), wiring the create-profile wizard into
+`ProfileSelector`'s own quick-create shortcut (kept as a fast blank-create path), and role/tag badges
+on `ProfileSelector` rows (skipped over layout risk).
 
 ### Roadmap (not built yet)
-Job-Description Matcher, Cover Letters, GitHub/LinkedIn sync, publishing/hosting (`/u/{username}`),
-comments, analytics, template marketplace, admin (needs a role system), PDF export (needs
-WeasyPrint/headless Chrome), and HTML sanitization (needs `bleach`/DOMPurify, before rendering any
-user-authored HTML). Built so far: **Resume Builder** and **Portfolio Builder**.
+Cover letters, GitHub/LinkedIn sync, per-user public username hosting (`/u/{username}`), comments,
+analytics dashboards, a template marketplace (sharing/browsing other users' designed templates —
+today's Template Designer library is per-user only), richer resume templates (two-column), and
+finer-grained multi-document profile enrichment (dedup + conflict resolution across more than one
+document per merge). HTML sanitization (`bleach`/DOMPurify) is still worth adding **before** any
+feature that renders raw user-authored HTML — today all rendered content is escaped/text-only.
 

@@ -166,15 +166,15 @@ def restore_version(user_id: str, master_id: str, version_id: str) -> Optional[d
     return get_resume_tree(uid, master_id)
 
 
-def _clone_snapshot_into_new_master(uid: str, sections: list[dict], title: str, branch_name: Optional[str]) -> dict:
+def _clone_snapshot_into_new_master(uid: str, sections: list[dict], title: str, branch_name: Optional[str], is_profile: bool = False) -> dict:
     master_id = _new_id()
     draft_id = _new_id()
     conn = _connect()
     try:
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO resume_master (id, user_id, title, current_draft_id) VALUES (?, ?, ?, ?)",
-            (master_id, uid, title, draft_id),
+            "INSERT INTO resume_master (id, user_id, title, current_draft_id, is_profile) VALUES (?, ?, ?, ?, ?)",
+            (master_id, uid, title, draft_id, int(is_profile)),
         )
         cur.execute(
             "INSERT INTO resume_versions (id, master_id, user_id, branch_name, is_draft, source) VALUES (?, ?, ?, ?, 1, ?)",
@@ -193,8 +193,19 @@ def _clone_snapshot_into_new_master(uid: str, sections: list[dict], title: str, 
     return get_resume_tree(uid, master_id)
 
 
+def create_resume_from_sections(user_id: str, sections: list[dict], title: str, branch_name: Optional[str] = None) -> dict:
+    """Public wrapper: fork an explicit section list into a brand-new resume.
+
+    Used by the JD-tailoring 'apply as a new copy' flow so the original resume
+    is never mutated. `sections` items use the snapshot shape
+    (section_type/title/content/sort_order/is_hidden).
+    """
+    return _clone_snapshot_into_new_master(str(user_id), sections, title, branch_name)
+
+
 def clone_version(user_id: str, version_id: str, title: Optional[str] = None, branch_name: Optional[str] = None) -> Optional[dict]:
-    """Duplicate a version's content into a brand-new resume the user can edit freely."""
+    """Duplicate a version's content into a brand-new resume (or profile, if the
+    source was one) the user can edit freely."""
     uid = str(user_id)
     version = get_version(uid, version_id)
     if version is None:
@@ -202,7 +213,8 @@ def clone_version(user_id: str, version_id: str, title: Optional[str] = None, br
     source_master = get_master(uid, version["master_id"])
     base_title = (source_master["title"] if source_master else "Resume")
     new_title = title or (f"{base_title} ({branch_name})" if branch_name else f"{base_title} (copy)")
-    return _clone_snapshot_into_new_master(uid, version["sections"], new_title, branch_name)
+    is_profile = bool(source_master and source_master.get("is_profile"))
+    return _clone_snapshot_into_new_master(uid, version["sections"], new_title, branch_name, is_profile=is_profile)
 
 
 def branch_version(user_id: str, version_id: str, branch_name: str) -> Optional[dict]:

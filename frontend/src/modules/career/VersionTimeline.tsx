@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { careerService } from '@/lib/services/careerService';
 import { useResumeStore } from './store/resumeStore';
+import { openProfileEditor } from './profileEditorStore';
 import type { ResumeVersion } from './types';
 
 function timeAgo(value: string): string {
@@ -14,7 +14,6 @@ function timeAgo(value: string): string {
 }
 
 export default function VersionTimeline({ masterId, open, onClose }: { masterId: string; open: boolean; onClose: () => void }) {
-  const router = useRouter();
   const snapshot = useResumeStore((s) => s.snapshot);
   const restore = useResumeStore((s) => s.restore);
   const [versions, setVersions] = useState<ResumeVersion[]>([]);
@@ -50,14 +49,14 @@ export default function VersionTimeline({ masterId, open, onClose }: { masterId:
 
   const handleClone = async (versionId: string) => {
     const clone = await careerService.cloneVersion(versionId);
-    router.push(`/career/resume/${clone.id}`);
+    openProfileEditor(clone.id);
   };
 
   const handleBranch = async (versionId: string) => {
     const name = window.prompt('Branch name (e.g. "faang", "startup"):');
     if (!name) return;
     const branch = await careerService.branchVersion(versionId, name);
-    router.push(`/career/resume/${branch.id}`);
+    openProfileEditor(branch.id);
   };
 
   return (

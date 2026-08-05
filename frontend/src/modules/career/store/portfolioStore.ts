@@ -76,6 +76,14 @@ export const usePortfolioStore = create<PortfolioStore>((set, get) => {
     }, DEBOUNCE_MS);
   };
 
+  // See resumeStore: undo/redo only tracks id-set-stable ops (edits, reorder).
+  // Structural changes clear history so persistAllWidgets never PATCHes a
+  // widget id the server no longer has.
+  const clearHistory = () => {
+    lastHistory = { key: '', at: 0 };
+    set({ past: [], future: [] });
+  };
+
   const persistAllWidgets = async () => {
     const { portfolio } = get();
     if (!portfolio) return;
@@ -155,6 +163,7 @@ export const usePortfolioStore = create<PortfolioStore>((set, get) => {
       try {
         const w = await portfolioService.addWidget(portfolio.id, widgetType, title);
         set({ portfolio: { ...get().portfolio!, widgets: [...get().portfolio!.widgets, w] } });
+        clearHistory();
       } catch (e: any) {
         set({ saveStatus: 'error', error: e?.message || 'Failed to add widget' });
       }
@@ -167,6 +176,7 @@ export const usePortfolioStore = create<PortfolioStore>((set, get) => {
       try {
         const w = await portfolioService.addWidget(portfolio.id, src.widget_type, `${src.title || ''} (copy)`, src.content);
         set({ portfolio: { ...get().portfolio!, widgets: [...get().portfolio!.widgets, w] } });
+        clearHistory();
       } catch (e: any) {
         set({ saveStatus: 'error', error: e?.message || 'Failed to duplicate' });
       }
@@ -175,8 +185,8 @@ export const usePortfolioStore = create<PortfolioStore>((set, get) => {
     async removeWidget(widgetId) {
       const { portfolio } = get();
       if (!portfolio) return;
-      pushHistory(`remove:${widgetId}`);
       set({ portfolio: { ...portfolio, widgets: portfolio.widgets.filter((w) => w.id !== widgetId) } });
+      clearHistory();
       try {
         await portfolioService.deleteWidget(portfolio.id, widgetId);
         flashSaved();
@@ -190,8 +200,11 @@ export const usePortfolioStore = create<PortfolioStore>((set, get) => {
       if (!portfolio) return;
       pushHistory('reorder');
       const byId = new Map(portfolio.widgets.map((w) => [w.id, w]));
-      const reordered = orderedIds.map((id, i) => ({ ...byId.get(id)!, sort_order: i }));
-      set({ portfolio: { ...portfolio, widgets: reordered as PortfolioWidget[] }, saveStatus: 'saving' });
+      const reordered = orderedIds
+        .map((id) => byId.get(id))
+        .filter((w): w is PortfolioWidget => Boolean(w))
+        .map((w, i) => ({ ...w, sort_order: i }));
+      set({ portfolio: { ...portfolio, widgets: reordered }, saveStatus: 'saving' });
       try {
         await portfolioService.reorderWidgets(portfolio.id, orderedIds);
         flashSaved();
@@ -216,9 +229,9 @@ export const usePortfolioStore = create<PortfolioStore>((set, get) => {
     async restore(versionId) {
       const { portfolio } = get();
       if (!portfolio) return;
-      pushHistory('restore');
       try {
         set({ portfolio: await portfolioService.restoreVersion(portfolio.id, versionId) });
+        clearHistory();
         flashSaved();
       } catch (e: any) {
         set({ saveStatus: 'error', error: e?.message || 'Failed to restore' });

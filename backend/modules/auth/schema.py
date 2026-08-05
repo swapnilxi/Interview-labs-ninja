@@ -11,11 +11,18 @@ def register(cursor) -> None:
             email TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             display_name TEXT DEFAULT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);")
+
+    # Migration: add the role column to installs that predate the admin system.
+    # 'user' (default) or 'admin'. Admin bootstrap happens in db.promote_admins_from_env().
+    cursor.execute("PRAGMA table_info(users);")
+    if "role" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user';")
 
     # Per-user AI model/provider selection, synced across devices once logged in.
     # Deliberately holds no API keys — those stay browser-only (see modules/common/ai_client.py).

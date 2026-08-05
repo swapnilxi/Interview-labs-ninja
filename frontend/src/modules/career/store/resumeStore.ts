@@ -35,6 +35,7 @@ interface ResumeStore {
   reset: () => void;
 
   setTitle: (title: string) => void;
+  setTemplate: (templateKey: string) => Promise<void>;
   editSection: (sectionId: string, patch: Partial<Pick<ResumeSection, 'content' | 'title' | 'is_hidden'>>) => void;
   addSection: (sectionType: string, title?: string) => Promise<void>;
   duplicateSection: (sectionId: string) => Promise<void>;
@@ -43,6 +44,8 @@ interface ResumeStore {
 
   snapshot: (label?: string) => Promise<ResumeVersion | null>;
   restore: (versionId: string) => Promise<void>;
+  flushPendingSaves: () => Promise<void>;
+  discardPendingSaves: () => void;
 
   undo: () => void;
   redo: () => void;
@@ -93,8 +96,20 @@ export const useResumeStore = create<ResumeStore>((set, get) => {
     }, DEBOUNCE_MS);
   };
 
+  // Undo/redo only tracks operations that keep the section id set stable
+  // (content/title/hidden edits and reorders). Structural changes — add,
+  // duplicate, remove, restore, import-apply — change which section ids exist
+  // server-side, which would make a later undo PATCH/recreate stale ids and
+  // desync from the server. So those ops clear the history instead.
+  const clearHistory = () => {
+    lastHistory = { key: '', at: 0 };
+    set({ past: [], future: [] });
+  };
+
   // Persist the entire current section set (used after undo/redo, where many
   // sections may change at once). Small N (a resume), so a fan-out is fine.
+  // Safe because history is cleared on any op that changes the id set, so the
+  // ids here always still exist server-side.
   const persistAllSections = async () => {
     const { resume } = get();
     if (!resume) return;
@@ -149,6 +164,18 @@ export const useResumeStore = create<ResumeStore>((set, get) => {
       }, DEBOUNCE_MS);
     },
 
+    async setTemplate(templateKey) {
+      const { resume } = get();
+      if (!resume) return;
+      // Optimistic — the export always sends the chosen key explicitly anyway.
+      set({ resume: { ...resume, template_key: templateKey } });
+      try {
+        await careerService.setTemplate(resume.id, templateKey);
+      } catch {
+        set({ saveStatus: 'error' });
+      }
+    },
+
     editSection(sectionId, patch) {
       const { resume } = get();
       if (!resume) return;
@@ -168,6 +195,7 @@ export const useResumeStore = create<ResumeStore>((set, get) => {
       try {
         const section = await careerService.addSection(resume.id, sectionType, title);
         set({ resume: { ...get().resume!, sections: [...get().resume!.sections, section] } });
+        clearHistory();
       } catch (e: any) {
         set({ saveStatus: 'error', error: e?.message || 'Failed to add section' });
       }
@@ -180,6 +208,7 @@ export const useResumeStore = create<ResumeStore>((set, get) => {
       try {
         const section = await careerService.addSection(resume.id, src.section_type, `${src.title || ''} (copy)`, src.content);
         set({ resume: { ...get().resume!, sections: [...get().resume!.sections, section] } });
+        clearHistory();
       } catch (e: any) {
         set({ saveStatus: 'error', error: e?.message || 'Failed to duplicate' });
       }
@@ -188,8 +217,8 @@ export const useResumeStore = create<ResumeStore>((set, get) => {
     async removeSection(sectionId) {
       const { resume } = get();
       if (!resume) return;
-      pushHistory(`remove:${sectionId}`);
       set({ resume: { ...resume, sections: resume.sections.filter((s) => s.id !== sectionId) } });
+      clearHistory();
       try {
         await careerService.deleteSection(resume.id, sectionId);
         flashSaved();
@@ -203,8 +232,11 @@ export const useResumeStore = create<ResumeStore>((set, get) => {
       if (!resume) return;
       pushHistory('reorder');
       const byId = new Map(resume.sections.map((s) => [s.id, s]));
-      const reordered = orderedIds.map((id, i) => ({ ...byId.get(id)!, sort_order: i })).filter(Boolean);
-      set({ resume: { ...resume, sections: reordered as ResumeSection[] }, saveStatus: 'saving' });
+      const reordered = orderedIds
+        .map((id) => byId.get(id))
+        .filter((s): s is ResumeSection => Boolean(s))
+        .map((s, i) => ({ ...s, sort_order: i }));
+      set({ resume: { ...resume, sections: reordered }, saveStatus: 'saving' });
       try {
         await careerService.reorderSections(resume.id, orderedIds);
         flashSaved();
@@ -230,14 +262,50 @@ export const useResumeStore = create<ResumeStore>((set, get) => {
     async restore(versionId) {
       const { resume } = get();
       if (!resume) return;
-      pushHistory('restore');
       try {
         const restored = await careerService.restoreVersion(resume.id, versionId);
         set({ resume: restored });
+        clearHistory();
         flashSaved();
       } catch (e: any) {
         set({ saveStatus: 'error', error: e?.message || 'Failed to restore' });
       }
+    },
+
+    async flushPendingSaves() {
+      // Cancel every pending debounce timer so a stale timeout callback doesn't fire
+      // LATER against a DIFFERENT profile's data (this store is a single global
+      // instance — navigating to another profile reassigns `resume` in place).
+      Object.keys(saveTimers).forEach((k) => {
+        clearTimeout(saveTimers[k]);
+        delete saveTimers[k];
+      });
+      const { resume } = get();
+      if (!resume) return;
+      set({ saveStatus: 'saving' });
+      try {
+        await Promise.all([
+          careerService.updateResume(resume.id, resume.title),
+          ...resume.sections.map((s) =>
+            careerService.updateSection(resume.id, s.id, {
+              content: s.content,
+              title: s.title,
+              is_hidden: s.is_hidden,
+            }),
+          ),
+        ]);
+        flashSaved();
+      } catch {
+        set({ saveStatus: 'error' });
+      }
+    },
+
+    discardPendingSaves() {
+      Object.keys(saveTimers).forEach((k) => {
+        clearTimeout(saveTimers[k]);
+        delete saveTimers[k];
+      });
+      set({ saveStatus: 'idle' });
     },
 
     undo() {

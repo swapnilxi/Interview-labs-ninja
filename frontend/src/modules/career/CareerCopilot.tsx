@@ -12,7 +12,21 @@ import { careerService } from '@/lib/services/careerService';
 
 interface Message { id: string; role: 'user' | 'ai'; content: string; }
 
-const QUICK_PROMPTS = ['Improve my summary', "What's missing?", 'Make my bullets stronger', 'ATS optimization tips'];
+/**
+ * Quick actions. `instant` presets send immediately (no missing parameter);
+ * the rest just pre-fill the input and focus it so the user can finish typing
+ * (e.g. "Tailor for a company" needs the actual company name) before sending.
+ */
+const QUICK_ACTIONS: { label: string; prompt: string; instant: boolean }[] = [
+  { label: 'Improve my summary', prompt: 'Improve my professional summary — make it sharper and more compelling.', instant: true },
+  { label: 'Stronger achievements', prompt: 'Rewrite my experience bullets as stronger, quantified achievements.', instant: true },
+  { label: 'Reduce to one page', prompt: 'How can I cut my resume down to fit one page? Tell me exactly what to trim.', instant: true },
+  { label: 'Expand my projects', prompt: 'Expand my project descriptions with more detail and impact.', instant: true },
+  { label: 'Tailor for a role…', prompt: 'Tailor my resume for a ', instant: false },
+  { label: 'Tailor for a company…', prompt: 'Tailor my resume for a role at ', instant: false },
+  { label: "What's missing?", prompt: "What's missing from my resume?", instant: true },
+  { label: 'ATS optimization tips', prompt: 'Give me ATS optimization tips for my resume.', instant: true },
+];
 
 function renderBold(content: string) {
   return content.split('**').map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>));
@@ -25,10 +39,28 @@ export default function CareerCopilot({ masterId, onCollapse }: { masterId?: str
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, busy]);
+
+  const runAction = (a: (typeof QUICK_ACTIONS)[number]) => {
+    if (busy) return;
+    if (a.instant) {
+      void send(a.prompt);
+    } else {
+      setInput(a.prompt);
+      // Focus + put the caret at the end so the user can finish typing the
+      // company/role name right where the preset left off.
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      });
+    }
+  };
 
   const send = async (text: string) => {
     if (!text.trim() || busy) return;
@@ -86,14 +118,14 @@ export default function CareerCopilot({ masterId, onCollapse }: { masterId?: str
 
       <div className="flex-shrink-0 border-t border-border bg-card p-3">
         <div className="grid grid-cols-2 gap-1.5 mb-3">
-          {QUICK_PROMPTS.map((p) => (
-            <button key={p} onClick={() => send(p)} disabled={busy} className="text-xs px-2 py-1.5 rounded-md border border-border text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-primary/5 transition-smooth disabled:opacity-50 text-left leading-tight">
-              {p}
+          {QUICK_ACTIONS.map((a) => (
+            <button key={a.label} onClick={() => runAction(a)} disabled={busy} title={a.instant ? undefined : 'Fills the input — add the name, then send'} className="text-xs px-2 py-1.5 rounded-md border border-border text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-primary/5 transition-smooth disabled:opacity-50 text-left leading-tight">
+              {a.label}
             </button>
           ))}
         </div>
         <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex gap-2 relative">
-          <input value={input} onChange={(e) => setInput(e.target.value)} disabled={busy} placeholder="Ask anything…" className="flex-1 bg-input border border-border rounded-full py-2 pl-3 pr-9 text-xs focus-ring placeholder:text-muted-foreground" />
+          <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} disabled={busy} placeholder="Ask anything…" className="flex-1 bg-input border border-border rounded-full py-2 pl-3 pr-9 text-xs focus-ring placeholder:text-muted-foreground" />
           <button type="submit" disabled={!input.trim() || busy} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 transition-smooth disabled:opacity-50">
             <Icon name="PaperAirplaneIcon" size={12} variant="solid" />
           </button>

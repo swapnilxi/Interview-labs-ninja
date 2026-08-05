@@ -10,11 +10,13 @@ export interface AuthUser {
   id: number;
   email: string;
   display_name: string | null;
+  role?: 'user' | 'admin';
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   isGuest: boolean;
+  isAdmin: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   signup: (email: string, password: string, displayName?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -118,6 +120,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const value: AuthContextValue = {
     user,
     isGuest: !user,
+    isAdmin: user?.role === 'admin',
     loading,
     login,
     signup,

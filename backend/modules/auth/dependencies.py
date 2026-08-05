@@ -33,3 +33,13 @@ def get_current_user(creds: HTTPAuthorizationCredentials = Depends(_bearer)) -> 
 
 def get_current_user_id(user: dict = Depends(get_current_user)) -> int:
     return user["id"]
+
+
+def get_current_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Like get_current_user, but 403s unless the caller has the admin role."""
+    if user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return user

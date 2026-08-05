@@ -36,29 +36,32 @@ class AISettings(BaseModel):
     ollamaModel: str = "llama3.2"
 
 
+def _format_http_error(exc: urllib.error.HTTPError) -> str:
+    """Fold the provider's own error message (e.g. Gemini's "prepayment credits
+    are depleted" on a 429) into a readable string, instead of the bare
+    "HTTP Error 429: Too Many Requests" urllib gives with the body discarded."""
+    try:
+        body = exc.read().decode("utf-8", "replace").strip()
+    except Exception:
+        body = ""
+    detail = ""
+    if body:
+        try:
+            parsed = json.loads(body)
+            detail = parsed.get("error", {}).get("message", "") if isinstance(parsed, dict) else ""
+        except Exception:
+            detail = ""
+        detail = detail or body
+    return f"HTTP {exc.code}: {detail}" if detail else f"HTTP Error {exc.code}: {exc.reason}"
+
+
 def _urlopen_surfacing_errors(req, timeout: int = 60):
-    """urllib.request.urlopen, but on an HTTP error read the response body and
-    fold the provider's own error message (e.g. Gemini's "prepayment credits are
-    depleted" on a 429) into the raised exception, instead of letting urllib
-    surface the bare "HTTP Error 429: Too Many Requests" with the body discarded.
-    """
+    """urllib.request.urlopen, but on an HTTP error raise with the provider's
+    own error message folded in (see _format_http_error)."""
     try:
         return urllib.request.urlopen(req, timeout=timeout)
     except urllib.error.HTTPError as exc:
-        try:
-            body = exc.read().decode("utf-8", "replace").strip()
-        except Exception:
-            body = ""
-        detail = ""
-        if body:
-            try:
-                parsed = json.loads(body)
-                detail = parsed.get("error", {}).get("message", "") if isinstance(parsed, dict) else ""
-            except Exception:
-                detail = ""
-            detail = detail or body
-        message = f"HTTP {exc.code}: {detail}" if detail else f"HTTP Error {exc.code}: {exc.reason}"
-        raise RuntimeError(message) from exc
+        raise RuntimeError(_format_http_error(exc)) from exc
 
 
 def extract_json_array(text: str) -> List[dict]:
@@ -83,6 +86,55 @@ def extract_json_object(text: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
+def _generation_config(temperature: float, max_tokens: int, thinking: bool) -> dict:
+    """thinkingBudget: 0 disables Gemini 2.5's hidden reasoning tokens. Without
+    this, a "thinking" model can spend the entire max_tokens budget on invisible
+    reasoning and return an empty/truncated `text` part — every task here
+    (structured JSON, rewrites, short answers) is well served by a direct
+    answer, not chain-of-thought. Not every model/alias accepts the field
+    though (some "-latest" aliases 400 on it even though the concrete model
+    they resolve to wouldn't) — callers retry once with thinking=False on a
+    400 before giving up, so this never becomes a hard requirement."""
+    cfg = {"temperature": temperature, "maxOutputTokens": max_tokens}
+    if thinking:
+        cfg["thinkingConfig"] = {"thinkingBudget": 0}
+    return cfg
+
+
+def _post_generate_content(url: str, headers: dict, contents: list, temperature: float, max_tokens: int, timeout: int) -> dict:
+    """POST to a Gemini-shaped generateContent endpoint (AI Studio or Vertex),
+    trying thinkingConfig first and silently retrying without it if the
+    model/alias rejects the field with a 400 (see _generation_config). Raises
+    RuntimeError with the provider's own message on a non-recoverable error."""
+    for thinking in (True, False):
+        body = json.dumps({"contents": contents, "generationConfig": _generation_config(temperature, max_tokens, thinking)}).encode()
+        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as exc:
+            if thinking and exc.code == 400:
+                continue
+            raise RuntimeError(_format_http_error(exc)) from exc
+
+
+def _open_stream_generate_content(url: str, headers: dict, contents: list, temperature: float, max_tokens: int, timeout: int):
+    """Like _post_generate_content, but for :streamGenerateContent — opens the
+    connection (trying thinkingConfig first, retrying once without it on a 400)
+    and returns the open response for the caller to iterate lines from. A 400
+    from a bad/unsupported generationConfig field surfaces at open time, before
+    any body streams, so the same retry-on-400 approach applies here."""
+    for thinking in (True, False):
+        body = json.dumps({"contents": contents, "generationConfig": _generation_config(temperature, max_tokens, thinking)}).encode()
+        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            if thinking and exc.code == 400:
+                continue
+            raise RuntimeError(_format_http_error(exc)) from exc
+
+
 def _call_gemini(
     prompt: str,
     api_key: str,
@@ -96,13 +148,7 @@ def _call_gemini(
     if image_b64:
         parts.append({"inline_data": {"mime_type": "image/jpeg", "data": image_b64}})
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-    body = json.dumps({
-        "contents": [{"parts": parts}],
-        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
-    }).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
-    with _urlopen_surfacing_errors(req, timeout=timeout) as resp:
-        data = json.loads(resp.read())
+    data = _post_generate_content(url, {"Content-Type": "application/json"}, [{"parts": parts}], temperature, max_tokens, timeout)
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
@@ -166,18 +212,8 @@ def _call_vertex(
         f"https://{host}/v1/projects/{project}/locations/{location}"
         f"/publishers/google/models/{model}:generateContent"
     )
-    body = json.dumps({
-        "contents": [{"role": "user", "parts": parts}],
-        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
-    }).encode()
-    req = urllib.request.Request(
-        url,
-        data=body,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {_vertex_access_token()}"},
-        method="POST",
-    )
-    with _urlopen_surfacing_errors(req, timeout=timeout) as resp:
-        data = json.loads(resp.read())
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {_vertex_access_token()}"}
+    data = _post_generate_content(url, headers, [{"role": "user", "parts": parts}], temperature, max_tokens, timeout)
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
@@ -402,17 +438,8 @@ def stream_ai_text(prompt: str, settings: AISettings):
                 f"https://{host}/v1/projects/{project}/locations/{location}"
                 f"/publishers/google/models/{vertex_model}:streamGenerateContent?alt=sse"
             )
-            body = json.dumps({
-                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048},
-            }).encode()
-            req = urllib.request.Request(
-                url,
-                data=body,
-                headers={"Content-Type": "application/json", "Authorization": f"Bearer {_vertex_access_token()}"},
-                method="POST",
-            )
-            with _urlopen_surfacing_errors(req, timeout=30) as resp:
+            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {_vertex_access_token()}"}
+            with _open_stream_generate_content(url, headers, [{"role": "user", "parts": [{"text": prompt}]}], 0.7, 2048, 30) as resp:
                 for line in resp:
                     line_str = line.decode("utf-8").strip()
                     if line_str.startswith("data:"):
@@ -425,19 +452,25 @@ def stream_ai_text(prompt: str, settings: AISettings):
             yield f"\n[Streaming error: {e}]"
         return
 
-    if not settings.geminiKey:
-        yield "No Gemini API key configured. Add one in Config."
+    # Non-streaming providers (OpenAI, Anthropic, Groq, DeepSeek) — or any case
+    # where true Gemini streaming isn't available — fall back to a single
+    # blocking call and yield the whole result at once, so every provider the
+    # caller has configured works with the streaming endpoints (not just Gemini/
+    # Vertex/Ollama). call_ai_text already handles cross-provider fallback.
+    _gemini_streamable = bool(settings.geminiKey) and not (
+        model.startswith(("deepseek", "gpt", "claude")) or model in GROQ_MODELS
+    )
+    if not _gemini_streamable:
+        try:
+            yield call_ai_text(prompt, settings)
+        except Exception as e:  # noqa: BLE001
+            yield f"\n[error: {e}]"
         return
 
     gemini_model = _gemini_model_name(model)
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:streamGenerateContent?alt=sse&key={settings.geminiKey}"
-    body = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048},
-    }).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with _urlopen_surfacing_errors(req, timeout=30) as resp:
+        with _open_stream_generate_content(url, {"Content-Type": "application/json"}, [{"parts": [{"text": prompt}]}], 0.7, 2048, 30) as resp:
             for line in resp:
                 line_str = line.decode("utf-8").strip()
                 if line_str.startswith("data:"):

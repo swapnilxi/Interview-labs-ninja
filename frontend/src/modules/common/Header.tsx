@@ -137,6 +137,7 @@ function AuthStatus() {
 
 export default function Header() {
   const pathname = usePathname();
+  const { isAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
 
@@ -229,6 +230,15 @@ export default function Header() {
 
           <div className="hidden lg:flex items-center gap-2">
             <SystemStatus />
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className={`app-nav-link ${isActivePath('/admin') ? 'app-nav-link-active' : ''}`}
+              >
+                <Icon name="ShieldCheckIcon" size={18} variant="outline" />
+                <span>Admin</span>
+              </Link>
+            )}
             {navigationItems.map((item) => (
               <Link
                 key={item.path}

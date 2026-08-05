@@ -63,18 +63,28 @@ from modules.todo.import_router import router as import_router
 
 # Auth module
 from modules.auth.router import router as auth_router
+from modules.auth.admin_router import router as admin_router
+from modules.auth.db import promote_admins_from_env
 
 # CAREER STUDIO INTEGRATION — self-contained module with its own sqlite DB
 from modules.career_studio.db import init_career_db
 from modules.career_studio.router import router as career_router
 from modules.career_studio.analysis_router import router as career_analysis_router
 from modules.career_studio.portfolio_router import router as career_portfolio_router
+from modules.career_studio.portfolio_router import public_router as career_public_router
+from modules.career_studio.tailor_router import router as career_tailor_router
+from modules.career_studio.views_router import router as career_views_router
+from modules.career_studio.templates_router import router as career_templates_router
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
     init_db()
     init_career_db()  # CAREER STUDIO INTEGRATION — creates career_studio.sqlite3 tables
+    # Promote any LABNINJA_ADMIN_EMAILS accounts to admin (idempotent; see admin_router).
+    promoted = promote_admins_from_env()
+    if promoted:
+        print(f"[admin] Promoted to admin from LABNINJA_ADMIN_EMAILS: {', '.join(promoted)}")
     yield
 
 
@@ -100,6 +110,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(config_router)
 app.include_router(session_router)
 app.include_router(session_public_router)
@@ -117,6 +128,10 @@ app.include_router(import_router)
 app.include_router(career_router)
 app.include_router(career_analysis_router)
 app.include_router(career_portfolio_router)
+app.include_router(career_public_router)  # unauthenticated shared-portfolio reader
+app.include_router(career_tailor_router)
+app.include_router(career_views_router)
+app.include_router(career_templates_router)
 
 
 @app.get("/health")

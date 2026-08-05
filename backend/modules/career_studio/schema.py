@@ -88,6 +88,21 @@ def register(cursor: sqlite3.Cursor) -> None:
         )
     """)
 
+    # ── Saved job descriptions — first-class entities so a resume can be
+    #    "tailored to a job id" and the JD reused across analyze/tailor runs.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS job_descriptions (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            title TEXT,
+            company TEXT,
+            url TEXT,
+            raw_text TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
     # ── Audit log: one row per AI call (analyzer, rewrite, copilot, import).
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ai_runs (
@@ -160,8 +175,134 @@ def register(cursor: sqlite3.Cursor) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_master_user ON portfolio_master(user_id, is_deleted)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_widgets_version ON portfolio_widgets(version_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_versions_master ON portfolio_versions(master_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_descriptions_user ON job_descriptions(user_id)")
 
-    # Future column additions go here, guarded like the other modules:
-    #   cols = _table_columns(cursor, "resume_master")
-    #   if "new_col" not in cols:
-    #       cursor.execute("ALTER TABLE resume_master ADD COLUMN new_col TEXT;")
+    # ── Public portfolio publishing: a shareable snapshot reachable at
+    #    /career/public/portfolios/{slug} (no auth). Content is frozen at
+    #    publish time so edits don't leak until the user re-publishes.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS portfolio_published (
+            slug TEXT PRIMARY KEY,
+            master_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            title TEXT,
+            content_json TEXT NOT NULL,
+            theme_json TEXT,
+            view_count INTEGER NOT NULL DEFAULT 0,
+            is_public INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_published_master ON portfolio_published(master_id)")
+    # 'portfolio' (content_json=widgets, theme_json=theme) or 'resume'
+    # (content_json=sections, theme_json={"template":..,"spec":..}). Existing
+    # rows predate resume publishing, so they're all portfolios.
+    if "kind" not in _table_columns(cursor, "portfolio_published"):
+        cursor.execute("ALTER TABLE portfolio_published ADD COLUMN kind TEXT NOT NULL DEFAULT 'portfolio';")
+
+    # ── Career "views": a resume/portfolio is a LIVE, template-driven view over a
+    #    Master Profile. Content lives in the profile (a resume_master row with
+    #    is_profile=1); a view stores only the profile it reads, the template/
+    #    theme, and a section config (order + per-section hidden flags). Editing
+    #    the profile updates every view that references it.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS career_views (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            profile_id TEXT NOT NULL,
+            kind TEXT NOT NULL,            -- 'resume' | 'portfolio'
+            title TEXT NOT NULL,
+            template TEXT,
+            accent TEXT,
+            font TEXT,
+            layout TEXT,
+            config_json TEXT,              -- {"items":[{"section_id":..,"hidden":bool}]}
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_career_views_user ON career_views(user_id, kind, is_deleted)")
+
+    # ── User-designed templates: the Template Designer & Manager persists custom
+    #    resume/portfolio templates as a structured visual "spec" (fonts, accent,
+    #    header/heading style, density, background pattern) that render.py turns
+    #    into PDF-safe CSS. Built-in presets are seeded here per-user on first
+    #    visit so they too can be edited/deleted; the code presets remain a
+    #    fallback so new-view creation never breaks when the table is empty.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS career_templates (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            kind TEXT NOT NULL,            -- 'resume' | 'portfolio'
+            name TEXT NOT NULL,
+            spec_json TEXT NOT NULL,       -- structured visual knobs (see render.py)
+            source TEXT,                   -- preset id it was seeded/forked from, or 'custom'
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_career_templates_user ON career_templates(user_id, kind, is_deleted)")
+
+    # ── Migrations (guarded ALTERs, matching the other modules' idiom).
+    #    Selected resume/portfolio template for rendering + export.
+    if "template_key" not in _table_columns(cursor, "resume_master"):
+        cursor.execute("ALTER TABLE resume_master ADD COLUMN template_key TEXT;")
+    if "template_key" not in _table_columns(cursor, "portfolio_master"):
+        cursor.execute("ALTER TABLE portfolio_master ADD COLUMN template_key TEXT;")
+    # A resume_master with is_profile=1 is a reusable Master Profile (data source
+    # for views), not a standalone resume; it's excluded from resume listings.
+    if "is_profile" not in _table_columns(cursor, "resume_master"):
+        cursor.execute("ALTER TABLE resume_master ADD COLUMN is_profile INTEGER NOT NULL DEFAULT 0;")
+    # Archived profiles are hidden from the default Profile Selector/list but not
+    # deleted — distinct from is_deleted (which is permanent/soft-delete).
+    if "is_archived" not in _table_columns(cursor, "resume_master"):
+        cursor.execute("ALTER TABLE resume_master ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0;")
+
+    # Profile metadata: freeform context surfaced in the Profile Selector / editor and
+    # usable by AI features (target-role optimization, generation). All nullable/empty
+    # by default; target_roles/target_companies/tags are JSON arrays stored as TEXT,
+    # matching config_json's existing idiom elsewhere in this schema.
+    for col, ddl in [
+        ("origin", "TEXT"),
+        ("primary_role", "TEXT"),
+        ("experience_level", "TEXT"),
+        ("target_industry", "TEXT"),
+        ("target_roles", "TEXT"),
+        ("target_companies", "TEXT"),
+        ("tags", "TEXT"),
+        ("confidence_score", "INTEGER"),
+        ("last_used_at", "TEXT"),
+        ("description", "TEXT"),
+        ("tech_stack", "TEXT"),
+    ]:
+        if col not in _table_columns(cursor, "resume_master"):
+            cursor.execute(f"ALTER TABLE resume_master ADD COLUMN {col} {ddl};")
+
+    # Per-section source attribution — where this section's CURRENT content came
+    # from (manual edit, an import, or Profile Enrichment merging in a specific
+    # document kind). Nullable: existing/manually-created sections have none.
+    if "source" not in _table_columns(cursor, "resume_sections"):
+        cursor.execute("ALTER TABLE resume_sections ADD COLUMN source TEXT;")
+
+    # Structured Job Profile extraction: a saved job description can carry a
+    # normalized breakdown (location, employment type, skills, etc.) alongside its
+    # raw_text, extracted by an LLM and confirmed by the user before saving.
+    # List/array fields are stored as JSON TEXT, matching this schema's existing idiom.
+    for col, ddl in [
+        ("location", "TEXT"),
+        ("employment_type", "TEXT"),
+        ("experience_level", "TEXT"),
+        ("education", "TEXT"),
+        ("salary", "TEXT"),
+        ("required_skills", "TEXT"),
+        ("preferred_skills", "TEXT"),
+        ("responsibilities", "TEXT"),
+        ("benefits", "TEXT"),
+        ("certifications", "TEXT"),
+        ("extraction_confidence", "INTEGER"),
+    ]:
+        if col not in _table_columns(cursor, "job_descriptions"):
+            cursor.execute(f"ALTER TABLE job_descriptions ADD COLUMN {col} {ddl};")

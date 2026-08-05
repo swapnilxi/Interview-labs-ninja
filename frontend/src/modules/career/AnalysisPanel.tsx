@@ -68,19 +68,56 @@ function IssueGroup({ label, items }: { label: string; items?: Array<{ text?: st
   );
 }
 
-export default function AnalysisPanel({ masterId, open, onClose }: { masterId: string; open: boolean; onClose: () => void }) {
+/**
+ * Resume analysis drawer. By default it scores a Master Profile / resume by
+ * `masterId` via careerService, but callers (e.g. the view editor) can inject
+ * their own `analyze`/`getAnalysis` functions to score a live view instead —
+ * the UI is identical either way.
+ */
+export default function AnalysisPanel({
+  masterId,
+  open,
+  onClose,
+  analyze,
+  getAnalysis,
+  onApplyFix,
+}: {
+  masterId?: string;
+  open: boolean;
+  onClose: () => void;
+  analyze?: (jobDescription?: string) => Promise<AnalysisRecord>;
+  getAnalysis?: () => Promise<AnalysisRecord | Record<string, never>>;
+  /** When a top_suggestion carries section_id + content, render a one-click
+   * "Apply" that writes it straight back (e.g. via viewsService.applyTailor). */
+  onApplyFix?: (fix: { section_id: string; title?: string | null; content: any }) => Promise<void>;
+}) {
   const [record, setRecord] = useState<AnalysisRecord | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jd, setJd] = useState('');
+  const [showJd, setShowJd] = useState(false);
+  const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
+  const [appliedIndices, setAppliedIndices] = useState<Set<number>>(new Set());
+
+  const runAnalyze = useCallback(
+    (jobDescription?: string): Promise<AnalysisRecord> =>
+      analyze ? analyze(jobDescription) : careerService.analyzeResume(masterId!, jobDescription),
+    [analyze, masterId],
+  );
+  const fetchAnalysis = useCallback(
+    (): Promise<AnalysisRecord | Record<string, never>> =>
+      getAnalysis ? getAnalysis() : careerService.getAnalysis(masterId!),
+    [getAnalysis, masterId],
+  );
 
   const loadLatest = useCallback(async () => {
     try {
-      const r = (await careerService.getAnalysis(masterId)) as AnalysisRecord;
+      const r = (await fetchAnalysis()) as AnalysisRecord;
       if (r && (r as any).report) setRecord(r);
     } catch {
       /* none yet */
     }
-  }, [masterId]);
+  }, [fetchAnalysis]);
 
   useEffect(() => {
     if (open) void loadLatest();
@@ -89,12 +126,26 @@ export default function AnalysisPanel({ masterId, open, onClose }: { masterId: s
   const run = async () => {
     setRunning(true);
     setError(null);
+    setAppliedIndices(new Set());
     try {
-      setRecord(await careerService.analyzeResume(masterId));
+      setRecord(await runAnalyze(jd.trim() || undefined));
     } catch (e: any) {
       setError(e?.message || 'Analysis failed');
     } finally {
       setRunning(false);
+    }
+  };
+
+  const applyFix = async (i: number, s: NonNullable<AnalysisReport['top_suggestions']>[number]) => {
+    if (!onApplyFix || !s.section_id || s.content == null) return;
+    setApplyingIndex(i);
+    try {
+      await onApplyFix({ section_id: s.section_id, title: s.title, content: s.content });
+      setAppliedIndices((prev) => new Set(prev).add(i));
+    } catch (e: any) {
+      setError(e?.message || 'Could not apply that fix');
+    } finally {
+      setApplyingIndex(null);
     }
   };
 
@@ -112,7 +163,26 @@ export default function AnalysisPanel({ masterId, open, onClose }: { masterId: s
           <button onClick={onClose} className="theme-toggle" aria-label="Close"><Icon name="XMarkIcon" size={18} /></button>
         </div>
 
-        <div className="p-3 border-b border-border flex-shrink-0">
+        <div className="p-3 border-b border-border flex-shrink-0 space-y-2">
+          <button
+            onClick={() => setShowJd((v) => !v)}
+            className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground transition-smooth"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="BriefcaseIcon" size={13} />
+              Target a job description {jd.trim() ? <span className="text-primary">(added)</span> : <span className="opacity-70">(optional)</span>}
+            </span>
+            <Icon name="ChevronDownIcon" size={13} className={`transition-smooth ${showJd ? 'rotate-180' : ''}`} />
+          </button>
+          {showJd && (
+            <textarea
+              value={jd}
+              onChange={(e) => setJd(e.target.value)}
+              rows={5}
+              placeholder="Paste the job description here to score ATS/keyword fit against a specific role…"
+              className="w-full text-xs rounded-lg border border-border bg-background p-2.5 resize-y focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          )}
           <button onClick={run} disabled={running} className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 inline-flex items-center justify-center gap-2">
             <Icon name="SparklesIcon" size={16} /> {running ? 'Analyzing…' : record ? 'Re-run analysis' : 'Analyze resume'}
           </button>
@@ -179,16 +249,30 @@ export default function AnalysisPanel({ masterId, open, onClose }: { masterId: s
               {!!report.top_suggestions?.length && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top suggestions</p>
-                  {report.top_suggestions.map((s, i) => (
-                    <div key={i} className="rounded-lg border border-border p-3">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="text-sm font-medium text-foreground">{s.title}</span>
-                        {s.severity && <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${sevColor(s.severity)}`}>{s.severity}</span>}
+                  {report.top_suggestions.map((s, i) => {
+                    const canApply = !!(onApplyFix && s.section_id && s.content != null);
+                    const applied = appliedIndices.has(i);
+                    return (
+                      <div key={i} className="rounded-lg border border-border p-3">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-sm font-medium text-foreground">{s.title}</span>
+                          {s.severity && <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${sevColor(s.severity)}`}>{s.severity}</span>}
+                        </div>
+                        {s.explanation && <p className="text-xs text-muted-foreground">{s.explanation}</p>}
+                        {s.suggested_rewrite && <p className="text-xs text-success mt-1.5 bg-success/5 rounded-md p-2">{s.suggested_rewrite}</p>}
+                        {canApply && (
+                          <button
+                            onClick={() => applyFix(i, s)}
+                            disabled={applied || applyingIndex === i}
+                            className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-smooth disabled:opacity-60 ${applied ? 'border-success/30 bg-success/5 text-success' : 'border-primary/30 text-primary hover:bg-primary/5'}`}
+                          >
+                            {applied ? <Icon name="CheckIcon" size={13} /> : applyingIndex === i ? <span className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /> : <Icon name="BoltIcon" size={13} />}
+                            {applied ? 'Applied' : applyingIndex === i ? 'Applying…' : 'Apply this fix'}
+                          </button>
+                        )}
                       </div>
-                      {s.explanation && <p className="text-xs text-muted-foreground">{s.explanation}</p>}
-                      {s.suggested_rewrite && <p className="text-xs text-success mt-1.5 bg-success/5 rounded-md p-2">{s.suggested_rewrite}</p>}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

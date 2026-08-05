@@ -4,6 +4,12 @@ import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
+const PERKS = [
+  { icon: 'SparklesIcon', text: 'AI-generated questions & feedback' },
+  { icon: 'ChartBarIcon', text: 'Progress tracked across sessions' },
+  { icon: 'CloudArrowUpIcon', text: 'Synced to your account, every device' },
+];
+
 /**
  * Gates an interview-prep module behind login. These modules are AI-driven
  * and track per-user history, so — unlike the Todo app, which fully works
@@ -17,28 +23,58 @@ export default function RequireAuth({ children, feature }: { children: React.Rea
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="w-40 h-40 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <div className="w-[40px] h-[40px] border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
 
   if (isGuest) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center px-4 py-40">
-        <div className="max-w-[420px] text-center bg-card border border-border rounded-lg shadow-md p-32 space-y-16">
-          <div className="mx-auto w-48 h-48 rounded-full bg-primary/10 flex items-center justify-center">
-            <Icon name="LockClosedIcon" size={24} className="text-primary" />
+      <div className="min-h-[calc(100svh-60px)] flex items-center justify-center px-[4vw] py-36
+                      bg-[radial-gradient(ellipse_at_top,var(--color-glow),transparent_60%)]">
+        <div className="w-full max-w-[440px] bg-card border border-border rounded-2xl shadow-xl overflow-hidden">
+          {/* Gradient header */}
+          <div className="relative px-24 pt-36 pb-24 text-center text-white overflow-hidden
+                          bg-gradient-to-br from-[#5b5bd6] via-[#6d5be0] to-[#7c3aed]">
+            <div className="pointer-events-none absolute -top-24 -right-24 w-[45%] aspect-square rounded-full bg-white/10 blur-2xl" />
+            <div className="relative mx-auto w-[56px] h-[56px] rounded-2xl bg-white/15 flex items-center justify-center backdrop-blur-sm">
+              <Icon name="LockClosedIcon" size={26} className="text-white" />
+            </div>
+            <h2 className="relative mt-18 font-heading text-xl font-semibold text-white">Log in to use {feature}</h2>
+            <p className="relative mt-6 text-sm text-white/80 max-w-[34ch] mx-auto">
+              This feature is AI-powered and tracks your progress, so it needs an account.
+            </p>
           </div>
-          <h2 className="font-heading text-lg font-semibold text-foreground">Log in to use {feature}</h2>
-          <p className="text-sm text-muted-foreground">
-            This feature tracks your progress and uses AI, so it needs an account. Your to-do lists stay fully usable as a guest — this is the one part that needs a login.
-          </p>
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center gap-8 py-10 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-smooth focus-ring"
-          >
-            Log in or sign up
-          </Link>
+
+          {/* Body */}
+          <div className="p-24 flex flex-col gap-24">
+            <ul className="flex flex-col gap-12">
+              {PERKS.map((p) => (
+                <li key={p.text} className="flex items-center gap-12 text-sm text-foreground">
+                  <span className="w-36 h-36 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Icon name={p.icon} size={18} />
+                  </span>
+                  <span>{p.text}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex flex-col gap-12">
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center gap-6 py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-smooth focus-ring shadow-sm"
+              >
+                Log in or sign up
+                <Icon name="ArrowRightIcon" size={16} />
+              </Link>
+              <Link
+                href="/todo"
+                className="text-center text-xs text-muted-foreground hover:text-foreground transition-smooth"
+              >
+                Your to-do lists stay fully usable as a guest →
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     );

@@ -10,13 +10,16 @@ from __future__ import annotations
 import io
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+import re
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from modules.auth.dependencies import get_current_user_id
 from modules.common.ai_client import AISettings
 
-from . import db, versions
+from . import db, render, versions
 from .ai_runs import track_ai_run
 from .llm import generate_json_array
 from .prompt_builder import build_import_prompt
@@ -34,6 +37,10 @@ class ResumeCreate(BaseModel):
 
 class ResumeUpdate(BaseModel):
     title: str
+
+
+class TemplateUpdate(BaseModel):
+    template_key: str
 
 
 class SectionCreate(BaseModel):
@@ -97,11 +104,59 @@ async def update_resume(master_id: str, payload: ResumeUpdate, user_id: int = De
     return resume
 
 
+@router.patch("/resumes/{master_id}/template")
+async def set_template(master_id: str, payload: TemplateUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
+    resume = db.set_resume_template(str(user_id), master_id, payload.template_key)
+    if resume is None:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    return resume
+
+
 @router.delete("/resumes/{master_id}")
 async def delete_resume(master_id: str, user_id: int = Depends(get_current_user_id)) -> dict:
     if not db.soft_delete_resume(str(user_id), master_id):
         raise HTTPException(status_code=404, detail="Resume not found")
     return {"status": "success"}
+
+
+def _safe_filename(title: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", (title or "resume").strip()).strip("-").lower()
+    return slug or "resume"
+
+
+@router.get("/resumes/{master_id}/export")
+async def export_resume(
+    master_id: str,
+    format: str = Query("html", pattern="^(html|pdf)$"),
+    template: Optional[str] = None,
+    user_id: int = Depends(get_current_user_id),
+):
+    """Render the resume to a standalone HTML file or a server-generated PDF.
+
+    The SAME HTML backs the browser 'Save as PDF' path (client prints it), the
+    .html download, and the server PDF (xhtml2pdf). `template` overrides the
+    resume's saved template_key for a one-off export.
+    """
+    resume = db.get_resume_tree(str(user_id), master_id)
+    if resume is None:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    html_str = render.render_resume_html(resume, template)
+    fname = _safe_filename(resume.get("title", "resume"))
+    if format == "pdf":
+        try:
+            pdf = render.html_to_pdf(html_str)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{fname}.pdf"'},
+        )
+    return Response(
+        content=html_str,
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}.html"'},
+    )
 
 
 # ── Sections (mutable draft) ────────────────────────────────────────────────────

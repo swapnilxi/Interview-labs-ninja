@@ -2,9 +2,17 @@
 
 /** Portfolio API service — wraps /career/portfolios/* (mirrors careerService). */
 
-import { apiJson, parseApiError } from '../http/apiClient';
+import { API_BASE_URL, apiFetch, apiJson, parseApiError } from '../http/apiClient';
 import { defaultAIRequestFields } from './settingsService';
-import type { AnalysisRecord, Portfolio, PortfolioTheme, PortfolioVersion, PortfolioWidget } from '@/modules/career/types';
+import type {
+  AnalysisRecord,
+  Portfolio,
+  PortfolioTheme,
+  PortfolioVersion,
+  PortfolioWidget,
+  PublicPortfolio,
+  PublishStatus,
+} from '@/modules/career/types';
 
 export { parseApiError };
 
@@ -56,6 +64,28 @@ export const portfolioService = {
   },
   cloneVersion(versionId: string, title?: string): Promise<Portfolio> {
     return apiJson<Portfolio>(`/career/portfolio-versions/${versionId}/clone`, { method: 'POST', body: JSON.stringify({ title }) });
+  },
+
+  // ── Publishing / sharing / export ─────────────────────────────────────────
+  getPublishStatus(masterId: string): Promise<PublishStatus | Record<string, never>> {
+    return apiJson(`/career/portfolios/${masterId}/publish`);
+  },
+  publish(masterId: string): Promise<PublishStatus> {
+    return apiJson<PublishStatus>(`/career/portfolios/${masterId}/publish`, { method: 'POST' });
+  },
+  unpublish(masterId: string): Promise<{ status: string }> {
+    return apiJson(`/career/portfolios/${masterId}/publish`, { method: 'DELETE' });
+  },
+  async exportBlob(masterId: string, format: 'html' | 'pdf'): Promise<Blob> {
+    const res = await apiFetch(`/career/portfolios/${masterId}/export?format=${format}`);
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return res.blob();
+  },
+  /** Public, unauthenticated read of a published portfolio by slug. */
+  async getPublic(slug: string): Promise<PublicPortfolio> {
+    const res = await fetch(`${API_BASE_URL}/career/public/portfolios/${slug}`);
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return res.json();
   },
 
   analyzePortfolio(masterId: string): Promise<AnalysisRecord> {

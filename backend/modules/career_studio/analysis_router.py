@@ -41,6 +41,7 @@ class AnalyzeResumeRequest(AISettings):
 
 class SectionRewriteRequest(AISettings):
     instruction: Optional[str] = None
+    job_description: Optional[str] = None
 
 
 class AnalyzePortfolioRequest(AISettings):
@@ -115,7 +116,10 @@ async def rewrite_section(section_id: str, payload: SectionRewriteRequest, user_
     if section is None:
         raise HTTPException(status_code=404, detail="Section not found")
     current_text = _stringify(section.get("content"))
-    prompt = build_section_rewrite_prompt(section["section_type"], section.get("title"), current_text, payload.instruction)
+    prompt = build_section_rewrite_prompt(
+        section["section_type"], section.get("title"), current_text, payload.instruction,
+        job_description=payload.job_description,
+    )
 
     def _generate():
         start = time.monotonic()

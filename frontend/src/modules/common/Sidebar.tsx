@@ -20,9 +20,10 @@ const LAB_LINKS: SidebarLink[] = [
 
 // CAREER STUDIO INTEGRATION — sub-navigation for the /career feature.
 const CAREER_LINKS: SidebarLink[] = [
-  { label: 'Dashboard', path: '/career', icon: 'Squares2X2Icon' },
-  { label: 'Resume Builder', path: '/career/resume', icon: 'DocumentTextIcon' },
-  { label: 'Portfolio Builder', path: '/career/portfolio', icon: 'GlobeAltIcon' },
+  { label: 'Profiles', path: '/career?tab=profiles', icon: 'IdentificationIcon' },
+  { label: 'Resumes', path: '/career?tab=resumes', icon: 'DocumentTextIcon' },
+  { label: 'Portfolios', path: '/career?tab=portfolios', icon: 'GlobeAltIcon' },
+  { label: 'Templates', path: '/career?tab=templates', icon: 'SwatchIcon' },
 ];
 
 interface SidebarProps {
@@ -34,7 +35,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose, theme, onToggleTheme }: SidebarProps) {
   const pathname = usePathname();
-  const { user, isGuest, logout } = useAuth();
+  const { user, isGuest, isAdmin, logout } = useAuth();
   const isLabRoute = LAB_LINKS.some((link) => link.path === pathname);
   const [labsOpen, setLabsOpen] = useState(true);
   // CAREER STUDIO INTEGRATION
@@ -199,6 +200,16 @@ export default function Sidebar({ isOpen, onClose, theme, onToggleTheme }: Sideb
                   </Link>
                 ))}
               </div>
+            )}
+
+            {isAdmin && (
+              <>
+                <div className="my-2 border-t border-border" role="separator" />
+                <Link href="/admin" onClick={onClose} className={navLinkClass('/admin')}>
+                  <Icon name="ShieldCheckIcon" size={18} variant="outline" />
+                  <span>Admin Portal</span>
+                </Link>
+              </>
             )}
           </div>
         </nav>
