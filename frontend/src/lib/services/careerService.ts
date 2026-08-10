@@ -20,14 +20,16 @@ import type {
   ImportedSection,
   JobDescription,
   JobExtraction,
+  JobMatchResult,
   ProfileImportPreview,
   ProfileImportSource,
   Resume,
   ResumeSection,
   ResumeVersion,
+  SectionAnalysisResult,
   TailorApplyResult,
   TailorProposal,
-} from '@/modules/career/types';
+} from '@/modules/career-studio/shared/types';
 
 export { parseApiError };
 
@@ -145,8 +147,8 @@ export const careerService = {
     return apiJson<Resume>(`/career/resumes/${masterId}/template`, { method: 'PATCH', body: JSON.stringify({ template_key: templateKey }) });
   },
 
-  /** Fetch a rendered export (auth-attached). format 'html' | 'pdf'; template overrides the saved one. */
-  async exportResumeBlob(masterId: string, format: 'html' | 'pdf', template?: string): Promise<Blob> {
+  /** Fetch a rendered export (auth-attached). template overrides the saved one (html/pdf only). */
+  async exportResumeBlob(masterId: string, format: 'html' | 'pdf' | 'docx' | 'markdown', template?: string): Promise<Blob> {
     const q = new URLSearchParams({ format });
     if (template) q.set('template', template);
     const res = await apiFetch(`/career/resumes/${masterId}/export?${q.toString()}`);
@@ -231,6 +233,14 @@ export const careerService = {
     return apiJson(`/career/resumes/${masterId}/analysis`);
   },
 
+  /** Section-by-section breakdown (good/improve/suggested rewrite per section) — preview-only, not persisted. */
+  analyzeResumeSections(masterId: string, jobDescription?: string, jobTitle?: string): Promise<SectionAnalysisResult> {
+    return apiJson<SectionAnalysisResult>(`/career/resumes/${masterId}/analyze/sections`, {
+      method: 'POST',
+      body: JSON.stringify({ job_description: jobDescription, job_title: jobTitle, ...defaultAIRequestFields() }),
+    });
+  },
+
   async importExtract(file: File): Promise<{ text: string }> {
     const form = new FormData();
     form.append('file', file);
@@ -275,6 +285,36 @@ export const careerService = {
         target_company: args.targetCompany,
         template: args.template,
         title: args.title,
+        save_job: args.saveJob ?? false,
+        job_title: args.jobTitle,
+        company: args.company,
+        ...defaultAIRequestFields(),
+      }),
+    });
+  },
+
+  /** Fit/gap report for a profile against a job — no resume is generated or changed. */
+  matchJob(args: {
+    profileId: string;
+    jobSource: 'url' | 'text' | 'json';
+    jobUrl?: string;
+    jobText?: string;
+    jobJson?: any;
+    targetRole?: string;
+    targetCompany?: string;
+    saveJob?: boolean;
+    jobTitle?: string;
+    company?: string;
+  }): Promise<JobMatchResult> {
+    return apiJson<JobMatchResult>(`/career/profiles/${args.profileId}/match`, {
+      method: 'POST',
+      body: JSON.stringify({
+        job_source: args.jobSource,
+        job_url: args.jobUrl,
+        job_text: args.jobText,
+        job_json: args.jobJson,
+        target_role: args.targetRole,
+        target_company: args.targetCompany,
         save_job: args.saveJob ?? false,
         job_title: args.jobTitle,
         company: args.company,

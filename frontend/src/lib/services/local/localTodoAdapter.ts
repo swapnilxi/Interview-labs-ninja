@@ -138,18 +138,32 @@ export const localTodoAdapter = {
       created_at: new Date().toISOString(), pareto_score: null, is_top_20: false,
     };
     await put('quick_tasks', qt);
+    await localTodoAdapter.deleteTask(taskId);
     return { status: 'moved', quick_task: qt };
   },
 
-  async moveToPlan(taskId: number): Promise<any> {
+  async moveToPlan(taskId: number, projectId?: number | null): Promise<any> {
     const task = await localTodoAdapter.fetchTask(taskId);
     if (!task) return null;
     const { localProjectAdapter } = await import('./localProjectAdapter');
+
+    if (projectId != null) {
+      const node = await localProjectAdapter.createNode(projectId, {
+        title: task.title,
+        node_type: 'action',
+      });
+      if (!node) return null;
+      await localTodoAdapter.deleteTask(taskId);
+      const project = (await localProjectAdapter.fetchProjects()).find((p) => p.id === projectId) || null;
+      return { status: 'moved', project, node };
+    }
+
     const project = await localProjectAdapter.createProject({
       title: task.title,
       description: task.context || `Created from task: ${task.title}`,
       priority: task.priority,
     });
+    await localTodoAdapter.deleteTask(taskId);
     return { status: 'moved', project };
   },
 

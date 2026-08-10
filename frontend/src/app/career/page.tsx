@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import Icon from '@/components/ui/AppIcon';
-import CareerStudioTabs from '@/modules/career/CareerStudioTabs';
+import CareerStudioTabs from '@/modules/career-studio/views/CareerStudioTabs';
 
 export const metadata: Metadata = {
   title: 'Career Studio - InterviewNinja',

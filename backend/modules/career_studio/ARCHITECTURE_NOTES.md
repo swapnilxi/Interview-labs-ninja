@@ -23,17 +23,51 @@ spec's intent was translated to the app's real conventions. See the table below.
 
 ## Layout
 
+As of 2026-08, the module is split into one subpackage per feature vertical, each
+owning its own `db.py`/`router.py` (and `versions.py`/`templates/` where relevant),
+plus a `shared/` subpackage for cross-vertical infrastructure:
+
 ```
 career_studio/
-├── schema.py          register(cursor): DDL for resume_master/versions/sections/analysis/ai_runs
-├── db.py              get_career_db_path(), init_career_db(), resume + section CRUD (draft)
-├── versions.py        immutable snapshots: snapshot / list / get / restore / clone / branch
-├── analysis_db.py     resume_analysis + ai_runs persistence
-├── ai_runs.py         track_ai_run() context manager (audit every AI call)
-├── prompt_builder.py  pure prompt construction (analyzer / rewrite / copilot / import)
-├── llm.py             thin wrapper over modules.common.ai_client
-├── router.py          /career resume CRUD, sections, versioning, import
-└── analysis_router.py /career analyzer, section rewrite (SSE), copilot
+├── shared/                connection primitives, DDL, rendering primitives, AI plumbing
+│   ├── db.py              get_career_db_path(), _connect(), init_career_db(), _new_id()
+│   ├── schema.py          register(cursor): DDL for every table in every vertical
+│   ├── render.py          _e/_ACCENTS/_FONT_STACKS/_links/_md_escape, html_to_pdf()
+│   ├── prompt_builder.py  pure prompt construction (analyzer / rewrite / copilot / import / …)
+│   ├── llm.py             thin wrapper over modules.common.ai_client
+│   ├── ai_runs.py         track_ai_run() context manager + insert_ai_run() (audit every AI call)
+│   └── job_text.py        SSRF-guarded job-URL fetch (Greenhouse/Lever APIs) + job-text resolution,
+│                          shared by the views and cover_letter verticals
+├── resume/                profile/resume CRUD, versioning, router, and the resume export renderer
+│   ├── db.py              resume_master/resume_sections CRUD — a Master Profile is a
+│   │                      resume_master row with is_profile=1, so this is also the DB
+│   │                      hub every other vertical (portfolio, cover-letter, job-match,
+│   │                      views) reads/writes profile data through
+│   ├── versions.py        immutable snapshots: snapshot / list / get / restore / clone / branch
+│   ├── router.py          /career resume CRUD, sections, versioning, import
+│   ├── render.py          render_resume_html/markdown/docx, resume_css_from_spec
+│   └── templates/         one module per built-in resume template (classic.py, modern.py, …),
+│                          each exporting css(accent_hex); __init__.py's REGISTRY/get_css()
+│                          replace what used to be render.py's inline _TEMPLATE_CSS dict
+├── portfolio/             portfolio/widget CRUD, versioning, router (+ public reader), testimonials
+│   ├── db.py, versions.py, testimonials_db.py, router.py (router + public_router)
+│   ├── render.py          render_portfolio_html, _render_widget
+│   └── templates/         one module per built-in portfolio template (minimal.py, linkx.py, …),
+│                          mirrors resume/templates/ — replaces the old _portfolio_template_css if-chain
+├── cover_letter/          db.py, router.py, render.py — a letter is one text blob + lightweight
+│                          immutable version history (not resume_sections/resume_versions)
+├── job_match/             db.py (saved job descriptions), router.py (JD-tailoring preview/apply)
+├── analysis/              db.py (resume_analysis persistence), router.py (analyzer, section
+│                          rewrite SSE, copilot — spans resume + portfolio)
+├── views/                 db.py (career_views: a live template-driven resume/portfolio over a
+│                          profile), router.py (profile CRUD/import/enrich, view CRUD/export/
+│                          publish/analytics, JD-tailor, "generate resume from job", job-match)
+├── templates_designer/    db.py (user-designed template CRUD), presets.py (built-in preset
+│                          specs), router.py — the Template Designer & Manager feature; a
+│                          different concept from resume/portfolio's templates/ registries
+│                          above (those are render implementations, this is user-facing CRUD)
+└── publishing/            db.py — public frozen-snapshot publishing + versioned snapshot
+                           history + analytics
 ```
 
 ## Data model & versioning
@@ -49,25 +83,32 @@ career_studio/
 
 ## Integration points (the ONLY existing files touched — all tagged `CAREER STUDIO INTEGRATION`)
 
-- `backend/main.py`: import + `include_router(career_router)` + `include_router(career_analysis_router)`;
-  and `init_career_db()` in the lifespan (creates the separate DB's tables).
+- `backend/main.py`: one import + `include_router(...)` per vertical router (`resume`, `analysis`,
+  `portfolio` + its `public_router`, `job_match`, `views`, `templates_designer`, `cover_letter`);
+  and `init_career_db()` (from `shared/db.py`) in the lifespan (creates the separate DB's tables).
 - `frontend/src/modules/common/Sidebar.tsx`: one collapsible menu + submenu (`CAREER_LINKS`).
-- New frontend files live under `src/app/career/**` and `src/modules/career/**` + `careerService.ts`.
+- New frontend files live under `src/app/career/**` and `src/modules/career-studio/**` (its own
+  `shared/`/`resume/`/`portfolio/`/etc. subfolders — see the frontend module's own README) +
+  `careerService.ts`/`viewsService.ts`/`templatesService.ts`/`portfolioService.ts`/`coverLetterService.ts`.
 - **No** change to `common/db.py` (the separate DB owns its own init).
 
 ## Env vars
 
-- `CAREER_STUDIO_DB_PATH` — override the sqlite file location (default: inside this folder).
+- `CAREER_STUDIO_DB_PATH` — override the sqlite file location (default: `career_studio/career_studio.sqlite3`,
+  resolved from `shared/db.py` regardless of which vertical's code is asking).
   Reuses the app's `NEXT_PUBLIC_API_URL` on the frontend and the existing JWT auth; no other config.
 
 ## Extracting to a standalone service
 
-1. Copy `backend/modules/career_studio/` + `frontend/src/modules/career/` + `careerService.ts`.
+1. Copy `backend/modules/career_studio/` (all subpackages) + `frontend/src/modules/career-studio/`
+   + the 5 `lib/services/*.ts` files above.
 2. Replace the two auth imports (`modules.auth.dependencies.get_current_user_id`) and the AI client
    import (`modules.common.ai_client`) with the target app's equivalents — these are the only two
-   external couplings, both by interface, not by DB.
+   external couplings, both by interface, not by DB. Every internal import between career_studio
+   subpackages is a relative import (`from ..shared.db import ...`, `from ..resume import db`, etc.),
+   so the whole folder moves as one self-contained unit.
 3. Point `CAREER_STUDIO_DB_PATH` at the new home; the schema self-creates on boot.
-4. Re-add the sidebar entry + the two `main.py` lines in the new host.
+4. Re-add the sidebar entry + the `main.py` import/include_router lines (8 routers) in the new host.
 
 ## Built
 

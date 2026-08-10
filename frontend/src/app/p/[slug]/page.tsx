@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import PublicPortfolioClient from '@/modules/career/PublicPortfolioClient';
+import PublicPortfolioClient from '@/modules/career-studio/public/PublicPortfolioClient';
 
 export const metadata: Metadata = {
   title: 'Portfolio',

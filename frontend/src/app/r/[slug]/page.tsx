@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import PublicResumeClient from '@/modules/career/PublicResumeClient';
+import PublicResumeClient from '@/modules/career-studio/public/PublicResumeClient';
 
 export const metadata: Metadata = {
   title: 'Resume',

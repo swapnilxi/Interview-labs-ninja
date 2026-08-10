@@ -10,13 +10,15 @@ import { API_BASE_URL, apiFetch, apiJson, parseApiError } from '../http/apiClien
 import { defaultAIRequestFields } from './settingsService';
 import type {
   AnalysisRecord,
+  AnalyticsSummaryEntry,
   CareerView,
   PublicResume,
+  PublishHistoryEntry,
   PublishStatus,
   TailorProposal,
   ViewKind,
   ViewTailorApplyResult,
-} from '@/modules/career/types';
+} from '@/modules/career-studio/shared/types';
 
 export const viewsService = {
   list(kind?: ViewKind): Promise<CareerView[]> {
@@ -51,11 +53,20 @@ export const viewsService = {
   getPublishStatus(id: string): Promise<PublishStatus | Record<string, never>> {
     return apiJson(`/career/views/${id}/publish`);
   },
-  publish(id: string): Promise<PublishStatus> {
-    return apiJson<PublishStatus>(`/career/views/${id}/publish`, { method: 'POST' });
+  publish(id: string, customSlug?: string): Promise<PublishStatus> {
+    return apiJson<PublishStatus>(`/career/views/${id}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ custom_slug: customSlug || undefined }),
+    });
   },
   unpublish(id: string): Promise<{ status: string }> {
     return apiJson(`/career/views/${id}/publish`, { method: 'DELETE' });
+  },
+  getPublishHistory(id: string): Promise<PublishHistoryEntry[]> {
+    return apiJson<PublishHistoryEntry[]>(`/career/views/${id}/publish/history`);
+  },
+  getAnalyticsSummary(): Promise<AnalyticsSummaryEntry[]> {
+    return apiJson<AnalyticsSummaryEntry[]>('/career/analytics/summary');
   },
 
   // Public, UNAUTHENTICATED read of a published resume (/r/{slug}) — plain
@@ -64,6 +75,16 @@ export const viewsService = {
     const res = await fetch(`${API_BASE_URL}/career/public/resumes/${slug}`);
     if (!res.ok) throw new Error(await parseApiError(res));
     return res.json();
+  },
+  async getPublicResumeVersion(slug: string, version: number): Promise<PublicResume> {
+    const res = await fetch(`${API_BASE_URL}/career/public/resumes/${slug}/v/${version}`);
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return res.json();
+  },
+  async downloadPublicResume(slug: string, format: 'pdf' | 'html' = 'pdf'): Promise<Blob> {
+    const res = await fetch(`${API_BASE_URL}/career/public/resumes/${slug}/download?format=${format}`);
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return res.blob();
   },
 
   // ── AI: analyze + tailor, scoped to this view's visible sections ────────────

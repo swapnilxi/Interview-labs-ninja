@@ -9,7 +9,7 @@
  */
 
 const DB_NAME = 'labninja-guest';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export type StoreName =
   | 'tasks'
@@ -19,6 +19,7 @@ export type StoreName =
   | 'quick_tasks'
   | 'projects'
   | 'project_nodes'
+  | 'goal_nodes'
   | 'meta';
 
 const STORE_INDEXES: Partial<Record<StoreName, string[]>> = {
@@ -26,6 +27,7 @@ const STORE_INDEXES: Partial<Record<StoreName, string[]>> = {
   task_notes: ['task_id'],
   quick_tasks: ['date'],
   project_nodes: ['project_id', 'parent_node_id'],
+  goal_nodes: ['parent_id'],
 };
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -41,7 +43,7 @@ function openDb(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result;
       const stores: StoreName[] = [
-        'tasks', 'task_notes', 'inbox', 'daily_plans', 'quick_tasks', 'projects', 'project_nodes', 'meta',
+        'tasks', 'task_notes', 'inbox', 'daily_plans', 'quick_tasks', 'projects', 'project_nodes', 'goal_nodes', 'meta',
       ];
       for (const name of stores) {
         if (db.objectStoreNames.contains(name)) continue;
@@ -128,12 +130,12 @@ export async function clearStore(storeName: StoreName): Promise<void> {
 }
 
 export async function clearAllGuestData(): Promise<void> {
-  const stores: StoreName[] = ['tasks', 'task_notes', 'inbox', 'daily_plans', 'quick_tasks', 'projects', 'project_nodes'];
+  const stores: StoreName[] = ['tasks', 'task_notes', 'inbox', 'daily_plans', 'quick_tasks', 'projects', 'project_nodes', 'goal_nodes'];
   for (const s of stores) await clearStore(s);
 }
 
 export async function hasAnyGuestData(): Promise<boolean> {
-  const stores: StoreName[] = ['tasks', 'projects', 'quick_tasks', 'inbox'];
+  const stores: StoreName[] = ['tasks', 'projects', 'quick_tasks', 'inbox', 'goal_nodes'];
   for (const s of stores) {
     const rows = await getAll(s);
     if (rows.length > 0) return true;

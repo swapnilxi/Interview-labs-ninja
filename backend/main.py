@@ -7,6 +7,7 @@ This file is purely application wiring.
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -37,7 +38,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from modules.common import __version__
-from modules.common.db import init_db
+from modules.common.db import get_db_path, init_db
 
 # Config / settings module
 from modules.common.config_router import router as config_router
@@ -52,14 +53,16 @@ from modules.daily_session.daily_session import router as session_router
 from modules.daily_session.daily_session import public_router as session_public_router
 
 # LinkedIn post generator module
-from modules.linkedin_post_generator.router import router as linkedin_router
+from modules.linkedin_post_generator.templates.router import router as linkedin_templates_router
+from modules.linkedin_post_generator.generation.router import router as linkedin_generation_router
 
 # To-do module
-from modules.todo.router import router as todo_router
-from modules.todo.quick_router import router as quick_router
-from modules.todo.projects_router import router as projects_router
-from modules.todo.pareto_router import router as pareto_router
-from modules.todo.import_router import router as import_router
+from modules.todo.tasks.router import router as todo_router
+from modules.todo.quick.router import router as quick_router
+from modules.todo.projects.router import router as projects_router
+from modules.todo.goals.router import router as goals_router
+from modules.todo.pareto.router import router as pareto_router
+from modules.todo.import_data.router import router as import_router
 
 # Auth module
 from modules.auth.router import router as auth_router
@@ -67,14 +70,15 @@ from modules.auth.admin_router import router as admin_router
 from modules.auth.db import promote_admins_from_env
 
 # CAREER STUDIO INTEGRATION — self-contained module with its own sqlite DB
-from modules.career_studio.db import init_career_db
-from modules.career_studio.router import router as career_router
-from modules.career_studio.analysis_router import router as career_analysis_router
-from modules.career_studio.portfolio_router import router as career_portfolio_router
-from modules.career_studio.portfolio_router import public_router as career_public_router
-from modules.career_studio.tailor_router import router as career_tailor_router
-from modules.career_studio.views_router import router as career_views_router
-from modules.career_studio.templates_router import router as career_templates_router
+from modules.career_studio.shared.db import init_career_db
+from modules.career_studio.resume.router import router as career_router
+from modules.career_studio.analysis.router import router as career_analysis_router
+from modules.career_studio.portfolio.router import router as career_portfolio_router
+from modules.career_studio.portfolio.router import public_router as career_public_router
+from modules.career_studio.job_match.router import router as career_tailor_router
+from modules.career_studio.views.router import router as career_views_router
+from modules.career_studio.templates_designer.router import router as career_templates_router
+from modules.career_studio.cover_letter.router import router as career_cover_letter_router
 
 
 @asynccontextmanager
@@ -117,10 +121,12 @@ app.include_router(session_public_router)
 app.include_router(dsa_router)
 app.include_router(cv_router)
 app.include_router(sd_router)
-app.include_router(linkedin_router)
+app.include_router(linkedin_templates_router)
+app.include_router(linkedin_generation_router)
 app.include_router(todo_router)
 app.include_router(quick_router)
 app.include_router(projects_router)
+app.include_router(goals_router)
 app.include_router(pareto_router)
 app.include_router(import_router)
 
@@ -132,6 +138,25 @@ app.include_router(career_public_router)  # unauthenticated shared-portfolio rea
 app.include_router(career_tailor_router)
 app.include_router(career_views_router)
 app.include_router(career_templates_router)
+app.include_router(career_cover_letter_router)
+
+
+@app.get("/")
+async def root() -> dict:
+    try:
+        conn = sqlite3.connect(get_db_path())
+        conn.execute("SELECT 1")
+        conn.close()
+        db_status = "connected"
+    except sqlite3.Error:
+        db_status = "unavailable"
+
+    return {
+        "message": "AI-labs application is up and running",
+        "db": db_status,
+        "service": "lab-ninja-api",
+        "version": __version__,
+    }
 
 
 @app.get("/health")

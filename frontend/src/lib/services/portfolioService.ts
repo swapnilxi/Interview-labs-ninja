@@ -12,7 +12,8 @@ import type {
   PortfolioWidget,
   PublicPortfolio,
   PublishStatus,
-} from '@/modules/career/types';
+  TestimonialSubmission,
+} from '@/modules/career-studio/shared/types';
 
 export { parseApiError };
 
@@ -86,6 +87,41 @@ export const portfolioService = {
     const res = await fetch(`${API_BASE_URL}/career/public/portfolios/${slug}`);
     if (!res.ok) throw new Error(await parseApiError(res));
     return res.json();
+  },
+  async getPublicVersion(slug: string, version: number): Promise<PublicPortfolio> {
+    const res = await fetch(`${API_BASE_URL}/career/public/portfolios/${slug}/v/${version}`);
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return res.json();
+  },
+  async downloadPublic(slug: string, format: 'pdf' | 'html' = 'pdf'): Promise<Blob> {
+    const res = await fetch(`${API_BASE_URL}/career/public/portfolios/${slug}/download?format=${format}`);
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return res.blob();
+  },
+
+  /** Public, unauthenticated: a visitor leaves a recommendation for owner approval. */
+  async submitTestimonial(slug: string, name: string, quote: string): Promise<{ status: string; id: string }> {
+    const res = await fetch(`${API_BASE_URL}/career/public/portfolios/${slug}/testimonials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, quote }),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return res.json();
+  },
+
+  // ── Testimonials moderation (owner side) ────────────────────────────────────
+  listTestimonials(masterId: string, status?: 'pending' | 'approved' | 'rejected'): Promise<TestimonialSubmission[]> {
+    return apiJson<TestimonialSubmission[]>(`/career/portfolios/${masterId}/testimonials${status ? `?status=${status}` : ''}`);
+  },
+  approveTestimonial(masterId: string, id: string): Promise<TestimonialSubmission> {
+    return apiJson<TestimonialSubmission>(`/career/portfolios/${masterId}/testimonials/${id}/approve`, { method: 'POST' });
+  },
+  rejectTestimonial(masterId: string, id: string): Promise<TestimonialSubmission> {
+    return apiJson<TestimonialSubmission>(`/career/portfolios/${masterId}/testimonials/${id}/reject`, { method: 'POST' });
+  },
+  deleteTestimonial(masterId: string, id: string): Promise<{ status: string }> {
+    return apiJson(`/career/portfolios/${masterId}/testimonials/${id}`, { method: 'DELETE' });
   },
 
   analyzePortfolio(masterId: string): Promise<AnalysisRecord> {

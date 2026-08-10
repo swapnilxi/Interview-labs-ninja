@@ -2,12 +2,15 @@
 
 Endpoints:
   GET  /config/ollama-status         — Probe Ollama instance & return available models
+  POST /config/test-key              — Make one real call to a provider to confirm a key works
 
 Note: there is intentionally no settings GET/POST here. AI provider keys and
 model choices live only in the browser's localStorage (see
 frontend/src/lib/services/settingsService.ts) and are sent with each AI
 request — never persisted server-side. That's what lets one deployment be
-shared by multiple people, each using their own keys.
+shared by multiple people, each using their own keys. test-key is unauthenticated
+for the same reason the Config page itself is guest-accessible — the key
+being tested is the caller's own, supplied in the request body, never stored.
 """
 
 from __future__ import annotations
@@ -18,8 +21,22 @@ import urllib.request
 from typing import Optional
 
 from fastapi import APIRouter
+from pydantic import BaseModel
+
+from modules.common.ai_client import test_provider_key
 
 router = APIRouter(prefix="/config", tags=["config"])
+
+
+class TestKeyRequest(BaseModel):
+    provider: str
+    api_key: str
+
+
+@router.post("/test-key")
+async def test_key(payload: TestKeyRequest) -> dict:
+    ok, message = test_provider_key(payload.provider, payload.api_key)
+    return {"ok": ok, "message": message}
 
 
 @router.get("/ollama-status")

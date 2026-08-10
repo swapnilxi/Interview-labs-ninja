@@ -217,12 +217,12 @@ def _call_vertex(
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def _call_openai_compatible(prompt: str, api_key: str, base_url: str, model: str) -> str:
+def _call_openai_compatible(prompt: str, api_key: str, base_url: str, model: str, max_tokens: int = 2048) -> str:
     body = json.dumps({
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
-        "max_tokens": 2048,
+        "max_tokens": max_tokens,
     }).encode()
     req = urllib.request.Request(
         f"{base_url.rstrip('/')}/chat/completions",
@@ -235,10 +235,10 @@ def _call_openai_compatible(prompt: str, api_key: str, base_url: str, model: str
     return data["choices"][0]["message"]["content"]
 
 
-def _call_anthropic(prompt: str, api_key: str, model: str) -> str:
+def _call_anthropic(prompt: str, api_key: str, model: str, max_tokens: int = 2048) -> str:
     body = json.dumps({
         "model": model,
-        "max_tokens": 2048,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }).encode()
     req = urllib.request.Request(
@@ -254,6 +254,32 @@ def _call_anthropic(prompt: str, api_key: str, model: str) -> str:
     with _urlopen_surfacing_errors(req, timeout=45) as resp:
         data = json.loads(resp.read())
     return data["content"][0]["text"]
+
+
+def test_provider_key(provider: str, api_key: str) -> tuple[bool, str]:
+    """Make one minimal real call to a provider to confirm the given API key
+    actually works — used by the Config page's per-key "Test Connection" button.
+    Returns (ok, message); message is a short human-readable success/failure detail."""
+    api_key = (api_key or "").strip()
+    if not api_key:
+        return False, "No key entered."
+    probe = "Reply with exactly one word: OK"
+    try:
+        if provider == "gemini":
+            _call_gemini(probe, api_key, "gemini-flash-latest", max_tokens=8)
+        elif provider == "openai":
+            _call_openai_compatible(probe, api_key, "https://api.openai.com/v1", "gpt-4o-mini", max_tokens=8)
+        elif provider == "anthropic":
+            _call_anthropic(probe, api_key, "claude-3-5-haiku-latest", max_tokens=8)
+        elif provider == "deepseek":
+            _call_openai_compatible(probe, api_key, "https://api.deepseek.com", "deepseek-chat", max_tokens=8)
+        elif provider == "groq":
+            _call_openai_compatible(probe, api_key, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", max_tokens=8)
+        else:
+            return False, f"Unknown provider: {provider}"
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+    return True, "Key works — got a response."
 
 
 def _call_ollama(

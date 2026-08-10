@@ -143,6 +143,20 @@ export const settingsService = {
     const data = await res.json();
     return data.models || [];
   },
+
+  /** Makes one real call to the provider with this key to confirm it actually works. The key is sent straight through, never stored server-side. */
+  async testApiKey(provider: string, apiKey: string): Promise<{ ok: boolean; message: string }> {
+    const res = await fetch(`${API_BASE_URL}/config/test-key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, api_key: apiKey }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.detail || `HTTP error! status: ${res.status}`);
+    }
+    return await res.json();
+  },
 };
 
 /**
@@ -182,4 +196,9 @@ export function aiRequestFields(choice: string, settings: UserSettings = readSto
 /** Same fields as aiRequestFields, URL-encoded — for GET/SSE endpoints that can't carry a JSON body. */
 export function aiQueryString(choice: string, settings: UserSettings = readStoredSettings()): string {
   return new URLSearchParams(aiRequestFields(choice, settings)).toString();
+}
+
+/** True when an AI call failed because no provider key is configured — the backend's ai_client.py raises exactly this text (see "No API key configured"). Lets callers point the user at Config instead of showing a generic error. */
+export function isMissingKeyError(message: string | null | undefined): boolean {
+  return !!message && message.includes('No API key configured');
 }

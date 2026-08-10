@@ -237,6 +237,8 @@ export default function ConfigInteractive() {
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const detectDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [testStatus, setTestStatus] = useState<Record<string, { loading: boolean; ok?: boolean; message?: string }>>({});
+
   useEffect(() => {
     settingsService.getSettings()
       .then(data => {
@@ -306,6 +308,19 @@ export default function ConfigInteractive() {
 
   const toggleKeyVisibility = (key: string) =>
     setVisibleKeys(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const testKey = async (fieldKey: string) => {
+    const apiKey = (settings[fieldKey as keyof UserSettings] as string) || '';
+    if (!apiKey.trim()) return;
+    const provider = fieldKey.replace(/Key$/, '');
+    setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: true } }));
+    try {
+      const result = await settingsService.testApiKey(provider, apiKey);
+      setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: false, ok: result.ok, message: result.message } }));
+    } catch (err) {
+      setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: false, ok: false, message: err instanceof Error ? err.message : 'Test failed' } }));
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -636,6 +651,32 @@ export default function ConfigInteractive() {
                   >
                     <Icon name={visibleKeys[field.key] ? 'EyeSlashIcon' : 'EyeIcon'} size={18} />
                   </button>
+                </div>
+                <div className="flex items-center gap-8">
+                  <button
+                    type="button"
+                    onClick={() => testKey(field.key)}
+                    disabled={!settings[field.key as keyof UserSettings] || testStatus[field.key]?.loading}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary hover:opacity-80 transition-smooth disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {testStatus[field.key]?.loading ? (
+                      <span className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    ) : (
+                      <Icon name="BoltIcon" size={12} />
+                    )}
+                    Test connection
+                  </button>
+                  {testStatus[field.key] && !testStatus[field.key].loading && (
+                    testStatus[field.key].ok ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-500">
+                        <Icon name="CheckCircleIcon" size={12} variant="solid" /> Connected
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-500 truncate" title={testStatus[field.key].message}>
+                        <Icon name="XCircleIcon" size={12} variant="solid" /> {testStatus[field.key].message}
+                      </span>
+                    )
+                  )}
                 </div>
               </div>
             ))}

@@ -194,8 +194,8 @@ def init_db() -> None:
         from modules.system_design_lab.schema import register as sd_register
         from modules.cv_lab.schema import register as cv_register
         from modules.dsa_lab.schema import register as dsa_register
-        from modules.linkedin_post_generator.schema import register as linkedin_register
-        from modules.todo.schema import register as todo_register
+        from modules.linkedin_post_generator.templates.schema import register as linkedin_register
+        from modules.todo.shared.schema import register as todo_register
 
         sd_register(cursor)
         cv_register(cursor)

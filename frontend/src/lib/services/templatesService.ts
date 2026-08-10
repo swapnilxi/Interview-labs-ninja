@@ -8,7 +8,7 @@
  */
 
 import { apiJson } from '../http/apiClient';
-import type { CareerTemplate, ViewKind } from '@/modules/career/types';
+import type { CareerTemplate, ViewKind } from '@/modules/career-studio/shared/types';
 
 export const templatesService = {
   list(kind?: ViewKind): Promise<CareerTemplate[]> {

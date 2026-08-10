@@ -4,15 +4,16 @@ import { useState, useCallback, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '@/components/common/Header';
 import Icon from '@/components/ui/AppIcon';
-import TaskTree from '@/modules/todo/TaskTree';
-import TodoCopilot from '@/modules/todo/TodoCopilot';
-import TabSwitcher, { TodoTab } from '@/modules/todo/TabSwitcher';
-import QuickDaily from '@/modules/todo/QuickDaily';
-import SmartTodo from '@/modules/todo/SmartTodo';
-import PlanProject from '@/modules/todo/PlanProject';
+import TaskTree from '@/modules/todo/tasks/TaskTree';
+import TodoCopilot from '@/modules/todo/tasks/TodoCopilot';
+import TabSwitcher, { TodoTab } from '@/modules/todo/shared/TabSwitcher';
+import QuickDaily from '@/modules/todo/quick/QuickDaily';
+import SmartTodo from '@/modules/todo/tasks/SmartTodo';
+import PlanProject from '@/modules/todo/projects/PlanProject';
+import Goals from '@/modules/todo/goals/Goals';
 import { todoService } from '@/lib/services/todoService';
 
-const VALID_TABS: TodoTab[] = ['quick', 'smart', 'plan'];
+const VALID_TABS: TodoTab[] = ['quick', 'smart', 'plan', 'goals'];
 
 function TodoPageInner() {
   const searchParams = useSearchParams();
@@ -97,6 +98,10 @@ function TodoPageInner() {
 
               {activeTab === 'plan' && (
                 <PlanProject model={model} />
+              )}
+
+              {activeTab === 'goals' && (
+                <Goals model={model} />
               )}
             </div>
           </div>

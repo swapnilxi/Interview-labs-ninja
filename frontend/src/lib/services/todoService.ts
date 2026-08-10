@@ -282,10 +282,13 @@ export const todoService = {
     }
   },
 
-  async moveToPlan(taskId: number): Promise<any> {
-    if (!isLoggedIn()) return localTodoAdapter.moveToPlan(taskId);
+  async moveToPlan(taskId: number, projectId?: number | null): Promise<any> {
+    if (!isLoggedIn()) return localTodoAdapter.moveToPlan(taskId, projectId);
     try {
-      const res = await apiFetch(`/todo/tasks/${taskId}/move-to-plan`, { method: 'POST' });
+      const res = await apiFetch(`/todo/tasks/${taskId}/move-to-plan`, {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId ?? null }),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (error) {
