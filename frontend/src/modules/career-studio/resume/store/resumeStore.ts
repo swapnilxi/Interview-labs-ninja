@@ -38,6 +38,7 @@ interface ResumeStore {
   setTemplate: (templateKey: string) => Promise<void>;
   editSection: (sectionId: string, patch: Partial<Pick<ResumeSection, 'content' | 'title' | 'is_hidden'>>) => void;
   addSection: (sectionType: string, title?: string) => Promise<void>;
+  insertSectionAt: (index: number, sectionType: string, title?: string) => Promise<void>;
   duplicateSection: (sectionId: string) => Promise<void>;
   removeSection: (sectionId: string) => Promise<void>;
   reorder: (orderedIds: string[]) => Promise<void>;
@@ -199,6 +200,22 @@ export const useResumeStore = create<ResumeStore>((set, get) => {
       } catch (e: any) {
         set({ saveStatus: 'error', error: e?.message || 'Failed to add section' });
       }
+    },
+
+    // The backend only supports appending (sort_order = max+1) — inserting at
+    // an arbitrary position (the "+" between two sections in the list) is
+    // composed client-side: append, then reuse the existing reorder/persist
+    // path to move the new section to where the user actually clicked.
+    async insertSectionAt(index, sectionType, title) {
+      await get().addSection(sectionType, title);
+      const resume = get().resume;
+      if (!resume) return;
+      const ids = resume.sections.map((s) => s.id);
+      const newId = ids[ids.length - 1];
+      const rest = ids.slice(0, -1);
+      const clamped = Math.max(0, Math.min(index, rest.length));
+      rest.splice(clamped, 0, newId);
+      await get().reorder(rest);
     },
 
     async duplicateSection(sectionId) {

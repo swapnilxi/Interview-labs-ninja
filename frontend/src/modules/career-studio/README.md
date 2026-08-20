@@ -10,7 +10,12 @@ module is organized into one folder per feature vertical (mirrors the backend's
 ```
 src/app/career/                     # Next.js App Router pages (thin server wrappers)
   page.tsx                          #   /career            → tabbed shell (CareerStudioTabs)
-  view/[viewId]/page.tsx            #   /career/view/…     → resume/portfolio view editor (ViewEditor)
+  view/[viewId]/page.tsx            #   /career/view/…     → resume/portfolio view editor (ViewEditor).
+                          #   ViewEditor mirrors the view's `template` field into a
+                          #   `?template=<id>` query param (e.g. `?template=modern3d`) so the
+                          #   URL alone identifies which template is in use — it self-corrects
+                          #   on load/template-switch, so callers don't need to set it when
+                          #   navigating here (see the `useEffect` near the top of ViewEditor.tsx).
 src/app/p/[slug]/**, src/app/r/[slug]/**   #   /p/{slug}, /r/{slug} → public portfolio/resume pages
 
 src/modules/career-studio/
@@ -37,21 +42,33 @@ src/modules/career-studio/
                           #   the actual CSS-from-spec logic stays one shared function
                           #   in templates-designer/templatePreview.ts (mirrors the
                           #   backend's resume_css_from_spec).
-  portfolio/              # PortfolioWidgetsView (delegates to the template registry),
-                          #   Modern3DView, WidgetBlock, WidgetPalette, widgetEditors.tsx,
-                          #   store/portfolioStore.ts
+  portfolio/              # PortfolioWidgetsView (delegates to the template registry, plus the
+                          #   Modern3D/Visionary special-cases), WidgetBlock, WidgetPalette,
+                          #   widgetEditors.tsx, store/portfolioStore.ts
     templates/            #   one self-contained COMPONENT per built-in portfolio template
-                          #   (minimal/, modern/, linkx/, isometric/, aurora/, blueprint/,
-                          #   dots/, mesh/, carbon/) — each owns its own CSS (a `css(accentHex)`
-                          #   export) and a default React component rendering the full page
-                          #   shell + widget list. `shared.tsx` holds the genuinely-common
-                          #   bits (the widget-content renderers, base CSS, page shell) so
-                          #   they aren't duplicated nine times; `index.ts`'s REGISTRY/
-                          #   getTemplate()/getCss() replace what used to be one big
-                          #   portfolioTemplateCss() switch statement. `modern3d` is
-                          #   deliberately absent from the registry — it bypasses this
-                          #   whole system via Modern3DView (a live Three.js/GSAP page),
-                          #   handled directly in PortfolioWidgetsView.
+                          #   (minimal/, linkx/, isometric/, aurora/, blueprint/, dots/, mesh/,
+                          #   carbon/) — each owns its own CSS (a `css(accentHex)` export) and a
+                          #   default React component rendering the full page shell + widget
+                          #   list. `shared.tsx` holds the genuinely-common bits (the
+                          #   widget-content renderers, base CSS, page shell) so they aren't
+                          #   duplicated eight times; `index.ts`'s REGISTRY/getTemplate()/
+                          #   getCss() replace what used to be one big portfolioTemplateCss()
+                          #   switch statement. `modern3d/` (Modern3DView.tsx) and `visionary/`
+                          #   (VisionaryView.tsx) live in this folder too but are deliberately
+                          #   absent from the registry — each is a full live Three.js page
+                          #   component (GSAP scroll reveals + custom cursor for Modern3D;
+                          #   glass-panel/motion + custom cursor for Visionary), handled
+                          #   directly in PortfolioWidgetsView. Both hero names auto-shrink
+                          #   (ResizeObserver measuring scrollWidth vs clientWidth, paired with
+                          #   a `min-width: 0` fix on their flex container) so any name length
+                          #   stays on one line at any viewport width instead of wrapping.
+                          #
+                          #   Every template folder also has a sibling `prompt.md` — an
+                          #   editable design spec in plain English (concept, palette, sections,
+                          #   what's deliberately excluded). To change a template's look, edit
+                          #   its `prompt.md` first, then ask Claude Code to sync the
+                          #   implementation to match, rather than hand-editing the component
+                          #   directly — keeps the spec and the code from drifting apart.
   cover-letter/            # CoverLetterPanel.tsx
   job-match/               # JobMatchPanel.tsx, GapAnalysisResult.tsx
   templates-designer/      # TemplateDesigner.tsx (the visual knob editor), TemplatePreviewThumb.tsx
@@ -62,7 +79,10 @@ src/modules/career-studio/
                           #   above (those are built-in render implementations, this is the
                           #   user-facing CRUD + knob-editing UI)
   views/                   # CareerStudioTabs.tsx (home shell), ViewEditor.tsx, ViewTailorPanel.tsx,
-                          #   CareerCopilot.tsx — the cross-vertical integration/shell layer
+                          #   CareerCopilot.tsx — the cross-vertical integration/shell layer.
+                          #   ViewEditor's left Controls panel is collapsible (chevron toggle
+                          #   pinned to the panel/preview border) so the live preview can use
+                          #   the full width.
   public/                  # PublicPortfolioClient.tsx, PublicResumeClient.tsx
 
 src/lib/services/careerService.ts     # typed client over /career/* (reuses apiFetch + AI settings)
@@ -102,7 +122,13 @@ freely within the module without touching external code, as long as those paths 
   a `css(accentHex)` function and a default component built on `PortfolioTemplateShell` (see any
   existing template for the pattern), then register it in `portfolio/templates/index.ts`'s
   `REGISTRY`/`CSS_REGISTRY`. Add the matching backend module under
-  `backend/modules/career_studio/portfolio/templates/` so export/PDF gets the same look.
+  `backend/modules/career_studio/portfolio/templates/` so export/PDF gets the same look. Add a
+  `prompt.md` alongside it describing the design (see any existing template's for the format).
+  If the template needs to be a full live page component instead of a CSS treatment (own Three.js
+  scene, own scroll/motion system — see `modern3d/`/`visionary/`), skip the registry entirely and
+  special-case it in `PortfolioWidgetsView.tsx` instead, and give it a static CSS fallback in the
+  backend registry for PDF/export + the Template Designer's string preview (alias it to `minimal`
+  in `templates-designer/templatePreview.ts`'s `cssTemplateId`, matching the existing two).
 - **a built-in resume template** → add a new folder under `resume/templates/<id>/` exporting
   `TEMPLATE = { id, name, desc }`, then register it in `resume/templates/index.ts`'s `LIST`. Add the
   matching backend module under `backend/modules/career_studio/resume/templates/`.

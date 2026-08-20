@@ -8,12 +8,12 @@ previous if/elif chain's final fallthrough branch.
 
 from __future__ import annotations
 
-from . import aurora, blueprint, carbon, dots, isometric, linkx, mesh, minimal, modern, modern3d
+from . import aurora, blueprint, carbon, dots, isometric, linkx, mesh, minimal, modern3d, visionary
 
 REGISTRY = {
-    "modern": modern.css,
     "linkx": linkx.css,
     "modern3d": modern3d.css,
+    "visionary": visionary.css,
     "minimal": minimal.css,
     "isometric": isometric.css,
     "aurora": aurora.css,

@@ -20,12 +20,12 @@
  * feature (testimonials_db.py) that arguably covers the same need.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { ACCENT_HEX } from '../shared/portfolioTemplates';
-import type { PortfolioTheme, PortfolioWidget } from '../shared/types';
+import { ACCENT_HEX } from '../../../shared/portfolioTemplates';
+import type { PortfolioTheme, PortfolioWidget } from '../../../shared/types';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -82,9 +82,14 @@ function modern3DCss(accentHex: string): string {
 .m3-hero { position: relative; min-height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 80px 24px; }
 .m3-hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(closest-side at 30% 20%, ${accentHex}26, transparent 60%), radial-gradient(closest-side at 80% 80%, #06b6d426, transparent 60%); pointer-events: none; }
 .m3-canvas-host { position: absolute; inset: 0; z-index: 0; opacity: .9; }
-.m3-hero-copy { position: relative; z-index: 1; text-align: center; max-width: 640px; }
+/* min-width: 0 overrides the flex default of min-width: auto — without it, a
+   nowrap child's intrinsic min-content width (the full unbroken name) becomes
+   this flex item's shrink floor, so it stops shrinking with the viewport the
+   moment the name is wider than the item, and just overflows m3-hero's
+   overflow:hidden instead. */
+.m3-hero-copy { position: relative; z-index: 1; text-align: center; max-width: 640px; min-width: 0; width: 100%; }
 .m3-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 999px; background: rgba(16,185,129,.14); color: #34d399; border: 1px solid rgba(16,185,129,.25); margin-bottom: 20px; }
-.m3-name { font-size: clamp(3rem, 8vw, 6rem); font-weight: 800; line-height: 1.02; color: #fff; }
+.m3-name { font-size: clamp(3rem, 8vw, 6rem); font-weight: 800; line-height: 1.02; color: #fff; white-space: nowrap; }
 .m3-role { font-size: clamp(1.1rem, 2.4vw, 1.4rem); color: rgba(226,232,240,.75); margin: 18px 0 0; }
 .m3-tagline { font-size: 15px; color: rgba(226,232,240,.5); margin: 10px auto 0; max-width: 480px; }
 .m3-cta-row { display: flex; gap: 14px; justify-content: center; margin-top: 32px; flex-wrap: wrap; }
@@ -258,6 +263,33 @@ export default function Modern3DView({ widgets, theme }: { widgets: PortfolioWid
     if (!heroNameRef.current) return;
     const chars = heroNameRef.current.querySelectorAll('.m3-char');
     gsap.fromTo(chars, { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, stagger: 0.025, ease: 'power3.out', delay: 0.15 });
+  }, [hero.headline]);
+
+  // Keep the hero name on one line at any viewport width. clamp(3rem, 8vw, 6rem)
+  // scales with viewport but not with name length, so a long name still wraps
+  // once white-space:nowrap forces a single line — shrink font-size by the
+  // exact overflow ratio (text width scales ~linearly with font-size) so it
+  // always fits instead of breaking or spilling off-screen.
+  useLayoutEffect(() => {
+    const nameEl = heroNameRef.current;
+    if (!nameEl) return;
+    const fit = () => {
+      nameEl.style.fontSize = '';
+      const available = nameEl.clientWidth;
+      const natural = nameEl.scrollWidth;
+      if (available > 0 && natural > available) {
+        const current = parseFloat(window.getComputedStyle(nameEl).fontSize);
+        nameEl.style.fontSize = `${(current * available / natural) * 0.98}px`;
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(nameEl);
+    // Space Grotesk loads async (@import in the injected <style>); re-fit once
+    // it swaps in since its glyph metrics differ from the fallback font used
+    // for the first measurement.
+    document.fonts?.ready?.then(fit).catch(() => {});
+    return () => ro.disconnect();
   }, [hero.headline]);
 
   // Scroll progress bar + scroll-triggered reveals + desktop custom cursor.

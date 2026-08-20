@@ -24,6 +24,12 @@ layer, or adding a new backend module.
   `LABNINJA_TEST_DB_PATH` — copy the real file somewhere first, set that env var, and
   test against the copy. This is the established pattern for all backend verification
   in this repo; use it, don't invent a new one.
+- **`career_studio` has its own separate database — `backend/modules/career_studio/career_studio.sqlite3`, not `lab_ninja.sqlite3`.** `get_career_db_path()` in
+  `backend/modules/career_studio/shared/db.py` honors `CAREER_STUDIO_DB_PATH` (mirrors
+  `LABNINJA_TEST_DB_PATH`'s pattern above, but it's a distinct env var for a distinct
+  file). Testing any resume/portfolio/views/templates flow by copying only
+  `lab_ninja.sqlite3` leaves the real career_studio data unprotected — copy both files
+  and set both env vars.
 - **Frontend dev port is 4028.** Backend CORS defaults to `http://localhost:4028`
   (`backend/main.py`) — if you ever see CORS errors in local dev, check that default
   before assuming something else is wrong.

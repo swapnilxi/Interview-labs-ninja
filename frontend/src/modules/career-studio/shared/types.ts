@@ -20,7 +20,11 @@ export type SectionType =
   | 'interests'
   | 'patents'
   | 'career_goals'
-  | 'custom';
+  | 'custom'
+  | 'grid'
+  | 'columns'
+  | 'row'
+  | 'blank';
 
 export interface ResumeSection {
   id: string;
@@ -381,6 +385,16 @@ export const SECTION_LIBRARY: { type: SectionType; label: string; icon: string }
   { type: 'patents', label: 'Patents', icon: 'LightBulbIcon' },
   { type: 'career_goals', label: 'Career Goals', icon: 'FlagIcon' },
   { type: 'custom', label: 'Custom', icon: 'PlusCircleIcon' },
+  // Layout section types — same items/note content shape as Custom (see
+  // resolved_to_widgets() in views/db.py, which passes any unrecognized
+  // section_type through as a same-named widget carrying `content.items`),
+  // but rendered tiled instead of stacked on portfolio pages. Resumes/PDF
+  // export render these identically to Custom (a plain vertical list) —
+  // deliberately: multi-column layouts are an ATS-parsing risk on a resume.
+  { type: 'grid', label: 'Grid', icon: 'Squares2X2Icon' },
+  { type: 'columns', label: 'Columns', icon: 'ViewColumnsIcon' },
+  { type: 'row', label: 'Row', icon: 'RectangleGroupIcon' },
+  { type: 'blank', label: 'Blank', icon: 'DocumentIcon' },
 ];
 
 export const SECTION_LABELS: Record<string, string> = {
@@ -406,7 +420,10 @@ export type WidgetType =
   | 'testimonials'
   | 'stats'
   | 'contact'
-  | 'custom';
+  | 'custom'
+  | 'grid'
+  | 'columns'
+  | 'row';
 
 export interface PortfolioTheme {
   accent: string; // violet | emerald | blue | rose | amber | slate
@@ -504,6 +521,14 @@ export interface TestimonialSubmission {
   decided_at?: string | null;
 }
 
+/** Live, unpublished portfolio state for the view editor's preview pane — same
+ * shape as PublicPortfolio minus the publish-only fields. */
+export interface PortfolioPreviewData {
+  title: string | null;
+  widgets: PortfolioWidget[];
+  theme: PortfolioTheme;
+}
+
 export interface PublicPortfolio {
   slug: string;
   master_id: string;
@@ -548,6 +573,7 @@ export const WIDGET_LABELS: Record<string, string> = Object.fromEntries(WIDGET_L
 export const PORTFOLIO_STYLE_TEMPLATES: { id: string; name: string; desc: string }[] = [
   { id: 'linkx', name: 'LinkX', desc: 'Link-in-bio page — avatar + big link buttons' },
   { id: 'modern3d', name: 'Modern3D', desc: '3D hero, scroll reveals, custom cursor (live site only)' },
+  { id: 'visionary', name: 'Visionary', desc: 'Cinematic dark hero, career constellation, custom cursor (live site only)' },
   { id: 'minimal', name: 'Minimal', desc: 'Clean light, solid cards' },
   { id: 'isometric', name: 'Isometric', desc: 'Shaded 3D cubes, floating card' },
   { id: 'aurora', name: 'Aurora', desc: 'Soft gradient-mesh glow' },

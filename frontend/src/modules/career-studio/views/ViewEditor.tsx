@@ -3,8 +3,23 @@
 /**
  * View editor for a resume/portfolio "view" — a live rendering of a chosen
  * Master Profile with a template. Controls (left): profile dropdown + edit
- * pencil, template picker, per-section show/hide + reorder. Preview (right): an
- * iframe of the backend-rendered HTML, so it's identical to the export.
+ * pencil, template picker, per-section show/hide + reorder, publish. Canvas
+ * (right) has two modes, toggled from the toolbar:
+ *  - Edit (default): the same profile-content editor ProfileEditorModal uses
+ *    (ResumeEditor — add/edit/reorder/delete sections), embedded inline
+ *    instead of behind a modal, so content editing happens directly on this
+ *    page, Wix/Webflow-style, rather than requiring a trip to a separate
+ *    editor. Section add/delete here refreshes this view's own sidebar list.
+ *  - Preview: the real rendering a visitor would see — resumes get an iframe
+ *    of the backend-rendered HTML (identical to the export — resumes have no
+ *    live-component renderer); portfolios render the real
+ *    PortfolioWidgetsView component directly, matching the published page
+ *    exactly (Modern3D's Three.js/GSAP hero included) instead of a static
+ *    fallback. Note: Modern3D's scroll-progress bar and horizontal
+ *    project-rail pin assume the whole window scrolls, so those two effects
+ *    specifically (not the rest of the page) can look slightly off inside
+ *    this pane's own scroll container — cosmetic only, the published page
+ *    scrolls normally.
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -17,7 +32,7 @@ import { careerService } from '@/lib/services/careerService';
 import { viewsService } from '@/lib/services/viewsService';
 import { templatesService } from '@/lib/services/templatesService';
 import { portfolioService } from '@/lib/services/portfolioService';
-import { ACCENTS, PORTFOLIO_STYLE_TEMPLATES, type AnalyticsSummaryEntry, type CareerTemplate, type CareerView, type PublishHistoryEntry, type Resume, type TestimonialSubmission } from '../shared/types';
+import { ACCENTS, PORTFOLIO_STYLE_TEMPLATES, type AnalyticsSummaryEntry, type CareerTemplate, type CareerView, type PortfolioPreviewData, type PublishHistoryEntry, type Resume, type TestimonialSubmission } from '../shared/types';
 import { downloadBlob, printHtmlBlob } from '../shared/exportUtils';
 import AnalysisPanel from '../resume/AnalysisPanel';
 import ViewTailorPanel from './ViewTailorPanel';
@@ -27,12 +42,23 @@ import TemplateDesigner from '../templates-designer/TemplateDesigner';
 import { TemplatePickerCard } from '../templates-designer/TemplatePreviewThumb';
 import { openProfileEditor } from '../profile/profileEditorStore';
 import { LIST as RESUME_TEMPLATES } from '../resume/templates';
+import PortfolioWidgetsView from '../portfolio/PortfolioWidgetsView';
+import { useResumeStore } from '../resume/store/resumeStore';
+import ResumeEditor from '../resume/ResumeEditor';
+import { setActiveProfile } from '../shared/activeProfileStore';
 
 const SECTION_LABEL: Record<string, string> = {
   personal_info: 'Personal Info', summary: 'Summary', experience: 'Experience', education: 'Education',
   skills: 'Skills', projects: 'Projects', certifications: 'Certifications', awards: 'Awards',
   achievements: 'Achievements', research: 'Research', languages: 'Languages', volunteer: 'Volunteer', custom: 'Custom',
+  grid: 'Grid', columns: 'Columns', row: 'Row', blank: 'Blank',
 };
+
+/** Slug for the `?template=` URL mirror below — a template's name reads better
+ * in a shared URL than its raw id (a UUID for user-designed templates). */
+function slugify(s: string): string {
+  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'template';
+}
 
 function SortableSectionRow({ id, hidden, children }: { id: string; hidden?: boolean; children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -55,10 +81,13 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [portfolioPreview, setPortfolioPreview] = useState<PortfolioPreviewData | null>(null);
   const [publishInfo, setPublishInfo] = useState<{ slug: string; is_public: boolean; view_count: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const [slugInput, setSlugInput] = useState('');
   const [slugError, setSlugError] = useState<string | null>(null);
+  const [showPublishPopover, setShowPublishPopover] = useState(false);
+  const publishPopoverRef = useRef<HTMLDivElement>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<PublishHistoryEntry[]>([]);
   const [stats, setStats] = useState<AnalyticsSummaryEntry | null>(null);
@@ -69,9 +98,18 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
   const [tailorOpen, setTailorOpen] = useState(false);
   const [customTemplates, setCustomTemplates] = useState<CareerTemplate[]>([]);
   const [designerTemplate, setDesignerTemplate] = useState<CareerTemplate | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const lastUrl = useRef<string | null>(null);
 
   const isPortfolio = view?.kind === 'portfolio';
+  const fallbackTemplates = isPortfolio ? PORTFOLIO_STYLE_TEMPLATES.map((t) => ({ id: t.id, name: t.name })) : RESUME_TEMPLATES;
+  const templates = customTemplates.length ? customTemplates : fallbackTemplates;
+
+  // Drives the inline "Edit" canvas below — the same profile-editing store
+  // ProfileEditorModal uses, just embedded directly instead of behind a modal.
+  const loadProfileIntoEditor = useResumeStore((s) => s.load);
+  const editedResume = useResumeStore((s) => s.resume);
 
   // View-scoped AI: analyze/tailor operate on this view's visible sections and
   // (for tailor) write back to the underlying profile. Stable identities so the
@@ -79,7 +117,19 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
   const analyzeView = useCallback((jd?: string) => viewsService.analyze(viewId, jd), [viewId]);
   const getViewAnalysis = useCallback(() => viewsService.getAnalysis(viewId), [viewId]);
 
-  const refreshPreview = useCallback(async (id: string) => {
+  // Portfolios render the live PortfolioWidgetsView component (fed real data
+  // from the backend) instead of an iframe of static HTML — kind is passed in
+  // by each caller rather than read from `view` state, since that callback
+  // would otherwise close over a stale kind on the very first load.
+  const refreshPreview = useCallback(async (id: string, kind: 'resume' | 'portfolio') => {
+    if (kind === 'portfolio') {
+      try {
+        setPortfolioPreview(await viewsService.getPortfolioPreview(id));
+      } catch {
+        /* preview best-effort */
+      }
+      return;
+    }
     try {
       const blob = await viewsService.exportBlob(id, 'html');
       const url = URL.createObjectURL(blob);
@@ -94,9 +144,9 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
   const applyAnalysisFix = useCallback(
     async (fix: { section_id: string; title?: string | null; content: any }) => {
       await viewsService.applyTailor(viewId, { updates: [fix], mode: 'in_place', jobLabel: 'AI Analyzer fix' });
-      await refreshPreview(viewId);
+      if (view) await refreshPreview(viewId, view.kind);
     },
-    [viewId, refreshPreview],
+    [viewId, refreshPreview, view?.kind],
   );
 
   const load = useCallback(async () => {
@@ -111,7 +161,7 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
         .list(v.kind)
         .then(setCustomTemplates)
         .catch(() => {});
-      await refreshPreview(viewId);
+      await refreshPreview(viewId, v.kind);
       const st = (await viewsService.getPublishStatus(viewId)) as any;
       setPublishInfo(st && st.slug ? st : null);
       setSlugInput(st?.slug || '');
@@ -129,14 +179,68 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
     };
   }, [load]);
 
+  // Mirror the current template into a `?template=` query param so the URL
+  // alone identifies which template a view is using — updates on load and
+  // whenever the template is switched from the picker below. Uses the
+  // template's name (slugified), not its raw id — built-in ids read fine
+  // on their own ("modern3d") but a user-designed template's id is a UUID,
+  // meaningless in a shared URL.
+  useEffect(() => {
+    if (!view?.template || typeof window === 'undefined') return;
+    const label = templates.find((t) => t.id === view.template)?.name || view.template;
+    const slug = slugify(label);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('template') === slug) return;
+    params.set('template', slug);
+    router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+  }, [view?.template, templates, router]);
+
+  // Hydrate the inline profile editor whenever the view's profile changes —
+  // same store ProfileEditorModal uses, so edits made here or there stay in sync.
+  useEffect(() => {
+    if (!view?.profile_id) return;
+    void loadProfileIntoEditor(view.profile_id);
+    setActiveProfile({ id: view.profile_id, title: view.profile_title });
+  }, [view?.profile_id, view?.profile_title, loadProfileIntoEditor]);
+
+  useEffect(() => {
+    if (!showPublishPopover) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (publishPopoverRef.current && !publishPopoverRef.current.contains(e.target as Node)) setShowPublishPopover(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [showPublishPopover]);
+
   const patch = useCallback(
     async (fields: Parameters<typeof viewsService.update>[1], skipPreview = false) => {
       const updated = await viewsService.update(viewId, fields);
       setView(updated);
-      if (!skipPreview) await refreshPreview(viewId);
+      if (!skipPreview) await refreshPreview(viewId, updated.kind);
     },
     [viewId, refreshPreview],
   );
+
+  // The sidebar's Sections list (and the published portfolio, which resolves
+  // through the same backend function) order by the VIEW's own config, not
+  // the profile's live order — resolve_sections() only preserves order for
+  // sections already known to that config; anything new just gets appended
+  // after whatever was last configured, regardless of where it actually landed
+  // in the profile. So any add/delete/reorder happening in the inline editor
+  // (add-section, insert-between, or SectionManager's own drag-reorder) has to
+  // resync the view's config to the profile's true order — otherwise inserting
+  // a section "between two sections" here would visibly land somewhere else in
+  // the sidebar and on the live page. Comparing full id+order (not just count)
+  // catches reordering too, not just add/delete.
+  useEffect(() => {
+    if (!editedResume || editedResume.id !== view?.profile_id || !view?.sections) return;
+    const profileIds = editedResume.sections.map((s) => s.id).join(',');
+    const viewIds = view.sections.map((s) => s.id).join(',');
+    if (profileIds === viewIds) return;
+    const hiddenById = new Map(view.sections.map((s) => [s.id, s.hidden]));
+    const items = editedResume.sections.map((s) => ({ section_id: s.id, hidden: hiddenById.get(s.id) ?? false }));
+    void patch({ config: { items } }, true);
+  }, [editedResume, view?.profile_id, view?.sections, patch]);
 
   const commitSections = (sections: NonNullable<CareerView['sections']>) => {
     setView((v) => (v ? { ...v, sections } : v));
@@ -197,6 +301,7 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
       const st = await viewsService.publish(viewId, customSlug);
       setPublishInfo(st);
       setSlugInput(st.slug);
+      setShowPublishPopover(true);
     } catch (e: any) {
       if (customSlug) setSlugError(e?.message || 'Could not save that slug');
       else setError(e?.message || 'Publish failed');
@@ -288,13 +393,6 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
   if (!view) return null;
 
   const backTab = isPortfolio ? 'portfolios' : 'resumes';
-  const fallbackTemplates = isPortfolio ? PORTFOLIO_STYLE_TEMPLATES.map((t) => ({ id: t.id, name: t.name })) : RESUME_TEMPLATES;
-  const templates = customTemplates.length ? customTemplates : fallbackTemplates;
-  // Modern3D's Three.js/GSAP hero is a live-browser React component — this
-  // preview pane (like the PDF/DOCX/HTML export) renders the backend's
-  // JS-free HTML string instead, so it can only ever show the plain
-  // fallback look. Flag that here rather than let it read as broken.
-  const isModern3D = isPortfolio && templates.some((t: any) => t.id === view.template && t.spec?.background === 'modern3d');
 
   return (
     <div className="pt-[60px] h-screen flex flex-col bg-background">
@@ -312,6 +410,21 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
           placeholder="Untitled"
         />
         <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex items-center bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => setMode('edit')}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 transition-smooth ${mode === 'edit' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <Icon name="PencilSquareIcon" size={14} /> Edit
+            </button>
+            <button
+              onClick={() => { setMode('preview'); void refreshPreview(viewId, view.kind); }}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 transition-smooth ${mode === 'preview' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <Icon name="EyeIcon" size={14} /> Preview
+            </button>
+          </div>
+          <span className="w-px h-5 bg-border mx-0.5" />
           <button onClick={() => setAnalysisOpen(true)} className="px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted inline-flex items-center gap-1.5" title={isPortfolio ? 'AI portfolio analysis' : 'AI resume analysis'}><Icon name="ChartBarSquareIcon" size={14} /> Analyze</button>
           {!isPortfolio && (
             <>
@@ -326,11 +439,47 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
             <button onClick={() => doExport('docx')} disabled={!!busy} title="Download DOCX (Word)" className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"><Icon name="DocumentTextIcon" size={17} /></button>
           )}
           <button onClick={() => doExport('markdown')} disabled={!!busy} title="Download Markdown" className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"><Icon name="HashtagIcon" size={17} /></button>
+          <span className="w-px h-5 bg-border mx-0.5" />
+          <div ref={publishPopoverRef} className="relative">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => publish()}
+                disabled={!!busy}
+                title={publishInfo?.is_public ? 'Publish latest changes to the live link' : 'Publish a public link'}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 ${
+                  publishInfo?.is_public ? 'border border-success/40 text-success hover:bg-success/10' : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                }`}
+              >
+                {publishInfo?.is_public && <span className="w-1.5 h-1.5 rounded-full bg-success" />}
+                <Icon name="GlobeAltIcon" size={14} />
+                {busy === 'publish' ? '…' : publishInfo?.is_public ? 'Update' : 'Publish'}
+              </button>
+              {publishInfo?.is_public && publicUrl && (
+                <a href={publicUrl} target="_blank" rel="noreferrer" title="Open in new tab" className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">
+                  <Icon name="ArrowTopRightOnSquareIcon" size={16} />
+                </a>
+              )}
+            </div>
+            {showPublishPopover && publishInfo?.is_public && publicUrl && (
+              <div className="absolute right-0 top-full mt-2 w-[280px] rounded-lg border border-border bg-card shadow-lg p-3 z-20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-success" /> Published</span>
+                  <button onClick={() => setShowPublishPopover(false)} className="text-muted-foreground hover:text-foreground"><Icon name="XMarkIcon" size={14} /></button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input readOnly value={publicUrl} className="flex-1 min-w-0 text-[11px] rounded-md border border-border bg-background px-2 py-1.5" />
+                  <button onClick={copyLink} title="Copy" className="p-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground flex-shrink-0"><Icon name={copied ? 'CheckIcon' : 'ClipboardIcon'} size={14} /></button>
+                  <a href={publicUrl} target="_blank" rel="noreferrer" title="Open" className="p-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground flex-shrink-0"><Icon name="ArrowTopRightOnSquareIcon" size={14} /></a>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 flex relative">
         {/* Controls */}
+        {sidebarOpen && (
         <div className="w-[340px] max-w-[85vw] flex-shrink-0 border-r border-border overflow-y-auto scrollbar-clean p-4 space-y-5 bg-card">
           {/* Profile picker (switching auto-reloads this view from the new profile) */}
           <div>
@@ -414,7 +563,7 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
                 </div>
               </SortableContext>
             </DndContext>
-            <p className="text-[11px] text-muted-foreground mt-2">Content comes from the profile. <button onClick={() => openProfileEditor(view.profile_id)} className="text-primary hover:underline">Edit data →</button></p>
+            <p className="text-[11px] text-muted-foreground mt-2">Edit content directly in the canvas. Need import, versions, or AI copilot? <button onClick={() => openProfileEditor(view.profile_id)} className="text-primary hover:underline">Open full editor →</button></p>
           </div>
 
           {/* Publish a public link — works for both resumes and portfolios */}
@@ -522,24 +671,37 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
 
           {error && <p className="text-xs text-error">{error}</p>}
         </div>
+        )}
 
-        {/* Preview */}
+        <button
+          onClick={() => setSidebarOpen((o) => !o)}
+          title={sidebarOpen ? 'Hide panel' : 'Show panel'}
+          className={`absolute top-3 z-10 p-1.5 rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted shadow-sm transition-smooth ${sidebarOpen ? 'left-[328px]' : 'left-3'}`}
+        >
+          <Icon name={sidebarOpen ? 'ChevronLeftIcon' : 'ChevronRightIcon'} size={14} />
+        </button>
+
+        {/* Canvas: inline editor by default, live preview behind the "Preview" toggle above */}
         <div className="flex-1 min-w-0 bg-muted/30 p-4 overflow-hidden flex flex-col gap-3">
-          {isModern3D && (
-            <div className="flex-shrink-0 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground flex items-center gap-2">
-              <Icon name="SparklesIcon" size={14} className="text-primary flex-shrink-0" />
-              <span>
-                This preview (and the exported PDF/HTML) shows Modern3D&apos;s plain fallback look — the animated 3D hero only renders on the{' '}
-                {publishInfo?.is_public && publicUrl ? (
-                  <a href={publicUrl} target="_blank" rel="noreferrer" className="underline hover:text-primary">published page</a>
-                ) : (
-                  'published page'
-                )}
-                {!publishInfo?.is_public && ' (publish below to see it live)'}.
-              </span>
-            </div>
-          )}
-          {previewUrl ? (
+          {mode === 'edit' ? (
+            editedResume && editedResume.id === view.profile_id ? (
+              <div className="w-full flex-1 min-h-0 overflow-y-auto scrollbar-clean rounded-lg border border-border bg-card shadow-sm p-4 sm:p-6">
+                <div className="w-full max-w-[720px] mx-auto">
+                  <ResumeEditor />
+                </div>
+              </div>
+            ) : (
+              <div className="w-full flex-1 min-h-0 flex items-center justify-center text-sm text-muted-foreground">Loading editor…</div>
+            )
+          ) : isPortfolio ? (
+            portfolioPreview ? (
+              <div className="w-full flex-1 min-h-0 rounded-lg border border-border bg-white shadow-sm overflow-y-auto">
+                <PortfolioWidgetsView widgets={portfolioPreview.widgets} theme={portfolioPreview.theme} emptyText="This portfolio is empty." />
+              </div>
+            ) : (
+              <div className="w-full flex-1 min-h-0 flex items-center justify-center text-sm text-muted-foreground">Rendering preview…</div>
+            )
+          ) : previewUrl ? (
             <iframe title="preview" src={previewUrl} className="w-full flex-1 min-h-0 rounded-lg border border-border bg-white shadow-sm" />
           ) : (
             <div className="w-full flex-1 min-h-0 flex items-center justify-center text-sm text-muted-foreground">Rendering preview…</div>

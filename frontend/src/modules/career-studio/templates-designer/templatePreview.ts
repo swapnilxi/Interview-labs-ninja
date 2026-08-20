@@ -257,11 +257,18 @@ export function portfolioPreviewHtml(spec: PortfolioTemplateSpec, sections?: Pre
   const layoutCard = spec.layout === 'card';
   const centered = spec.layout === 'centered' ? 'text-align:center;' : '';
   const isLinkX = spec.background === 'linkx';
+  // Modern3D and Visionary have no static css() of their own (see
+  // templates/index.ts) — this string-based preview can't run their live
+  // Three.js/motion scenes anyway, so they borrow "minimal"'s look for both
+  // the css lookup and the `.pf-tpl-<id>` class the css is scoped to
+  // (aliasing only the css lookup and leaving the class as `pf-tpl-modern3d`
+  // would render with no template styling at all).
+  const cssTemplateId = spec.background === 'modern3d' || spec.background === 'visionary' ? 'minimal' : spec.background;
   const css = `
     * { box-sizing:border-box; }
     body { margin:0; color:#1f2430; font-family:${fontStack}; line-height:1.5; }
     ${PORTFOLIO_BASE_CSS}
-    ${getPortfolioTemplateCss(spec.background, accentHex)}
+    ${getPortfolioTemplateCss(cssTemplateId, accentHex)}
     .pf-shell { min-height:100%; padding:26px 16px; }
     .pf-card { max-width:760px; margin:0 auto; border-radius:18px; padding:24px; }
     .hero { background:${accentHex}; color:#fff; border-radius:14px; padding:34px 22px; text-align:center; margin-bottom:20px; }
@@ -290,7 +297,7 @@ export function portfolioPreviewHtml(spec: PortfolioTemplateSpec, sections?: Pre
        </section>
        <section class="w"><h2>Projects</h2><p class="para"><b>Payments rewrite</b> — cut checkout latency 40% across the fleet.</p></section>`;
   const body = `
-    <div class="pf-shell pf-tpl-${spec.background}">
+    <div class="pf-shell pf-tpl-${cssTemplateId}">
       <div class="pf-card">${inner}</div>
     </div>`;
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`;

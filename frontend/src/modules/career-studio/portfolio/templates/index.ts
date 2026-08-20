@@ -3,9 +3,19 @@
  * (+ a matching css(accentHex) export each template also exposes, reused by
  * the Template Designer's HTML-string preview). Adding a new template means
  * adding a new folder here and registering it below — no shared switch
- * statement to edit. `modern3d` is deliberately absent: it bypasses this
- * whole system in the live browser (see PortfolioWidgetsView.tsx's Modern3DView
- * special-case) — only the backend needs a static CSS fallback for it.
+ * statement to edit. `modern3d` and `visionary` are deliberately absent: they
+ * bypass this whole system in the live browser (see PortfolioWidgetsView.tsx's
+ * special-cases) because they're full Three.js/motion page components, not a
+ * CSS treatment over the shared widget shell. Each template's css() is
+ * self-scoped to its own `.pf-tpl-<id>` class, so a live-only template can't
+ * just borrow another one's css() here — the id wouldn't match the selector.
+ * templatePreview.ts's card-thumbnail renderer aliases `modern3d`/`visionary`
+ * to `minimal` for exactly this reason; see the comment there before "fixing"
+ * this by adding them to CSS_REGISTRY.
+ *
+ * Every built-in template also has a sibling `prompt.md` in its folder — an
+ * editable design spec. Edit it and ask Claude Code to sync the
+ * implementation to match, instead of hand-editing the component directly.
  */
 
 import type { ComponentType } from 'react';
@@ -17,11 +27,9 @@ import IsometricTemplate, { css as isometricCss } from './isometric/isometric';
 import LinkxTemplate, { css as linkxCss } from './linkx/linkx';
 import MeshTemplate, { css as meshCss } from './mesh/mesh';
 import MinimalTemplate, { css as minimalCss } from './minimal/minimal';
-import ModernTemplate, { css as modernCss } from './modern/modern';
 import type { PortfolioTemplateProps } from './shared';
 
 export const REGISTRY: Record<string, ComponentType<PortfolioTemplateProps>> = {
-  modern: ModernTemplate,
   linkx: LinkxTemplate,
   minimal: MinimalTemplate,
   isometric: IsometricTemplate,
@@ -33,7 +41,6 @@ export const REGISTRY: Record<string, ComponentType<PortfolioTemplateProps>> = {
 };
 
 const CSS_REGISTRY: Record<string, (accentHex: string) => string> = {
-  modern: modernCss,
   linkx: linkxCss,
   minimal: minimalCss,
   isometric: isometricCss,

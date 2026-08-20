@@ -566,6 +566,23 @@ def _portfolio_theme(uid: str, view: dict) -> dict:
             "layout": view.get("layout") or "stack", "template": view.get("template") or "modern3d"}
 
 
+@router.get("/views/{view_id}/preview-data")
+async def get_view_preview_data(view_id: str, user_id: int = Depends(get_current_user_id)) -> dict:
+    """Live, unpublished portfolio state as {title, theme, widgets} — the same
+    shape the public /p/{slug} reader returns — so the editor can render the
+    real PortfolioWidgetsView component instead of a static HTML/PDF snapshot.
+    Resumes have no equivalent live-component renderer; use /export instead."""
+    uid = str(user_id)
+    view = views_db.get_view(uid, view_id)
+    if view is None:
+        raise HTTPException(status_code=404, detail="View not found")
+    if view["kind"] != "portfolio":
+        raise HTTPException(status_code=400, detail="Preview data is only available for portfolios")
+    theme = _portfolio_theme(uid, view)
+    widgets = views_db.resolved_to_widgets(view.get("sections", []))
+    return {"title": view["title"], "theme": theme, "widgets": widgets}
+
+
 def _render_view_html(uid: str, view: dict) -> str:
     visible = [s for s in view.get("sections", []) if not s.get("hidden")]
     if view["kind"] == "portfolio":

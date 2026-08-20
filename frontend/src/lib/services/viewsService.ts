@@ -12,6 +12,7 @@ import type {
   AnalysisRecord,
   AnalyticsSummaryEntry,
   CareerView,
+  PortfolioPreviewData,
   PublicResume,
   PublishHistoryEntry,
   PublishStatus,
@@ -47,6 +48,12 @@ export const viewsService = {
     const res = await apiFetch(`/career/views/${id}/export?format=${format}`);
     if (!res.ok) throw new Error(await parseApiError(res));
     return res.blob();
+  },
+
+  /** Live (unpublished) portfolio state for rendering the real PortfolioWidgetsView
+   * component in the editor preview — portfolios only, 400s for resumes. */
+  getPortfolioPreview(id: string): Promise<PortfolioPreviewData> {
+    return apiJson<PortfolioPreviewData>(`/career/views/${id}/preview-data`);
   },
 
   // Portfolio-view publishing (reuses the public /p/{slug} reader).

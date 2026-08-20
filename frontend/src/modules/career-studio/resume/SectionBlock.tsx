@@ -23,6 +23,10 @@ const ITEM_PLACEHOLDERS: Record<string, { title: string; subtitle: string }> = {
   interests: { title: 'Interest', subtitle: 'Details' },
   patents: { title: 'Patent title', subtitle: 'Patent number / Office' },
   custom: { title: 'Title', subtitle: 'Subtitle' },
+  grid: { title: 'Card title', subtitle: 'Subtitle' },
+  columns: { title: 'Column heading', subtitle: 'Subtitle' },
+  row: { title: 'Item title', subtitle: 'Subtitle' },
+  blank: { title: 'Title (optional)', subtitle: 'Subtitle (optional)' },
 };
 
 interface Props {

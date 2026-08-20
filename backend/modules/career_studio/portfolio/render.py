@@ -22,6 +22,23 @@ def _initials(name: str) -> str:
     return (parts[0][0] + parts[-1][0]).upper()
 
 
+def _custom_field_items(fields: list | None) -> list[str]:
+    """{label, value} custom fields → escaped "Label: value" strings, ready
+    to drop straight into HTML — mirrors resume/render.py's helper of the
+    same name so the same data reads the same way on both the resume export
+    and the portfolio."""
+    out = []
+    for f in fields or []:
+        if not isinstance(f, dict):
+            continue
+        label = _e((f.get("label") or "").strip())
+        value = _e((f.get("value") or "").strip())
+        if not (label or value):
+            continue
+        out.append(f"{label}: {value}" if label and value else (label or value))
+    return out
+
+
 def _render_widget(w: dict, accent_hex: str, template: str = "modern3d") -> str:
     wtype = w.get("widget_type")
     c = w.get("content") or {}
@@ -98,21 +115,35 @@ def _render_widget(w: dict, accent_hex: str, template: str = "modern3d") -> str:
             return ""
         return f'<section class="w"><h2>{_e(heading)}</h2><p class="para">{joined}</p></section>'
 
-    # items-based (projects, experience, education, gallery, testimonials)
+    # items-based (projects, experience, education, gallery, testimonials, and
+    # the grid/columns/row/blank layout types — grid/columns/row tiled instead
+    # of stacked below). Section note (`text`) and the section's own custom
+    # fields (distinct from each item's, folded into that item's bullets
+    # below) both need rendering here, or a note-only/custom-field-only
+    # section (e.g. a freshly added Blank section) would render as nothing.
     items = c.get("items", []) or []
     blocks = []
+    tiled = wtype in ("grid", "columns", "row")
     for it in items:
         t = it.get("title", "")
         sub = it.get("subtitle", "")
         date = it.get("date", "")
-        bullets = "".join(f"<li>{_e(b)}</li>" for b in (it.get("bullets", []) or []) if b)
+        bullet_items = [_e(b) for b in (it.get("bullets", []) or []) if b] + _custom_field_items(it.get("custom_fields"))
+        bullets = "".join(f"<li>{b}</li>" for b in bullet_items)
         bullets = f"<ul>{bullets}</ul>" if bullets else ""
         head = f'<div class="p-head"><b>{_e(t)}</b>' + (f' — <span>{_e(sub)}</span>' if sub else "") + (f'<span class="p-date">{_e(date)}</span>' if date else "") + "</div>"
         if t or sub or bullets:
-            blocks.append(f'<div class="p-item">{head}{bullets}</div>')
-    if not blocks:
+            cls = f'p-item p-item-tile' if tiled else 'p-item'
+            blocks.append(f'<div class="{cls}">{head}{bullets}</div>')
+    note = c.get("text")
+    note_html = f'<p class="para">{_e(note)}</p>' if note else ""
+    section_customs = _custom_field_items(c.get("custom_fields"))
+    customs_html = f'<p class="p-date" style="float:none;">{" · ".join(section_customs)}</p>' if section_customs else ""
+    if not blocks and not note_html and not customs_html:
         return ""
-    return f'<section class="w"><h2>{_e(heading)}</h2>{"".join(blocks)}</section>'
+    wrap_cls = {"grid": "p-grid", "columns": "p-columns", "row": "p-row"}.get(wtype, "")
+    items_html = f'<div class="{wrap_cls}">{"".join(blocks)}</div>' if wrap_cls else "".join(blocks)
+    return f'<section class="w"><h2>{_e(heading)}</h2>{note_html}{items_html}{customs_html}</section>'
 
 
 def render_portfolio_html(portfolio: dict) -> str:
@@ -160,6 +191,11 @@ def render_portfolio_html(portfolio: dict) -> str:
     .stat-l {{ font-size: 12px; color: #6b7280; }}
     .p-item {{ margin-bottom: 12px; }}
     .p-date {{ color: #6b7280; font-size: 12px; float: right; }}
+    .p-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }}
+    .p-columns {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }}
+    .p-row {{ display: flex; flex-wrap: wrap; gap: 16px; }}
+    .p-row .p-item-tile {{ flex: 1 1 200px; }}
+    .p-item-tile {{ margin-bottom: 0; border: 1px solid #ececf1; border-radius: 10px; padding: 12px 14px; }}
     ul {{ margin: 6px 0 0 18px; padding: 0; }}
     li {{ margin-bottom: 3px; }}
     a {{ color: {accent_hex}; text-decoration: none; }}

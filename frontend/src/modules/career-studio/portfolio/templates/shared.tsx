@@ -28,22 +28,47 @@ export function Heading({ text, accent, centered, dark }: { text: string; accent
   return <h2 className={`text-lg font-bold mb-3 ${centered ? 'text-center' : ''} ${dark ? 'text-white' : ACCENT[accent]?.text || 'text-neutral-800'}`}>{text}</h2>;
 }
 
+/** {label, value} custom fields (section- or item-level) → "Label: value"
+ * strings, mirroring resume/render.py's _custom_field_items so the same data
+ * reads the same way on both the resume export and the portfolio. */
+function formatCustomFields(fields: any): string[] {
+  if (!Array.isArray(fields)) return [];
+  return fields
+    .filter((f) => f && (f.label || f.value))
+    .map((f) => (f.label && f.value ? `${f.label}: ${f.value}` : f.label || f.value));
+}
+
 /** LinkX's page background is near-black, so its widgets need light text —
- * every other template keeps the original dark-on-light neutral shades. */
-export function Items({ items, dark }: { items: any[]; dark?: boolean }) {
+ * every other template keeps the original dark-on-light neutral shades.
+ * `layout` tiles the items instead of stacking them (grid/columns/row
+ * section types) — tiled items get a card border for visual separation,
+ * since a plain stacked list doesn't need one but a grid cell does. */
+export function Items({ items, dark, layout = 'stack' }: { items: any[]; dark?: boolean; layout?: 'stack' | 'grid' | 'columns' | 'row' }) {
+  const wrapCls =
+    layout === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 gap-3' :
+    layout === 'columns' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' :
+    layout === 'row' ? 'flex flex-wrap gap-4' :
+    'space-y-3';
+  const tiled = layout !== 'stack';
   return (
-    <div className="space-y-3">
+    <div className={wrapCls}>
       {items.map((it, i) => (
-        <div key={i}>
+        <div key={i} className={tiled ? `rounded-lg border p-3 ${dark ? 'border-white/10' : 'border-neutral-200'} ${layout === 'row' ? 'flex-1 min-w-[180px]' : ''}` : ''}>
           <div className="flex items-baseline justify-between gap-3">
             <span className={`text-sm font-semibold ${dark ? 'text-white' : 'text-neutral-800'}`}>{it.title}{it.subtitle ? <span className={dark ? 'font-normal text-white/60' : 'font-normal text-neutral-600'}> — {it.subtitle}</span> : null}</span>
             {it.date ? <span className={`text-[11px] ${dark ? 'text-white/45' : 'text-neutral-500'}`}>{it.date}</span> : null}
           </div>
-          {Array.isArray(it.bullets) && it.bullets.filter(Boolean).length > 0 && (
-            <ul className="mt-1 ml-4 list-disc space-y-0.5">
-              {it.bullets.filter(Boolean).map((b: string, j: number) => <li key={j} className={`text-[13px] ${dark ? 'text-white/75' : 'text-neutral-700'}`}>{b.replace(/^[-•]\s*/, '')}</li>)}
-            </ul>
-          )}
+          {(() => {
+            const bullets = Array.isArray(it.bullets) ? it.bullets.filter(Boolean) : [];
+            const customs = formatCustomFields(it.custom_fields);
+            if (!bullets.length && !customs.length) return null;
+            return (
+              <ul className="mt-1 ml-4 list-disc space-y-0.5">
+                {bullets.map((b: string, j: number) => <li key={`b${j}`} className={`text-[13px] ${dark ? 'text-white/75' : 'text-neutral-700'}`}>{b.replace(/^[-•]\s*/, '')}</li>)}
+                {customs.map((c, j) => <li key={`c${j}`} className={`text-[13px] ${dark ? 'text-white/75' : 'text-neutral-700'}`}>{c}</li>)}
+              </ul>
+            );
+          })()}
         </div>
       ))}
     </div>
@@ -174,9 +199,25 @@ export function WidgetView({ widget, accent, centered, template }: { widget: Por
     );
   }
 
+  // Generic fallback — experience/projects/education/certifications/…, plus
+  // the grid/columns/row/blank layout types. Section note (`text`) and the
+  // section's own custom fields (distinct from each item's custom fields,
+  // handled inside Items itself) both need showing here, or a note-only /
+  // custom-field-only section (e.g. a freshly added Blank section) would
+  // silently render as nothing.
   const items = Array.isArray(c.items) ? c.items : [];
-  if (!items.length) return null;
-  return <section><Heading text={heading} accent={accent} centered={centered} dark={isLinkX} /><Items items={items} dark={isLinkX} /></section>;
+  const note = c.text;
+  const customs = formatCustomFields(c.custom_fields);
+  if (!items.length && !note && !customs.length) return null;
+  const layout = type === 'grid' || type === 'columns' || type === 'row' ? type : undefined;
+  return (
+    <section>
+      <Heading text={heading} accent={accent} centered={centered} dark={isLinkX} />
+      {note && <p className={`text-sm mb-2 whitespace-pre-wrap ${isLinkX ? 'text-white/75' : 'text-neutral-700'} ${centered ? 'text-center' : ''}`}>{note}</p>}
+      {items.length > 0 && <Items items={items} dark={isLinkX} layout={layout} />}
+      {customs.length > 0 && <p className={`text-xs mt-2 ${isLinkX ? 'text-white/50' : 'text-neutral-500'}`}>{customs.join(' · ')}</p>}
+    </section>
+  );
 }
 
 /** Base CSS every template layers its own background/card treatment on top

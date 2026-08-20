@@ -193,7 +193,11 @@ def resolved_to_widgets(sections: list[dict]) -> list[dict]:
         elif st == "skills":
             add(sid, "skills", s.get("title") or "Skills", {"groups": c.get("groups", [])})
         else:
-            add(sid, st or "custom", s.get("title") or (st or "Section").title(), {"items": c.get("items", [])})
+            add(sid, st or "custom", s.get("title") or (st or "Section").title(), {
+                "items": c.get("items", []),
+                "text": c.get("text", ""),
+                "custom_fields": c.get("custom_fields", []),
+            })
     return widgets
 
 

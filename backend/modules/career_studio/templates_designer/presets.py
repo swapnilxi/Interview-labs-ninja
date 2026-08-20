@@ -26,7 +26,7 @@ A *spec* is a small dict of visual knobs; render.py turns it into PDF-safe CSS:
     font:        'sans' | 'serif'
     accent:      palette key
     layout:      'stack' | 'centered' | 'card'
-    background:  'modern'|'linkx'|'minimal'|'isometric'|'aurora'|'blueprint'|'dots'|'mesh'|'carbon'
+    background:  'linkx'|'modern3d'|'visionary'|'minimal'|'isometric'|'aurora'|'blueprint'|'dots'|'mesh'|'carbon'
 """
 
 from __future__ import annotations
@@ -65,6 +65,7 @@ RESUME_PRESETS: list[dict] = [
 PORTFOLIO_PRESETS: list[dict] = [
     {"id": "linkx", "name": "LinkX", "spec": {"font": "sans", "accent": "violet", "layout": "centered", "background": "linkx"}},
     {"id": "modern3d", "name": "Modern3D", "spec": {"font": "sans", "accent": "violet", "layout": "stack", "background": "modern3d"}},
+    {"id": "visionary", "name": "Visionary", "spec": {"font": "sans", "accent": "violet", "layout": "stack", "background": "visionary"}},
     {"id": "minimal", "name": "Minimal", "spec": {"font": "sans", "accent": "violet", "layout": "card", "background": "minimal"}},
     {"id": "isometric", "name": "Isometric", "spec": {"font": "sans", "accent": "violet", "layout": "card", "background": "isometric"}},
     {"id": "aurora", "name": "Aurora", "spec": {"font": "sans", "accent": "violet", "layout": "card", "background": "aurora"}},
