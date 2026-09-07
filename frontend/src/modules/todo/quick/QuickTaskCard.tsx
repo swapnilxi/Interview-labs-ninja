@@ -81,13 +81,18 @@ export default function QuickTaskCard({
     else if (task.pareto_score < 0.3) paretoClasses = 'opacity-60 grayscale-[30%]';
   }
 
+  // Meta badges that carry actual values. When a task has none, the whole meta row
+  // stays hidden until hover, so a bare task renders as a tight two-line card.
+  const hasMeta = !!(task.time_estimate || task.due_date || task.context);
+  const metaRowVisible = hasMeta || editingField !== null;
+
   return (
     <div className={`relative bg-card border border-border/60 rounded-lg p-2.5 transition-smooth hover:border-border/80 group ${paretoClasses} ${task.done ? 'opacity-60' : ''}`}>
       <div className="flex flex-col gap-1.5">
-        {/* Row 1: checkbox + full title */}
-        <div className="flex items-center gap-2">
+        {/* Row 1: checkbox + title + actions (actions are shrink-0 so they never wrap) */}
+        <div className="flex items-start gap-2">
           {!hideDragHandle && (
-            <div className="cursor-grab text-muted-foreground/30 hover:text-muted-foreground transition-smooth flex-shrink-0">
+            <div className="cursor-grab text-muted-foreground/30 hover:text-muted-foreground transition-smooth flex-shrink-0 mt-px">
               <Icon name="Bars3Icon" size={14} />
             </div>
           )}
@@ -139,14 +144,91 @@ export default function QuickTaskCard({
 
           {/* Source Badge */}
           {task.source !== 'manual' && (
-            <span className="flex-shrink-0 text-[8px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted px-1 rounded-sm">
+            <span className="flex-shrink-0 text-[8px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted px-1 rounded-sm mt-px">
               {task.source.replace('_', ' ')}
             </span>
           )}
+
+          {/* Actions — pinned to the title row and shrink-0, so a long title or a wide
+              badge row can never push them onto a line of their own. */}
+          <div className="flex items-center gap-0.5 flex-shrink-0 opacity-60 group-hover:opacity-100 transition-smooth">
+            {/* Pareto 80/20 */}
+            <button
+              onClick={() => setShowParetoModal(true)}
+              className={`p-0.5 rounded transition-smooth leading-none text-[11px] ${
+                task.is_top_20 ? 'text-amber-500 hover:bg-amber-500/10' : 'text-muted-foreground hover:bg-muted'
+              }`}
+              title="80/20 Pareto Analysis"
+            >
+              ⭐
+            </button>
+
+            {/* Move Menu */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowMoveMenu(!showMoveMenu); setShowDeleteConfirm(false); }}
+                className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-smooth flex items-center"
+                title="Move task"
+              >
+                <Icon name="ArrowRightIcon" size={11} />
+              </button>
+              {showMoveMenu && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-1 min-w-[150px]">
+                  <button
+                    onClick={() => { setShowMoveMenu(false); onMoveToSmart?.(task.id); }}
+                    className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
+                  >
+                    <span className="text-xs">🧠</span> Move to Smart To-Do
+                  </button>
+                  <button
+                    onClick={() => { setShowMoveMenu(false); onMoveToPlan?.(task.id); }}
+                    className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
+                  >
+                    <span className="text-xs">🗺️</span> Move to Plan & Project
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Delete */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowDeleteConfirm(!showDeleteConfirm); setShowMoveMenu(false); }}
+                className="p-0.5 rounded text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-smooth flex items-center"
+                title="Delete"
+              >
+                <Icon name="TrashIcon" size={11} />
+              </button>
+              {showDeleteConfirm && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-2 min-w-[140px]">
+                  <p className="text-[10px] text-foreground font-medium mb-2 text-center">Delete task?</p>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={handleDelete}
+                      className="flex-1 text-[10px] py-1 rounded bg-red-500 text-white font-medium hover:bg-red-600 transition-smooth"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 text-[10px] py-1 rounded border border-border text-muted-foreground hover:bg-muted transition-smooth"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Row 2: time / due date badges + secondary actions */}
-        <div className="flex items-center gap-2 pl-6 text-[10px] text-muted-foreground flex-wrap">
+        {/* Row 2: time / due date / context badges. Hidden entirely for a bare task
+            until hover, which keeps dense columns compact. */}
+        <div
+          className={`items-center gap-1.5 pl-6 text-[10px] text-muted-foreground flex-wrap ${
+            metaRowVisible ? 'flex' : 'hidden group-hover:flex'
+          }`}
+        >
           {/* Time Estimate */}
           {editingField === 'time_estimate' ? (
             <div className="flex items-center gap-1">
@@ -175,8 +257,10 @@ export default function QuickTaskCard({
                 setEditingField('time_estimate');
                 setFieldValue(task.time_estimate || '');
               }}
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded transition-smooth hover:bg-muted ${
-                task.time_estimate ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold' : 'text-muted-foreground/60 hover:text-muted-foreground'
+              className={`items-center gap-1 px-1.5 py-0.5 rounded transition-smooth hover:bg-muted ${
+                task.time_estimate
+                  ? 'inline-flex bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
+                  : 'hidden group-hover:inline-flex text-muted-foreground/60 hover:text-muted-foreground'
               }`}
               title="Click to set time estimate"
             >
@@ -207,8 +291,10 @@ export default function QuickTaskCard({
                 setEditingField('due_date');
                 setFieldValue(task.due_date || '');
               }}
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded transition-smooth hover:bg-muted ${
-                task.due_date ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold' : 'text-muted-foreground/60 hover:text-muted-foreground'
+              className={`items-center gap-1 px-1.5 py-0.5 rounded transition-smooth hover:bg-muted ${
+                task.due_date
+                  ? 'inline-flex bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold'
+                  : 'hidden group-hover:inline-flex text-muted-foreground/60 hover:text-muted-foreground'
               }`}
               title="Click to set due date"
             >
@@ -228,76 +314,6 @@ export default function QuickTaskCard({
             </button>
           )}
 
-          {/* Spacer */}
-          <div className="flex-1" />
-
-          {/* Pareto 80/20 Button */}
-          <button
-            onClick={() => setShowParetoModal(true)}
-            className={`p-1 rounded-md transition-smooth ${
-              task.is_top_20 ? 'text-amber-500 font-bold hover:bg-amber-500/10' : 'text-muted-foreground hover:bg-muted'
-            }`}
-            title="80/20 Pareto Analysis"
-          >
-            ⭐
-          </button>
-
-          {/* Move Menu */}
-          <div className="relative">
-            <button
-              onClick={() => { setShowMoveMenu(!showMoveMenu); setShowDeleteConfirm(false); }}
-              className="p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-smooth flex items-center gap-0.5"
-              title="Move Task"
-            >
-              <Icon name="ArrowRightIcon" size={11} />
-            </button>
-            {showMoveMenu && (
-              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-1 min-w-[150px]">
-                <button
-                  onClick={() => { setShowMoveMenu(false); onMoveToSmart?.(task.id); }}
-                  className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
-                >
-                  <span className="text-xs">🧠</span> Move to Smart To-Do
-                </button>
-                <button
-                  onClick={() => { setShowMoveMenu(false); onMoveToPlan?.(task.id); }}
-                  className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
-                >
-                  <span className="text-xs">🗺️</span> Move to Plan & Project
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Delete */}
-          <div className="relative">
-            <button
-              onClick={() => { setShowDeleteConfirm(!showDeleteConfirm); setShowMoveMenu(false); }}
-              className="p-1 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-smooth"
-              title="Delete"
-            >
-              <Icon name="TrashIcon" size={11} />
-            </button>
-            {showDeleteConfirm && (
-              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-2 min-w-[140px]">
-                <p className="text-[10px] text-foreground font-medium mb-2 text-center">Delete task?</p>
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={handleDelete}
-                    className="flex-1 text-[10px] py-1 rounded bg-red-500 text-white font-medium hover:bg-red-600 transition-smooth"
-                  >
-                    Delete
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 text-[10px] py-1 rounded border border-border text-muted-foreground hover:bg-muted transition-smooth"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 

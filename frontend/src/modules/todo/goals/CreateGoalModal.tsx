@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { GoalNode, GoalLevel, GOAL_LEVELS, goalService } from '@/lib/services/goalService';
+import { todoService } from '@/lib/services/todoService';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
 
 interface CreateGoalModalProps {
   defaultLevel: GoalLevel;
@@ -20,7 +22,35 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [contextTab, setContextTab] = useState<'description' | 'attachments'>('description');
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   const levelLabel = (lvl: GoalLevel) => GOAL_LEVELS.find((l) => l.id === lvl)?.label || lvl;
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!['txt', 'pdf', 'docx'].includes(ext || '')) {
+      alert('Only .txt, .pdf, .docx files are supported');
+      return;
+    }
+
+    setUploading(true);
+    const result = await todoService.uploadContext(file);
+    if (result) {
+      setAttachments((prev) => [...prev, result.filename]);
+      setDescription((prev) => (prev ? `${prev}\n\n--- ${result.filename} ---\n${result.extracted_text}` : result.extracted_text));
+    }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  const removeAttachment = (filename: string) => {
+    setAttachments((prev) => prev.filter((a) => a !== filename));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +64,7 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
       description: description.trim() || null,
       priority,
       due_date: dueDate || null,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
     setLoading(false);
 
@@ -68,15 +99,80 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional context"
-              className="w-full h-16 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-smooth resize-none"
-            />
+            {isLoggedIn() ? (
+              <div className="grid grid-cols-2 gap-1 p-1 bg-muted rounded-lg mb-2">
+                <button
+                  type="button"
+                  onClick={() => setContextTab('description')}
+                  className={`rounded-md py-1.5 text-[10px] font-bold uppercase tracking-wider transition-smooth ${
+                    contextTab === 'description' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                  }`}
+                >
+                  Description
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContextTab('attachments')}
+                  className={`rounded-md py-1.5 text-[10px] font-bold uppercase tracking-wider transition-smooth ${
+                    contextTab === 'attachments' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                  }`}
+                >
+                  Attachments{attachments.length > 0 ? ` (${attachments.length})` : ''}
+                </button>
+              </div>
+            ) : (
+              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                Description
+              </label>
+            )}
+
+            {contextTab === 'description' || !isLoggedIn() ? (
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional context"
+                className="w-full h-16 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-smooth resize-none"
+              />
+            ) : (
+              <div>
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-smooth">
+                  <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">
+                    {uploading ? 'Extracting text...' : 'Choose file (.txt, .pdf, .docx)'}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".txt,.pdf,.docx"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                  {uploading && <span className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />}
+                </label>
+
+                {attachments.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {attachments.map((name) => (
+                      <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs text-foreground">
+                        <Icon name="DocumentIcon" size={12} className="text-muted-foreground" />
+                        {name}
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(name)}
+                          className="text-muted-foreground hover:text-red-500 transition-smooth"
+                        >
+                          <Icon name="XMarkIcon" size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground mt-2">
+                    Extracted text gets appended into the Description tab so AI breakdowns can use it as context.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

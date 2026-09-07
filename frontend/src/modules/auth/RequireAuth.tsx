@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
 
 const PERKS = [
   { icon: 'SparklesIcon', text: 'AI-generated questions & feedback' },
@@ -28,7 +29,10 @@ export default function RequireAuth({ children, feature }: { children: React.Rea
     );
   }
 
-  if (isGuest) {
+  // A stored token that hasn't been confirmed yet (profile fetch never got a response — backend
+  // unreachable, not a rejected/expired token, which would have cleared it) is trusted rather than
+  // treated as guest, so backend-down fallbacks (e.g. Daily Session's offline mode) are reachable.
+  if (isGuest && !isLoggedIn()) {
     return (
       <div className="min-h-[calc(100svh-60px)] flex items-center justify-center px-[4vw] py-36
                       bg-[radial-gradient(ellipse_at_top,var(--color-glow),transparent_60%)]">

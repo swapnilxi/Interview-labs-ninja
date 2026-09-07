@@ -212,14 +212,28 @@ async def upload_resume(file: UploadFile = File(...)) -> dict:
     if filename_lower.endswith(".pdf"):
         if pdfplumber is None:
             raise HTTPException(status_code=500, detail="pdfplumber library not available")
-        with pdfplumber.open(io.BytesIO(contents)) as pdf:
-            pages_text = [page.extract_text() or "" for page in pdf.pages]
-            text = "\n".join(pages_text)
+        try:
+            with pdfplumber.open(io.BytesIO(contents)) as pdf:
+                pages_text = [page.extract_text() or "" for page in pdf.pages]
+                text = "\n".join(pages_text)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Could not read this PDF ({type(exc).__name__}) — it may be corrupted, password-protected, "
+                "or use a format we can't parse. Try re-exporting it, or paste the resume text directly.",
+            )
     elif filename_lower.endswith(".docx"):
         if docx is None:
             raise HTTPException(status_code=500, detail="python-docx library not available")
-        doc = docx.Document(io.BytesIO(contents))
-        text = "\n".join([p.text for p in doc.paragraphs])
+        try:
+            doc = docx.Document(io.BytesIO(contents))
+            text = "\n".join([p.text for p in doc.paragraphs])
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Could not read this DOCX ({type(exc).__name__}) — it may be corrupted or password-protected. "
+                "Try re-exporting it, or paste the resume text directly.",
+            )
     else:
         # plain text or markdown
         try:

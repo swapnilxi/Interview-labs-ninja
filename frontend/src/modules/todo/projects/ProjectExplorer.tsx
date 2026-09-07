@@ -17,6 +17,8 @@ function NodeItem({
   level,
   projectId,
   model,
+  collapsedIds,
+  onSetExpanded,
   onAction,
   onAddSubtask,
   onDeleteNode,
@@ -27,13 +29,16 @@ function NodeItem({
   level: number;
   projectId: number;
   model: 'ollama' | 'gemini';
+  collapsedIds: Set<number>;
+  onSetExpanded: (nodeId: number, expanded: boolean) => void;
   onAction: (node: ProjectNode, action: 'dive' | 'chunk' | 'smart' | 'quick') => void;
   onAddSubtask: (parentId: number, title: string, nodeType: string) => Promise<void>;
   onDeleteNode: (nodeId: number) => Promise<void>;
   onOpenDetails: (node: ProjectNode) => void;
   onParetoUpdate: (node: ProjectNode, updates: { pareto_score?: number | null; is_top_20?: boolean }) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  // Expand/collapse lives in the parent so Expand All / Collapse All can drive it
+  const expanded = !collapsedIds.has(node.id);
   const [showAddSubtask, setShowAddSubtask] = useState(false);
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [subtaskType, setSubtaskType] = useState<string>('action');
@@ -59,7 +64,7 @@ function NodeItem({
     await onAddSubtask(node.id, subtaskTitle.trim(), subtaskType);
     setSubtaskTitle('');
     setAddingSubtask(false);
-    setExpanded(true);
+    onSetExpanded(node.id, true);
     // Keep focus for rapid subtask entry
     setTimeout(() => subtaskInputRef.current?.focus(), 50);
   };
@@ -89,8 +94,9 @@ function NodeItem({
         <div className="w-4 flex items-center justify-center shrink-0 mt-0.5 z-10 bg-card">
           {hasChildren ? (
             <button
-              onClick={() => setExpanded(!expanded)}
+              onClick={() => onSetExpanded(node.id, !expanded)}
               className="text-muted-foreground hover:text-foreground transition-smooth"
+              title={expanded ? 'Collapse' : 'Expand'}
             >
               <Icon name={expanded ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={12} />
             </button>
@@ -279,6 +285,8 @@ function NodeItem({
               level={level + 1}
               projectId={projectId}
               model={model}
+              collapsedIds={collapsedIds}
+              onSetExpanded={onSetExpanded}
               onAction={onAction}
               onAddSubtask={onAddSubtask}
               onDeleteNode={onDeleteNode}
@@ -307,12 +315,25 @@ function NodeItem({
   );
 }
 
+// Every node id that has children — i.e. everything Collapse All should close
+function collectParentIds(nodes: ProjectNode[], acc: number[] = []): number[] {
+  nodes.forEach((node) => {
+    if (node.children && node.children.length > 0) {
+      acc.push(node.id);
+      collectParentIds(node.children, acc);
+    }
+  });
+  return acc;
+}
+
 export default function ProjectExplorer({ project, onClose, model }: ProjectExplorerProps) {
   const [nodes, setNodes] = useState<ProjectNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [detailNode, setDetailNode] = useState<ProjectNode | null>(null);
+  // Collapsed node ids — empty means everything is expanded (the default)
+  const [collapsedIds, setCollapsedIds] = useState<Set<number>>(new Set());
 
   // On-Page Root Node Add Form State
   const [rootTitle, setRootTitle] = useState('');
@@ -330,6 +351,20 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
   useEffect(() => {
     loadTree();
   }, [project.id]);
+
+  const setNodeExpanded = (nodeId: number, expanded: boolean) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (expanded) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  };
+
+  const parentIds = collectParentIds(nodes);
+  const collapsedCount = parentIds.filter((id) => collapsedIds.has(id)).length;
+  const handleExpandAll = () => setCollapsedIds(new Set());
+  const handleCollapseAll = () => setCollapsedIds(new Set(parentIds));
 
   const handleAddRootNode = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -451,6 +486,30 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
             </div>
           </div>
         </div>
+
+        {/* Expand / Collapse All */}
+        {parentIds.length > 0 && (
+          <div className="inline-flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleExpandAll}
+              disabled={collapsedCount === 0}
+              className="px-2.5 py-1.5 text-[10px] font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
+              title="Expand all tasks"
+            >
+              <Icon name="ChevronDoubleDownIcon" size={12} />
+              <span className="hidden sm:inline">Expand All</span>
+            </button>
+            <button
+              onClick={handleCollapseAll}
+              disabled={collapsedCount === parentIds.length}
+              className="px-2.5 py-1.5 text-[10px] font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
+              title="Collapse all tasks"
+            >
+              <Icon name="ChevronDoubleUpIcon" size={12} />
+              <span className="hidden sm:inline">Collapse All</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Description if present */}
@@ -533,6 +592,8 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
                 level={0}
                 projectId={project.id}
                 model={model}
+                collapsedIds={collapsedIds}
+                onSetExpanded={setNodeExpanded}
                 onAction={handleAction}
                 onAddSubtask={handleAddSubtask}
                 onDeleteNode={handleDeleteNode}

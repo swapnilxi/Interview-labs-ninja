@@ -47,6 +47,7 @@ class GoalCreate(BaseModel):
     priority: str = "p3"
     due_date: Optional[str] = None
     status: str = "backlog"
+    attachments: Optional[List[str]] = None
 
 
 class GoalUpdate(BaseModel):
@@ -58,6 +59,7 @@ class GoalUpdate(BaseModel):
     due_date: Optional[str] = None
     parent_id: Optional[int] = None
     order_index: Optional[int] = None
+    attachments: Optional[List[str]] = None
 
 
 class GoalAIRequest(AISettings):
@@ -90,6 +92,7 @@ async def create_goal_endpoint(payload: GoalCreate, user_id: int = Depends(get_c
         priority=payload.priority,
         due_date=payload.due_date,
         status=payload.status,
+        attachments=payload.attachments,
     )
 
 

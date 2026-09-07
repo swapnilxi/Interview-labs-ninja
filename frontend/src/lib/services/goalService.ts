@@ -43,6 +43,7 @@ export interface GoalNode {
   exported_quick_task_id: number | null;
   exported_to_plan: boolean;
   exported_project_id: number | null;
+  attachments: string[];
   created_at: string;
   updated_at: string;
   children?: GoalNode[];
@@ -56,6 +57,7 @@ export interface GoalCreatePayload {
   priority?: string;
   due_date?: string | null;
   status?: GoalStatus;
+  attachments?: string[] | null;
 }
 
 export interface GoalUpdatePayload {
@@ -67,6 +69,7 @@ export interface GoalUpdatePayload {
   due_date?: string | null;
   parent_id?: number | null;
   order_index?: number;
+  attachments?: string[] | null;
 }
 
 export const goalService = {

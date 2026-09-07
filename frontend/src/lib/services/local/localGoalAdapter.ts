@@ -74,6 +74,7 @@ export const localGoalAdapter = {
       exported_quick_task_id: null,
       exported_to_plan: false,
       exported_project_id: null,
+      attachments: data.attachments ?? [],
       created_at: now,
       updated_at: now,
     };

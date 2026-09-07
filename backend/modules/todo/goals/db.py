@@ -7,6 +7,7 @@ is optional at any level — a user can start a goal at any time horizon
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any, Dict, List, Optional
 
@@ -35,8 +36,9 @@ def _goal_row_to_dict(row: tuple) -> Dict[str, Any]:
         "exported_quick_task_id": row[15],
         "exported_to_plan": bool(row[16]),
         "exported_project_id": row[17],
-        "created_at": row[18],
-        "updated_at": row[19],
+        "attachments": json.loads(row[18]) if row[18] else [],
+        "created_at": row[19],
+        "updated_at": row[20],
     }
 
 
@@ -44,7 +46,7 @@ _GOAL_COLUMNS = (
     "id, user_id, parent_id, title, description, level, status, priority, due_date, "
     "generation_type, depth_level, order_index, exported_to_smart_todo, exported_task_id, "
     "exported_to_quick, exported_quick_task_id, exported_to_plan, exported_project_id, "
-    "created_at, updated_at"
+    "attachments, created_at, updated_at"
 )
 
 
@@ -58,6 +60,7 @@ def create_goal_node(
     due_date: Optional[str] = None,
     status: str = "backlog",
     order_index: int = 0,
+    attachments: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     conn = sqlite3.connect(get_db_path())
     try:
@@ -72,13 +75,14 @@ def create_goal_node(
             else:
                 parent_id = None
 
+        attachments_json = json.dumps(attachments) if attachments else None
         cursor.execute(
             """
             INSERT INTO goal_nodes
-                (user_id, parent_id, title, description, level, status, priority, due_date, depth_level, order_index)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (user_id, parent_id, title, description, level, status, priority, due_date, depth_level, order_index, attachments)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, parent_id, title, description, level, status, priority, due_date, depth_level, order_index),
+            (user_id, parent_id, title, description, level, status, priority, due_date, depth_level, order_index, attachments_json),
         )
         conn.commit()
         gid = cursor.lastrowid
@@ -145,11 +149,14 @@ def update_goal_node(goal_id: int, user_id: int, **fields) -> Optional[Dict[str,
     allowed = {
         "title", "description", "level", "status", "priority", "due_date", "parent_id",
         "order_index", "exported_to_smart_todo", "exported_task_id", "exported_to_quick",
-        "exported_quick_task_id", "exported_to_plan", "exported_project_id",
+        "exported_quick_task_id", "exported_to_plan", "exported_project_id", "attachments",
     }
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_goal_node(goal_id, user_id)
+
+    if "attachments" in updates and isinstance(updates["attachments"], list):
+        updates["attachments"] = json.dumps(updates["attachments"])
 
     set_parts = [f"{k} = ?" for k in updates] + ["updated_at = datetime('now')"]
     values = list(updates.values()) + [goal_id, user_id]
