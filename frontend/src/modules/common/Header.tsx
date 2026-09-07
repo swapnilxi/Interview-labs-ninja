@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Sidebar from '@/modules/common/Sidebar';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiFetch, API_BASE_URL } from '@/lib/http/apiClient';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
 
 interface NavigationItem {
   label: string;
@@ -34,16 +37,6 @@ const navigationItems: NavigationItem[] = [
     icon: 'ServerStackIcon',
   },
   {
-    label: 'Progress',
-    path: '/progress-dashboard',
-    icon: 'ChartBarIcon',
-  },
-  {
-    label: 'Question Bank',
-    path: '/question-bank',
-    icon: 'BookOpenIcon',
-  },
-  {
     label: 'Config',
     path: '/config',
     icon: 'Cog6ToothIcon',
@@ -57,25 +50,34 @@ function SystemStatus() {
   useEffect(() => {
     const checkStatus = async () => {
       // Check API
+      let apiOk = false;
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch('http://localhost:8000/health', { signal: controller.signal });
+        const res = await fetch(`${API_BASE_URL}/health`, { signal: controller.signal });
         clearTimeout(timeoutId);
+        apiOk = res.ok;
         setApiStatus(res.ok ? 'online' : 'offline');
       } catch (err) {
         setApiStatus('offline');
       }
 
-      // Check DB
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch('http://localhost:8000/settings', { signal: controller.signal });
-        clearTimeout(timeoutId);
-        setDbStatus(res.ok ? 'online' : 'offline');
-      } catch (err) {
-        setDbStatus('offline');
+      // Check DB via a lightweight endpoint that reads from SQLite. Guests have
+      // no server-side data and /todo/* now requires login, so for guests we
+      // just mirror the API status instead of hitting an endpoint that would
+      // always 401 and misreport "offline".
+      if (!isLoggedIn()) {
+        setDbStatus(apiOk ? 'online' : 'offline');
+      } else {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const res = await apiFetch('/todo/stats', { signal: controller.signal });
+          clearTimeout(timeoutId);
+          setDbStatus(res.ok ? 'online' : 'offline');
+        } catch (err) {
+          setDbStatus('offline');
+        }
       }
     };
     
@@ -84,34 +86,58 @@ function SystemStatus() {
     return () => clearInterval(interval);
   }, []);
 
-  const StatusIndicator = ({ label, status }: { label: string, status: string }) => (
-    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 border border-border text-[10px] font-medium">
-      <span className="text-muted-foreground uppercase tracking-wider">{label}</span>
-      <div className="flex items-center gap-1">
-        {status === 'checking' ? (
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-        ) : status === 'online' ? (
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-        ) : (
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
-        )}
-        <span className={status === 'online' ? 'text-emerald-500' : status === 'offline' ? 'text-rose-500' : 'text-amber-500'}>
-          {status === 'checking' ? 'CHK' : status === 'online' ? 'ON' : 'OFF'}
-        </span>
-      </div>
+  const StatusRow = ({ label, status }: { label: string, status: string }) => (
+    <div className="flex items-center gap-1 leading-none" title={`${label}: ${status === 'checking' ? 'checking…' : status}`}>
+      {status === 'checking' ? (
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+      ) : status === 'online' ? (
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+      ) : (
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.5)]" />
+      )}
+      <span className="w-5 text-[8px] font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
     </div>
   );
 
   return (
-    <div className="flex items-center gap-2 mr-4">
-      <StatusIndicator label="API" status={apiStatus} />
-      <StatusIndicator label="DB" status={dbStatus} />
+    <div className="flex flex-col gap-0.5 px-2 py-1 rounded-md bg-muted/50 border border-border mr-3">
+      <StatusRow label="API" status={apiStatus} />
+      <StatusRow label="DB" status={dbStatus} />
+    </div>
+  );
+}
+
+function AuthStatus() {
+  const { user, isGuest, logout } = useAuth();
+  if (isGuest) {
+    return (
+      <Link href="/login" className="app-nav-link">
+        <Icon name="UserCircleIcon" size={18} variant="outline" />
+        <span>Log in</span>
+      </Link>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground max-w-[140px] truncate" title={user?.email}>
+        {user?.display_name || user?.email}
+      </span>
+      <button
+        type="button"
+        onClick={logout}
+        className="theme-toggle"
+        aria-label="Log out"
+        title="Log out"
+      >
+        <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
+      </button>
     </div>
   );
 }
 
 export default function Header() {
   const pathname = usePathname();
+  const { isAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
 
@@ -176,20 +202,11 @@ export default function Header() {
                   className="transition-smooth"
                 >
                   <rect width="40" height="40" rx="8" fill="url(#gradient)" />
-                  <path
-                    d="M20 10L12 16V28L20 34L28 28V16L20 10Z"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                  <polygon
+                    points="20,6.4 23.39,16.61 33.6,20 23.39,23.39 20,33.6 16.61,23.39 6.4,20 16.61,16.61"
+                    fill="white"
                   />
-                  <path
-                    d="M20 10V22M20 22L12 28M20 22L28 28"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  <circle cx="20" cy="20" r="1.8" fill="#2563EB" />
                   <defs>
                     <linearGradient
                       id="gradient"
@@ -213,6 +230,15 @@ export default function Header() {
 
           <div className="hidden lg:flex items-center gap-2">
             <SystemStatus />
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className={`app-nav-link ${isActivePath('/admin') ? 'app-nav-link-active' : ''}`}
+              >
+                <Icon name="ShieldCheckIcon" size={18} variant="outline" />
+                <span>Admin</span>
+              </Link>
+            )}
             {navigationItems.map((item) => (
               <Link
                 key={item.path}
@@ -236,6 +262,7 @@ export default function Header() {
             >
               <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
             </button>
+            <AuthStatus />
           </div>
 
           <div className="flex items-center gap-2 lg:hidden">
@@ -247,6 +274,7 @@ export default function Header() {
             >
               <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
             </button>
+            <AuthStatus />
           </div>
         </nav>
       </header>

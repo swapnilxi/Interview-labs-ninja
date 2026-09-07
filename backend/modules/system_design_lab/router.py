@@ -1,18 +1,21 @@
 from __future__ import annotations
-from typing import List
-from fastapi import APIRouter
+from typing import List, Optional
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from modules.auth.dependencies import get_current_user_id
 from modules.common.db import fetch_lab_sections, save_lab_section
 from .seed import fetch_system_design_topics, save_system_design_topic
 
 
-router = APIRouter(prefix="/system-design", tags=["system-design-lab"])
+router = APIRouter(prefix="/system-design", tags=["system-design-lab"], dependencies=[Depends(get_current_user_id)])
 
 
 class SDSubtopicIn(BaseModel):
     id: str
     name: str
     brief: str
+    content: Optional[str] = None
+    sourceUrl: Optional[str] = None
 
 
 class SDTopicIn(BaseModel):
@@ -43,11 +46,11 @@ async def save_system_design_topic_endpoint(payload: SDTopicIn) -> dict:
 
 
 @router.get("/sections")
-async def get_system_design_sections() -> List[dict]:
-    return fetch_lab_sections("system_design")
+async def get_system_design_sections(user_id: int = Depends(get_current_user_id)) -> List[dict]:
+    return fetch_lab_sections(user_id, "system_design")
 
 
 @router.post("/sections")
-async def save_system_design_section(payload: LabSectionIn) -> dict:
-    save_lab_section("system_design", payload.name, 1 if payload.isCustom else 0)
+async def save_system_design_section(payload: LabSectionIn, user_id: int = Depends(get_current_user_id)) -> dict:
+    save_lab_section(user_id, "system_design", payload.name)
     return {"status": "success"}

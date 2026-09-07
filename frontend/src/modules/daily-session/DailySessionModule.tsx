@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { questionsService, Question } from '@/lib/services/questionsService';
 import { sessionService, SessionAnswer } from '@/lib/services/sessionService';
+import { defaultAIRequestFields } from '@/lib/services/settingsService';
+import { backendFetch, isBackendKnownDown, isNetworkFailure, checkBackendHealth } from '@/lib/http/backendAvailability';
+import { parseApiError } from '@/lib/http/apiClient';
+import { localDailySessionAdapter } from '@/lib/services/local/localDailySessionAdapter';
 
 const DEFAULT_QUESTIONS: Omit<Question, 'id'>[] = [
   {
@@ -154,16 +158,54 @@ export default function DailySessionInteractive() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [viewAll, setViewAll] = useState(false);
+  const [isOfflineSession, setIsOfflineSession] = useState(false);
+  const [backendOffline, setBackendOffline] = useState(false);
 
   // Setup form fields
   const [difficulty, setDifficulty] = useState('Mixed');
   const [cvText, setCvText] = useState('');
   const [jdText, setJdText] = useState('');
+  const [sessionCode, setSessionCode] = useState('');
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
-  // AI Hint state
+  // AI Hint & Answer state
   const [isGeneratingHint, setIsGeneratingHint] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showExplain, setShowExplain] = useState(false);
+  const [dynamicAiAnswer, setDynamicAiAnswer] = useState<string | null>(null);
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingResume(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await backendFetch('/sessions/upload-resume', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error(await parseApiError(res));
+      const data = await res.json();
+      setCvText(data.extracted_text);
+      setUploadedFileName(data.filename);
+    } catch (err) {
+      if (isNetworkFailure(err) && /\.(txt|md)$/i.test(file.name)) {
+        // Backend down, but plain text needs no server-side parsing — read it directly.
+        const text = (await file.text()).trim();
+        setCvText(text);
+        setUploadedFileName(file.name);
+      } else if (isNetworkFailure(err)) {
+        alert('Backend is unreachable, and PDF/DOCX extraction needs it. Paste your resume text manually, or upload a .txt file instead.');
+      } else {
+        console.error(err);
+        alert(err instanceof Error ? err.message : 'Failed to extract resume text. Please ensure file format is PDF, DOCX, or TXT.');
+      }
+    } finally {
+      setUploadingResume(false);
+    }
+  };
 
   // Timer state
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -181,6 +223,7 @@ export default function DailySessionInteractive() {
       loadSessionData(activeDate);
     }
     loadDbQuestions();
+    checkBackendHealth().then((ok) => setBackendOffline(!ok));
   }, []);
 
   // Timer effect
@@ -203,15 +246,22 @@ export default function DailySessionInteractive() {
   const loadSessionData = async (dateStr: string) => {
     setLoading(true);
     try {
-      const qData = await questionsService.getAll();
-      const todayQs = qData.filter((q) => q.dateEncountered === dateStr);
+      const offline = localStorage.getItem('ninja_active_session_offline') === '1';
+      setIsOfflineSession(offline);
+
+      const todayQs = offline
+        ? localDailySessionAdapter.getQuestions(dateStr)
+        : (await questionsService.getAll()).filter((q) => q.dateEncountered === dateStr);
+
       if (todayQs.length > 0) {
         setQuestions(todayQs);
         setSessionDate(dateStr);
         setSessionActive(true);
 
         // Fetch saved answers
-        const progress = await sessionService.getSessionByDate(dateStr);
+        const progress = offline
+          ? localDailySessionAdapter.getSessionByDate(dateStr)
+          : await sessionService.getSessionByDate(dateStr);
         const ansMap: Record<string, string> = {};
         progress.forEach((p) => {
           ansMap[p.questionText] = p.answerText;
@@ -225,52 +275,81 @@ export default function DailySessionInteractive() {
     }
   };
 
+  /** Tries the real backend first; on a network failure (backend unreachable), falls back to a local session. */
+  const resolveNewSession = async (): Promise<{ session_id: number; session_date: string; session_code: string; offline: boolean }> => {
+    if (!isBackendKnownDown()) {
+      try {
+        const res = await backendFetch('/sessions', {
+          method: 'POST',
+          body: JSON.stringify({
+            difficulty_hint: difficulty,
+            cv_present: !!cvText,
+            jd_present: !!jdText,
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const payloadQuestions = DEFAULT_QUESTIONS.map((q, idx) => ({
+          section: idx < 5 ? 'A' : 'B',
+          number: (idx % 5) + 1,
+          category: q.category === 'Interview' ? 'interview' : 'cv_skill',
+          sub_type: q.subType,
+          difficulty: difficulty !== 'Mixed' ? difficulty.toLowerCase() : q.difficulty.toLowerCase(),
+          topics: [q.questionType || q.subType],
+          question_text: q.questionText,
+        }));
+        const qRes = await backendFetch('/sessions/questions', {
+          method: 'POST',
+          body: JSON.stringify({
+            session_id: data.session_id,
+            questions: payloadQuestions,
+          }),
+        });
+        if (!qRes.ok) throw new Error(`HTTP ${qRes.status}`);
+
+        return {
+          session_id: data.session_id,
+          session_date: data.session_date,
+          session_code: data.session_code || `W${data.session_id}/${data.session_date}`,
+          offline: false,
+        };
+      } catch (err) {
+        if (!isNetworkFailure(err)) throw err;
+        // fall through to the local session below
+      }
+    }
+    const local = localDailySessionAdapter.createSessionWithQuestions(difficulty, DEFAULT_QUESTIONS);
+    return { ...local, offline: true };
+  };
+
   const handleStartSession = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // 1. Create session in backend SQLite
-      const res = await fetch('http://localhost:8000/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          difficulty_hint: difficulty,
-          cv_present: !!cvText,
-          jd_present: !!jdText,
-        }),
-      });
-      const data = await res.json();
-      const newSessionId = data.session_id;
-      const newSessionDate = data.session_date;
+      const { session_date, session_code, offline } = await resolveNewSession();
 
-      // 2. Map default questions to backend payload
-      const payloadQuestions = DEFAULT_QUESTIONS.map((q, idx) => ({
-        section: idx < 5 ? 'A' : 'B',
-        number: (idx % 5) + 1,
-        category: q.category === 'Interview' ? 'interview' : 'cv_skill',
-        sub_type: q.subType,
-        difficulty: difficulty !== 'Mixed' ? difficulty.toLowerCase() : q.difficulty.toLowerCase(),
-        topics: [q.questionType || q.subType],
-        question_text: q.questionText,
-      }));
+      setIsOfflineSession(offline);
+      if (offline) localStorage.setItem('ninja_active_session_offline', '1');
+      else localStorage.removeItem('ninja_active_session_offline');
 
-      // 3. Save questions batch in backend SQLite
-      await fetch('http://localhost:8000/sessions/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: newSessionId,
-          questions: payloadQuestions,
-        }),
-      });
-
-      // 4. Update local state
-      localStorage.setItem('ninja_active_session_date', newSessionDate);
-      await loadSessionData(newSessionDate);
+      setSessionCode(session_code);
+      localStorage.setItem('ninja_active_session_code', session_code);
+      localStorage.setItem('ninja_active_session_date', session_date);
+      await loadSessionData(session_date);
     } catch (err) {
       console.error('Failed to initialize session:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /** Routes to the local offline store for a session that was started offline, else the real backend. */
+  const persistAnswer = async (payload: SessionAnswer) => {
+    if (isOfflineSession) {
+      localDailySessionAdapter.saveSessionAnswers(sessionDate, [payload]);
+    } else {
+      await sessionService.saveSessionAnswers([payload]);
     }
   };
 
@@ -292,7 +371,7 @@ export default function DailySessionInteractive() {
 
     setLoading(true);
     try {
-      await sessionService.saveSessionAnswers([payload]);
+      await persistAnswer(payload);
     } catch (err) {
       console.error(err);
     } finally {
@@ -302,9 +381,19 @@ export default function DailySessionInteractive() {
 
   const handleExport = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/export?session_date=${sessionDate}`);
-      if (!res.ok) throw new Error('No questions generated for this date');
-      const text = await res.json();
+      let text: string;
+      if (isOfflineSession) {
+        text = localDailySessionAdapter.renderMarkdown(sessionDate, questions, answers);
+      } else {
+        try {
+          const res = await backendFetch(`/export?session_date=${sessionDate}`);
+          if (!res.ok) throw new Error('No questions generated for this date');
+          text = await res.json();
+        } catch (err) {
+          if (!isNetworkFailure(err)) throw err;
+          text = localDailySessionAdapter.renderMarkdown(sessionDate, questions, answers);
+        }
+      }
 
       const blob = new Blob([text], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
@@ -323,6 +412,8 @@ export default function DailySessionInteractive() {
 
   const handleClearSession = () => {
     localStorage.removeItem('ninja_active_session_date');
+    localStorage.removeItem('ninja_active_session_offline');
+    setIsOfflineSession(false);
     setSessionActive(false);
     setPracticeStarted(false);
     setElapsedSeconds(0);
@@ -332,12 +423,34 @@ export default function DailySessionInteractive() {
     setViewAll(false);
   };
 
-  const handleGenerateHint = () => {
+  const handleGenerateHint = async () => {
+    if (!activeQuestion) return;
     setIsGeneratingHint(true);
-    setTimeout(() => {
+    setDynamicAiAnswer(null);
+    try {
+      // Backend known unreachable — skip straight to the canned explanation below rather than waiting out a timeout.
+      if (!isOfflineSession && !isBackendKnownDown()) {
+        const res = await backendFetch('/sessions/generate-answer', {
+          method: 'POST',
+          body: JSON.stringify({
+            question_text: activeQuestion.questionText,
+            category: activeQuestion.category,
+            sub_type: activeQuestion.subType,
+            action: 'answer',
+            ...defaultAIRequestFields(),
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDynamicAiAnswer(data.answer);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
       setIsGeneratingHint(false);
       setShowHint(true);
-    }, 1500); // Simulate LLM generation time
+    }
   };
 
   const resetHints = () => {
@@ -425,6 +538,14 @@ export default function DailySessionInteractive() {
 
     return (
       <div className="space-y-24">
+        {backendOffline && (
+          <div className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/10 px-6 py-4 text-sm text-warning">
+            <Icon name="ExclamationTriangleIcon" size={18} variant="outline" className="flex-shrink-0" />
+            <span>
+              Backend unreachable — Daily Session will run in offline mode. Your session and answers are saved in this browser only, and won&apos;t sync once the backend is back.
+            </span>
+          </div>
+        )}
         {/* ── Setup Card ── */}
         <div className="relative bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-violet-500/[0.03] pointer-events-none" />
@@ -451,12 +572,31 @@ export default function DailySessionInteractive() {
               </div>
 
               <div>
-                <label htmlFor="cv-text" className="flex items-center gap-3 text-sm font-medium text-foreground mb-2">
-                  Context / Document
-                  <span className="text-xs text-muted-foreground font-normal">Optional</span>
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="cv-text" className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    Context / Resume
+                    <span className="text-xs text-muted-foreground font-normal">Optional</span>
+                  </label>
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-smooth border border-primary/20">
+                    <Icon name="DocumentArrowUpIcon" size={14} />
+                    {uploadingResume ? 'Extracting...' : 'Upload Resume (.pdf/.docx/.txt)'}
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.txt,.md"
+                      className="hidden"
+                      onChange={handleResumeUpload}
+                      disabled={uploadingResume}
+                    />
+                  </label>
+                </div>
+                {uploadedFileName && (
+                  <div className="mb-2 text-xs font-medium text-emerald-500 flex items-center gap-1">
+                    <Icon name="CheckCircleIcon" size={14} variant="solid" />
+                    Uploaded: {uploadedFileName}
+                  </div>
+                )}
                 <textarea id="cv-text" rows={4} value={cvText} onChange={(e) => setCvText(e.target.value)}
-                  placeholder="Paste your resume, project context, or any relevant document..."
+                  placeholder="Paste your resume, project context, or upload a document using the button above..."
                   className="w-full rounded-xl border border-border bg-input px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 placeholder:text-muted-foreground/50 resize-none transition-all" />
               </div>
 
@@ -582,13 +722,22 @@ export default function DailySessionInteractive() {
         <p className="text-muted-foreground mb-24 font-body">
           Your custom interview questions have been generated and securely saved. This quiz mode will record your session duration and track your completion.
         </p>
-        <button
-          onClick={() => setPracticeStarted(true)}
-          className="py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-lg font-medium transition-smooth inline-flex items-center gap-12 focus-ring shadow-glow"
-        >
-          <Icon name="PlayCircleIcon" size={24} variant="solid" />
-          Start Practicing
-        </button>
+        <div className="flex items-center justify-center gap-12">
+          <button
+            onClick={handleClearSession}
+            className="py-12 px-24 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth inline-flex items-center gap-12 focus-ring"
+          >
+            <Icon name="ArrowLeftIcon" size={18} variant="outline" />
+            Back
+          </button>
+          <button
+            onClick={() => setPracticeStarted(true)}
+            className="py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-lg font-medium transition-smooth inline-flex items-center gap-12 focus-ring shadow-glow"
+          >
+            <Icon name="PlayCircleIcon" size={24} variant="solid" />
+            Start Practicing
+          </button>
+        </div>
       </div>
     );
   }
@@ -603,12 +752,18 @@ export default function DailySessionInteractive() {
             <Icon name="ClockIcon" size={16} />
             {formatTime(elapsedSeconds)}
           </span>
-          <span className="px-12 py-6 rounded-md bg-card border border-border text-foreground font-medium text-sm">
-            Session Date: {sessionDate}
+          <span className="px-12 py-6 rounded-md bg-card border border-border text-foreground font-semibold text-sm">
+            Session ID: {sessionCode || localStorage.getItem('ninja_active_session_code') || sessionDate}
           </span>
           <span className="text-sm text-muted-foreground">
             {Object.keys(answers).length} of 10 answered
           </span>
+          {isOfflineSession && (
+            <span className="px-12 py-6 rounded-md bg-warning/10 text-warning border border-warning/20 font-medium text-xs flex items-center gap-6">
+              <Icon name="ExclamationTriangleIcon" size={14} variant="outline" />
+              Offline — saved locally
+            </span>
+          )}
         </div>
         <div className="flex gap-12">
           <button
@@ -677,7 +832,7 @@ export default function DailySessionInteractive() {
                         isCompleted: !!(answers[q.questionText] || '').trim(),
                         sessionDate,
                       };
-                      await sessionService.saveSessionAnswers([payload]);
+                      await persistAnswer(payload);
                     }}
                     className="py-6 px-12 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/95 transition-smooth"
                   >
@@ -728,7 +883,7 @@ export default function DailySessionInteractive() {
                   </div>
                 </div>
                 <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap font-body">
-                  {activeExplanation.answer}
+                  {dynamicAiAnswer || activeExplanation.answer}
                 </p>
                 <button
                   onClick={() => setShowExplain(!showExplain)}

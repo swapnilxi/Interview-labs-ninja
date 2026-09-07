@@ -1,4 +1,4 @@
-import { DSATopic } from './DSALabInteractive';
+import { DSATopic } from '@/modules/dsa-lab/DSALabModule';
 
 export const STATIC_DSA_TOPICS: DSATopic[] = [
   {

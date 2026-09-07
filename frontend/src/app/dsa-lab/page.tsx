@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import DSALabInteractive from '@/modules/dsa-lab/DSALabModule';
 import Header from '@/components/common/Header';
+import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
   title: 'DSA Lab — InterviewNinja',
@@ -11,7 +12,9 @@ export default function DSALabPage() {
   return (
     <>
       <Header />
-      <DSALabInteractive />
+      <RequireAuth feature="the DSA Lab">
+        <DSALabInteractive />
+      </RequireAuth>
     </>
   );
 }

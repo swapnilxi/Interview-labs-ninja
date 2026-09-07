@@ -9,11 +9,15 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'InterviewNinja',
-  description: 'Modern interview preparation labs for DSA, computer vision, and system design.',
+  title: 'LabNinja',
+  description: 'Modern preparation AI lms labs for DSA, computer vision, and system design and much more',
   icons: {
     icon: [
-      { url: '/favicon.ico', type: 'image/x-icon' }
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', type: 'image/x-icon' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', type: 'image/png' },
     ],
   },
 };
@@ -25,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
+      <body suppressHydrationWarning>
         <script
           dangerouslySetInnerHTML={{
             __html: `try{var t=localStorage.getItem('interview-ninja-theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d)}catch(e){document.documentElement.classList.add('dark')}`,

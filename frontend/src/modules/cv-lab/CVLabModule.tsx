@@ -5,7 +5,9 @@ import Icon from '@/components/ui/AppIcon';
 import LabCopilot from '@/components/common/LabCopilot';
 import OnDemandSection from '@/components/lab/OnDemandSection';
 import QuizCarousel from '@/components/lab/QuizCarousel';
-import GenerateQuestionsPanel from '@/modules/common/GenerateQuestionsPanel';
+import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/GenerateQuestionsPanel';
+import MarkdownLite from '@/modules/common/lab/MarkdownLite';
+import { apiFetch } from '@/lib/http/apiClient';
 
 interface CVTopic {
   id: string;
@@ -14,7 +16,7 @@ interface CVTopic {
   category: string;
   difficulty: string;
   prerequisites: string[];
-  subtopics: { id: string; name: string; brief: string }[];
+  subtopics: { id: string; name: string; brief: string; content?: string; sourceUrl?: string }[];
   isCustom?: boolean;
 }
 
@@ -709,7 +711,7 @@ export default function CVLabInteractive() {
   const [recentTopics,  setRecentTopics]  = useState<{ id: string; name: string; subId?: string; subName?: string }[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:8000/cv/sections')
+    apiFetch('/cv/sections')
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -744,7 +746,7 @@ export default function CVLabInteractive() {
     if (!customSectionInput.trim()) return;
     setAddingSection(true);
     const newSection = { name: customSectionInput.trim(), isCustom: true };
-    fetch('http://localhost:8000/cv/sections', {
+    apiFetch('/cv/sections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSection)
@@ -777,7 +779,7 @@ export default function CVLabInteractive() {
       subtopics: []
     };
 
-    fetch('http://localhost:8000/cv/topics', {
+    apiFetch('/cv/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTopic)
@@ -801,7 +803,7 @@ export default function CVLabInteractive() {
 
 
   useEffect(() => {
-    fetch('http://localhost:8000/cv/topics')
+    apiFetch('/cv/topics')
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -835,7 +837,7 @@ export default function CVLabInteractive() {
       subtopics: [...parentTopic.subtopics, newSubtopic]
     };
 
-    fetch('http://localhost:8000/cv/topics', {
+    apiFetch('/cv/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedTopic)
@@ -855,6 +857,35 @@ export default function CVLabInteractive() {
         setTopics(prev => prev.map(t => t.id === topicId ? updatedTopic : t));
         setNewSubtopicInput('');
         setAddingSubtopicTo(null);
+        setExpandedTopics(prev => new Set([...prev, topicId]));
+      });
+  };
+
+  const handleAddGeneratedSubtopic = (topicId: string, generated: GeneratedSubtopic) => {
+    const parentTopic = allTopics.find(t => t.id === topicId);
+    if (!parentTopic) return;
+
+    const updatedTopic = {
+      ...parentTopic,
+      subtopics: [...parentTopic.subtopics, generated],
+    };
+
+    apiFetch('/cv/topics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedTopic)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("HTTP error " + res.status);
+        return res.json();
+      })
+      .then(() => {
+        setTopics(prev => prev.map(t => t.id === topicId ? updatedTopic : t));
+        setExpandedTopics(prev => new Set([...prev, topicId]));
+      })
+      .catch(err => {
+        console.error("Error saving generated subtopic to DB, saving in client state as fallback:", err);
+        setTopics(prev => prev.map(t => t.id === topicId ? updatedTopic : t));
         setExpandedTopics(prev => new Set([...prev, topicId]));
       });
   };
@@ -957,7 +988,7 @@ export default function CVLabInteractive() {
       subtopics: [{ id: `sub-${Date.now()}`, name: 'Core Concepts', brief: 'Fundamental concepts.' }]
     };
 
-    fetch('http://localhost:8000/cv/topics', {
+    apiFetch('/cv/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTopic)
@@ -1293,6 +1324,23 @@ export default function CVLabInteractive() {
                 </div>
               </div>
 
+              {/* ── Video-based lab content (from YouTube generator) ── */}
+              {currentSubtopic?.content && (
+                <div className="lab-card border border-border p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Video-based Lab</p>
+                    {currentSubtopic.sourceUrl && (
+                      <a href={currentSubtopic.sourceUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[11px] text-[var(--lab-cv)] hover:underline">
+                        <Icon name="PlayCircleIcon" size={12} />
+                        Watch source video
+                      </a>
+                    )}
+                  </div>
+                  <MarkdownLite content={currentSubtopic.content} />
+                </div>
+              )}
+
               {/* ── Content Outline (quick-jump) ── */}
               <div className="lab-card-muted p-4">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Content Outline</p>
@@ -1316,6 +1364,7 @@ export default function CVLabInteractive() {
                 subtopicName={currentSubtopic?.name}
                 labName="cv"
                 accentVar="--lab-cv"
+                onAddSubtopic={generated => handleAddGeneratedSubtopic(currentTopic.id, generated)}
               />
 
               {/* ── On-demand sections ── */}

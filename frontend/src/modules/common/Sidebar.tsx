@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarLink {
   label: string;
@@ -17,6 +18,14 @@ const LAB_LINKS: SidebarLink[] = [
   { label: 'System Design', path: '/system-design-lab', icon: 'ServerStackIcon' },
 ];
 
+// CAREER STUDIO INTEGRATION — sub-navigation for the /career feature.
+const CAREER_LINKS: SidebarLink[] = [
+  { label: 'Profiles', path: '/career?tab=profiles', icon: 'IdentificationIcon' },
+  { label: 'Resumes', path: '/career?tab=resumes', icon: 'DocumentTextIcon' },
+  { label: 'Portfolios', path: '/career?tab=portfolios', icon: 'GlobeAltIcon' },
+  { label: 'Templates', path: '/career?tab=templates', icon: 'SwatchIcon' },
+];
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -26,12 +35,23 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose, theme, onToggleTheme }: SidebarProps) {
   const pathname = usePathname();
+  const { user, isGuest, isAdmin, logout } = useAuth();
   const isLabRoute = LAB_LINKS.some((link) => link.path === pathname);
   const [labsOpen, setLabsOpen] = useState(true);
+  // CAREER STUDIO INTEGRATION
+  const isCareerRoute = pathname === '/career' || pathname.startsWith('/career/');
+  const [careerOpen, setCareerOpen] = useState(true);
 
   useEffect(() => {
     if (isLabRoute) setLabsOpen(true);
   }, [isLabRoute]);
+
+  useEffect(() => {
+    if (isCareerRoute) setCareerOpen(true);
+  }, [isCareerRoute]);
+
+  const isCareerLinkActive = (path: string) =>
+    path === '/career' ? pathname === '/career' : pathname.startsWith(path);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -146,10 +166,71 @@ export default function Sidebar({ isOpen, onClose, theme, onToggleTheme }: Sideb
               <Icon name="PencilSquareIcon" size={18} variant="outline" />
               <span>LinkedIn Post Generator</span>
             </Link>
+
+            {/* CAREER STUDIO INTEGRATION — collapsible menu + submenu */}
+            <button
+              type="button"
+              onClick={() => setCareerOpen((prev) => !prev)}
+              className={`app-nav-link w-full justify-between ${isCareerRoute ? 'app-nav-link-active' : ''}`}
+              aria-expanded={careerOpen}
+            >
+              <span className="flex items-center gap-1.5">
+                <Icon name="BriefcaseIcon" size={18} variant="outline" />
+                <span>Career Studio</span>
+              </span>
+              <Icon
+                name="ChevronDownIcon"
+                size={16}
+                variant="outline"
+                className={`transition-smooth ${careerOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {careerOpen && (
+              <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
+                {CAREER_LINKS.map((link) => (
+                  <Link
+                    key={link.path}
+                    href={link.path}
+                    onClick={onClose}
+                    className={`app-nav-link w-full ${isCareerLinkActive(link.path) ? 'app-nav-link-active' : ''}`}
+                  >
+                    <Icon name={link.icon as any} size={17} variant="outline" />
+                    <span>{link.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {isAdmin && (
+              <>
+                <div className="my-2 border-t border-border" role="separator" />
+                <Link href="/admin" onClick={onClose} className={navLinkClass('/admin')}>
+                  <Icon name="ShieldCheckIcon" size={18} variant="outline" />
+                  <span>Admin Portal</span>
+                </Link>
+              </>
+            )}
           </div>
         </nav>
 
         <div className="flex flex-shrink-0 items-center gap-2 border-t border-border px-3 py-3">
+          {isGuest ? (
+            <Link href="/login" onClick={onClose} className="app-nav-link flex-1">
+              <Icon name="UserCircleIcon" size={18} variant="outline" />
+              <span>Log in</span>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { logout(); onClose(); }}
+              className="app-nav-link flex-1"
+              title={user?.email}
+            >
+              <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
+              <span className="truncate">Log out</span>
+            </button>
+          )}
           <Link
             href="/config"
             onClick={onClose}

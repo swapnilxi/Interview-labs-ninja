@@ -292,6 +292,30 @@
   .reading-card {
     @apply rounded-lg border border-border bg-card p-5 shadow-card;
   }
+
+  /* Career Studio — shared visual primitives (hero, segmented tabs, empty states) */
+  .cs-tabbar {
+    @apply flex items-center gap-1 p-1.5 rounded-xl border border-border mb-6 overflow-x-auto scrollbar-clean;
+    background: color-mix(in srgb, var(--color-muted) 70%, transparent);
+  }
+
+  .cs-tab {
+    @apply relative inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-smooth text-muted-foreground hover:text-foreground;
+  }
+
+  .cs-tab-active {
+    @apply bg-card text-primary shadow-sm;
+  }
+
+  .cs-empty-badge {
+    @apply w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 14%, transparent));
+  }
+
+  .cs-icon-chip {
+    @apply w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 16%, transparent), color-mix(in srgb, var(--color-secondary) 10%, transparent));
+  }
 }
 
 @layer utilities {
@@ -326,5 +350,14 @@
     border: 3px solid transparent;
     border-radius: 999px;
     background-clip: padding-box;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 250ms ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 }

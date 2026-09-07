@@ -1,5 +1,5 @@
 /**
- * InterviewNinja frontend design system.
+ * LabNinja frontend design system.
  *
  * Keep shared visual decisions here first, then consume them from Tailwind and
  * global CSS. The UI uses clean sans fonts for long reading and avoids mono

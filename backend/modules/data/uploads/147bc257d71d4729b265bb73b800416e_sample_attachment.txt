@@ -1,0 +1,1 @@
+This is sample attachment content for the Playwright verification test.

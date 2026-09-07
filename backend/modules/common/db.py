@@ -33,6 +33,9 @@ class QuestionRecord:
 
 def get_db_path() -> str:
     """Resolve the path to lab_ninja.sqlite3 relative to the backend directory."""
+    override = os.environ.get("LABNINJA_TEST_DB_PATH")
+    if override:
+        return override
     path_rel = Path(__file__).resolve().parent.parent / "lab_ninja.sqlite3"
     if path_rel.exists() or Path(__file__).resolve().parent.parent.exists():
         return str(path_rel)
@@ -59,6 +62,10 @@ def init_db() -> None:
                 jd_present INTEGER NOT NULL DEFAULT 0
             )
         """)
+        cursor.execute("PRAGMA table_info(sessions);")
+        if "user_id" not in [row[1] for row in cursor.fetchall()]:
+            cursor.execute("ALTER TABLE sessions ADD COLUMN user_id INTEGER DEFAULT NULL;")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS questions (
@@ -85,6 +92,9 @@ def init_db() -> None:
             cursor.execute("ALTER TABLE questions ADD COLUMN last_reviewed TEXT DEFAULT NULL;")
         if "question_type" not in columns:
             cursor.execute("ALTER TABLE questions ADD COLUMN question_type TEXT DEFAULT NULL;")
+        if "user_id" not in columns:
+            cursor.execute("ALTER TABLE questions ADD COLUMN user_id INTEGER DEFAULT NULL;")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_questions_user_id ON questions(user_id);")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS session_progress (
@@ -99,10 +109,14 @@ def init_db() -> None:
                 is_completed INTEGER NOT NULL DEFAULT 0
             )
         """)
+        cursor.execute("PRAGMA table_info(session_progress);")
+        if "user_id" not in [row[1] for row in cursor.fetchall()]:
+            cursor.execute("ALTER TABLE session_progress ADD COLUMN user_id INTEGER DEFAULT NULL;")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_progress_user_id ON session_progress(user_id);")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
-                question_model TEXT NOT NULL,
+                text_generation_model TEXT NOT NULL,
                 answer_model TEXT NOT NULL,
                 openai_key TEXT DEFAULT '',
                 gemini_key TEXT DEFAULT '',
@@ -125,7 +139,15 @@ def init_db() -> None:
             except sqlite3.OperationalError:
                 pass  # column already exists
 
-        # shared sections table (all labs share this)
+        # Migrate existing DBs: rename question_model -> text_generation_model (preserves configured values)
+        cursor.execute("PRAGMA table_info(user_settings);")
+        user_settings_columns = [row[1] for row in cursor.fetchall()]
+        if "question_model" in user_settings_columns and "text_generation_model" not in user_settings_columns:
+            cursor.execute("ALTER TABLE user_settings RENAME COLUMN question_model TO text_generation_model")
+
+        # shared sections table (all labs share this). Rows with user_id NULL are
+        # globally-seeded default sections (readable by everyone); rows with a
+        # real user_id are that user's own custom sections.
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS lab_sections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,28 +158,80 @@ def init_db() -> None:
             )
         """)
 
+        # Migration: lab_sections used to have a global UNIQUE(lab_name, name),
+        # which prevented two different users from naming a custom section the
+        # same thing. Recreate with a composite UNIQUE(user_id, lab_name, name)
+        # so ownership is part of the uniqueness key (NULL-owned default rows
+        # are unaffected — SQLite treats each NULL as distinct anyway, which is
+        # why the seeding below uses an explicit NOT EXISTS guard instead of
+        # relying on INSERT OR IGNORE for the shared rows).
+        cursor.execute("PRAGMA table_info(lab_sections);")
+        if "user_id" not in [row[1] for row in cursor.fetchall()]:
+            cursor.execute("""
+                CREATE TABLE lab_sections_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    lab_name TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    is_custom INTEGER NOT NULL DEFAULT 0,
+                    user_id INTEGER DEFAULT NULL,
+                    UNIQUE(user_id, lab_name, name)
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO lab_sections_new (id, lab_name, name, is_custom, user_id)
+                SELECT id, lab_name, name, is_custom, NULL FROM lab_sections
+            """)
+            cursor.execute("DROP TABLE lab_sections")
+            cursor.execute("ALTER TABLE lab_sections_new RENAME TO lab_sections")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_lab_sections_user_id ON lab_sections(user_id);")
+
+        # ── auth: users table must exist before anything references user_id ───
+        from modules.auth.schema import register as auth_register
+
+        auth_register(cursor)
+
         # ── lab modules: create tables + seed ─────────────────────────────────
         from modules.system_design_lab.schema import register as sd_register
         from modules.cv_lab.schema import register as cv_register
         from modules.dsa_lab.schema import register as dsa_register
+        from modules.linkedin_post_generator.templates.schema import register as linkedin_register
+        from modules.todo.shared.schema import register as todo_register
 
         sd_register(cursor)
         cv_register(cursor)
         dsa_register(cursor)
+        linkedin_register(cursor)
+        todo_register(cursor)
 
         # ── seed lab_sections from topic categories ────────────────────────────
+        # These sections stay globally-owned (user_id NULL) since they're seeded
+        # from the shared topic banks, not created by a specific user. Note: we
+        # can't rely on INSERT OR IGNORE + the UNIQUE(user_id, lab_name, name)
+        # constraint here, because SQLite treats every NULL as distinct for
+        # uniqueness purposes — that would re-insert duplicate default rows on
+        # every init_db() call. Use an explicit NOT EXISTS guard instead.
         for lab, table in [
             ("system_design", "system_design_topics"),
             ("cv", "cv_topics"),
             ("dsa", "dsa_topics"),
         ]:
             cursor.execute(f"""
-                INSERT OR IGNORE INTO lab_sections (lab_name, name, is_custom)
-                SELECT DISTINCT '{lab}', category, 0 FROM {table} WHERE is_custom = 0
+                INSERT INTO lab_sections (lab_name, name, is_custom, user_id)
+                SELECT DISTINCT '{lab}', t.category, 0, NULL FROM {table} t
+                WHERE t.is_custom = 0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM lab_sections ls
+                      WHERE ls.lab_name = '{lab}' AND ls.name = t.category AND ls.user_id IS NULL
+                  )
             """)
             cursor.execute(f"""
-                INSERT OR IGNORE INTO lab_sections (lab_name, name, is_custom)
-                SELECT DISTINCT '{lab}', category, 1 FROM {table} WHERE is_custom = 1
+                INSERT INTO lab_sections (lab_name, name, is_custom, user_id)
+                SELECT DISTINCT '{lab}', t.category, 1, NULL FROM {table} t
+                WHERE t.is_custom = 1
+                  AND NOT EXISTS (
+                      SELECT 1 FROM lab_sections ls
+                      WHERE ls.lab_name = '{lab}' AND ls.name = t.category AND ls.user_id IS NULL
+                  )
             """)
 
         conn.commit()
@@ -166,6 +240,7 @@ def init_db() -> None:
 
 
 def create_session(
+    user_id: int,
     session_date: str,
     difficulty_hint: Optional[str] = None,
     cv_present: bool = False,
@@ -177,10 +252,10 @@ def create_session(
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO sessions (session_date, difficulty_hint, cv_present, jd_present)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO sessions (session_date, difficulty_hint, cv_present, jd_present, user_id)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (session_date, difficulty_hint, 1 if cv_present else 0, 1 if jd_present else 0),
+            (session_date, difficulty_hint, 1 if cv_present else 0, 1 if jd_present else 0, user_id),
         )
         conn.commit()
         return cursor.lastrowid
@@ -188,15 +263,20 @@ def create_session(
         conn.close()
 
 
-def insert_questions(session_id: int, questions: List[dict]) -> List[int]:
-    """Insert a batch of questions under a specific session ID and return their database IDs."""
+def insert_questions(user_id: int, session_id: int, questions: List[dict]) -> Optional[List[int]]:
+    """Insert a batch of questions under a specific session ID and return their database IDs.
+
+    Returns None if the session doesn't exist or isn't owned by user_id.
+    """
     db_path = get_db_path()
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT session_date FROM sessions WHERE id = ?", (session_id,))
+        cursor.execute("SELECT session_date FROM sessions WHERE id = ? AND user_id = ?", (session_id, user_id))
         row = cursor.fetchone()
-        session_date = row[0] if row else date.today().isoformat()
+        if row is None:
+            return None
+        session_date = row[0]
 
         inserted_ids = []
         for q in questions:
@@ -214,8 +294,8 @@ def insert_questions(session_id: int, questions: List[dict]) -> List[int]:
                 INSERT INTO questions (
                     session_id, question_date, section, number,
                     category, sub_type, difficulty, topics, question_text,
-                    question_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    question_type, user_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
@@ -228,6 +308,7 @@ def insert_questions(session_id: int, questions: List[dict]) -> List[int]:
                     topics_str,
                     q["question_text"],
                     q.get("question_type", q["sub_type"]),
+                    user_id,
                 ),
             )
             inserted_ids.append(cursor.lastrowid)
@@ -238,11 +319,12 @@ def insert_questions(session_id: int, questions: List[dict]) -> List[int]:
 
 
 def fetch_questions(
+    user_id: int,
     category: Optional[Category] = None,
     session_date: Optional[str] = None,
     topic: Optional[str] = None,
 ) -> List[QuestionRecord]:
-    """Query the questions table with optional filters."""
+    """Query the questions table with optional filters, scoped to the caller."""
     db_path = get_db_path()
     conn = sqlite3.connect(db_path)
     try:
@@ -252,9 +334,9 @@ def fetch_questions(
                    category, sub_type, difficulty, topics, question_text,
                    user_performance, last_reviewed, question_type
             FROM questions
-            WHERE 1=1
+            WHERE user_id = ?
         """
-        params = []
+        params = [user_id]
         if category is not None:
             category_str = category.value if hasattr(category, "value") else str(category)
             query += " AND category = ?"
@@ -300,8 +382,11 @@ def fetch_questions(
         conn.close()
 
 
-def update_question_performance(question_id: int, user_performance: int, last_reviewed: str) -> None:
-    """Update user performance and last reviewed date for a specific question."""
+def update_question_performance(user_id: int, question_id: int, user_performance: int, last_reviewed: str) -> bool:
+    """Update user performance and last reviewed date for a specific question.
+
+    Returns False if the question doesn't exist or isn't owned by user_id.
+    """
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
@@ -309,16 +394,17 @@ def update_question_performance(question_id: int, user_performance: int, last_re
             """
             UPDATE questions
             SET user_performance = ?, last_reviewed = ?
-            WHERE id = ?
+            WHERE id = ? AND user_id = ?
             """,
-            (user_performance, last_reviewed, question_id),
+            (user_performance, last_reviewed, question_id, user_id),
         )
         conn.commit()
+        return cursor.rowcount > 0
     finally:
         conn.close()
 
 
-def save_session_progress(answers: List[dict]) -> None:
+def save_session_progress(user_id: int, answers: List[dict]) -> None:
     """Save or update session answers in the progress table."""
     conn = sqlite3.connect(get_db_path())
     try:
@@ -329,13 +415,13 @@ def save_session_progress(answers: List[dict]) -> None:
 
             if q_id_val is not None:
                 cursor.execute(
-                    "SELECT id FROM session_progress WHERE session_date = ? AND question_id = ?",
-                    (answer["sessionDate"], q_id_val),
+                    "SELECT id FROM session_progress WHERE user_id = ? AND session_date = ? AND question_id = ?",
+                    (user_id, answer["sessionDate"], q_id_val),
                 )
             else:
                 cursor.execute(
-                    "SELECT id FROM session_progress WHERE session_date = ? AND question_text = ?",
-                    (answer["sessionDate"], answer["questionText"]),
+                    "SELECT id FROM session_progress WHERE user_id = ? AND session_date = ? AND question_text = ?",
+                    (user_id, answer["sessionDate"], answer["questionText"]),
                 )
 
             row = cursor.fetchone()
@@ -346,7 +432,7 @@ def save_session_progress(answers: List[dict]) -> None:
                     """
                     UPDATE session_progress
                     SET answer_text = ?, is_completed = ?, category = ?, difficulty = ?, question_type = ?
-                    WHERE id = ?
+                    WHERE id = ? AND user_id = ?
                     """,
                     (
                         answer["answerText"],
@@ -355,6 +441,7 @@ def save_session_progress(answers: List[dict]) -> None:
                         answer["difficulty"],
                         answer["questionType"],
                         row[0],
+                        user_id,
                     ),
                 )
             else:
@@ -362,8 +449,8 @@ def save_session_progress(answers: List[dict]) -> None:
                     """
                     INSERT INTO session_progress (
                         session_date, question_id, question_text, answer_text,
-                        category, difficulty, question_type, is_completed
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        category, difficulty, question_type, is_completed, user_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         answer["sessionDate"],
@@ -374,6 +461,7 @@ def save_session_progress(answers: List[dict]) -> None:
                         answer["difficulty"],
                         answer["questionType"],
                         is_completed_val,
+                        user_id,
                     ),
                 )
         conn.commit()
@@ -381,8 +469,8 @@ def save_session_progress(answers: List[dict]) -> None:
         conn.close()
 
 
-def fetch_session_progress(session_date: str) -> List[dict]:
-    """Retrieve all session progress records for a given date."""
+def fetch_session_progress(user_id: int, session_date: str) -> List[dict]:
+    """Retrieve all session progress records for a given user + date."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
@@ -391,9 +479,9 @@ def fetch_session_progress(session_date: str) -> List[dict]:
             SELECT id, session_date, question_id, question_text, answer_text,
                    category, difficulty, question_type, is_completed
             FROM session_progress
-            WHERE session_date = ?
+            WHERE user_id = ? AND session_date = ?
             """,
-            (session_date,),
+            (user_id, session_date),
         )
         rows = cursor.fetchall()
         out = []
@@ -414,12 +502,12 @@ def fetch_session_progress(session_date: str) -> List[dict]:
         conn.close()
 
 
-def fetch_progress_stats() -> dict:
-    """Retrieve statistics about session progress."""
+def fetch_progress_stats(user_id: int) -> dict:
+    """Retrieve statistics about session progress for a specific user."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT session_date, is_completed FROM session_progress")
+        cursor.execute("SELECT session_date, is_completed FROM session_progress WHERE user_id = ?", (user_id,))
         rows = cursor.fetchall()
 
         unique_dates = list(set(r[0] for r in rows))
@@ -438,77 +526,22 @@ def fetch_progress_stats() -> dict:
         conn.close()
 
 
-def fetch_settings() -> dict:
-    """Retrieve user configurations, or return defaults if unset."""
-    conn = sqlite3.connect(get_db_path())
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            """SELECT question_model, answer_model, openai_key, gemini_key, anthropic_key,
-                      deepseek_key, groq_key, ollama_url, ollama_model
-               FROM user_settings LIMIT 1"""
-        )
-        row = cursor.fetchone()
-        if row:
-            return {
-                "questionModel": row[0],
-                "answerModel": row[1],
-                "openaiKey": row[2] or "",
-                "geminiKey": row[3] or "",
-                "anthropicKey": row[4] or "",
-                "deepseekKey": row[5] or "",
-                "groqKey": row[6] or "",
-                "ollamaUrl": row[7] or "http://localhost:11434",
-                "ollamaModel": row[8] or "llama3.2",
-            }
-        else:
-            return {
-                "questionModel": "gemini-2.5-flash",
-                "answerModel": "gemini-2.5-flash",
-                "openaiKey": "",
-                "geminiKey": "",
-                "anthropicKey": "",
-                "deepseekKey": "",
-                "groqKey": "",
-                "ollamaUrl": "http://localhost:11434",
-                "ollamaModel": "llama3.2",
-            }
-    finally:
-        conn.close()
+## NOTE: There used to be fetch_settings()/save_settings() functions here backing
+## a single shared `user_settings` row of AI provider keys. That's gone — keys now
+## live only in each browser's localStorage and are sent per-request (see
+## modules/common/ai_client.py). The user_settings table above is kept only so
+## existing installs don't need a migration; nothing reads or writes it anymore.
 
 
-def save_settings(settings: dict) -> None:
-    """Save or update user configurations."""
-    conn = sqlite3.connect(get_db_path())
-    try:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM user_settings")
-        cursor.execute(
-            """
-            INSERT INTO user_settings (
-                question_model, answer_model, openai_key, gemini_key, anthropic_key,
-                deepseek_key, groq_key, ollama_url, ollama_model
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                settings["questionModel"],
-                settings["answerModel"],
-                settings.get("openaiKey", ""),
-                settings.get("geminiKey", ""),
-                settings.get("anthropicKey", ""),
-                settings.get("deepseekKey", ""),
-                settings.get("groqKey", ""),
-                settings.get("ollamaUrl", "http://localhost:11434"),
-                settings.get("ollamaModel", "llama3.2"),
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+def fetch_lab_sections(user_id: Optional[int], lab_name: str) -> List[dict]:
+    """Retrieve all sections for a specific lab visible to user_id.
 
-
-def fetch_lab_sections(lab_name: str) -> List[dict]:
-    """Retrieve all sections for a specific lab."""
+    Returns globally-seeded default sections (user_id IS NULL) plus the
+    caller's own custom sections (user_id = user_id). Pass user_id=None to see
+    only the shared defaults (used by callers that aren't user-scoped, e.g.
+    modules/linkedin_post_generator, which hasn't been migrated to per-user
+    categories yet).
+    """
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
@@ -516,10 +549,10 @@ def fetch_lab_sections(lab_name: str) -> List[dict]:
             """
             SELECT id, lab_name, name, is_custom
             FROM lab_sections
-            WHERE lab_name = ?
+            WHERE lab_name = ? AND (user_id IS NULL OR user_id = ?)
             ORDER BY is_custom ASC, id ASC
             """,
-            (lab_name,)
+            (lab_name, user_id)
         )
         rows = cursor.fetchall()
         return [{"id": r[0], "labName": r[1], "name": r[2], "isCustom": bool(r[3])} for r in rows]
@@ -527,18 +560,35 @@ def fetch_lab_sections(lab_name: str) -> List[dict]:
         conn.close()
 
 
-def save_lab_section(lab_name: str, name: str, is_custom: int = 1) -> None:
-    """Save a new lab section."""
+def save_lab_section(user_id: Optional[int], lab_name: str, name: str) -> None:
+    """Save a new custom lab section owned by user_id.
+
+    User-created sections are always is_custom=1 — only the seeding step in
+    init_db() creates is_custom=0 (default) sections. Pass user_id=None only
+    for legacy global-section callers (see fetch_lab_sections docstring).
+    """
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT OR IGNORE INTO lab_sections (lab_name, name, is_custom)
-            VALUES (?, ?, ?)
+            INSERT OR IGNORE INTO lab_sections (lab_name, name, is_custom, user_id)
+            VALUES (?, ?, 1, ?)
             """,
-            (lab_name, name, is_custom)
+            (lab_name, name, user_id)
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_lab_section(user_id: Optional[int], section_id: int) -> bool:
+    """Delete a lab section by id, scoped to its owner. Returns True if deleted."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM lab_sections WHERE id = ? AND user_id IS ?", (section_id, user_id))
+        conn.commit()
+        return cursor.rowcount > 0
     finally:
         conn.close()

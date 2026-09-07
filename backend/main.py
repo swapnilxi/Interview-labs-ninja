@@ -7,6 +7,7 @@ This file is purely application wiring.
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -26,11 +27,21 @@ if __name__ == "__main__" and Path(sys.prefix).resolve() != _VENV_DIR.resolve():
     except FileNotFoundError:
         sys.exit("uv is required to run this project: https://docs.astral.sh/uv/")
 
+from dotenv import load_dotenv
+
+# Load backend/.env (if present) before anything reads os.environ below —
+# LABNINJA_JWT_SECRET, LABNINJA_CORS_ORIGINS, etc. Real env vars still win
+# over the file, so this is safe to layer under a deployment's actual config.
+load_dotenv(_BACKEND_DIR / ".env")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from modules.common import __version__
-from modules.common.db import init_db
+from modules.common.db import get_db_path, init_db
+
+# Config / settings module
+from modules.common.config_router import router as config_router
 
 # Lab modules
 from modules.dsa_lab.router import router as dsa_router
@@ -39,28 +50,119 @@ from modules.system_design_lab.router import router as sd_router
 
 # Daily session module
 from modules.daily_session.daily_session import router as session_router
+from modules.daily_session.daily_session import public_router as session_public_router
+
+# LinkedIn post generator module
+from modules.linkedin_post_generator.templates.router import router as linkedin_templates_router
+from modules.linkedin_post_generator.generation.router import router as linkedin_generation_router
+
+# To-do module
+from modules.todo.tasks.router import router as todo_router
+from modules.todo.quick.router import router as quick_router
+from modules.todo.projects.router import router as projects_router
+from modules.todo.goals.router import router as goals_router
+from modules.todo.pareto.router import router as pareto_router
+from modules.todo.import_data.router import router as import_router
+
+# Auth module
+from modules.auth.router import router as auth_router
+from modules.auth.admin_router import router as admin_router
+from modules.auth.db import promote_admins_from_env
+
+# CAREER STUDIO INTEGRATION — self-contained module with its own sqlite DB
+from modules.career_studio.shared.db import init_career_db
+from modules.career_studio.resume.router import router as career_router
+from modules.career_studio.analysis.router import router as career_analysis_router
+from modules.career_studio.portfolio.router import router as career_portfolio_router
+from modules.career_studio.portfolio.router import public_router as career_public_router
+from modules.career_studio.job_match.router import router as career_tailor_router
+from modules.career_studio.views.router import router as career_views_router
+from modules.career_studio.templates_designer.router import router as career_templates_router
+from modules.career_studio.cover_letter.router import router as career_cover_letter_router
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
     init_db()
+    init_career_db()  # CAREER STUDIO INTEGRATION — creates career_studio.sqlite3 tables
+    # Promote any LABNINJA_ADMIN_EMAILS accounts to admin (idempotent; see admin_router).
+    promoted = promote_admins_from_env()
+    if promoted:
+        print(f"[admin] Promoted to admin from LABNINJA_ADMIN_EMAILS: {', '.join(promoted)}")
     yield
 
 
 app = FastAPI(title="Lab-Ninja API", version=__version__, lifespan=_lifespan)
 
+_cors_origins_env = os.environ.get("LABNINJA_CORS_ORIGINS")
+_cors_origins = (
+    [origin.strip() for origin in _cors_origins_env.split(",") if origin.strip()]
+    if _cors_origins_env
+    else ["http://localhost:4028"]
+)
+# Vercel gives every preview deployment its own random *.vercel.app subdomain,
+# which an exact-match allow_origins list can't cover. Set LABNINJA_CORS_ORIGIN_REGEX
+# to a pattern matching those (e.g. "https://your-project-.*\.vercel\.app") to allow
+# them too, alongside the exact prod origin(s) in LABNINJA_CORS_ORIGINS above.
+_cors_origin_regex = os.environ.get("LABNINJA_CORS_ORIGIN_REGEX")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    # Set LABNINJA_CORS_ORIGINS (comma-separated) to your deployed frontend's
+    # real origin(s) in production, e.g. "https://your-app.vercel.app".
+    allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex,
+    # Auth is a Bearer `Authorization` header, not a cookie/session, so
+    # credentialed CORS isn't needed here.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
+app.include_router(admin_router)
+app.include_router(config_router)
 app.include_router(session_router)
+app.include_router(session_public_router)
 app.include_router(dsa_router)
 app.include_router(cv_router)
 app.include_router(sd_router)
+app.include_router(linkedin_templates_router)
+app.include_router(linkedin_generation_router)
+app.include_router(todo_router)
+app.include_router(quick_router)
+app.include_router(projects_router)
+app.include_router(goals_router)
+app.include_router(pareto_router)
+app.include_router(import_router)
+
+# CAREER STUDIO INTEGRATION
+app.include_router(career_router)
+app.include_router(career_analysis_router)
+app.include_router(career_portfolio_router)
+app.include_router(career_public_router)  # unauthenticated shared-portfolio reader
+app.include_router(career_tailor_router)
+app.include_router(career_views_router)
+app.include_router(career_templates_router)
+app.include_router(career_cover_letter_router)
+
+
+@app.get("/")
+async def root() -> dict:
+    try:
+        conn = sqlite3.connect(get_db_path())
+        conn.execute("SELECT 1")
+        conn.close()
+        db_status = "connected"
+    except sqlite3.Error:
+        db_status = "unavailable"
+
+    return {
+        "message": "AI-labs application is up and running",
+        "db": db_status,
+        "service": "lab-ninja-api",
+        "version": __version__,
+    }
 
 
 @app.get("/health")
@@ -71,8 +173,8 @@ async def health() -> dict:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8082)))
 
 # To run locally:
 #   python main.py                                  (bootstraps uv automatically)
-#   uv run uvicorn main:app --reload --port 8000     (with autoreload, from backend/)
+#   uv run uvicorn main:app --reload --port 8082     (with autoreload, from backend/)

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//private/tmp/**)",
+      "Bash(curl -s -X POST http://localhost:8000/settings -H \"Content-Type: application/json\" -d '{\"textGenerationModel\":\"gemini-2.5-pro\",\"answerModel\":\"gemini-2.5-flash\",\"openaiKey\":\"\",\"geminiKey\":\"\",\"anthropicKey\":\"\",\"deepseekKey\":\"\",\"groqKey\":\"\",\"ollamaUrl\":\"http://localhost:11434\",\"ollamaModel\":\"llama3.2\"}')",
+      "Bash(curl -s http://localhost:8000/settings)",
+      "Bash(curl -s -X POST http://localhost:8000/settings -H \"Content-Type: application/json\" -d '{\"textGenerationModel\":\"gemini-2.5-flash\",\"answerModel\":\"gemini-2.5-flash\",\"openaiKey\":\"\",\"geminiKey\":\"\",\"anthropicKey\":\"\",\"deepseekKey\":\"\",\"groqKey\":\"\",\"ollamaUrl\":\"http://localhost:11434\",\"ollamaModel\":\"llama3.2\"}')",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" -X POST http://localhost:8000/linkedin/generate -H \"Content-Type: application/json\" -d '{\"topic\":\"test\"}')",
+      "Bash(lsof -i :4028 -sTCP:LISTEN)",
+      "Bash(kill 60969)",
+      "Bash(LABNINJA_JWT_SECRET=test-secret uv run python -c ' *)",
+      "Bash(LABNINJA_JWT_SECRET=test-secret uv run uvicorn main:app --port 8091)",
+      "Bash(curl -s http://localhost:8091/health)"
+    ]
+  }
+}

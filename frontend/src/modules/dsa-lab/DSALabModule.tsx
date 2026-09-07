@@ -5,7 +5,9 @@ import Icon from '@/components/ui/AppIcon';
 import LabCopilot from '@/components/common/LabCopilot';
 import OnDemandSection from '@/components/lab/OnDemandSection';
 import QuizCarousel from '@/components/lab/QuizCarousel';
-import GenerateQuestionsPanel from '@/modules/common/GenerateQuestionsPanel';
+import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/GenerateQuestionsPanel';
+import MarkdownLite from '@/modules/common/lab/MarkdownLite';
+import { apiFetch } from '@/lib/http/apiClient';
 
 /* ─────────────────────────────────────────── types ──────────────────────── */
 import { STATIC_DSA_TOPICS } from './fallbackTopics';
@@ -17,7 +19,7 @@ export interface DSATopic {
   category: string;
   difficulty: string;
   prerequisites: string[];
-  subtopics: { id: string; name: string; brief: string }[];
+  subtopics: { id: string; name: string; brief: string; content?: string; sourceUrl?: string }[];
   isCustom?: boolean;
 }
 
@@ -214,7 +216,7 @@ export default function DSALabInteractive() {
 
   /* ── fetch ── */
   useEffect(() => {
-    fetch('http://localhost:8000/dsa/sections')
+    apiFetch('/dsa/sections')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: { id: number; labName: string; name: string; isCustom: boolean }[]) => {
         setSectionsData(data);
@@ -222,7 +224,7 @@ export default function DSALabInteractive() {
       })
       .catch(e => console.error('sections:', e));
 
-    fetch('http://localhost:8000/dsa/topics')
+    apiFetch('/dsa/topics')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: DSATopic[]) => { if (data?.length) { setTopics(data); } else { setTopics(STATIC_DSA_TOPICS); } })
       .catch(e => { console.error('topics:', e); setTopics(STATIC_DSA_TOPICS); });
@@ -338,7 +340,7 @@ export default function DSALabInteractive() {
     if (!newSecInput.trim()) return;
     setAddingSec(true);
     const name = newSecInput.trim();
-    fetch('http://localhost:8000/dsa/sections', {
+    apiFetch('/dsa/sections', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, isCustom: true }),
     })
@@ -360,10 +362,10 @@ export default function DSALabInteractive() {
       brief: 'Custom topic.', category: sectionName,
       difficulty: 'Medium', prerequisites: [], subtopics: [], isCustom: true,
     };
-    fetch('http://localhost:8000/dsa/topics', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    apiFetch('/dsa/topics', {
+      method: 'POST',
       body: JSON.stringify(newTopic),
-    }).catch(e => console.error('addTopic:', e)).finally(() => {
+    }).then(r => { if (!r.ok) console.error('addTopic: HTTP', r.status); }).catch(e => console.error('addTopic:', e)).finally(() => {
       setTopics(prev => [...prev, newTopic]);
       setNewTopicInput(''); setAddingTopicTo(null); setAddingTopic(false);
     });
@@ -375,12 +377,24 @@ export default function DSALabInteractive() {
     if (!parent) return;
     const newSub = { id: `sub-${Date.now()}`, name: newSubInput.trim(), brief: 'Custom subtopic.' };
     const updated = { ...parent, subtopics: [...parent.subtopics, newSub] };
-    fetch('http://localhost:8000/dsa/topics', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    apiFetch('/dsa/topics', {
+      method: 'POST',
       body: JSON.stringify(updated),
-    }).catch(e => console.error('addSub:', e));
+    }).then(r => { if (!r.ok) console.error('addSub: HTTP', r.status); }).catch(e => console.error('addSub:', e));
     setTopics(prev => prev.map(t => t.id === topicId ? updated : t));
     setNewSubInput(''); setAddingSubTo(null);
+    setExpandedTopics(prev => new Set([...prev, topicId]));
+  };
+
+  const handleAddGeneratedSubtopic = (topicId: string, generated: GeneratedSubtopic) => {
+    const parent = topics.find(t => t.id === topicId);
+    if (!parent) return;
+    const updated = { ...parent, subtopics: [...parent.subtopics, generated] };
+    apiFetch('/dsa/topics', {
+      method: 'POST',
+      body: JSON.stringify(updated),
+    }).then(r => { if (!r.ok) console.error('addGeneratedSub: HTTP', r.status); }).catch(e => console.error('addGeneratedSub:', e));
+    setTopics(prev => prev.map(t => t.id === topicId ? updated : t));
     setExpandedTopics(prev => new Set([...prev, topicId]));
   };
 
@@ -644,6 +658,7 @@ export default function DSALabInteractive() {
               onGenerate={generateSection}
               onNavigate={navigateTo}
               onQuizMore={() => setQuizBatch(b => b + 1)}
+              onAddGeneratedSubtopic={handleAddGeneratedSubtopic}
             />
           )}
         </main>
@@ -800,7 +815,7 @@ function WikiIndex({
 ══════════════════════════════════════════════════════════════════════════ */
 function TopicDetail({
   topic, subtopic, sections, quizBatch, prevItem, nextItem,
-  onGenerate, onNavigate, onQuizMore,
+  onGenerate, onNavigate, onQuizMore, onAddGeneratedSubtopic,
 }: {
   topic: DSATopic;
   subtopic: DSATopic['subtopics'][0] | null;
@@ -811,6 +826,7 @@ function TopicDetail({
   onGenerate: (id: string) => void;
   onNavigate: (item: any) => void;
   onQuizMore: () => void;
+  onAddGeneratedSubtopic: (topicId: string, generated: GeneratedSubtopic) => void;
 }) {
   const { lc, hint } = parseBrief(topic.brief);
   const ds = diffStyle(topic.difficulty);
@@ -881,6 +897,23 @@ function TopicDetail({
         </div>
       </div>
 
+      {/* ── Video-based lab content (from YouTube generator) ── */}
+      {subtopic?.content && (
+        <div className="lab-card border border-border p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Video-based Lab</p>
+            {subtopic.sourceUrl && (
+              <a href={subtopic.sourceUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[11px] text-blue-400 hover:underline">
+                <Icon name="PlayCircleIcon" size={12} />
+                Watch source video
+              </a>
+            )}
+          </div>
+          <MarkdownLite content={subtopic.content} />
+        </div>
+      )}
+
       {/* ── Content outline (quick-jump) ── */}
       <div className="lab-card-muted p-4">
         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Content Outline</p>
@@ -904,6 +937,7 @@ function TopicDetail({
         subtopicName={subtopic?.name}
         labName="dsa"
         accentVar="--lab-dsa"
+        onAddSubtopic={generated => onAddGeneratedSubtopic(topic.id, generated)}
       />
 
       {/* ── On-demand sections ── */}
