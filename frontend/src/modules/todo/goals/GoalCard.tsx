@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { GoalNode } from '@/lib/services/goalService';
 import { STATUS_CONFIG, PRIORITY_CONFIG, TaskStatus, TaskPriority } from '@/lib/services/todoService';
+import { exportGoalTreeToCsv } from './exportGoalTree';
 
 interface GoalCardProps {
   node: GoalNode;
@@ -17,6 +18,9 @@ interface GoalCardProps {
   onDiveDeeper: (node: GoalNode) => void;
   onChunk: (node: GoalNode) => void;
   onMove: (node: GoalNode, dest: 'smart' | 'quick' | 'plan') => void;
+  /** Set when the card is rendered under a group header naming its root goal — drops the
+   *  root from the breadcrumb so the header isn't repeated on every card beneath it. */
+  groupedUnderRoot?: boolean;
 }
 
 function ancestorChain(node: GoalNode, byId: Map<number, GoalNode>): GoalNode[] {
@@ -41,6 +45,7 @@ export default function GoalCard({
   onDiveDeeper,
   onChunk,
   onMove,
+  groupedUnderRoot,
 }: GoalCardProps) {
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   const [actionsExpanded, setActionsExpanded] = useState(false);
@@ -55,7 +60,10 @@ export default function GoalCard({
     return () => document.removeEventListener('mousedown', handler);
   }, [showMoveMenu]);
 
-  const breadcrumb = ancestorChain(node, byId);
+  const fullChain = ancestorChain(node, byId);
+  // Inside a group the root is already in the header above; keep only the
+  // intermediate ancestors, which are what actually add context there.
+  const breadcrumb = groupedUnderRoot ? fullChain.slice(1) : fullChain;
   const statusCfg = STATUS_CONFIG[node.status as TaskStatus] || STATUS_CONFIG.backlog;
   const priorityCfg = PRIORITY_CONFIG[node.priority as TaskPriority] || PRIORITY_CONFIG.p3;
   const hasExports = node.exported_to_smart_todo || node.exported_to_quick || node.exported_to_plan;
@@ -148,6 +156,16 @@ export default function GoalCard({
           >
             <Icon name="PencilSquareIcon" size={10} />
           </button>
+
+          {!node.parent_id && (
+            <button
+              onClick={() => exportGoalTreeToCsv(node, byId)}
+              className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-smooth flex items-center gap-0.5"
+              title="Export this goal's full breakdown (all levels) as CSV — opens in Excel or Google Sheets"
+            >
+              <Icon name="ArrowDownTrayIcon" size={10} /> Export
+            </button>
+          )}
 
           <div className="relative ml-auto" ref={menuRef}>
             <button

@@ -82,12 +82,18 @@ export default function QuickDaily({ model }: QuickDailyProps) {
     }
   };
 
-  const handleUpdateTask = useCallback((id: number, updates: Partial<QuickTask>) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  // Cards in the Eisenhower matrix are fed `matrixItems`, whose ids are stringified
+  // for the drag-and-drop bookkeeping. Normalize before comparing against the numeric
+  // ids held in state — `24 === '24'` is false, which would silently no-op the update
+  // (edit/delete/complete appearing to do nothing until a reload).
+  const handleUpdateTask = useCallback((id: number | string, updates: Partial<QuickTask>) => {
+    const numId = typeof id === 'string' ? parseInt(id, 10) : id;
+    setTasks(prev => prev.map(t => t.id === numId ? { ...t, ...updates } : t));
   }, []);
 
-  const handleDeleteTask = useCallback((id: number) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
+  const handleDeleteTask = useCallback((id: number | string) => {
+    const numId = typeof id === 'string' ? parseInt(id, 10) : id;
+    setTasks(prev => prev.filter(t => t.id !== numId));
   }, []);
 
   const handleMoveToSmart = useCallback(async (id: number) => {

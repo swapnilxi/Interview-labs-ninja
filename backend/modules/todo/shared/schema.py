@@ -306,11 +306,17 @@ def register(cursor) -> None:
             exported_quick_task_id INTEGER DEFAULT NULL,
             exported_to_plan INTEGER DEFAULT 0,
             exported_project_id INTEGER DEFAULT NULL,
+            attachments TEXT DEFAULT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (parent_id) REFERENCES goal_nodes(id) ON DELETE CASCADE
         )
     """)
+
+    # Safe migrations — add columns to goal_nodes if they don't exist yet
+    cursor.execute("PRAGMA table_info(goal_nodes);")
+    if "attachments" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE goal_nodes ADD COLUMN attachments TEXT DEFAULT NULL;")
 
     # Create indices
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_parent_id ON tasks(parent_id);")
