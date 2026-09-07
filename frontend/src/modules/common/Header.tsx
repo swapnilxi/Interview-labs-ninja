@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Sidebar from '@/modules/common/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiFetch } from '@/lib/http/apiClient';
+import { apiFetch, API_BASE_URL } from '@/lib/http/apiClient';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
 
 interface NavigationItem {
@@ -54,7 +54,7 @@ function SystemStatus() {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch('http://localhost:8082/health', { signal: controller.signal });
+        const res = await fetch(`${API_BASE_URL}/health`, { signal: controller.signal });
         clearTimeout(timeoutId);
         apiOk = res.ok;
         setApiStatus(res.ok ? 'online' : 'offline');

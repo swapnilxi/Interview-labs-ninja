@@ -100,12 +100,18 @@ _cors_origins = (
     if _cors_origins_env
     else ["http://localhost:4028"]
 )
+# Vercel gives every preview deployment its own random *.vercel.app subdomain,
+# which an exact-match allow_origins list can't cover. Set LABNINJA_CORS_ORIGIN_REGEX
+# to a pattern matching those (e.g. "https://your-project-.*\.vercel\.app") to allow
+# them too, alongside the exact prod origin(s) in LABNINJA_CORS_ORIGINS above.
+_cors_origin_regex = os.environ.get("LABNINJA_CORS_ORIGIN_REGEX")
 
 app.add_middleware(
     CORSMiddleware,
     # Set LABNINJA_CORS_ORIGINS (comma-separated) to your deployed frontend's
     # real origin(s) in production, e.g. "https://your-app.vercel.app".
     allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex,
     # Auth is a Bearer `Authorization` header, not a cookie/session, so
     # credentialed CORS isn't needed here.
     allow_credentials=False,

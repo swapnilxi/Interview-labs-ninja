@@ -1,10 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   productionBrowserSourceMaps: true,
-  distDir: process.env.DIST_DIR || '.next',  typescript: {
-    ignoreBuildErrors: true,
+  distDir: process.env.DIST_DIR || '.next',
+  typescript: {
+    ignoreBuildErrors: false,
   },
   eslint: {
+    // Left on: ~600 pre-existing prettier-only formatting violations across
+    // the codebase would fail the build if this were false. Fix those (e.g.
+    // `npm run lint:fix`) before flipping it.
     ignoreDuringBuilds: true,
   },
   images: {
