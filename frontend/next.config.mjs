@@ -13,22 +13,10 @@ const nextConfig = {
   },
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.pexels.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.pixabay.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'img.rocket.new',
-      },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'images.pexels.com' },
+      { protocol: 'https', hostname: 'images.pixabay.com' },
+      { protocol: 'https', hostname: 'img.rocket.new' },
     ],
   },
   async redirects() {
@@ -40,11 +28,22 @@ const nextConfig = {
       },
     ];
   },
+  // Cross-Origin Isolation headers required by PDF.js 4.x (SharedArrayBuffer)
+  // Only applied to the swipe-pdf-reader route to avoid breaking other routes.
+  async headers() {
+    return [
+      {
+        source: '/swipe-pdf-reader/:path*',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy',   value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+    ];
+  },
   webpack(
     config,
-    {
-      dev: dev
-    }
+    { dev }
   ) {
     config.module.rules.push({
       test: /\.(jsx|tsx)$/,

@@ -22,11 +22,6 @@ const navigationItems: NavigationItem[] = [
     icon: 'AcademicCapIcon',
   },
   {
-    label: 'SwipeLearn',
-    path: '/swipe-learn',
-    icon: 'Square3Stack3DIcon',
-  },
-  {
     label: 'CV Lab',
     path: '/cv-lab',
     icon: 'EyeIcon',

@@ -69,6 +69,10 @@ from modules.auth.router import router as auth_router
 from modules.auth.admin_router import router as admin_router
 from modules.auth.db import promote_admins_from_env
 
+# Swipe PDF Reader module
+from modules.swipe_pdf_reader.db import init_pdf_db
+from modules.swipe_pdf_reader.router import router as pdf_router
+
 # CAREER STUDIO INTEGRATION — self-contained module with its own sqlite DB
 from modules.career_studio.shared.db import init_career_db
 from modules.career_studio.resume.router import router as career_router
@@ -84,6 +88,7 @@ from modules.career_studio.cover_letter.router import router as career_cover_let
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
     init_db()
+    init_pdf_db()
     init_career_db()  # CAREER STUDIO INTEGRATION — creates career_studio.sqlite3 tables
     # Promote any LABNINJA_ADMIN_EMAILS accounts to admin (idempotent; see admin_router).
     promoted = promote_admins_from_env()
@@ -135,6 +140,7 @@ app.include_router(projects_router)
 app.include_router(goals_router)
 app.include_router(pareto_router)
 app.include_router(import_router)
+app.include_router(pdf_router)
 
 # CAREER STUDIO INTEGRATION
 app.include_router(career_router)
