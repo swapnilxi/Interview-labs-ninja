@@ -21,12 +21,12 @@ import GenerateOptionsModal from './components/GenerateOptionsModal';
 import BottomNavBar from './components/BottomNavBar';
 import { generateGeminiCard } from './services/geminiService';
 import { sounds } from './utils/soundEffects';
-
-const SAVED_CARDS_STORAGE_KEY = 'swipelearn_saved_card_ids_v3';
-const USER_CARDS_STORAGE_KEY = 'swipelearn_user_cards_v3';
-const CUSTOM_TOPICS_STORAGE_KEY = 'swipelearn_custom_topics_v3';
+import { useSwipeLearnStorage } from './utils/useSwipeLearnStorage';
+import type { StoredCard, StoredCustomTopic } from './utils/useSwipeLearnStorage';
 
 export default function SwipeLearnModule() {
+  const learnStorage = useSwipeLearnStorage();
+
   const [allCards, setAllCards] = useState<ContentCard[]>(DEFAULT_CONTENT_CARDS);
   const [customTopics, setCustomTopics] = useState<TopicMeta[]>([]);
   const [feedMode, setFeedMode] = useState<FeedMode>('python');
@@ -61,35 +61,41 @@ export default function SwipeLearnModule() {
     return allTopics.find((t) => t.id === feedMode) || allTopics[1];
   }, [allTopics, feedMode]);
 
-  // Hydrate from localStorage
+  // ── Hydrate from IndexedDB on mount ──────────────────────────────────────
   useEffect(() => {
-    try {
-      // Saved cards
-      const savedIds = localStorage.getItem(SAVED_CARDS_STORAGE_KEY);
-      if (savedIds) {
-        setSavedCardIds(JSON.parse(savedIds));
+    let cancelled = false;
+    learnStorage.hydrate().then((state) => {
+      if (cancelled) return;
+
+      // Merge user-generated cards on top of default seed cards
+      if (state.userCards.length > 0) {
+        setAllCards([...DEFAULT_CONTENT_CARDS, ...(state.userCards as unknown as ContentCard[])]);
+      }
+
+      // Saved card IDs
+      if (state.savedCardIds.length > 0) {
+        setSavedCardIds(state.savedCardIds);
       } else {
+        // First run default
         const initial = ['py-001', 'py-002'];
         setSavedCardIds(initial);
-        localStorage.setItem(SAVED_CARDS_STORAGE_KEY, JSON.stringify(initial));
+        initial.forEach((id) => learnStorage.addSavedId(id));
       }
 
       // Custom topics
-      const savedTopics = localStorage.getItem(CUSTOM_TOPICS_STORAGE_KEY);
-      if (savedTopics) {
-        setCustomTopics(JSON.parse(savedTopics));
+      if (state.customTopics.length > 0) {
+        setCustomTopics(state.customTopics as unknown as TopicMeta[]);
       }
 
-      // Custom generated cards
-      const savedUserCards = localStorage.getItem(USER_CARDS_STORAGE_KEY);
-      if (savedUserCards) {
-        const parsed: ContentCard[] = JSON.parse(savedUserCards);
-        setAllCards([...DEFAULT_CONTENT_CARDS, ...parsed]);
+      // Card indices per feed mode
+      if (Object.keys(state.cardIndices).length > 0) {
+        setCardIndices(state.cardIndices);
       }
-    } catch {
-      // Local storage fallback
-    }
-  }, []);
+    }).catch(() => {
+      // IDB unavailable — fall back silently (app works with in-memory state)
+    });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -102,31 +108,26 @@ export default function SwipeLearnModule() {
   const handleAddTopic = useCallback((newTopic: TopicMeta) => {
     setCustomTopics((prev) => {
       const next = [...prev, newTopic];
-      try {
-        localStorage.setItem(CUSTOM_TOPICS_STORAGE_KEY, JSON.stringify(next));
-      } catch {}
+      learnStorage.saveCustomTopic(newTopic as unknown as StoredCustomTopic);
       return next;
     });
 
-    // Automatically select the new topic & update feed
     setFeedMode(newTopic.id);
     setCurrentTab('feed');
     showToast(`Added topic "${newTopic.label}"!`);
-  }, []);
+  }, [learnStorage]);
 
   // Remove custom topic
   const handleRemoveCustomTopic = useCallback((topicId: string) => {
     setCustomTopics((prev) => {
       const next = prev.filter((t) => t.id !== topicId);
-      try {
-        localStorage.setItem(CUSTOM_TOPICS_STORAGE_KEY, JSON.stringify(next));
-      } catch {}
+      learnStorage.removeCustomTopic(topicId);
       return next;
     });
 
     setFeedMode((prev) => (prev === topicId ? 'python' : prev));
     showToast('Topic removed.');
-  }, []);
+  }, [learnStorage]);
 
   // Save card
   const handleSaveCard = useCallback((card: ContentCard) => {
@@ -134,9 +135,7 @@ export default function SwipeLearnModule() {
     setSavedCardIds((prev) => {
       if (prev.includes(card.id)) return prev;
       const next = [card.id, ...prev];
-      try {
-        localStorage.setItem(SAVED_CARDS_STORAGE_KEY, JSON.stringify(next));
-      } catch {}
+      learnStorage.addSavedId(card.id);
       return next;
     });
 
@@ -145,43 +144,46 @@ export default function SwipeLearnModule() {
     );
 
     showToast(`Saved "${card.title}"`);
-  }, []);
+  }, [learnStorage]);
 
   // Remove card from saved
   const handleRemoveSavedCard = useCallback((cardId: string) => {
     setSavedCardIds((prev) => {
       const next = prev.filter((id) => id !== cardId);
-      try {
-        localStorage.setItem(SAVED_CARDS_STORAGE_KEY, JSON.stringify(next));
-      } catch {}
+      learnStorage.removeSavedId(cardId);
       return next;
     });
 
     setAllCards((prev) =>
       prev.map((c) => (c.id === cardId ? { ...c, isSaved: false } : c))
     );
-  }, []);
+  }, [learnStorage]);
+
+  // Persist card indices whenever they change
+  const updateCardIndices = useCallback((updater: (prev: Record<string, number>) => Record<string, number>) => {
+    setCardIndices((prev) => {
+      const next = updater(prev);
+      learnStorage.saveCardIndices(next);
+      return next;
+    });
+  }, [learnStorage]);
 
   // Filter cards based on active FeedMode and sub-tabs
   const activeDeckCards = useMemo(() => {
     let list = [...allCards];
 
-    // Filter by mode
     if (feedMode !== 'mixed') {
       list = list.filter((c) => c.topic === feedMode);
     }
 
-    // Filter by sub-tab if active
     if (activeSubTab && activeSubTab !== 'all') {
       if (feedMode === 'interview') {
         list = list.filter((c) => c.subCategory === activeSubTab);
       } else if (feedMode === 'mixed' && activeSubTab === 'for-you') {
-        // "For You" filter: prioritize unread cards and user saved domains
         list = list.filter((c) => !c.isRead || c.isSaved);
       }
     }
 
-    // Filter by Learn Mode (prioritizes deep concept cards)
     if (learnModeEnabled) {
       const conceptCards = list.filter((c) => c.type === 'concept' || c.depth);
       if (conceptCards.length > 0) list = conceptCards;
@@ -196,27 +198,27 @@ export default function SwipeLearnModule() {
   const handleSwipeLeft = useCallback((card: ContentCard) => {
     sounds.playReview();
     setSwipeHistory((prev) => [{ card, action: 'skip' }, ...prev.slice(0, 19)]);
-    setCardIndices((prev) => ({
+    updateCardIndices((prev) => ({
       ...prev,
       [feedMode]: (prev[feedMode] || 0) + 1,
     }));
     setAllCards((prev) =>
       prev.map((c) => (c.id === card.id ? { ...c, isRead: true, swipeDirection: 'left' } : c))
     );
-  }, [feedMode]);
+  }, [feedMode, updateCardIndices]);
 
   // Swiping right: Save
   const handleSwipeRight = useCallback((card: ContentCard) => {
     handleSaveCard(card);
     setSwipeHistory((prev) => [{ card, action: 'save' }, ...prev.slice(0, 19)]);
-    setCardIndices((prev) => ({
+    updateCardIndices((prev) => ({
       ...prev,
       [feedMode]: (prev[feedMode] || 0) + 1,
     }));
     setAllCards((prev) =>
       prev.map((c) => (c.id === card.id ? { ...c, isSaved: true, isRead: true, swipeDirection: 'right' } : c))
     );
-  }, [handleSaveCard, feedMode]);
+  }, [handleSaveCard, feedMode, updateCardIndices]);
 
   // Undo last swipe
   const handleUndo = useCallback(() => {
@@ -228,18 +230,18 @@ export default function SwipeLearnModule() {
       handleRemoveSavedCard(lastItem.card.id);
     }
 
-    setCardIndices((prev) => ({
+    updateCardIndices((prev) => ({
       ...prev,
       [feedMode]: Math.max((prev[feedMode] || 0) - 1, 0),
     }));
-  }, [swipeHistory, feedMode, handleRemoveSavedCard]);
+  }, [swipeHistory, feedMode, handleRemoveSavedCard, updateCardIndices]);
 
   const handleResetDeck = useCallback(() => {
-    setCardIndices((prev) => ({
+    updateCardIndices((prev) => ({
       ...prev,
       [feedMode]: 0,
     }));
-  }, [feedMode]);
+  }, [feedMode, updateCardIndices]);
 
   // Dynamic Card Generation with specific format
   const handleGenerateWithFormat = useCallback(async (format: GenerateFormat) => {
@@ -255,11 +257,8 @@ export default function SwipeLearnModule() {
 
       setAllCards((prev) => [newCard, ...prev]);
 
-      try {
-        const saved = localStorage.getItem(USER_CARDS_STORAGE_KEY);
-        const parsed: ContentCard[] = saved ? JSON.parse(saved) : [];
-        localStorage.setItem(USER_CARDS_STORAGE_KEY, JSON.stringify([newCard, ...parsed]));
-      } catch {}
+      // Persist the generated card to IDB
+      learnStorage.saveCard(newCard as unknown as StoredCard);
 
       sounds.playFlip();
       showToast(`✨ Generated: ${newCard.title}`);
@@ -268,11 +267,10 @@ export default function SwipeLearnModule() {
     } finally {
       setIsGenerating(false);
     }
-  }, [allCards, feedMode, activeTopicMeta]);
+  }, [allCards, feedMode, activeTopicMeta, learnStorage]);
 
-  // Learn -> Test -> Reinforce loop
+  // Learn → Test → Reinforce loop
   const handleReinforceQuiz = useCallback((card: ContentCard) => {
-    // Generate a follow-up test specifically on this concept
     showToast(`Generating quiz for ${card.title}...`);
     handleGenerateWithFormat('quiz');
   }, [handleGenerateWithFormat]);

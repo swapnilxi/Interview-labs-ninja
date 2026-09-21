@@ -114,6 +114,16 @@ export default function Sidebar({ isOpen, onClose, theme, onToggleTheme }: Sideb
               <div className="flex items-center justify-between flex-1">
                 <span>SwipeLearn</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                  Feed
+                </span>
+              </div>
+            </Link>
+
+            <Link href="/swipe-pdf-reader" onClick={onClose} className={navLinkClass('/swipe-pdf-reader')}>
+              <Icon name="DocumentTextIcon" size={18} variant="outline" />
+              <div className="flex items-center justify-between flex-1">
+                <span>Swipe PDF Reader</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                   New
                 </span>
               </div>
