@@ -3,10 +3,8 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/.next",
   "installCommand": "pip install -r requirements.txt",
-  "framework": "nextjs",
   "functions": {
     "api/index.py": {
-      "runtime": "vercel-python@0.0.4",
       "maxDuration": 30,
       "includeFiles": "backend/**"
     }
