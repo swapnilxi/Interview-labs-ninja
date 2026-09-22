@@ -137,13 +137,16 @@ You can then wire the frontend to call the FastAPI endpoints under
 - CORS origin defaults to `http://localhost:4028` (this repo's actual frontend dev port —
   **not** Next.js's generic 3000 default; don't "fix" this back to 3000). Override via
   `LABNINJA_CORS_ORIGINS` (comma-separated) in production.
-- **The live database is `backend/modules/lab_ninja.sqlite3`**, not `backend/lab_ninja.sqlite3`
-  — `get_db_path()`'s docstring is misleading, trust the code (`Path(__file__).resolve().parent.parent`
-  from `modules/common/db.py` resolves to `modules/`). It's tracked in git now (see `.gitignore`)
-  so it can be committed as a cross-machine backup.
+- **Centralized Data Directory (`backend/data/`)**:
+  All backend databases, file uploads, and persistence files are strictly centralized inside **`backend/data/`**:
+  - `backend/data/lab_ninja.sqlite3`: Main app, Todo, DSA/CV/System Design labs & Swipe PDF database.
+  - `backend/data/career_studio.sqlite3`: Career Studio module database.
+  - `backend/data/uploads/`: Task & Goal file attachments.
+  - `backend/data/pdf_uploads/`: Cloud PDF reader uploaded documents.
+  - All database path resolvers (`get_db_path()` and `get_career_db_path()`) automatically resolve to `backend/data/`.
 - For any manual testing, **never** run scripts against the real DB directly. Set
   `LABNINJA_TEST_DB_PATH=/path/to/a/copy.sqlite3` (an override `get_db_path()` already
-  supports) and copy `backend/modules/lab_ninja.sqlite3` first. This is how all of the
+  supports) and copy `backend/data/lab_ninja.sqlite3` first. This is how all of the
   migration/auth testing for this feature was verified without any risk to real data.
 
 ### Frontend
@@ -345,7 +348,31 @@ outright; profiles + views are the only model now.
 Each view editor (`/career/view/{id}`) has the profile dropdown (switch data source) with an edit
 pencil (opens the Profile Editor modal in place), a **template picker**, per-section show/hide +
 reorder, a **live iframe preview** (the backend-rendered HTML, byte-identical to the export), and
-export/share. Resume views additionally get an **AI Analyze** panel (ATS + dimension scores + fixes,
+export actions (HTML, PDF, DOCX, Markdown, public share link).
+
+## Swipe PDF Reader Module (`/swipe-pdf-reader`)
+
+A local-first document reader that converts PDFs and study notes into swipeable micro-learning cards.
+
+- **Dual Storage & Processing Workflows**:
+  - **📱 Open PDF Locally (100% Offline & Private)**: Extracted off-main-thread via PDF.js Web Worker (`pdfExtractWorker.ts`), saved to IndexedDB (`labninja-swipe-pdf`), zero network requests sent.
+  - **☁️ Upload PDF to Cloud (Synced Across Devices)**: Multipart upload to FastAPI (`POST /api/pdf/upload`), parsed server-side with `pypdf`, saved to `backend/data/pdf_uploads/` and SQLite database (`pdf_documents` and `pdf_chunks` in `backend/data/lab_ninja.sqlite3`).
+- **Formatting Preservation**: Preserves paragraph breaks, line breaks, bullet lists, page transitions, and section headers.
+- **Card Deck Capabilities**: Swipe navigation, bookmarking, reading progress resume, search, jump-to-chunk, and storage quota manager.
+
+## Vercel Deployment & Backend Modes
+
+The application can be deployed freely on Vercel as a self-contained Next.js application or run connected to the FastAPI backend:
+
+- **Nextjs-api mode (`NEXT_PUBLIC_BACKEND_MODE=Nextjs-api`)**:
+  - Automatically routes API calls to Next.js serverless route handlers under `src/app/api/...` and relative URLs (`/api/...`).
+  - Allows hosting the frontend freely on Vercel with zero external server dependencies.
+- **FastAPI mode (`NEXT_PUBLIC_API_URL=http://localhost:8082`)**:
+  - Connects to the FastAPI Python server running on port 8082.
+- **Vercel Monorepo Settings**:
+  - Includes root `package.json` with Node 20 engine declaration and root `vercel.json` / `frontend/vercel.json` routing.
+
+Resume views additionally get an **AI Analyze** panel (ATS + dimension scores + fixes,
 optional job-description input) and a **Tailor to a Job** drawer (`ViewTailorPanel.tsx`): previews a
 per-section before/after diff against a saved job description, applied either **in place** (with an
 automatic safety checkpoint) or as a **new tailored profile + view** (original untouched).
