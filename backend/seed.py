@@ -1,8 +1,10 @@
 import sqlite3
 from datetime import datetime, timedelta
 
+from modules.common.db import get_db_path
+
 def seed_db():
-    conn = sqlite3.connect('lab_ninja.sqlite3')
+    conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
 
     # Clear existing tables

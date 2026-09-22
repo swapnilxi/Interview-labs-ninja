@@ -32,11 +32,15 @@ class QuestionRecord:
 
 
 def get_db_path() -> str:
-    """Resolve the path to lab_ninja.sqlite3 relative to the backend directory."""
+    """Resolve the path to lab_ninja.sqlite3 (located in backend/data/)."""
+    path_data = Path(__file__).resolve().parent.parent / "data" / "lab_ninja.sqlite3"
+    if path_data.exists():
+        return str(path_data)
     path_rel = Path(__file__).resolve().parent.parent / "lab_ninja.sqlite3"
-    if path_rel.exists() or Path(__file__).resolve().parent.parent.exists():
+    if path_rel.exists():
         return str(path_rel)
-    return "lab_ninja.sqlite3"
+    os.makedirs(path_data.parent, exist_ok=True)
+    return str(path_data)
 
 
 def init_db() -> None:
