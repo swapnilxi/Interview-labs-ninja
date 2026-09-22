@@ -9,7 +9,25 @@
 
 import { clearToken, getToken, isLoggedIn } from '@/lib/auth/tokenStore';
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
+export function resolveApiBaseUrl(): string {
+  const backendMode = process.env.NEXT_PUBLIC_BACKEND_MODE || process.env['Backend-mode'];
+  if (backendMode === 'Nextjs-api') {
+    return '';
+  }
+  if (process.env.NEXT_PUBLIC_API_URL !== undefined && process.env.NEXT_PUBLIC_API_URL !== '') {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
+    return '';
+  }
+  return 'http://localhost:8082';
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 /** Extract a human-readable error message from a failed API response (FastAPI returns {"detail": "..."}). */
 export async function parseApiError(res: Response): Promise<string> {
