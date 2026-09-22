@@ -33,6 +33,13 @@ const nextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      { source: '/health', destination: '/api/health' },
+      { source: '/auth/:path*', destination: '/api/auth/:path*' },
+      { source: '/admin/:path*', destination: '/api/admin/:path*' },
+    ];
+  },
   // Cross-Origin Isolation headers required by PDF.js 4.x (SharedArrayBuffer)
   // Only applied to the swipe-pdf-reader route to avoid breaking other routes.
   async headers() {
