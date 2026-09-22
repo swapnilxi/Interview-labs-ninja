@@ -15,20 +15,27 @@ export interface UserRecord {
   updated_at: string;
 }
 
-export function getDbPath(): string | null {
-  const candidates = [
+const TMP_DB = '/tmp/lab_ninja.sqlite3';
+
+/**
+ * On cold start, copy the bundled (read-only) DB to /tmp so writes succeed.
+ * Vercel mounts git-tracked files as immutable; /tmp is writable per Lambda instance.
+ */
+function ensureWritableDb(): void {
+  if (fs.existsSync(TMP_DB)) return;   // already seeded this warm instance
+  const sources = [
     path.join(process.cwd(), 'backend', 'data', 'lab_ninja.sqlite3'),
     path.join(process.cwd(), '..', 'backend', 'data', 'lab_ninja.sqlite3'),
     path.join(process.cwd(), 'data', 'lab_ninja.sqlite3'),
-    '/tmp/lab_ninja.sqlite3',
   ];
+  const src = sources.find(fs.existsSync);
+  if (src) fs.copyFileSync(src, TMP_DB);
+  // If no seed exists, DatabaseSync creates a blank DB at TMP_DB automatically.
+}
 
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
+export function getDbPath(): string {
+  ensureWritableDb();
+  return TMP_DB;
 }
 
 function getSqliteConn() {

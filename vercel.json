@@ -6,7 +6,7 @@
   "framework": "nextjs",
   "functions": {
     "api/index.py": {
-      "runtime": "python3.12",
+      "runtime": "vercel-python@0.0.4",
       "maxDuration": 30,
       "includeFiles": "backend/**"
     }
