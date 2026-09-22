@@ -2,7 +2,7 @@
   "version": 2,
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/.next",
-  "installCommand": "pip install -r requirements.txt",
+  "installCommand": "pip install -r requirements.txt --break-system-packages",
   "functions": {
     "api/index.py": {
       "maxDuration": 30,
