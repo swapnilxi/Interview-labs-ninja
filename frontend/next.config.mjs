@@ -2,6 +2,11 @@
 const nextConfig = {
   productionBrowserSourceMaps: true,
   distDir: process.env.DIST_DIR || '.next',
+  experimental: {
+    outputFileTracingIncludes: {
+      '/api/**/*': ['./backend/data/**/*', '../backend/data/**/*'],
+    },
+  },
   typescript: {
     ignoreBuildErrors: false,
   },
