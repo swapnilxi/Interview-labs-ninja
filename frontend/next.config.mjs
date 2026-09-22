@@ -45,14 +45,17 @@ const nextConfig = {
     config,
     { dev }
   ) {
-    config.module.rules.push({
-      test: /\.(jsx|tsx)$/,
-      exclude: [/node_modules/],
-      use: [{
-        loader: '@dhiwise/component-tagger/nextLoader',
-      }],
-    });
     if (dev) {
+      try {
+        config.module.rules.push({
+          test: /\.(jsx|tsx)$/,
+          exclude: [/node_modules/],
+          use: [{
+            loader: '@dhiwise/component-tagger/nextLoader',
+          }],
+        });
+      } catch {}
+
       const ignoredPaths = (process.env.WATCH_IGNORED_PATHS || '')
         .split(',')
         .map((p) => p.trim())
