@@ -11,7 +11,7 @@ import { clearToken, getToken, isLoggedIn } from '@/lib/auth/tokenStore';
 
 export function resolveApiBaseUrl(): string {
   const backendMode = (process.env.NEXT_PUBLIC_BACKEND_MODE || process.env['Backend-mode'] || '').toLowerCase();
-  if (backendMode === 'nextjs-api' || backendMode === 'nextjs') {
+  if (backendMode === 'nextjs-api' || backendMode === 'nextjs' || backendMode === 'fe-api') {
     return '';
   }
   if (backendMode === 'fastapi') {
@@ -61,13 +61,26 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     headers.set('Authorization', `Bearer ${getToken()}`);
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
-
-  if (res.status === 401 && isLoggedIn()) {
-    clearToken();
+  const baseUrl = resolveApiBaseUrl();
+  try {
+    const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
+    if (res.status === 401 && isLoggedIn()) {
+      clearToken();
+    }
+    return res;
+  } catch (err) {
+    // Fall back to Next.js FE API route if primary FastAPI request fails
+    if (baseUrl !== '') {
+      try {
+        const fallbackRes = await fetch(path, { ...options, headers });
+        if (fallbackRes.status === 401 && isLoggedIn()) {
+          clearToken();
+        }
+        return fallbackRes;
+      } catch {}
+    }
+    throw err;
   }
-
-  return res;
 }
 
 export async function apiJson<T>(path: string, options: RequestInit = {}): Promise<T> {

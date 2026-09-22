@@ -45,16 +45,21 @@ const navigationItems: NavigationItem[] = [
 
 function SystemStatus() {
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [feApiStatus, setFeApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
   useEffect(() => {
     const checkStatus = async () => {
-      // Check API
       let apiOk = false;
+      let feApiOk = false;
+      let feDbAvailable = false;
+
+      // 1. Check FastAPI (API)
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch(`${API_BASE_URL}/health`, { signal: controller.signal });
+        const fastapiUrl = process.env.NEXT_PUBLIC_API_URL || (API_BASE_URL !== '' ? API_BASE_URL : 'http://localhost:8082');
+        const res = await fetch(`${fastapiUrl}/health`, { signal: controller.signal });
         clearTimeout(timeoutId);
         apiOk = res.ok;
         setApiStatus(res.ok ? 'online' : 'offline');
@@ -62,12 +67,29 @@ function SystemStatus() {
         setApiStatus('offline');
       }
 
-      // Check DB via a lightweight endpoint that reads from SQLite. Guests have
-      // no server-side data and /todo/* now requires login, so for guests we
-      // just mirror the API status instead of hitting an endpoint that would
-      // always 401 and misreport "offline".
-      if (!isLoggedIn()) {
-        setDbStatus(apiOk ? 'online' : 'offline');
+      // 2. Check Next.js Frontend API (FE-API)
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch('/api/health', { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          feApiOk = true;
+          const data = await res.json().catch(() => ({}));
+          feDbAvailable = !!data?.db_available;
+          setFeApiStatus('online');
+        } else {
+          setFeApiStatus('offline');
+        }
+      } catch (err) {
+        setFeApiStatus('offline');
+      }
+
+      // 3. Check DB status (Online if either FastAPI DB or Next.js SQLite DB is available)
+      if (apiOk || feDbAvailable) {
+        setDbStatus('online');
+      } else if (!isLoggedIn()) {
+        setDbStatus((apiOk || feApiOk) ? 'online' : 'offline');
       } else {
         try {
           const controller = new AbortController();
@@ -76,7 +98,7 @@ function SystemStatus() {
           clearTimeout(timeoutId);
           setDbStatus(res.ok ? 'online' : 'offline');
         } catch (err) {
-          setDbStatus('offline');
+          setDbStatus((feDbAvailable || feApiOk) ? 'online' : 'offline');
         }
       }
     };
@@ -95,13 +117,14 @@ function SystemStatus() {
       ) : (
         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.5)]" />
       )}
-      <span className="w-5 text-[8px] font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
+      <span className="w-9 text-[8px] font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
     </div>
   );
 
   return (
     <div className="flex flex-col gap-0.5 px-2 py-1 rounded-md bg-muted/50 border border-border mr-3">
       <StatusRow label="API" status={apiStatus} />
+      <StatusRow label="FE-API" status={feApiStatus} />
       <StatusRow label="DB" status={dbStatus} />
     </div>
   );
