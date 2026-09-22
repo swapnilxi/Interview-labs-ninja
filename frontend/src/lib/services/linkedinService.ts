@@ -82,7 +82,7 @@ export interface AnalyzePostResult {
   regeneratedPost: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
+import { API_BASE_URL } from '@/lib/http/apiClient';
 
 async function parseErrorDetail(res: Response): Promise<string> {
   try {

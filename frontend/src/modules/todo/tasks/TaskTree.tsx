@@ -17,6 +17,7 @@ import {
 } from '@/lib/services/todoService';
 import { paretoService } from '@/lib/services/paretoService';
 import { aiQueryString } from '@/lib/services/settingsService';
+import { API_BASE_URL } from '@/lib/http/apiClient';
 
 interface TaskTreeProps {
   model: 'ollama' | 'gemini';
@@ -1158,7 +1159,7 @@ function ResumePanel({ task, model, onClose, onStartWorking }: ResumePanelProps)
     async function streamBriefing() {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082'}/todo/tasks/${task.id}/resume?${aiQueryString(model)}`
+          `${API_BASE_URL}/todo/tasks/${task.id}/resume?${aiQueryString(model)}`
         );
         if (!response.ok) throw new Error('Failed to fetch resume stream');
         

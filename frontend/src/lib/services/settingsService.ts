@@ -36,7 +36,8 @@ export interface OllamaStatus {
   error: string | null;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
+import { API_BASE_URL } from '@/lib/http/apiClient';
+
 const STORAGE_KEY = 'labninja.ai-settings.v1';
 
 export const DEFAULT_SETTINGS: UserSettings = {

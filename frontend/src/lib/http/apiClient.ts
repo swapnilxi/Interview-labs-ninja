@@ -10,9 +10,12 @@
 import { clearToken, getToken, isLoggedIn } from '@/lib/auth/tokenStore';
 
 export function resolveApiBaseUrl(): string {
-  const backendMode = process.env.NEXT_PUBLIC_BACKEND_MODE || process.env['Backend-mode'];
-  if (backendMode === 'Nextjs-api') {
+  const backendMode = (process.env.NEXT_PUBLIC_BACKEND_MODE || process.env['Backend-mode'] || '').toLowerCase();
+  if (backendMode === 'nextjs-api' || backendMode === 'nextjs') {
     return '';
+  }
+  if (backendMode === 'fastapi') {
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
   }
   if (process.env.NEXT_PUBLIC_API_URL !== undefined && process.env.NEXT_PUBLIC_API_URL !== '') {
     return process.env.NEXT_PUBLIC_API_URL;
