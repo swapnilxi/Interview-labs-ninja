@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+passlib[bcrypt]
+pyjwt
+python-multipart
+pypdf
+pdfplumber
+python-docx
+Pillow
+youtube-transcript-api
+python-dotenv
+xhtml2pdf
