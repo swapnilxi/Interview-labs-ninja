@@ -20,11 +20,18 @@ from .schema import register
 
 
 def get_career_db_path() -> str:
-    """Resolve career_studio.sqlite3 (env override wins). Lives inside the module."""
+    """Resolve career_studio.sqlite3 (env override wins). Priority: backend/data/ then module dir."""
     override = os.environ.get("CAREER_STUDIO_DB_PATH")
     if override:
         return override
-    return str(Path(__file__).resolve().parent.parent / "career_studio.sqlite3")
+    path_data = Path(__file__).resolve().parent.parent.parent.parent / "data" / "career_studio.sqlite3"
+    if path_data.exists():
+        return str(path_data)
+    path_module = Path(__file__).resolve().parent.parent / "career_studio.sqlite3"
+    if path_module.exists():
+        return str(path_module)
+    os.makedirs(path_data.parent, exist_ok=True)
+    return str(path_data)
 
 
 def _connect() -> sqlite3.Connection:

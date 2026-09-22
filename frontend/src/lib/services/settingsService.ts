@@ -18,6 +18,8 @@ export interface UserSettings {
   anthropicKey: string;
   deepseekKey: string;
   groqKey: string;
+  openrouterKey: string;
+  openrouterUrl: string;
   ollamaUrl: string;
   ollamaModel: string;
   youtubeApiKey: string;
@@ -36,7 +38,8 @@ export interface OllamaStatus {
   error: string | null;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
+import { API_BASE_URL } from '@/lib/http/apiClient';
+
 const STORAGE_KEY = 'labninja.ai-settings.v1';
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -47,6 +50,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   anthropicKey: '',
   deepseekKey: '',
   groqKey: '',
+  openrouterKey: '',
+  openrouterUrl: 'https://openrouter.ai/api/v1',
   ollamaUrl: 'http://localhost:11434',
   ollamaModel: 'llama3.2',
   youtubeApiKey: '',
@@ -69,7 +74,7 @@ function writeStoredSettings(settings: UserSettings): void {
 }
 
 /** Model/provider fields synced server-side for logged-in users. API keys never leave the browser. */
-const SYNCABLE_FIELDS = ['textGenerationModel', 'answerModel', 'ollamaUrl', 'ollamaModel'] as const;
+const SYNCABLE_FIELDS = ['textGenerationModel', 'answerModel', 'ollamaUrl', 'ollamaModel', 'openrouterUrl'] as const;
 type SyncableSettings = Pick<UserSettings, (typeof SYNCABLE_FIELDS)[number]>;
 
 function toServerProfile(settings: Partial<UserSettings>) {
@@ -78,6 +83,7 @@ function toServerProfile(settings: Partial<UserSettings>) {
     answer_model: settings.answerModel,
     ollama_url: settings.ollamaUrl,
     ollama_model: settings.ollamaModel,
+    openrouter_url: settings.openrouterUrl,
   };
 }
 
@@ -87,6 +93,7 @@ function fromServerProfile(profile: any): Partial<SyncableSettings> {
   if (profile.answer_model) out.answerModel = profile.answer_model;
   if (profile.ollama_url) out.ollamaUrl = profile.ollama_url;
   if (profile.ollama_model) out.ollamaModel = profile.ollama_model;
+  if (profile.openrouter_url) out.openrouterUrl = profile.openrouter_url;
   return out;
 }
 
@@ -145,11 +152,11 @@ export const settingsService = {
   },
 
   /** Makes one real call to the provider with this key to confirm it actually works. The key is sent straight through, never stored server-side. */
-  async testApiKey(provider: string, apiKey: string): Promise<{ ok: boolean; message: string }> {
+  async testApiKey(provider: string, apiKey: string, baseUrl?: string): Promise<{ ok: boolean; message: string }> {
     const res = await fetch(`${API_BASE_URL}/config/test-key`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, api_key: apiKey }),
+      body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
@@ -188,6 +195,8 @@ export function aiRequestFields(choice: string, settings: UserSettings = readSto
     anthropicKey: settings.anthropicKey,
     deepseekKey: settings.deepseekKey,
     groqKey: settings.groqKey,
+    openrouterKey: settings.openrouterKey,
+    openrouterUrl: settings.openrouterUrl,
     ollamaUrl: settings.ollamaUrl,
     ollamaModel: settings.ollamaModel,
   };

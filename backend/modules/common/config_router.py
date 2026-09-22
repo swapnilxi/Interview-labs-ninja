@@ -31,11 +31,12 @@ router = APIRouter(prefix="/config", tags=["config"])
 class TestKeyRequest(BaseModel):
     provider: str
     api_key: str
+    base_url: Optional[str] = None
 
 
 @router.post("/test-key")
 async def test_key(payload: TestKeyRequest) -> dict:
-    ok, message = test_provider_key(payload.provider, payload.api_key)
+    ok, message = test_provider_key(payload.provider, payload.api_key, payload.base_url or "")
     return {"ok": ok, "message": message}
 
 

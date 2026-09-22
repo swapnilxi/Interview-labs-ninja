@@ -30,13 +30,8 @@ htmlcov/
 .pytype/
 .ruff_cache/
 
-# SQLite databases (local dev only — can contain data entered at runtime)
-*.sqlite3
-*.db
+# SQLite databases are for production for this application so do noat add the data/database sqlite files or *.db in gitignore
 
-# ...except the actual app database, which is tracked on request so it can be
-# committed as a backup/checkpoint across machines.
-!backend/modules/lab_ninja.sqlite3
 
 # User-uploaded files (resumes, handwriting photos/scans, PDFs — can contain
 # other people's personal data; never belongs in git)
@@ -93,3 +88,4 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.env*

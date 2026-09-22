@@ -80,6 +80,22 @@ const PROVIDERS = [
     ],
   },
   {
+    key: 'OpenRouter',
+    label: 'OpenRouter',
+    icon: 'GlobeAltIcon',
+    color: 'text-pink-500',
+    bg: 'bg-pink-500/10',
+    models: [
+      { id: 'openrouter/auto',                   name: 'OpenRouter Auto',          badge: 'Auto Best · Cost-optimized', tier: 'cheap' },
+      { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B · OpenRouter', badge: 'High Quality', tier: 'cheap' },
+      { id: 'deepseek/deepseek-r1',              name: 'DeepSeek R1 · OpenRouter', badge: 'Reasoning · Cheap', tier: 'cheap' },
+      { id: 'deepseek/deepseek-chat',            name: 'DeepSeek V3 · OpenRouter', badge: 'Fast · Very Cheap', tier: 'cheap' },
+      { id: 'google/gemini-2.0-flash-001',       name: 'Gemini 2.0 Flash · OpenRouter', badge: 'Fast', tier: 'cheap' },
+      { id: 'anthropic/claude-3.5-sonnet',       name: 'Claude 3.5 Sonnet · OpenRouter', badge: 'SOTA', tier: 'pro' },
+      { id: 'openai/gpt-4o-mini',                name: 'GPT-4o Mini · OpenRouter', badge: 'Fast', tier: 'cheap' },
+    ],
+  },
+  {
     key: 'Ollama',
     label: 'Ollama (Local)',
     icon: 'ComputerDesktopIcon',
@@ -114,6 +130,7 @@ const API_KEY_FIELDS = [
   { key: 'geminiKey',     label: 'Google Gemini API Key',    placeholder: 'AIzaSy…',     note: 'Required for Gemini models',   provider: 'Google'    },
   { key: 'deepseekKey',   label: 'DeepSeek API Key',         placeholder: 'sk-…',        note: 'Required for DeepSeek models', provider: 'DeepSeek'  },
   { key: 'groqKey',       label: 'Groq API Key',             placeholder: 'gsk_…',       note: 'Required for Groq models',     provider: 'Groq'      },
+  { key: 'openrouterKey', label: 'OpenRouter API Key',       placeholder: 'sk-or-v1-…',  note: 'Required for OpenRouter models', provider: 'OpenRouter' },
   { key: 'openaiKey',     label: 'OpenAI API Key',           placeholder: 'sk-proj-…',   note: 'Required for GPT models',      provider: 'OpenAI'    },
   { key: 'anthropicKey',  label: 'Anthropic Claude API Key', placeholder: 'sk-ant-…',    note: 'Required for Claude models',   provider: 'Anthropic' },
 ] as const;
@@ -221,6 +238,13 @@ function ModelSelect({
   );
 }
 
+interface EnvPrefillEntry {
+  setting: string;
+  label: string;
+  env: string;
+  masked?: string;
+}
+
 export default function ConfigInteractive() {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -238,6 +262,41 @@ export default function ConfigInteractive() {
   const detectDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [testStatus, setTestStatus] = useState<Record<string, { loading: boolean; ok?: boolean; message?: string }>>({});
+
+  // ── .env prefill state ─────────────────────────────────────────────────────
+  const [envPanel, setEnvPanel] = useState<{
+    open: boolean;
+    loading: boolean;
+    found: EnvPrefillEntry[];
+    missing: EnvPrefillEntry[];
+    imported: boolean;
+  }>({ open: false, loading: false, found: [], missing: [], imported: false });
+
+  const fetchEnvPrefill = async () => {
+    setEnvPanel(p => ({ ...p, open: true, loading: true, imported: false }));
+    try {
+      const res = await fetch('/api/config/env-prefill');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setEnvPanel(p => ({ ...p, loading: false, found: data.found ?? [], missing: data.missing ?? [] }));
+    } catch {
+      setEnvPanel(p => ({ ...p, loading: false, found: [], missing: [] }));
+      setToast({ type: 'error', message: 'Could not read env vars from server. Is the app running?' });
+    }
+  };
+
+  const importFromEnv = () => {
+    const patch: Partial<UserSettings> = {};
+    for (const entry of envPanel.found) {
+      if (entry.masked) {
+        (patch as Record<string, string>)[entry.setting] = entry.masked;
+      }
+    }
+    setSettings(prev => ({ ...prev, ...patch }));
+    setEnvPanel(p => ({ ...p, imported: true }));
+    setToast({ type: 'success', message: `Imported ${envPanel.found.length} value${envPanel.found.length !== 1 ? 's' : ''} from .env — click "Save Configuration" to persist.` });
+    setTimeout(() => setToast(null), 6000);
+  };
 
   useEffect(() => {
     settingsService.getSettings()
@@ -313,9 +372,10 @@ export default function ConfigInteractive() {
     const apiKey = (settings[fieldKey as keyof UserSettings] as string) || '';
     if (!apiKey.trim()) return;
     const provider = fieldKey.replace(/Key$/, '');
+    const baseUrl = provider.toLowerCase() === 'openrouter' ? settings.openrouterUrl : undefined;
     setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: true } }));
     try {
-      const result = await settingsService.testApiKey(provider, apiKey);
+      const result = await settingsService.testApiKey(provider, apiKey, baseUrl);
       setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: false, ok: result.ok, message: result.message } }));
     } catch (err) {
       setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: false, ok: false, message: err instanceof Error ? err.message : 'Test failed' } }));
@@ -369,6 +429,135 @@ export default function ConfigInteractive() {
           <span className="text-sm font-medium">{toast.message}</span>
         </div>
       )}
+
+      {/* ── Import from .env card ─────────────────────────────────────────── */}
+      <div className="bg-card border border-border rounded-lg shadow-md overflow-hidden">
+        <button
+          type="button"
+          id="env-import-toggle"
+          onClick={() => envPanel.open ? setEnvPanel(p => ({ ...p, open: false })) : fetchEnvPrefill()}
+          className="w-full flex items-center justify-between p-24 hover:bg-muted/30 transition-smooth text-left"
+        >
+          <div className="flex items-center gap-12">
+            <div className="w-9 h-9 rounded-md bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Icon name="DocumentTextIcon" size={18} className="text-amber-500" />
+            </div>
+            <div>
+              <h3 className="font-heading text-base font-semibold text-foreground">Import from .env</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Auto-fill API keys and model config from environment variables set on this server
+              </p>
+            </div>
+          </div>
+          <Icon
+            name={envPanel.open ? 'ChevronUpIcon' : 'ChevronDownIcon'}
+            size={18}
+            className="text-muted-foreground shrink-0"
+          />
+        </button>
+
+        {envPanel.open && (
+          <div className="border-t border-border p-24 space-y-18">
+
+            {/* How-to banner */}
+            <div className="flex items-start gap-10 p-14 rounded-lg bg-amber-500/8 border border-amber-500/25">
+              <Icon name="InformationCircleIcon" size={18} className="text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-6">
+                <p className="text-xs text-foreground font-semibold">How to add keys via .env</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Create or edit <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-code">frontend/.env.local</code> (or set
+                  environment variables in your Vercel / hosting dashboard) using the names shown
+                  below. Restart the server after editing the file — Next.js reads env vars at
+                  startup, not at runtime.
+                </p>
+                <p className="text-xs font-mono bg-muted/60 border border-border rounded p-10 leading-relaxed text-muted-foreground select-all">
+                  {'# frontend/.env.local example\n'}GEMINI_API_KEY=AIzaSy…{'\n'}OPENAI_API_KEY=sk-proj-…{'\n'}GROQ_API_KEY=gsk_…
+                </p>
+              </div>
+            </div>
+
+            {envPanel.loading ? (
+              <div className="flex items-center gap-8 text-sm text-muted-foreground py-12">
+                <span className="w-16 h-16 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                Reading environment variables…
+              </div>
+            ) : (
+              <>
+                {/* Found entries */}
+                {envPanel.found.length > 0 && (
+                  <div className="space-y-8">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      ✅ Found in environment ({envPanel.found.length})
+                    </p>
+                    <div className="space-y-4">
+                      {envPanel.found.map(e => (
+                        <div key={e.env} className="flex items-center justify-between gap-8 px-12 py-8 rounded-md bg-emerald-500/8 border border-emerald-500/20">
+                          <div className="flex items-center gap-8 min-w-0">
+                            <Icon name="CheckCircleIcon" size={14} className="text-emerald-500 shrink-0" variant="solid" />
+                            <span className="text-xs font-medium text-foreground truncate">{e.label}</span>
+                          </div>
+                          <code className="text-[10px] font-code text-muted-foreground shrink-0">{e.env}</code>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Missing entries */}
+                {envPanel.missing.length > 0 && (
+                  <div className="space-y-8">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      ⚠️ Not set ({envPanel.missing.length}) — add to frontend/.env.local
+                    </p>
+                    <div className="space-y-4">
+                      {envPanel.missing.map(e => (
+                        <div key={e.env} className="flex items-center justify-between gap-8 px-12 py-8 rounded-md bg-muted/40 border border-border">
+                          <div className="flex items-center gap-8 min-w-0">
+                            <Icon name="MinusCircleIcon" size={14} className="text-muted-foreground shrink-0" />
+                            <span className="text-xs text-muted-foreground truncate">{e.label}</span>
+                          </div>
+                          <code className="text-[10px] font-code text-amber-500 shrink-0">{e.env}=</code>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {envPanel.found.length === 0 && envPanel.missing.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No environment variables are set yet. Add them to{' '}
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-code">frontend/.env.local</code>{' '}
+                    and restart the server (or redeploy on Vercel).
+                  </p>
+                )}
+
+                {/* Import button */}
+                {envPanel.found.length > 0 && (
+                  <div className="flex items-center gap-12 pt-4">
+                    <button
+                      id="env-import-apply"
+                      type="button"
+                      onClick={importFromEnv}
+                      disabled={envPanel.imported}
+                      className="inline-flex items-center gap-8 px-18 py-9 rounded-md bg-amber-500 hover:bg-amber-500/90 text-white text-sm font-medium transition-smooth disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {envPanel.imported ? (
+                        <><Icon name="CheckIcon" size={14} />Imported — save below</>
+                      ) : (
+                        <><Icon name="ArrowDownTrayIcon" size={14} />Import {envPanel.found.length} value{envPanel.found.length !== 1 ? 's' : ''} into fields</>
+                      )}
+                    </button>
+                    <span className="text-[11px] text-muted-foreground">
+                      Values are copied into the fields below — hit{' '}
+                      <span className="font-semibold text-foreground">Save Configuration</span> to persist them.
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       <form onSubmit={handleSave} className="space-y-24">
 
@@ -678,6 +867,34 @@ export default function ConfigInteractive() {
                     )
                   )}
                 </div>
+
+                {field.key === 'openrouterKey' && (
+                  <div className="mt-8 p-12 rounded-md bg-muted/40 border border-border/80 space-y-6">
+                    <div className="flex justify-between items-center">
+                      <label htmlFor="openrouterUrl" className="block text-xs font-semibold text-foreground">
+                        OpenRouter Base URL
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleChange('openrouterUrl', 'https://openrouter.ai/api/v1')}
+                        className="text-[11px] font-medium text-primary hover:opacity-80 transition-smooth"
+                      >
+                        Reset to default
+                      </button>
+                    </div>
+                    <input
+                      id="openrouterUrl"
+                      type="text"
+                      value={settings.openrouterUrl}
+                      onChange={e => handleChange('openrouterUrl', e.target.value)}
+                      placeholder="https://openrouter.ai/api/v1"
+                      className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring font-code"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Default: <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-code">https://openrouter.ai/api/v1</code>. Supports OpenRouter proxies and compatible endpoints.
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
