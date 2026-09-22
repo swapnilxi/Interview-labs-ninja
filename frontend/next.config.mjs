@@ -11,7 +11,6 @@ const nextConfig = {
     '/api/auth/signup': ['../backend/data/lab_ninja.sqlite3', './data/lab_ninja.sqlite3'],
     '/api/auth/me': ['../backend/data/lab_ninja.sqlite3', './data/lab_ninja.sqlite3'],
   },
-  serverExternalPackages: ['node:sqlite'],
   typescript: {
     ignoreBuildErrors: false,
   },

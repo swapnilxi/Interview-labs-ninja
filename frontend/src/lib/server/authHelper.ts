@@ -36,8 +36,8 @@ function getSqliteConn() {
   if (!dbPath) return null;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { DatabaseSync } = require('node:sqlite');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, no-eval
+    const { DatabaseSync } = eval('require')('node:sqlite');
     return new DatabaseSync(dbPath);
   } catch (err) {
     console.error('Failed to initialize node:sqlite DatabaseSync:', err);

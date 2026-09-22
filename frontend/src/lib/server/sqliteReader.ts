@@ -24,8 +24,8 @@ export function getSQLiteDatabase(dbName: 'lab_ninja' | 'career_studio' = 'lab_n
     if (fs.existsSync(dbPath)) {
       try {
         // Safe dynamic require for node:sqlite
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const sqliteModule = require('node:sqlite');
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, no-eval
+        const sqliteModule = eval('require')('node:sqlite');
         const DatabaseSync = sqliteModule.DatabaseSync;
         if (DatabaseSync) {
           const db = new DatabaseSync(dbPath, { open: true });
