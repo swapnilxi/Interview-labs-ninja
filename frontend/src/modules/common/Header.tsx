@@ -54,16 +54,22 @@ function SystemStatus() {
       let feApiOk = false;
       let feDbAvailable = false;
 
-      // 1. Check FastAPI (API)
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const fastapiUrl = process.env.NEXT_PUBLIC_API_URL || (API_BASE_URL !== '' ? API_BASE_URL : 'http://localhost:8082');
-        const res = await fetch(`${fastapiUrl}/health`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        apiOk = res.ok;
-        setApiStatus(res.ok ? 'online' : 'offline');
-      } catch (err) {
+      // 1. Check FastAPI (API) — only probe if an explicit URL is configured or if running locally
+      const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const fastapiUrl = process.env.NEXT_PUBLIC_API_URL || (API_BASE_URL !== '' ? API_BASE_URL : (isLocalHost ? 'http://localhost:8082' : ''));
+
+      if (fastapiUrl) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const res = await fetch(`${fastapiUrl}/health`, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          apiOk = res.ok;
+          setApiStatus(res.ok ? 'online' : 'offline');
+        } catch (err) {
+          setApiStatus('offline');
+        }
+      } else {
         setApiStatus('offline');
       }
 
