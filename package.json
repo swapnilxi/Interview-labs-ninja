@@ -5,8 +5,10 @@
   "engines": {
     "node": "22.x"
   },
-  "devDependencies": {
-    "next": "15.1.11"
+  "dependencies": {
+    "next": "15.1.11",
+    "react": "19.0.3",
+    "react-dom": "19.0.3"
   },
   "scripts": {
     "build": "cd frontend && npm install && npm run build",

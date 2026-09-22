@@ -1,8 +1,9 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build",
+  "framework": "nextjs",
+  "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/.next",
-  "installCommand": "pip install -r requirements.txt --break-system-packages",
+  "installCommand": "npm install && pip install -r requirements.txt --break-system-packages && cd frontend && npm install",
   "functions": {
     "api/index.py": {
       "maxDuration": 30,
