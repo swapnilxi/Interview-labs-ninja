@@ -2,10 +2,14 @@
 const nextConfig = {
   productionBrowserSourceMaps: true,
   distDir: process.env.DIST_DIR || '.next',
-  experimental: {
-    outputFileTracingIncludes: {
-      '/api/**/*': ['./backend/data/**/*', '../backend/data/**/*'],
-    },
+  outputFileTracingIncludes: {
+    '/api/pdf/documents': ['./backend/data/lab_ninja.sqlite3'],
+    '/api/pdf/documents/[id]': ['./backend/data/lab_ninja.sqlite3'],
+    '/api/pdf/upload': ['./backend/data/lab_ninja.sqlite3'],
+    '/api/health': ['./backend/data/lab_ninja.sqlite3'],
+    '/api/auth/login': ['./backend/data/lab_ninja.sqlite3'],
+    '/api/auth/signup': ['./backend/data/lab_ninja.sqlite3'],
+    '/api/auth/me': ['./backend/data/lab_ninja.sqlite3'],
   },
   typescript: {
     ignoreBuildErrors: false,
