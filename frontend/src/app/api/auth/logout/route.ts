@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
+import { handleLogout } from 'fe-apis/auth';
 
-export async function POST() {
-  return NextResponse.json({ ok: true });
+export function POST() {
+  return handleLogout();
 }

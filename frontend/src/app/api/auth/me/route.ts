@@ -1,18 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromAuthHeader } from '@/lib/server/authHelper';
+import { type NextRequest } from 'next/server';
+import { handleMe } from 'fe-apis/auth';
 
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  const user = getUserFromAuthHeader(authHeader);
-
-  if (!user) {
-    return NextResponse.json({ detail: 'Could not validate credentials' }, { status: 401 });
-  }
-
-  return NextResponse.json({
-    id: user.id,
-    email: user.email,
-    display_name: user.display_name,
-    role: user.role,
-  });
+export function GET(req: NextRequest) {
+  return handleMe(req);
 }

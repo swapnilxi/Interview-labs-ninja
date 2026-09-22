@@ -38,6 +38,7 @@ htmlcov/
 # committed as a backup/checkpoint across machines.
 !backend/modules/lab_ninja.sqlite3
 !backend/data/lab_ninja.sqlite3
+!backend/data/career_studio.sqlite3
 !frontend/data/lab_ninja.sqlite3
 
 # User-uploaded files (resumes, handwriting photos/scans, PDFs — can contain

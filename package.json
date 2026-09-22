@@ -5,6 +5,9 @@
   "engines": {
     "node": "22.x"
   },
+  "devDependencies": {
+    "next": "15.1.11"
+  },
   "scripts": {
     "build": "cd frontend && npm install && npm run build",
     "dev": "cd frontend && npm run dev",
