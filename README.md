@@ -144,6 +144,12 @@ You can then wire the frontend to call the FastAPI endpoints under
   - `backend/data/uploads/`: Task & Goal file attachments.
   - `backend/data/pdf_uploads/`: Cloud PDF reader uploaded documents.
   - All database path resolvers (`get_db_path()` and `get_career_db_path()`) automatically resolve to `backend/data/`.
+  
+  **Git Tracking & Main DB Strategy**:
+  - In `.gitignore`, the general rule `*.sqlite3` ignores temporary/local database files, but the primary application databases are explicitly tracked using the negation prefix `!` (`!backend/data/lab_ninja.sqlite3`, `!backend/data/career_studio.sqlite3`).
+  - This ensures the production SQLite databases are committed to GitHub and bundled with deployments on Vercel.
+  - On the frontend (`frontend/`), client-side data is managed strictly locally (IndexedDB / localStorage), while server-side data operations route to the centralized backend SQLite databases.
+  - **Vercel Runtime Seeding**: Since Vercel serverless function filesystems are read-only (except `/tmp`), the FastAPI backend (`api/index.py`) seeds the bundled SQLite database to `/tmp/` on cold start so both reads and writes run smoothly during runtime.
 - For any manual testing, **never** run scripts against the real DB directly. Set
   `LABNINJA_TEST_DB_PATH=/path/to/a/copy.sqlite3` (an override `get_db_path()` already
   supports) and copy `backend/data/lab_ninja.sqlite3` first. This is how all of the

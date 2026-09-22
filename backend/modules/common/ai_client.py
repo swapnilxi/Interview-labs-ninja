@@ -32,6 +32,8 @@ class AISettings(BaseModel):
     anthropicKey: str = ""
     deepseekKey: str = ""
     groqKey: str = ""
+    openrouterKey: str = ""
+    openrouterUrl: str = "https://openrouter.ai/api/v1"
     ollamaUrl: str = "http://localhost:11434"
     ollamaModel: str = "llama3.2"
 
@@ -256,7 +258,7 @@ def _call_anthropic(prompt: str, api_key: str, model: str, max_tokens: int = 204
     return data["content"][0]["text"]
 
 
-def test_provider_key(provider: str, api_key: str) -> tuple[bool, str]:
+def test_provider_key(provider: str, api_key: str, base_url: str = "") -> tuple[bool, str]:
     """Make one minimal real call to a provider to confirm the given API key
     actually works — used by the Config page's per-key "Test Connection" button.
     Returns (ok, message); message is a short human-readable success/failure detail."""
@@ -275,6 +277,9 @@ def test_provider_key(provider: str, api_key: str) -> tuple[bool, str]:
             _call_openai_compatible(probe, api_key, "https://api.deepseek.com", "deepseek-chat", max_tokens=8)
         elif provider == "groq":
             _call_openai_compatible(probe, api_key, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", max_tokens=8)
+        elif provider == "openrouter":
+            url = (base_url or "https://openrouter.ai/api/v1").rstrip("/")
+            _call_openai_compatible(probe, api_key, url, "meta-llama/llama-3.3-70b-instruct", max_tokens=8)
         else:
             return False, f"Unknown provider: {provider}"
     except Exception as exc:  # noqa: BLE001
@@ -352,19 +357,21 @@ def _provider_order(model: str) -> List[str]:
     # and an AI Studio choice can't silently spend GCP credits.
     if _is_vertex_choice(model):
         return ["vertex"]
+    if "/" in model or model.startswith("openrouter"):
+        return ["openrouter", "gemini", "deepseek", "groq", "openai", "anthropic", "ollama"]
     if model.startswith("gemini") or model.startswith("gemma"):
-        return ["gemini", "deepseek", "groq", "openai", "anthropic", "ollama"]
+        return ["gemini", "openrouter", "deepseek", "groq", "openai", "anthropic", "ollama"]
     if model.startswith("deepseek"):
-        return ["deepseek", "gemini", "groq", "openai", "anthropic", "ollama"]
+        return ["deepseek", "openrouter", "gemini", "groq", "openai", "anthropic", "ollama"]
     if model in GROQ_MODELS:
-        return ["groq", "gemini", "deepseek", "openai", "anthropic", "ollama"]
+        return ["groq", "openrouter", "gemini", "deepseek", "openai", "anthropic", "ollama"]
     if model.startswith("gpt"):
-        return ["openai", "gemini", "groq", "deepseek", "anthropic", "ollama"]
+        return ["openai", "openrouter", "gemini", "groq", "deepseek", "anthropic", "ollama"]
     if model.startswith("claude"):
-        return ["anthropic", "gemini", "groq", "deepseek", "openai", "ollama"]
+        return ["anthropic", "openrouter", "gemini", "groq", "deepseek", "openai", "ollama"]
     if _is_ollama_choice(model):
         return ["ollama"]
-    return ["gemini", "deepseek", "groq", "openai", "anthropic", "ollama"]
+    return ["gemini", "openrouter", "deepseek", "groq", "openai", "anthropic", "ollama"]
 
 
 def call_ai_text(prompt: str, settings: AISettings) -> str:
@@ -387,6 +394,10 @@ def call_ai_text(prompt: str, settings: AISettings) -> str:
             if provider == "gemini" and settings.geminiKey:
                 gemini_model = _gemini_model_name(model)
                 return _call_gemini(prompt, settings.geminiKey, gemini_model)
+            if provider == "openrouter" and settings.openrouterKey:
+                openrouter_url = (settings.openrouterUrl or "https://openrouter.ai/api/v1").rstrip("/")
+                openrouter_model = model if ("/" in model) else "meta-llama/llama-3.3-70b-instruct"
+                return _call_openai_compatible(prompt, settings.openrouterKey, openrouter_url, openrouter_model)
             if provider == "deepseek" and settings.deepseekKey:
                 deepseek_model = model if model.startswith("deepseek") else "deepseek-chat"
                 return _call_openai_compatible(prompt, settings.deepseekKey, "https://api.deepseek.com", deepseek_model)

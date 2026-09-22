@@ -19,6 +19,9 @@ const ENV_MAP = [
   { env: 'ANTHROPIC_API_KEY',   setting: 'anthropicKey',  label: 'Anthropic API Key'        },
   { env: 'DEEPSEEK_API_KEY',    setting: 'deepseekKey',   label: 'DeepSeek API Key'         },
   { env: 'GROQ_API_KEY',        setting: 'groqKey',       label: 'Groq API Key'             },
+  { env: 'OPENROUTER_API_KEY',  setting: 'openrouterKey', label: 'OpenRouter API Key'       },
+  { env: 'OPENROUTER_URL',      setting: 'openrouterUrl', label: 'OpenRouter URL'           },
+  { env: 'OPENROUTER_BASE_URL', setting: 'openrouterUrl', label: 'OpenRouter Base URL'      },
   // ── YouTube ──────────────────────────────────────────────────────
   { env: 'YOUTUBE_API_KEY',     setting: 'youtubeApiKey', label: 'YouTube Data API Key'     },
   // ── Model / URL config ────────────────────────────────────────────

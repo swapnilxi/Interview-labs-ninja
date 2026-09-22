@@ -80,6 +80,22 @@ const PROVIDERS = [
     ],
   },
   {
+    key: 'OpenRouter',
+    label: 'OpenRouter',
+    icon: 'GlobeAltIcon',
+    color: 'text-pink-500',
+    bg: 'bg-pink-500/10',
+    models: [
+      { id: 'openrouter/auto',                   name: 'OpenRouter Auto',          badge: 'Auto Best · Cost-optimized', tier: 'cheap' },
+      { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B · OpenRouter', badge: 'High Quality', tier: 'cheap' },
+      { id: 'deepseek/deepseek-r1',              name: 'DeepSeek R1 · OpenRouter', badge: 'Reasoning · Cheap', tier: 'cheap' },
+      { id: 'deepseek/deepseek-chat',            name: 'DeepSeek V3 · OpenRouter', badge: 'Fast · Very Cheap', tier: 'cheap' },
+      { id: 'google/gemini-2.0-flash-001',       name: 'Gemini 2.0 Flash · OpenRouter', badge: 'Fast', tier: 'cheap' },
+      { id: 'anthropic/claude-3.5-sonnet',       name: 'Claude 3.5 Sonnet · OpenRouter', badge: 'SOTA', tier: 'pro' },
+      { id: 'openai/gpt-4o-mini',                name: 'GPT-4o Mini · OpenRouter', badge: 'Fast', tier: 'cheap' },
+    ],
+  },
+  {
     key: 'Ollama',
     label: 'Ollama (Local)',
     icon: 'ComputerDesktopIcon',
@@ -114,6 +130,7 @@ const API_KEY_FIELDS = [
   { key: 'geminiKey',     label: 'Google Gemini API Key',    placeholder: 'AIzaSy…',     note: 'Required for Gemini models',   provider: 'Google'    },
   { key: 'deepseekKey',   label: 'DeepSeek API Key',         placeholder: 'sk-…',        note: 'Required for DeepSeek models', provider: 'DeepSeek'  },
   { key: 'groqKey',       label: 'Groq API Key',             placeholder: 'gsk_…',       note: 'Required for Groq models',     provider: 'Groq'      },
+  { key: 'openrouterKey', label: 'OpenRouter API Key',       placeholder: 'sk-or-v1-…',  note: 'Required for OpenRouter models', provider: 'OpenRouter' },
   { key: 'openaiKey',     label: 'OpenAI API Key',           placeholder: 'sk-proj-…',   note: 'Required for GPT models',      provider: 'OpenAI'    },
   { key: 'anthropicKey',  label: 'Anthropic Claude API Key', placeholder: 'sk-ant-…',    note: 'Required for Claude models',   provider: 'Anthropic' },
 ] as const;
@@ -355,9 +372,10 @@ export default function ConfigInteractive() {
     const apiKey = (settings[fieldKey as keyof UserSettings] as string) || '';
     if (!apiKey.trim()) return;
     const provider = fieldKey.replace(/Key$/, '');
+    const baseUrl = provider.toLowerCase() === 'openrouter' ? settings.openrouterUrl : undefined;
     setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: true } }));
     try {
-      const result = await settingsService.testApiKey(provider, apiKey);
+      const result = await settingsService.testApiKey(provider, apiKey, baseUrl);
       setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: false, ok: result.ok, message: result.message } }));
     } catch (err) {
       setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: false, ok: false, message: err instanceof Error ? err.message : 'Test failed' } }));
@@ -849,6 +867,34 @@ export default function ConfigInteractive() {
                     )
                   )}
                 </div>
+
+                {field.key === 'openrouterKey' && (
+                  <div className="mt-8 p-12 rounded-md bg-muted/40 border border-border/80 space-y-6">
+                    <div className="flex justify-between items-center">
+                      <label htmlFor="openrouterUrl" className="block text-xs font-semibold text-foreground">
+                        OpenRouter Base URL
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleChange('openrouterUrl', 'https://openrouter.ai/api/v1')}
+                        className="text-[11px] font-medium text-primary hover:opacity-80 transition-smooth"
+                      >
+                        Reset to default
+                      </button>
+                    </div>
+                    <input
+                      id="openrouterUrl"
+                      type="text"
+                      value={settings.openrouterUrl}
+                      onChange={e => handleChange('openrouterUrl', e.target.value)}
+                      placeholder="https://openrouter.ai/api/v1"
+                      className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring font-code"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Default: <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-code">https://openrouter.ai/api/v1</code>. Supports OpenRouter proxies and compatible endpoints.
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
