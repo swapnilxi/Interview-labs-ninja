@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { lmsService } from '../services/lmsService';
 import type { LmsClass } from '../types';
 
-interface CreateClassModalProps {
+interface EditClassModalProps {
   isOpen: boolean;
+  lmsClass: LmsClass | null;
   onClose: () => void;
-  onCreated: (createdClass: LmsClass) => void;
+  onUpdated: (updatedClass: LmsClass) => void;
 }
 
 const AVAILABLE_ICONS = [
@@ -26,7 +27,12 @@ const AVAILABLE_ICONS = [
   'FolderIcon',
 ];
 
-export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateClassModalProps) {
+export default function EditClassModal({
+  isOpen,
+  lmsClass,
+  onClose,
+  onUpdated,
+}: EditClassModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [aiContext, setAiContext] = useState('');
@@ -34,7 +40,17 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (lmsClass) {
+      setName(lmsClass.name || '');
+      setDescription(lmsClass.description || '');
+      setAiContext(lmsClass.ai_context || '');
+      setIcon(lmsClass.icon || 'BookmarkIcon');
+      setError(null);
+    }
+  }, [lmsClass]);
+
+  if (!isOpen || !lmsClass) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,19 +59,16 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
     setLoading(true);
     setError(null);
     try {
-      const created = await lmsService.createClass({
+      const updated = await lmsService.updateClass(lmsClass.id, {
         name: name.trim(),
         description: description.trim(),
         ai_context: aiContext.trim(),
         icon,
       });
-      setName('');
-      setDescription('');
-      setAiContext('');
-      onCreated(created);
+      onUpdated(updated);
       onClose();
     } catch (err: any) {
-      setError(err?.message || 'Failed to create class');
+      setError(err?.message || 'Failed to update class');
     } finally {
       setLoading(false);
     }
@@ -63,15 +76,15 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl p-6 transition-smooth">
+      <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl p-6 transition-smooth max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10 text-primary">
-              <Icon name="AcademicCapIcon" size={20} />
+              <Icon name="PencilSquareIcon" size={20} />
             </div>
             <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">Create New Class</h3>
-              <p className="text-xs text-muted-foreground">Top-level domain/category for subjects and lessons</p>
+              <h3 className="font-heading text-lg font-semibold text-foreground">Edit Class</h3>
+              <p className="text-xs text-muted-foreground">Update human overview and AI generation context</p>
             </div>
           </div>
           <button
@@ -97,7 +110,6 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
             <input
               type="text"
               required
-              placeholder="e.g. Distributed Systems & Cloud"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-lg border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -132,7 +144,7 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
               </span>
             </div>
             <textarea
-              rows={3}
+              rows={4}
               placeholder="e.g. Focus on Staff+ system design interviews, CAP theorem tradeoffs, low-latency microservices, and concrete architecture diagrams..."
               value={aiContext}
               onChange={(e) => setAiContext(e.target.value)}
@@ -178,7 +190,7 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
               disabled={loading || !name.trim()}
               className="px-5 py-2 text-sm font-medium rounded-lg text-white bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
-              {loading ? 'Creating...' : 'Create Class'}
+              {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

@@ -1071,6 +1071,10 @@ def build_structured_lesson_html(
     subject_name: str = "General",
     content: str = "",
     raw_ai_output: str = "",
+    class_context: str = "",
+    subject_context: str = "",
+    class_description: str = "",
+    subject_description: str = "",
 ) -> str:
     """Build a complete, structured ByteByteGo-style lesson document.
     Guarantees no lesson is ever blank, unstyled, or incomplete.
@@ -1132,6 +1136,24 @@ def build_structured_lesson_html(
 
     takeaways_html = "\n".join([f"      <li>{item}</li>" for item in profile["takeaways"]])
 
+    context_banner_items = []
+    if class_description:
+        context_banner_items.append(f'<div class="context-item"><span class="context-label">Domain Scope:</span> {html.escape(class_description)}</div>')
+    if class_context:
+        context_banner_items.append(f'<div class="context-item"><span class="context-label">🤖 AI Guidance:</span> {html.escape(class_context)}</div>')
+    if subject_context:
+        context_banner_items.append(f'<div class="context-item"><span class="context-label">🎯 Subject Focus:</span> {html.escape(subject_context)}</div>')
+    if subject_description:
+        context_banner_items.append(f'<div class="context-item"><span class="context-label">Subject Scope:</span> {html.escape(subject_description)}</div>')
+
+    context_banner_html = ""
+    if context_banner_items:
+        items_joined = "\n    ".join(context_banner_items)
+        context_banner_html = f"""  <div class="context-banner">
+    <div class="context-badge">📘 Class: <strong>{html.escape(cls_name)}</strong> &bull; Subject: <strong>{html.escape(subj_name)}</strong></div>
+    {items_joined}
+  </div>"""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1163,9 +1185,9 @@ def build_structured_lesson_html(
       margin: 0 auto;
     }}
     header {{
-      margin-bottom: 2.5rem;
+      margin-bottom: 1.5rem;
       border-bottom: 1px solid var(--border);
-      padding-bottom: 1.75rem;
+      padding-bottom: 1.5rem;
     }}
     .badges {{
       display: flex;
@@ -1214,6 +1236,31 @@ def build_structured_lesson_html(
       font-size: 1.15rem;
       color: var(--muted);
       line-height: 1.5;
+    }}
+    .context-banner {{
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--primary);
+      border-radius: 0.5rem;
+      padding: 0.85rem 1.25rem;
+      margin: 1.5rem 0 2rem 0;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }}
+    .context-badge {{
+      color: #f8fafc;
+      font-size: 0.88rem;
+    }}
+    .context-item {{
+      line-height: 1.45;
+    }}
+    .context-label {{
+      color: var(--accent);
+      font-weight: 600;
+      margin-right: 0.35rem;
     }}
     .objectives-card {{
       background: var(--card);
@@ -1438,6 +1485,8 @@ def build_structured_lesson_html(
     <h1>{final_title}</h1>
     <div class="subtitle">{profile["subtitle"]}</div>
   </header>
+
+{context_banner_html}
 
   <div class="objectives-card">
     <div class="objectives-title">🎯 Core Learning Objectives</div>

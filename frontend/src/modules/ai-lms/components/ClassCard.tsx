@@ -24,42 +24,41 @@ export default function ClassCard({ lmsClass, onEdit, onDelete }: ClassCardProps
           </div>
 
           <div className="flex items-center gap-1.5">
-            {lmsClass.is_system === 1 ? (
+            {lmsClass.is_system === 1 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border">
                 Core
               </span>
-            ) : (
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                {onEdit && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onEdit(lmsClass);
-                    }}
-                    title="Edit class"
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  >
-                    <Icon name="PencilIcon" size={14} />
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onDelete(lmsClass);
-                    }}
-                    title="Delete class"
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-                  >
-                    <Icon name="TrashIcon" size={14} />
-                  </button>
-                )}
-              </div>
             )}
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onEdit(lmsClass);
+                  }}
+                  title="Edit class & AI context"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  <Icon name="PencilIcon" size={14} />
+                </button>
+              )}
+              {onDelete && lmsClass.is_system !== 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDelete(lmsClass);
+                  }}
+                  title="Delete class"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                >
+                  <Icon name="TrashIcon" size={14} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -71,6 +70,12 @@ export default function ClassCard({ lmsClass, onEdit, onDelete }: ClassCardProps
           <p className="mt-2 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
             {lmsClass.description || 'Curated lessons and technical modules.'}
           </p>
+          {lmsClass.ai_context && (
+            <div className="mt-3 flex items-center gap-1.5 text-[11px] text-primary/90 font-mono bg-primary/5 px-2.5 py-1 rounded-lg border border-primary/10">
+              <Icon name="SparklesIcon" size={12} className="flex-shrink-0 text-primary" />
+              <span className="truncate">AI: {lmsClass.ai_context}</span>
+            </div>
+          )}
         </div>
       </div>
 

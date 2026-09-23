@@ -65,6 +65,12 @@ export default function SubjectCard({ subject, classSlug, onEdit, onDelete }: Su
           <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
             {subject.description || 'Structured sequence of lessons.'}
           </p>
+          {subject.ai_context && (
+            <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-500/5 px-2.5 py-1 rounded-lg border border-emerald-500/10">
+              <Icon name="SparklesIcon" size={12} className="flex-shrink-0 text-emerald-500" />
+              <span className="truncate">AI: {subject.ai_context}</span>
+            </div>
+          )}
         </div>
       </div>
 

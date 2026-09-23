@@ -3,6 +3,7 @@ export interface LmsClass {
   name: string;
   slug: string;
   description: string;
+  ai_context?: string;
   icon?: string;
   is_system: number;
   subject_count: number;
@@ -19,6 +20,7 @@ export interface LmsSubject {
   name: string;
   slug: string;
   description: string;
+  ai_context?: string;
   order_index: number;
   lesson_count: number;
   lessons?: LmsLesson[];

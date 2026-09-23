@@ -21,7 +21,7 @@ export const lmsService = {
     return apiJson<LmsClass>(`/api/lms/classes/${encodeURIComponent(idOrSlug)}`);
   },
 
-  async createClass(payload: { name: string; description?: string; icon?: string }): Promise<LmsClass> {
+  async createClass(payload: { name: string; description?: string; icon?: string; ai_context?: string }): Promise<LmsClass> {
     return apiJson<LmsClass>('/api/lms/classes', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -30,7 +30,7 @@ export const lmsService = {
 
   async updateClass(
     idOrSlug: string,
-    payload: { name?: string; description?: string; icon?: string }
+    payload: { name?: string; description?: string; icon?: string; ai_context?: string }
   ): Promise<LmsClass> {
     return apiJson<LmsClass>(`/api/lms/classes/${encodeURIComponent(idOrSlug)}`, {
       method: 'PATCH',
@@ -57,7 +57,7 @@ export const lmsService = {
 
   async createSubject(
     classIdOrSlug: string,
-    payload: { name: string; description?: string }
+    payload: { name: string; description?: string; ai_context?: string }
   ): Promise<LmsSubject> {
     return apiJson<LmsSubject>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/subjects`, {
       method: 'POST',
@@ -67,7 +67,7 @@ export const lmsService = {
 
   async updateSubject(
     subjectId: string,
-    payload: { name?: string; description?: string }
+    payload: { name?: string; description?: string; ai_context?: string }
   ): Promise<LmsSubject> {
     return apiJson<LmsSubject>(`/api/lms/subjects/${encodeURIComponent(subjectId)}`, {
       method: 'PATCH',

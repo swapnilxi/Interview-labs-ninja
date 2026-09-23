@@ -13,6 +13,10 @@ export interface StructuredLessonOptions {
   subjectName?: string;
   topicOrContent: string;
   rawAiOutput?: string;
+  classContext?: string;
+  subjectContext?: string;
+  classDescription?: string;
+  subjectDescription?: string;
 }
 
 interface TopicProfile {
@@ -627,6 +631,27 @@ ${optButtons}
       .replace(/'/g, '&#039;');
   }
 
+  const contextBannerItems: string[] = [];
+  if (opts.classDescription) {
+    contextBannerItems.push(`<div class="context-item"><span class="context-label">Domain Scope:</span> ${escapeHtml(opts.classDescription)}</div>`);
+  }
+  if (opts.classContext) {
+    contextBannerItems.push(`<div class="context-item"><span class="context-label">🤖 AI Guidance:</span> ${escapeHtml(opts.classContext)}</div>`);
+  }
+  if (opts.subjectContext) {
+    contextBannerItems.push(`<div class="context-item"><span class="context-label">🎯 Subject Focus:</span> ${escapeHtml(opts.subjectContext)}</div>`);
+  }
+  if (opts.subjectDescription) {
+    contextBannerItems.push(`<div class="context-item"><span class="context-label">Subject Scope:</span> ${escapeHtml(opts.subjectDescription)}</div>`);
+  }
+
+  const contextBannerHtml = contextBannerItems.length > 0
+    ? `  <div class="context-banner">
+    <div class="context-badge">📘 Class: <strong>${escapeHtml(clsName)}</strong> &bull; Subject: <strong>${escapeHtml(subjName)}</strong></div>
+    ${contextBannerItems.join('\n    ')}
+  </div>`
+    : '';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -658,9 +683,9 @@ ${optButtons}
       margin: 0 auto;
     }
     header {
-      margin-bottom: 2.5rem;
+      margin-bottom: 1.5rem;
       border-bottom: 1px solid var(--border);
-      padding-bottom: 1.75rem;
+      padding-bottom: 1.5rem;
     }
     .badges {
       display: flex;
@@ -709,6 +734,31 @@ ${optButtons}
       font-size: 1.15rem;
       color: var(--muted);
       line-height: 1.5;
+    }
+    .context-banner {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--primary);
+      border-radius: 0.5rem;
+      padding: 0.85rem 1.25rem;
+      margin: 1.5rem 0 2rem 0;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .context-badge {
+      color: #f8fafc;
+      font-size: 0.88rem;
+    }
+    .context-item {
+      line-height: 1.45;
+    }
+    .context-label {
+      color: var(--accent);
+      font-weight: 600;
+      margin-right: 0.35rem;
     }
     .objectives-card {
       background: var(--card);
@@ -933,6 +983,8 @@ ${optButtons}
     <h1>${finalTitle}</h1>
     <div class="subtitle">${profile.subtitle}</div>
   </header>
+
+${contextBannerHtml}
 
   <div class="objectives-card">
     <div class="objectives-title">🎯 Core Learning Objectives</div>

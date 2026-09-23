@@ -58,7 +58,12 @@ export async function handleCreateClass(req: Request): Promise<NextResponse> {
     if (!body.name || typeof body.name !== 'string') {
       return NextResponse.json({ detail: 'Name is required' }, { status: 400 });
     }
-    const created = createClass(body.name, body.description || '', body.icon || 'BookmarkIcon');
+    const created = createClass(
+      body.name,
+      body.description || '',
+      body.icon || 'BookmarkIcon',
+      body.ai_context || ''
+    );
     return NextResponse.json(created, { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ detail: err.message || 'Failed to create class' }, { status: 500 });
@@ -121,7 +126,12 @@ export async function handleCreateSubject(classSlug: string, req: Request): Prom
     if (!body.name || typeof body.name !== 'string') {
       return NextResponse.json({ detail: 'Name is required' }, { status: 400 });
     }
-    const created = createSubject(classSlug, body.name, body.description || '');
+    const created = createSubject(
+      classSlug,
+      body.name,
+      body.description || '',
+      body.ai_context || ''
+    );
     return NextResponse.json(created, { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ detail: err.message || 'Failed to create subject' }, { status: 500 });
@@ -397,17 +407,31 @@ export async function handleGenerateLesson(req: Request): Promise<NextResponse> 
     }
 
     let subjectName = 'General';
+    let subjectDesc = '';
+    let subjectAiContext = '';
     if (subject_id) {
       const subj = getSubjectByIdOrSlug(class_id, subject_id);
-      if (subj) subjectName = subj.name as string;
+      if (subj) {
+        subjectName = subj.name as string;
+        subjectDesc = (subj.description as string) || '';
+        subjectAiContext = (subj.ai_context as string) || '';
+      }
     }
+
+    const classDesc = (cls.description as string) || '';
+    const classAiContext = (cls.ai_context as string) || '';
+
+    const classDescSection = classDesc ? `\n- Class Description (for learners): ${classDesc}` : '';
+    const classGuidanceSection = classAiContext ? `\n- Class AI Generation Guidance / Target Context: ${classAiContext}` : '';
+    const subjectDescSection = subjectDesc ? `\n- Subject Description (for learners): ${subjectDesc}` : '';
+    const subjectGuidanceSection = subjectAiContext ? `\n- Subject AI Generation Guidance / Target Focus: ${subjectAiContext}` : '';
 
     const prompt = `You are a world-class principal software architect, senior tech lead, and educational content designer at the level of ByteByteGo, NeetCode, and 3Blue1Brown.
 Create a comprehensive, production-grade, highly engaging interactive lesson on the following topic.
 
-Metadata:
-- Class / Domain: ${cls.name}
-- Subject: ${subjectName}
+Target Domain & Guidance Context:
+- Class / Domain: ${cls.name}${classDescSection}${classGuidanceSection}
+- Subject: ${subjectName}${subjectDescSection}${subjectGuidanceSection}
 - Input Type: ${input_type || 'topic'}
 - Topic / Source Material:
 ${content}
@@ -430,6 +454,10 @@ No surrounding markdown code blocks. Include embedded CSS, inline SVG diagrams o
       subjectName,
       topicOrContent: content,
       rawAiOutput: rawAiText,
+      classContext: classAiContext,
+      subjectContext: subjectAiContext,
+      classDescription: classDesc,
+      subjectDescription: subjectDesc,
     });
 
     const titleMatch = finalHtml.match(/<h1[^>]*>(.*?)<\/h1>/i) || finalHtml.match(/<title[^>]*>(.*?)<\/title>/i);

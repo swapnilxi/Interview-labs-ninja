@@ -8,6 +8,8 @@ import type { LmsClass, LmsLesson, LmsSubject } from './types';
 import SubjectCard from './components/SubjectCard';
 import LessonList from './components/LessonList';
 import CreateSubjectModal from './components/CreateSubjectModal';
+import EditClassModal from './components/EditClassModal';
+import EditSubjectModal from './components/EditSubjectModal';
 import ManualLessonModal from './components/ManualLessonModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import EmptyState from './components/EmptyState';
@@ -22,7 +24,9 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
   const [error, setError] = useState<string | null>(null);
 
   // Modals
+  const [isClassEditOpen, setIsClassEditOpen] = useState(false);
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [subjectToEdit, setSubjectToEdit] = useState<LmsSubject | null>(null);
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [subjectToDelete, setSubjectToDelete] = useState<LmsSubject | null>(null);
   const [lessonToDelete, setLessonToDelete] = useState<LmsLesson | null>(null);
@@ -141,7 +145,16 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
           </div>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsClassEditOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
+            >
+              <Icon name="PencilSquareIcon" size={14} />
+              <span>Edit Class</span>
+            </button>
+
             {!isOtherClass && (
               <button
                 type="button"
@@ -175,6 +188,33 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               <span>Generate Lesson</span>
             </Link>
           </div>
+        </div>
+
+        {/* AI Guidance Context Card */}
+        <div className="mt-4 rounded-xl border border-primary/25 bg-primary/5 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/20 text-primary">
+                <Icon name="SparklesIcon" size={12} />
+              </span>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
+                AI Generation Guidance Context
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed pl-7">
+              {lmsClass.ai_context
+                ? lmsClass.ai_context
+                : 'No custom AI instructions set. AI will use standard defaults. Click "Edit Context" to provide domain depth, target audience, or stack requirements.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsClassEditOpen(true)}
+            className="flex-shrink-0 self-start sm:self-auto text-xs font-semibold text-primary hover:underline flex items-center gap-1 pl-7 sm:pl-0"
+          >
+            <Icon name="PencilIcon" size={12} />
+            <span>{lmsClass.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
+          </button>
         </div>
       </div>
 
@@ -213,6 +253,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
                   key={subj.id}
                   subject={subj}
                   classSlug={lmsClass.slug}
+                  onEdit={(s) => setSubjectToEdit(s)}
                   onDelete={(s) => setSubjectToDelete(s)}
                 />
               ))}
@@ -269,12 +310,28 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
         </section>
       )}
 
+      {/* Edit Class Modal */}
+      <EditClassModal
+        isOpen={isClassEditOpen}
+        lmsClass={lmsClass}
+        onClose={() => setIsClassEditOpen(false)}
+        onUpdated={() => loadClass()}
+      />
+
       {/* Create Subject Modal */}
       <CreateSubjectModal
         isOpen={isSubjectModalOpen}
         targetClass={lmsClass}
         onClose={() => setIsSubjectModalOpen(false)}
         onCreated={() => loadClass()}
+      />
+
+      {/* Edit Subject Modal */}
+      <EditSubjectModal
+        isOpen={!!subjectToEdit}
+        subject={subjectToEdit}
+        onClose={() => setSubjectToEdit(null)}
+        onUpdated={() => loadClass()}
       />
 
       {/* Manual Lesson Modal (for Other direct lessons) */}

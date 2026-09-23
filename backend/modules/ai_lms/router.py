@@ -64,24 +64,28 @@ def _get_optional_user_id(
 
 class CreateClassRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
-    description: Optional[str] = Field(default="", max_length=500)
+    description: Optional[str] = Field(default="", max_length=1000)
+    ai_context: Optional[str] = Field(default="", max_length=3000)
     icon: Optional[str] = Field(default="BookmarkIcon")
 
 
 class UpdateClassRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=120)
-    description: Optional[str] = Field(default=None, max_length=500)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    ai_context: Optional[str] = Field(default=None, max_length=3000)
     icon: Optional[str] = Field(default=None)
 
 
 class CreateSubjectRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
-    description: Optional[str] = Field(default="", max_length=500)
+    description: Optional[str] = Field(default="", max_length=1000)
+    ai_context: Optional[str] = Field(default="", max_length=3000)
 
 
 class UpdateSubjectRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=120)
-    description: Optional[str] = Field(default=None, max_length=500)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    ai_context: Optional[str] = Field(default=None, max_length=3000)
 
 
 class CreateLessonManualRequest(BaseModel):
@@ -134,7 +138,7 @@ async def list_classes() -> List[Dict[str, Any]]:
 @router.post("/classes", status_code=status.HTTP_201_CREATED)
 async def handle_create_class(payload: CreateClassRequest) -> Dict[str, Any]:
     """Create a new custom class."""
-    return create_class(payload.name, payload.description, payload.icon)
+    return create_class(payload.name, payload.description, payload.icon, payload.ai_context)
 
 
 @router.get("/classes/{class_id_or_slug}")
@@ -148,8 +152,8 @@ async def get_class_detail(class_id_or_slug: str) -> Dict[str, Any]:
 
 @router.patch("/classes/{class_id_or_slug}")
 async def handle_update_class(class_id_or_slug: str, payload: UpdateClassRequest) -> Dict[str, Any]:
-    """Update class name, description, or icon."""
-    updated = update_class(class_id_or_slug, payload.name, payload.description, payload.icon)
+    """Update class name, description, ai_context, or icon."""
+    updated = update_class(class_id_or_slug, payload.name, payload.description, payload.icon, payload.ai_context)
     if not updated:
         raise HTTPException(status_code=404, detail="Class not found.")
     return updated
@@ -177,7 +181,7 @@ async def list_subjects_for_class(class_id_or_slug: str) -> List[Dict[str, Any]]
 @router.post("/classes/{class_id_or_slug}/subjects", status_code=status.HTTP_201_CREATED)
 async def handle_create_subject(class_id_or_slug: str, payload: CreateSubjectRequest) -> Dict[str, Any]:
     """Create a subject under a specific class."""
-    created = create_subject(class_id_or_slug, payload.name, payload.description)
+    created = create_subject(class_id_or_slug, payload.name, payload.description, payload.ai_context)
     if not created:
         raise HTTPException(status_code=404, detail="Class not found.")
     return created
@@ -194,8 +198,8 @@ async def get_subject_detail(class_id_or_slug: str, subject_id_or_slug: str) -> 
 
 @router.patch("/subjects/{subject_id}")
 async def handle_update_subject(subject_id: str, payload: UpdateSubjectRequest) -> Dict[str, Any]:
-    """Update subject name or description."""
-    updated = update_subject(subject_id, payload.name, payload.description)
+    """Update subject name, description, or ai_context."""
+    updated = update_subject(subject_id, payload.name, payload.description, payload.ai_context)
     if not updated:
         raise HTTPException(status_code=404, detail="Subject not found.")
     return updated
@@ -234,16 +238,24 @@ async def handle_create_lesson(payload: CreateLessonManualRequest) -> Dict[str, 
         cls = get_class_by_id_or_slug(payload.class_id)
         cls_name = cls["name"] if cls else "Engineering"
         subj_name = "General"
+        subj_desc = ""
+        subj_ai_ctx = ""
         if payload.subject_id:
             subj = get_subject_by_id_or_slug(payload.class_id, payload.subject_id)
             if subj:
                 subj_name = subj["name"]
+                subj_desc = subj.get("description", "") or ""
+                subj_ai_ctx = subj.get("ai_context", "") or ""
         html_content = build_structured_lesson_html(
             title=payload.title,
             class_name=cls_name,
             subject_name=subj_name,
             content=payload.summary or payload.title,
             raw_ai_output=html_content,
+            class_context=cls.get("ai_context", "") if cls else "",
+            subject_context=subj_ai_ctx,
+            class_description=cls.get("description", "") if cls else "",
+            subject_description=subj_desc,
         )
     return create_lesson(
         class_id=payload.class_id,
@@ -492,12 +504,16 @@ async def generate_lesson(payload: GenerateLessonRequest) -> Dict[str, Any]:
     subject_id = payload.subject_id
 
     # If subject_id is provided, verify it exists under this class
+    subject_desc = ""
+    subject_ai_context = ""
     if subject_id:
         subj = get_subject_by_id_or_slug(cls["id"], subject_id)
         if not subj:
             raise HTTPException(status_code=404, detail="Selected subject not found in this class.")
         subject_name = subj["name"]
         subject_id = subj["id"]
+        subject_desc = subj.get("description", "") or ""
+        subject_ai_context = subj.get("ai_context", "") or ""
     else:
         # If class is NOT 'other' and has subjects, subject is recommended
         if cls["slug"] != "other":
@@ -507,6 +523,11 @@ async def generate_lesson(payload: GenerateLessonRequest) -> Dict[str, Any]:
                 # Use first subject if none specified
                 subject_id = existing_subjs[0]["id"]
                 subject_name = existing_subjs[0]["name"]
+                subject_desc = existing_subjs[0].get("description", "") or ""
+                subject_ai_context = existing_subjs[0].get("ai_context", "") or ""
+
+    class_desc = cls.get("description", "") or ""
+    class_ai_context = cls.get("ai_context", "") or ""
 
     source_desc = f"Input Mode: {payload.input_type.upper()}"
     raw_content = payload.content.strip()
@@ -515,12 +536,17 @@ async def generate_lesson(payload: GenerateLessonRequest) -> Dict[str, Any]:
         raw_content[:80].splitlines()[0] if payload.input_type == "topic" else f"Lesson on {raw_content[:40]}..."
     )
 
+    class_context_section = f"\n- Class Description (for learners): {class_desc}" if class_desc else ""
+    class_guidance_section = f"\n- Class AI Generation Guidance / Target Context: {class_ai_context}" if class_ai_context else ""
+    subject_context_section = f"\n- Subject Description (for learners): {subject_desc}" if subject_desc else ""
+    subject_guidance_section = f"\n- Subject AI Generation Guidance / Target Focus: {subject_ai_context}" if subject_ai_context else ""
+
     system_prompt = f"""You are a world-class technical educator, staff software engineer, and interactive curriculum designer at the level of ByteByteGo and NeetCode.
 Your task is to transform the provided source learning material into a comprehensive, highly pedagogical, and INTERACTIVE standalone HTML lesson.
 
-Target Context:
-- Class: {cls['name']}
-- Subject: {subject_name if subject_name else 'Core Module'}
+Target Domain & Guidance Context:
+- Class: {cls['name']}{class_context_section}{class_guidance_section}
+- Subject: {subject_name if subject_name else 'Core Module'}{subject_context_section}{subject_guidance_section}
 - Source Mode: {payload.input_type}
 
 Source Material:
@@ -556,7 +582,7 @@ CRITICAL REQUIREMENTS & CONTRACT:
 4. CONTENT STRUCTURE:
    - Lesson Header: Class & Subject breadcrumb badge, Clear descriptive Title, Read Time badge (~5-10 min).
    - Learning Objectives: 3-4 bullet goals.
-   - Core Concepts & Fundamentals: Intuitive explanation with real-world analogies.
+   - Core Concepts & Fundamentals: Intuitive explanation with real-world analogies tailored to the Class and Subject domain.
    - Visual Architecture / Diagram: Clean inline SVG or interactive visual component illustrating the mental model.
    - Deep Dive & Mechanics: System trade-offs, edge cases, formulas/complexities if applicable.
    - Practical Code Examples: Clean syntax-highlighted code blocks with a working "Copy Code" button.
@@ -582,6 +608,10 @@ CRITICAL REQUIREMENTS & CONTRACT:
             subject_name=subject_name,
             content=raw_content,
             raw_ai_output=raw_ai_html,
+            class_context=class_ai_context,
+            subject_context=subject_ai_context,
+            class_description=class_desc,
+            subject_description=subject_desc,
         )
 
     final_title = _extract_title_from_html(clean_html, suggested_title)

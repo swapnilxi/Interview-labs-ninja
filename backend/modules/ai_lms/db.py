@@ -23,6 +23,7 @@ INITIAL_CLASSES = [
         "name": "Computer Vision",
         "slug": "computer-vision",
         "description": "Computer vision, image understanding, segmentation, detection, OCR, and visual AI.",
+        "ai_context": "Focus on deep learning vision architectures (YOLO, ViTs, SAM, ResNet), visual feature extraction, real-time inference latency, and PyTorch/OpenCV examples.",
         "icon": "EyeIcon",
         "is_system": 1,
     },
@@ -31,6 +32,7 @@ INITIAL_CLASSES = [
         "name": "DSA Preparation",
         "slug": "dsa-preparation",
         "description": "Data structures, algorithms, coding patterns, complexity, and interview problem solving.",
+        "ai_context": "Target LeetCode medium/hard patterns, time/space complexity derivations, edge cases, visual pointer diagrams, and idiomatic Python/TypeScript implementations.",
         "icon": "CpuChipIcon",
         "is_system": 1,
     },
@@ -39,6 +41,7 @@ INITIAL_CLASSES = [
         "name": "System Design",
         "slug": "system-design",
         "description": "High-level design, distributed systems, architecture patterns, scalability, reliability, and trade-offs.",
+        "ai_context": "Design for high-scale distributed systems (10M+ DAU, 99.99% SLA), CAP theorem trade-offs, consistency models, caching tiers, failure recovery, and architectural diagrams.",
         "icon": "ServerStackIcon",
         "is_system": 1,
     },
@@ -47,6 +50,7 @@ INITIAL_CLASSES = [
         "name": "Cloud Code Architect",
         "slug": "cloud-code-architect",
         "description": "Cloud architecture, agentic systems, cloud-native development, AI engineering, and implementation patterns.",
+        "ai_context": "Focus on cloud-native patterns, Kubernetes, Terraform/IaC, serverless vs containers, microservices communication, observability, and resilient cloud architecture.",
         "icon": "CloudIcon",
         "is_system": 1,
     },
@@ -55,6 +59,7 @@ INITIAL_CLASSES = [
         "name": "AI",
         "slug": "ai",
         "description": "Generative AI, LLMs, RAG, agents, multi-agent systems, evaluation, and AI application development.",
+        "ai_context": "Cover modern LLM stacks, multi-agent frameworks (LangGraph, CrewAI), RAG vector search, prompting techniques, hallucination mitigation, and model evaluation.",
         "icon": "SparklesIcon",
         "is_system": 1,
     },
@@ -63,6 +68,7 @@ INITIAL_CLASSES = [
         "name": "Leadership",
         "slug": "leadership",
         "description": "Leadership, communication, execution, decision making, influence, and team management.",
+        "ai_context": "Emphasize engineering leadership, architectural decision records (ADRs), stakeholder negotiation, technical debt management, and team velocity.",
         "icon": "UserGroupIcon",
         "is_system": 1,
     },
@@ -71,6 +77,7 @@ INITIAL_CLASSES = [
         "name": "Interview Preparation",
         "slug": "interview-preparation",
         "description": "Technical interviews, behavioral interviews, system design interviews, coding preparation, and interview strategy.",
+        "ai_context": "Structure lessons around FAANG/top-tier tech interview standards, STAR behavioral framework, whiteboard communication, and common interview traps.",
         "icon": "AcademicCapIcon",
         "is_system": 1,
     },
@@ -79,6 +86,7 @@ INITIAL_CLASSES = [
         "name": "Other",
         "slug": "other",
         "description": "Content that does not currently belong to a specific class.",
+        "ai_context": "Provide clear, foundational explanations with intuitive analogies and hands-on examples.",
         "icon": "FolderIcon",
         "is_system": 1,
     },
@@ -104,6 +112,7 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
                 name TEXT NOT NULL,
                 slug TEXT NOT NULL UNIQUE,
                 description TEXT,
+                ai_context TEXT DEFAULT '',
                 icon TEXT,
                 is_system INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
@@ -111,6 +120,12 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
             );
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_classes_slug ON lms_classes(slug);")
+
+        # Check if ai_context column exists in lms_classes
+        cursor.execute("PRAGMA table_info(lms_classes);")
+        class_cols = [row[1] for row in cursor.fetchall()]
+        if "ai_context" not in class_cols:
+            cursor.execute("ALTER TABLE lms_classes ADD COLUMN ai_context TEXT DEFAULT '';")
 
         # ── 2. Subjects Table ──────────────────────────────────────────────────
         cursor.execute("""
@@ -120,6 +135,7 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
                 name TEXT NOT NULL,
                 slug TEXT NOT NULL,
                 description TEXT,
+                ai_context TEXT DEFAULT '',
                 order_index INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
@@ -129,6 +145,12 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_subjects_class_id ON lms_subjects(class_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_subjects_order ON lms_subjects(order_index);")
+
+        # Check if ai_context column exists in lms_subjects
+        cursor.execute("PRAGMA table_info(lms_subjects);")
+        subj_cols = [row[1] for row in cursor.fetchall()]
+        if "ai_context" not in subj_cols:
+            cursor.execute("ALTER TABLE lms_subjects ADD COLUMN ai_context TEXT DEFAULT '';")
 
         # ── 3. Lessons Table ───────────────────────────────────────────────────
         cursor.execute("""
@@ -173,8 +195,8 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
         for item in INITIAL_CLASSES:
             cursor.execute(
                 """
-                INSERT INTO lms_classes (id, name, slug, description, icon, is_system, created_at, updated_at)
-                SELECT ?, ?, ?, ?, ?, ?, ?, ?
+                INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, is_system, created_at, updated_at)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
                 WHERE NOT EXISTS (SELECT 1 FROM lms_classes WHERE slug = ? OR id = ?)
                 """,
                 (
@@ -182,6 +204,7 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
                     item["name"],
                     item["slug"],
                     item["description"],
+                    item.get("ai_context", ""),
                     item["icon"],
                     item["is_system"],
                     now_iso,
@@ -189,6 +212,15 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
                     item["slug"],
                     item["id"],
                 ),
+            )
+            # Backfill initial ai_context if empty
+            cursor.execute(
+                """
+                UPDATE lms_classes
+                SET ai_context = ?
+                WHERE slug = ? AND (ai_context IS NULL OR ai_context = '')
+                """,
+                (item.get("ai_context", ""), item["slug"])
             )
 
         conn.commit()
@@ -214,7 +246,7 @@ def get_all_classes() -> List[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                c.id, c.name, c.slug, c.description, c.icon, c.is_system, c.created_at, c.updated_at,
+                c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.is_system, c.created_at, c.updated_at,
                 (SELECT COUNT(*) FROM lms_subjects s WHERE s.class_id = c.id) AS subject_count,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.class_id = c.id) AS lesson_count
             FROM lms_classes c
@@ -230,7 +262,7 @@ def get_class_by_id_or_slug(identifier: str) -> Optional[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                c.id, c.name, c.slug, c.description, c.icon, c.is_system, c.created_at, c.updated_at,
+                c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.is_system, c.created_at, c.updated_at,
                 (SELECT COUNT(*) FROM lms_subjects s WHERE s.class_id = c.id) AS subject_count,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.class_id = c.id) AS lesson_count
             FROM lms_classes c
@@ -245,7 +277,7 @@ def get_class_by_id_or_slug(identifier: str) -> Optional[Dict[str, Any]]:
         # Fetch subjects
         cursor.execute("""
             SELECT 
-                s.id, s.class_id, s.name, s.slug, s.description, s.order_index, s.created_at, s.updated_at,
+                s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.subject_id = s.id) AS lesson_count
             FROM lms_subjects s
             WHERE s.class_id = ?
@@ -266,7 +298,7 @@ def get_class_by_id_or_slug(identifier: str) -> Optional[Dict[str, Any]]:
         return class_data
 
 
-def create_class(name: str, description: Optional[str] = None, icon: Optional[str] = None) -> Dict[str, Any]:
+def create_class(name: str, description: Optional[str] = None, icon: Optional[str] = None, ai_context: Optional[str] = None) -> Dict[str, Any]:
     """Create a new custom class."""
     clean_name = name.strip()
     base_slug = slugify(clean_name)
@@ -285,15 +317,15 @@ def create_class(name: str, description: Optional[str] = None, icon: Optional[st
             cursor.execute("SELECT id FROM lms_classes WHERE slug = ?", (slug,))
 
         cursor.execute("""
-            INSERT INTO lms_classes (id, name, slug, description, icon, is_system, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 0, ?, ?)
-        """, (new_id, clean_name, slug, description or "", icon or "BookmarkIcon", now_iso, now_iso))
+            INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, is_system, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+        """, (new_id, clean_name, slug, description or "", ai_context or "", icon or "BookmarkIcon", now_iso, now_iso))
         conn.commit()
 
     return get_class_by_id_or_slug(new_id)  # type: ignore
 
 
-def update_class(identifier: str, name: Optional[str] = None, description: Optional[str] = None, icon: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def update_class(identifier: str, name: Optional[str] = None, description: Optional[str] = None, icon: Optional[str] = None, ai_context: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Update class details."""
     cls = get_class_by_id_or_slug(identifier)
     if not cls:
@@ -303,14 +335,15 @@ def update_class(identifier: str, name: Optional[str] = None, description: Optio
     new_name = name.strip() if name is not None else cls["name"]
     new_desc = description if description is not None else cls["description"]
     new_icon = icon if icon is not None else cls["icon"]
+    new_ai_ctx = ai_context if ai_context is not None else cls.get("ai_context", "")
 
     with _get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE lms_classes
-            SET name = ?, description = ?, icon = ?, updated_at = ?
+            SET name = ?, description = ?, icon = ?, ai_context = ?, updated_at = ?
             WHERE id = ?
-        """, (new_name, new_desc, new_icon, now_iso, cls["id"]))
+        """, (new_name, new_desc, new_icon, new_ai_ctx, now_iso, cls["id"]))
         conn.commit()
 
     return get_class_by_id_or_slug(cls["id"])
@@ -343,7 +376,7 @@ def get_subjects_by_class(class_identifier: str) -> List[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                s.id, s.class_id, s.name, s.slug, s.description, s.order_index, s.created_at, s.updated_at,
+                s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.subject_id = s.id) AS lesson_count
             FROM lms_subjects s
             WHERE s.class_id = ?
@@ -362,7 +395,7 @@ def get_subject_by_id_or_slug(class_identifier: str, subject_identifier: str) ->
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                s.id, s.class_id, s.name, s.slug, s.description, s.order_index, s.created_at, s.updated_at,
+                s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.subject_id = s.id) AS lesson_count
             FROM lms_subjects s
             WHERE s.class_id = ? AND (s.id = ? OR s.slug = ?)
@@ -385,7 +418,7 @@ def get_subject_by_id_or_slug(class_identifier: str, subject_identifier: str) ->
         return subject
 
 
-def create_subject(class_identifier: str, name: str, description: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def create_subject(class_identifier: str, name: str, description: Optional[str] = None, ai_context: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Create a new subject under a class."""
     cls = get_class_by_id_or_slug(class_identifier)
     if not cls:
@@ -412,19 +445,19 @@ def create_subject(class_identifier: str, name: str, description: Optional[str] 
             cursor.execute("SELECT id FROM lms_subjects WHERE class_id = ? AND slug = ?", (cls["id"], slug))
 
         cursor.execute("""
-            INSERT INTO lms_subjects (id, class_id, name, slug, description, order_index, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (new_id, cls["id"], clean_name, slug, description or "", next_order, now_iso, now_iso))
+            INSERT INTO lms_subjects (id, class_id, name, slug, description, ai_context, order_index, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (new_id, cls["id"], clean_name, slug, description or "", ai_context or "", next_order, now_iso, now_iso))
         conn.commit()
 
     return get_subject_by_id_or_slug(cls["id"], new_id)
 
 
-def update_subject(subject_id: str, name: Optional[str] = None, description: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Update subject name or description."""
+def update_subject(subject_id: str, name: Optional[str] = None, description: Optional[str] = None, ai_context: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Update subject name, description, or ai_context."""
     with _get_conn() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, class_id, name, description FROM lms_subjects WHERE id = ?", (subject_id,))
+        cursor.execute("SELECT id, class_id, name, description, ai_context FROM lms_subjects WHERE id = ?", (subject_id,))
         row = cursor.fetchone()
         if not row:
             return None
@@ -433,12 +466,13 @@ def update_subject(subject_id: str, name: Optional[str] = None, description: Opt
         now_iso = datetime.utcnow().isoformat() + "Z"
         new_name = name.strip() if name is not None else current["name"]
         new_desc = description if description is not None else current["description"]
+        new_ai_ctx = ai_context if ai_context is not None else current.get("ai_context", "")
 
         cursor.execute("""
             UPDATE lms_subjects
-            SET name = ?, description = ?, updated_at = ?
+            SET name = ?, description = ?, ai_context = ?, updated_at = ?
             WHERE id = ?
-        """, (new_name, new_desc, now_iso, subject_id))
+        """, (new_name, new_desc, new_ai_ctx, now_iso, subject_id))
         conn.commit()
 
         return get_subject_by_id_or_slug(current["class_id"], subject_id)

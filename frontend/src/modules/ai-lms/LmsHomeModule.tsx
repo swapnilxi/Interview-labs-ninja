@@ -9,6 +9,7 @@ import SearchBar from './components/SearchBar';
 import ContinueLearningBanner from './components/ContinueLearningBanner';
 import ClassCard from './components/ClassCard';
 import CreateClassModal from './components/CreateClassModal';
+import EditClassModal from './components/EditClassModal';
 import ConfirmDialog from './components/ConfirmDialog';
 
 export default function LmsHomeModule() {
@@ -19,6 +20,7 @@ export default function LmsHomeModule() {
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [classToEdit, setClassToEdit] = useState<LmsClass | null>(null);
   const [classToDelete, setClassToDelete] = useState<LmsClass | null>(null);
 
   const loadData = async () => {
@@ -156,6 +158,7 @@ export default function LmsHomeModule() {
               <ClassCard
                 key={cls.id}
                 lmsClass={cls}
+                onEdit={(c) => setClassToEdit(c)}
                 onDelete={(c) => setClassToDelete(c)}
               />
             ))}
@@ -168,6 +171,14 @@ export default function LmsHomeModule() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreated={() => loadData()}
+      />
+
+      {/* Inline Edit Class Modal */}
+      <EditClassModal
+        isOpen={!!classToEdit}
+        lmsClass={classToEdit}
+        onClose={() => setClassToEdit(null)}
+        onUpdated={() => loadData()}
       />
 
       {/* Delete Confirmation Dialog */}

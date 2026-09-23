@@ -1,40 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { lmsService } from '../services/lmsService';
-import type { LmsClass } from '../types';
+import type { LmsSubject } from '../types';
 
-interface CreateClassModalProps {
+interface EditSubjectModalProps {
   isOpen: boolean;
+  subject: LmsSubject | null;
   onClose: () => void;
-  onCreated: (createdClass: LmsClass) => void;
+  onUpdated: (updatedSubject: LmsSubject) => void;
 }
 
-const AVAILABLE_ICONS = [
-  'BookmarkIcon',
-  'SparklesIcon',
-  'ServerStackIcon',
-  'CpuChipIcon',
-  'EyeIcon',
-  'CloudIcon',
-  'AcademicCapIcon',
-  'UserGroupIcon',
-  'CommandLineIcon',
-  'LightBulbIcon',
-  'CodeBracketIcon',
-  'FolderIcon',
-];
-
-export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateClassModalProps) {
+export default function EditSubjectModal({
+  isOpen,
+  subject,
+  onClose,
+  onUpdated,
+}: EditSubjectModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [aiContext, setAiContext] = useState('');
-  const [icon, setIcon] = useState('BookmarkIcon');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (subject) {
+      setName(subject.name || '');
+      setDescription(subject.description || '');
+      setAiContext(subject.ai_context || '');
+      setError(null);
+    }
+  }, [subject]);
+
+  if (!isOpen || !subject) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,19 +42,15 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
     setLoading(true);
     setError(null);
     try {
-      const created = await lmsService.createClass({
+      const updated = await lmsService.updateSubject(subject.id, {
         name: name.trim(),
         description: description.trim(),
         ai_context: aiContext.trim(),
-        icon,
       });
-      setName('');
-      setDescription('');
-      setAiContext('');
-      onCreated(created);
+      onUpdated(updated);
       onClose();
     } catch (err: any) {
-      setError(err?.message || 'Failed to create class');
+      setError(err?.message || 'Failed to update subject');
     } finally {
       setLoading(false);
     }
@@ -63,15 +58,15 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl p-6 transition-smooth">
+      <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl p-6 transition-smooth max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-              <Icon name="AcademicCapIcon" size={20} />
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+              <Icon name="PencilSquareIcon" size={20} />
             </div>
             <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">Create New Class</h3>
-              <p className="text-xs text-muted-foreground">Top-level domain/category for subjects and lessons</p>
+              <h3 className="font-heading text-lg font-semibold text-foreground">Edit Subject</h3>
+              <p className="text-xs text-muted-foreground">Update subject overview and AI prompt instructions</p>
             </div>
           </div>
           <button
@@ -92,12 +87,11 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">
-              Class Name *
+              Subject Name *
             </label>
             <input
               type="text"
               required
-              placeholder="e.g. Distributed Systems & Cloud"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-lg border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -111,58 +105,36 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
             </label>
             <textarea
               rows={2}
-              placeholder="Brief overview of what this class covers for students..."
+              placeholder="What will learners study in this subject..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-lg border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Public summary displayed on class cards and course headers.
+              Public summary displayed on subject cards and module headers.
             </p>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Icon name="SparklesIcon" size={13} className="text-primary" />
-                <span>Context <span className="text-primary font-normal lowercase">(for AI generation)</span></span>
+                <Icon name="SparklesIcon" size={13} className="text-emerald-500" />
+                <span>Context <span className="text-emerald-500 font-normal lowercase">(for AI generation)</span></span>
               </label>
-              <span className="text-[11px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                AI Prompt Directives
+              <span className="text-[11px] font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                Subject AI Directives
               </span>
             </div>
             <textarea
-              rows={3}
-              placeholder="e.g. Focus on Staff+ system design interviews, CAP theorem tradeoffs, low-latency microservices, and concrete architecture diagrams..."
+              rows={4}
+              placeholder="e.g. Include code implementations in Python/Go, highlight edge cases, memory layout diagrams, and interview drill questions..."
               value={aiContext}
               onChange={(e) => setAiContext(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-primary/30 bg-primary/5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none placeholder:text-muted-foreground/60"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none placeholder:text-muted-foreground/60"
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Injected directly into the AI prompt when generating lessons under this class to set technical depth, persona, and focus.
+              Passed along with class context to the AI when generating lessons inside this subject module.
             </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-2">
-              Select Icon
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {AVAILABLE_ICONS.map((ic) => (
-                <button
-                  key={ic}
-                  type="button"
-                  onClick={() => setIcon(ic)}
-                  className={`p-2 rounded-lg border transition-all ${
-                    icon === ic
-                      ? 'border-primary bg-primary/10 text-primary scale-105 shadow-sm'
-                      : 'border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
-                >
-                  <Icon name={ic as any} size={18} />
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-6">
@@ -178,7 +150,7 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
               disabled={loading || !name.trim()}
               className="px-5 py-2 text-sm font-medium rounded-lg text-white bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
-              {loading ? 'Creating...' : 'Create Class'}
+              {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

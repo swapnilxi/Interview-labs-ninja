@@ -7,6 +7,8 @@ import { lmsService } from '../services/lmsService';
 import type { LmsClass, LmsSubject } from '../types';
 import CreateClassModal from './CreateClassModal';
 import CreateSubjectModal from './CreateSubjectModal';
+import EditClassModal from './EditClassModal';
+import EditSubjectModal from './EditSubjectModal';
 
 interface GenerateLessonFormProps {
   initialClassSlug?: string;
@@ -50,7 +52,9 @@ export default function GenerateLessonForm({
 
   // Modals
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
+  const [isEditClassOpen, setIsEditClassOpen] = useState(false);
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [isEditSubjectOpen, setIsEditSubjectOpen] = useState(false);
 
   // Loading & Step state
   const [isUploadingFile, setIsUploadingFile] = useState(false);
@@ -131,9 +135,18 @@ export default function GenerateLessonForm({
     return () => clearInterval(interval);
   }, [isGenerating]);
 
-  // Selected class helper
+  // Selected helpers
   const selectedClass = classes.find((c) => c.id === selectedClassId) || null;
+  const selectedSubject = subjects.find((s) => s.id === selectedSubjectId) || null;
   const isOtherClass = selectedClass?.slug === 'other';
+
+  const handleClassUpdated = (updated: LmsClass) => {
+    setClasses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+  };
+
+  const handleSubjectUpdated = (updated: LmsSubject) => {
+    setSubjects((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  };
 
   // File upload handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,6 +327,101 @@ export default function GenerateLessonForm({
               )}
             </div>
           </div>
+
+          {/* Active AI & Domain Context Banner */}
+          {(selectedClass || selectedSubject) && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/20 text-primary">
+                    <Icon name="SparklesIcon" size={13} />
+                  </span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                    Active AI Generation Context & Human Scope
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[11px]">
+                  {selectedClass && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditClassOpen(true)}
+                      className="text-primary hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <Icon name="PencilIcon" size={11} />
+                      <span>Edit Class Context</span>
+                    </button>
+                  )}
+                  {selectedSubject && (
+                    <>
+                      <span className="text-muted-foreground">•</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditSubjectOpen(true)}
+                        className="text-emerald-500 hover:underline flex items-center gap-1 font-medium"
+                      >
+                        <Icon name="PencilIcon" size={11} />
+                        <span>Edit Subject Context</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
+                {/* Class Context Box */}
+                <div className="rounded-lg bg-card/70 border border-border p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <Icon name={(selectedClass?.icon || 'BookmarkIcon') as any} size={13} className="text-primary" />
+                      <span>{selectedClass?.name || 'Class'}</span>
+                    </span>
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                      Class
+                    </span>
+                  </div>
+                  {selectedClass?.description && (
+                    <p className="text-[11px] text-muted-foreground line-clamp-2">
+                      <span className="font-medium text-foreground">Human: </span>
+                      {selectedClass.description}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-primary/90 font-mono bg-primary/5 p-1.5 rounded border border-primary/10">
+                    <span className="font-bold">AI Directives: </span>
+                    {selectedClass?.ai_context || 'Standard technical defaults'}
+                  </p>
+                </div>
+
+                {/* Subject Context Box */}
+                {selectedSubject ? (
+                  <div className="rounded-lg bg-card/70 border border-border p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-foreground flex items-center gap-1.5">
+                        <Icon name="FolderIcon" size={13} className="text-emerald-500" />
+                        <span>{selectedSubject.name}</span>
+                      </span>
+                      <span className="text-[10px] uppercase font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                        Subject
+                      </span>
+                    </div>
+                    {selectedSubject.description && (
+                      <p className="text-[11px] text-muted-foreground line-clamp-2">
+                        <span className="font-medium text-foreground">Human: </span>
+                        {selectedSubject.description}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-500/5 p-1.5 rounded border border-emerald-500/10">
+                      <span className="font-bold">AI Directives: </span>
+                      {selectedSubject.ai_context || 'Inherits class directives'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-card/50 border border-dashed border-border p-3 flex items-center justify-center text-[11px] text-muted-foreground text-center">
+                    {isOtherClass ? 'Lessons generated directly under Other class' : 'Select a subject to view its module context'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Source Mode Tabs */}
           <div>
@@ -514,6 +622,21 @@ export default function GenerateLessonForm({
           setSubjects((prev) => [...prev, newSubj]);
           setSelectedSubjectId(newSubj.id);
         }}
+      />
+
+      {/* Inline Edit Modals */}
+      <EditClassModal
+        isOpen={isEditClassOpen}
+        lmsClass={selectedClass}
+        onClose={() => setIsEditClassOpen(false)}
+        onUpdated={handleClassUpdated}
+      />
+
+      <EditSubjectModal
+        isOpen={isEditSubjectOpen}
+        subject={selectedSubject}
+        onClose={() => setIsEditSubjectOpen(false)}
+        onUpdated={handleSubjectUpdated}
       />
     </>
   );

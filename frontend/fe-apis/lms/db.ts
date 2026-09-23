@@ -29,6 +29,7 @@ export function ensureLmsTables(): void {
       name TEXT NOT NULL,
       slug TEXT UNIQUE NOT NULL,
       description TEXT DEFAULT '',
+      ai_context TEXT DEFAULT '',
       icon TEXT DEFAULT 'BookmarkIcon',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -40,6 +41,7 @@ export function ensureLmsTables(): void {
       name TEXT NOT NULL,
       slug TEXT NOT NULL,
       description TEXT DEFAULT '',
+      ai_context TEXT DEFAULT '',
       order_index INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -70,28 +72,42 @@ export function ensureLmsTables(): void {
     );
   `);
 
+  // Migrate columns if table already existed without ai_context
+  try {
+    const classCols = db.prepare('PRAGMA table_info(lms_classes)').all() as { name: string }[];
+    if (!classCols.some((c) => c.name === 'ai_context')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN ai_context TEXT DEFAULT ''");
+    }
+    const subjCols = db.prepare('PRAGMA table_info(lms_subjects)').all() as { name: string }[];
+    if (!subjCols.some((c) => c.name === 'ai_context')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN ai_context TEXT DEFAULT ''");
+    }
+  } catch (migErr) {
+    console.warn('[fe-apis/lms/db] Migration notice:', migErr);
+  }
+
   // Seed default 8 classes if empty
   const countRow = db.prepare('SELECT count(*) as count FROM lms_classes').get() as { count: number };
   if (countRow.count === 0) {
     const initialClasses = [
-      { name: 'Computer Vision', slug: 'computer-vision', description: 'Deep learning, object detection, segmentation, and vision foundation models.', icon: 'CameraIcon' },
-      { name: 'DSA Preparation', slug: 'dsa-preparation', description: 'Data structures, algorithmic patterns, LeetCode style problems, and complexity analysis.', icon: 'CodeBracketIcon' },
-      { name: 'System Design', slug: 'system-design', description: 'Scalable distributed systems, databases, caching, message queues, and high-availability architecture.', icon: 'ServerStackIcon' },
-      { name: 'Cloud Code Architect', slug: 'cloud-code-architect', description: 'Modern cloud infrastructure, AWS/GCP services, microservices, and DevOps patterns.', icon: 'CloudIcon' },
-      { name: 'AI', slug: 'ai', description: 'Generative AI, Large Language Models, prompt engineering, RAG pipelines, and agent architectures.', icon: 'CpuChipIcon' },
-      { name: 'Leadership', slug: 'leadership', description: 'Engineering management, technical strategy, communication, team scaling, and stakeholder alignment.', icon: 'UserGroupIcon' },
-      { name: 'Interview Preparation', slug: 'interview-preparation', description: 'Behavioral answers, coding rounds, mock scenarios, and hiring bar criteria.', icon: 'AcademicCapIcon' },
-      { name: 'Other', slug: 'other', description: 'Miscellaneous topics, exploratory tutorials, and standalone technical guides.', icon: 'FolderIcon' },
+      { name: 'Computer Vision', slug: 'computer-vision', description: 'Deep learning, object detection, segmentation, and vision foundation models.', ai_context: 'Focus on deep learning vision architectures (YOLO, ViTs, SAM, ResNet), visual feature extraction, real-time inference latency, and PyTorch/OpenCV examples.', icon: 'CameraIcon' },
+      { name: 'DSA Preparation', slug: 'dsa-preparation', description: 'Data structures, algorithmic patterns, LeetCode style problems, and complexity analysis.', ai_context: 'Target LeetCode medium/hard patterns, time/space complexity derivations, edge cases, visual pointer diagrams, and idiomatic Python/TypeScript implementations.', icon: 'CodeBracketIcon' },
+      { name: 'System Design', slug: 'system-design', description: 'Scalable distributed systems, databases, caching, message queues, and high-availability architecture.', ai_context: 'Design for high-scale distributed systems (10M+ DAU, 99.99% SLA), CAP theorem trade-offs, consistency models, caching tiers, failure recovery, and architectural diagrams.', icon: 'ServerStackIcon' },
+      { name: 'Cloud Code Architect', slug: 'cloud-code-architect', description: 'Modern cloud infrastructure, AWS/GCP services, microservices, and DevOps patterns.', ai_context: 'Focus on cloud-native patterns, Kubernetes, Terraform/IaC, serverless vs containers, microservices communication, observability, and resilient cloud architecture.', icon: 'CloudIcon' },
+      { name: 'AI', slug: 'ai', description: 'Generative AI, Large Language Models, prompt engineering, RAG pipelines, and agent architectures.', ai_context: 'Cover modern LLM stacks, multi-agent frameworks (LangGraph, CrewAI), RAG vector search, prompting techniques, hallucination mitigation, and model evaluation.', icon: 'CpuChipIcon' },
+      { name: 'Leadership', slug: 'leadership', description: 'Engineering management, technical strategy, communication, team scaling, and stakeholder alignment.', ai_context: 'Emphasize engineering leadership, architectural decision records (ADRs), stakeholder negotiation, technical debt management, and team velocity.', icon: 'UserGroupIcon' },
+      { name: 'Interview Preparation', slug: 'interview-preparation', description: 'Behavioral answers, coding rounds, mock scenarios, and hiring bar criteria.', ai_context: 'Structure lessons around FAANG/top-tier tech interview standards, STAR behavioral framework, whiteboard communication, and common interview traps.', icon: 'AcademicCapIcon' },
+      { name: 'Other', slug: 'other', description: 'Miscellaneous topics, exploratory tutorials, and standalone technical guides.', ai_context: 'Provide clear, foundational explanations with intuitive analogies and hands-on examples.', icon: 'FolderIcon' },
     ];
 
     const nowIso = new Date().toISOString();
     const insert = db.prepare(`
-      INSERT INTO lms_classes (id, name, slug, description, icon, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const c of initialClasses) {
-      insert.run(`class-${c.slug}`, c.name, c.slug, c.description, c.icon, nowIso, nowIso);
+      insert.run(`class-${c.slug}`, c.name, c.slug, c.description, c.ai_context, c.icon, nowIso, nowIso);
     }
   }
 
@@ -111,7 +127,7 @@ export function getAllClasses(): Record<string, unknown>[] {
 
   const rows = db.prepare(`
     SELECT 
-      c.id, c.name, c.slug, c.description, c.icon, c.created_at, c.updated_at,
+      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.created_at, c.updated_at,
       COUNT(DISTINCT s.id) AS subject_count,
       COUNT(DISTINCT l.id) AS lesson_count
     FROM lms_classes c
@@ -134,7 +150,7 @@ export function getClassByIdOrSlug(idOrSlug: string): Record<string, unknown> | 
 
   const cls = db.prepare(`
     SELECT 
-      c.id, c.name, c.slug, c.description, c.icon, c.created_at, c.updated_at,
+      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.created_at, c.updated_at,
       COUNT(DISTINCT s.id) AS subject_count,
       COUNT(DISTINCT l.id) AS lesson_count
     FROM lms_classes c
@@ -149,7 +165,7 @@ export function getClassByIdOrSlug(idOrSlug: string): Record<string, unknown> | 
   // Subjects with their lesson counts
   const subjects = db.prepare(`
     SELECT 
-      s.id, s.class_id, s.name, s.slug, s.description, s.order_index, s.created_at, s.updated_at,
+      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
       COUNT(l.id) AS lesson_count
     FROM lms_subjects s
     LEFT JOIN lms_lessons l ON l.subject_id = s.id
@@ -174,7 +190,7 @@ export function getClassByIdOrSlug(idOrSlug: string): Record<string, unknown> | 
   };
 }
 
-export function createClass(name: string, description: string = '', icon: string = 'BookmarkIcon'): Record<string, unknown> {
+export function createClass(name: string, description: string = '', icon: string = 'BookmarkIcon', aiContext: string = ''): Record<string, unknown> {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
   if (!res) throw new Error('Database unavailable');
@@ -193,14 +209,14 @@ export function createClass(name: string, description: string = '', icon: string
   const nowIso = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO lms_classes (id, name, slug, description, icon, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(classId, name.trim(), slug, description.trim(), icon, nowIso, nowIso);
+    INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(classId, name.trim(), slug, description.trim(), aiContext.trim(), icon, nowIso, nowIso);
 
   return getClassByIdOrSlug(classId)!;
 }
 
-export function updateClass(idOrSlug: string, updates: { name?: string; description?: string; icon?: string }): Record<string, unknown> | null {
+export function updateClass(idOrSlug: string, updates: { name?: string; description?: string; icon?: string; ai_context?: string }): Record<string, unknown> | null {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
   if (!res) return null;
@@ -212,13 +228,14 @@ export function updateClass(idOrSlug: string, updates: { name?: string; descript
   const newName = updates.name !== undefined ? updates.name.trim() : (current.name as string);
   const newDesc = updates.description !== undefined ? updates.description.trim() : (current.description as string);
   const newIcon = updates.icon !== undefined ? updates.icon : (current.icon as string);
+  const newAiCtx = updates.ai_context !== undefined ? updates.ai_context.trim() : ((current.ai_context as string) || '');
   const nowIso = new Date().toISOString();
 
   db.prepare(`
     UPDATE lms_classes
-    SET name = ?, description = ?, icon = ?, updated_at = ?
+    SET name = ?, description = ?, icon = ?, ai_context = ?, updated_at = ?
     WHERE id = ?
-  `).run(newName, newDesc, newIcon, nowIso, current.id);
+  `).run(newName, newDesc, newIcon, newAiCtx, nowIso, current.id);
 
   return getClassByIdOrSlug(current.id as string);
 }
@@ -253,7 +270,7 @@ export function getSubjectsByClass(classIdOrSlug: string): Record<string, unknow
 
   return db.prepare(`
     SELECT 
-      s.id, s.class_id, s.name, s.slug, s.description, s.order_index, s.created_at, s.updated_at,
+      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
       COUNT(l.id) AS lesson_count
     FROM lms_subjects s
     LEFT JOIN lms_lessons l ON l.subject_id = s.id
@@ -296,7 +313,7 @@ export function getSubjectByIdOrSlug(classIdOrSlug: string, subjectIdOrSlug: str
   };
 }
 
-export function createSubject(classIdOrSlug: string, name: string, description: string = ''): Record<string, unknown> {
+export function createSubject(classIdOrSlug: string, name: string, description: string = '', aiContext: string = ''): Record<string, unknown> {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
   if (!res) throw new Error('Database unavailable');
@@ -320,14 +337,14 @@ export function createSubject(classIdOrSlug: string, name: string, description: 
   const nowIso = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO lms_subjects (id, class_id, name, slug, description, order_index, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(subjectId, cls.id, name.trim(), slug, description.trim(), orderIndex, nowIso, nowIso);
+    INSERT INTO lms_subjects (id, class_id, name, slug, description, ai_context, order_index, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(subjectId, cls.id, name.trim(), slug, description.trim(), aiContext.trim(), orderIndex, nowIso, nowIso);
 
   return getSubjectByIdOrSlug(cls.id, subjectId)!;
 }
 
-export function updateSubject(subjectId: string, updates: { name?: string; description?: string }): Record<string, unknown> | null {
+export function updateSubject(subjectId: string, updates: { name?: string; description?: string; ai_context?: string }): Record<string, unknown> | null {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
   if (!res) return null;
@@ -338,13 +355,14 @@ export function updateSubject(subjectId: string, updates: { name?: string; descr
 
   const newName = updates.name !== undefined ? updates.name.trim() : (current.name as string);
   const newDesc = updates.description !== undefined ? updates.description.trim() : (current.description as string);
+  const newAiCtx = updates.ai_context !== undefined ? updates.ai_context.trim() : ((current.ai_context as string) || '');
   const nowIso = new Date().toISOString();
 
   db.prepare(`
     UPDATE lms_subjects
-    SET name = ?, description = ?, updated_at = ?
+    SET name = ?, description = ?, ai_context = ?, updated_at = ?
     WHERE id = ?
-  `).run(newName, newDesc, nowIso, subjectId);
+  `).run(newName, newDesc, newAiCtx, nowIso, subjectId);
 
   return getSubjectByIdOrSlug(current.class_id as string, subjectId);
 }

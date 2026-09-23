@@ -20,6 +20,7 @@ export default function CreateSubjectModal({
 }: CreateSubjectModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [aiContext, setAiContext] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,9 +36,11 @@ export default function CreateSubjectModal({
       const created = await lmsService.createSubject(targetClass.id, {
         name: name.trim(),
         description: description.trim(),
+        ai_context: aiContext.trim(),
       });
       setName('');
       setDescription('');
+      setAiContext('');
       onCreated(created);
       onClose();
     } catch (err: any) {
@@ -95,15 +98,40 @@ export default function CreateSubjectModal({
 
           <div>
             <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">
-              Description
+              Description <span className="text-muted-foreground font-normal lowercase">(for human-readable overview)</span>
             </label>
             <textarea
-              rows={3}
+              rows={2}
               placeholder="What will learners study in this subject..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-lg border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
             />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Public summary displayed on subject cards and module headers.
+            </p>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Icon name="SparklesIcon" size={13} className="text-emerald-500" />
+                <span>Context <span className="text-emerald-500 font-normal lowercase">(for AI generation)</span></span>
+              </label>
+              <span className="text-[11px] font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                Subject AI Directives
+              </span>
+            </div>
+            <textarea
+              rows={3}
+              placeholder="e.g. Include code implementations in Python/Go, highlight edge cases, memory layout diagrams, and interview drill questions..."
+              value={aiContext}
+              onChange={(e) => setAiContext(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none placeholder:text-muted-foreground/60"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Passed along with class context to the AI when generating lessons inside this subject module.
+            </p>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-6">

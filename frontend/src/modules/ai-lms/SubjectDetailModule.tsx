@@ -7,6 +7,7 @@ import { lmsService } from './services/lmsService';
 import type { LmsClass, LmsLesson, LmsSubject } from './types';
 import LessonList from './components/LessonList';
 import ManualLessonModal from './components/ManualLessonModal';
+import EditSubjectModal from './components/EditSubjectModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import EmptyState from './components/EmptyState';
 
@@ -26,6 +27,7 @@ export default function SubjectDetailModule({
   const [error, setError] = useState<string | null>(null);
 
   // Modals
+  const [isSubjectEditOpen, setIsSubjectEditOpen] = useState(false);
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [lessonToEdit, setLessonToEdit] = useState<LmsLesson | null>(null);
   const [lessonToDelete, setLessonToDelete] = useState<LmsLesson | null>(null);
@@ -134,7 +136,16 @@ export default function SubjectDetailModule({
           </div>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsSubjectEditOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
+            >
+              <Icon name="PencilSquareIcon" size={14} />
+              <span>Edit Subject</span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -155,6 +166,39 @@ export default function SubjectDetailModule({
               <span>Generate with AI</span>
             </Link>
           </div>
+        </div>
+
+        {/* Subject AI Directives Card */}
+        <div className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-500">
+                <Icon name="SparklesIcon" size={12} />
+              </span>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-500">
+                Subject AI Directives & Context
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed pl-7">
+              {subject.ai_context
+                ? subject.ai_context
+                : 'No specific subject AI directives configured. Lesson generation will inherit class context. Click "Edit AI Context" to specify custom focus areas, frameworks, or depth.'}
+            </p>
+            {lmsClass.ai_context && (
+              <div className="pl-7 pt-1 text-[11px] text-muted-foreground/80 flex items-center gap-1.5">
+                <span className="font-semibold text-primary">Inherits Class Guidance:</span>
+                <span className="truncate max-w-md">{lmsClass.ai_context}</span>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsSubjectEditOpen(true)}
+            className="flex-shrink-0 self-start sm:self-auto text-xs font-semibold text-emerald-500 hover:underline flex items-center gap-1 pl-7 sm:pl-0"
+          >
+            <Icon name="PencilIcon" size={12} />
+            <span>{subject.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
+          </button>
         </div>
       </div>
 
@@ -193,6 +237,14 @@ export default function SubjectDetailModule({
           />
         )}
       </section>
+
+      {/* Edit Subject Modal */}
+      <EditSubjectModal
+        isOpen={isSubjectEditOpen}
+        subject={subject}
+        onClose={() => setIsSubjectEditOpen(false)}
+        onUpdated={() => loadSubject()}
+      />
 
       {/* Manual Lesson Modal */}
       <ManualLessonModal
