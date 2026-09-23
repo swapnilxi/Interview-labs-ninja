@@ -1,4 +1,4 @@
-"""Raw-sqlite CRUD for users and their profile, matching the style of modules/todo/db.py."""
+"""Raw-sqlite CRUD for users and their profile."""
 
 from __future__ import annotations
 

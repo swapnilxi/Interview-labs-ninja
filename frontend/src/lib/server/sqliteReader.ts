@@ -28,6 +28,20 @@ function getBundledPath(dbName: string): string | null {
  * so consecutive requests in the same instance share the same writable copy.
  */
 function getWritablePath(dbName: string): string {
+  // In local development (non-Vercel), use the project's SQLite DB directly so Next.js
+  // and FastAPI share the exact same database file in real-time.
+  if (!process.env.VERCEL) {
+    const localSrc = getBundledPath(dbName);
+    if (localSrc) {
+      try {
+        fs.accessSync(localSrc, fs.constants.R_OK | fs.constants.W_OK);
+        return localSrc;
+      } catch {
+        // Fall back to /tmp if not writable
+      }
+    }
+  }
+
   const tmpPath = `/tmp/${dbName}.sqlite3`;
   if (!fs.existsSync(tmpPath)) {
     const src = getBundledPath(dbName);

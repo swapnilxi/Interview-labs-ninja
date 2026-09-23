@@ -199,13 +199,16 @@ def init_db() -> None:
         from modules.cv_lab.schema import register as cv_register
         from modules.dsa_lab.schema import register as dsa_register
         from modules.linkedin_post_generator.templates.schema import register as linkedin_register
-        from modules.todo.shared.schema import register as todo_register
+        from modules.ai_todo.shared.schema import register as todo_register
 
         sd_register(cursor)
         cv_register(cursor)
         dsa_register(cursor)
         linkedin_register(cursor)
         todo_register(cursor)
+
+        from modules.ai_lms.db import init_lms_db
+        init_lms_db(conn)
 
         # ── seed lab_sections from topic categories ────────────────────────────
         # These sections stay globally-owned (user_id NULL) since they're seeded
