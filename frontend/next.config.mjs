@@ -35,6 +35,16 @@ const nextConfig = {
         destination: '/daily-session',
         permanent: false,
       },
+      {
+        source: '/lms',
+        destination: '/ai-lms',
+        permanent: false,
+      },
+      {
+        source: '/lms/:path*',
+        destination: '/ai-lms/:path*',
+        permanent: false,
+      },
     ];
   },
   async rewrites() {

@@ -56,13 +56,13 @@ from modules.daily_session.daily_session import public_router as session_public_
 from modules.linkedin_post_generator.templates.router import router as linkedin_templates_router
 from modules.linkedin_post_generator.generation.router import router as linkedin_generation_router
 
-# To-do module
-from modules.todo.tasks.router import router as todo_router
-from modules.todo.quick.router import router as quick_router
-from modules.todo.projects.router import router as projects_router
-from modules.todo.goals.router import router as goals_router
-from modules.todo.pareto.router import router as pareto_router
-from modules.todo.import_data.router import router as import_router
+# AI To-do module (ai_todo)
+from modules.ai_todo.tasks.router import router as todo_router
+from modules.ai_todo.quick.router import router as quick_router
+from modules.ai_todo.projects.router import router as projects_router
+from modules.ai_todo.goals.router import router as goals_router
+from modules.ai_todo.pareto.router import router as pareto_router
+from modules.ai_todo.import_data.router import router as import_router
 
 # Auth module
 from modules.auth.router import router as auth_router
@@ -72,6 +72,10 @@ from modules.auth.db import promote_admins_from_env
 # Swipe PDF Reader module
 from modules.swipe_pdf_reader.db import init_pdf_db
 from modules.swipe_pdf_reader.router import router as pdf_router
+
+# AI LMS module
+from modules.ai_lms.db import init_lms_db
+from modules.ai_lms.router import router as lms_router
 
 # CAREER STUDIO INTEGRATION — self-contained module with its own sqlite DB
 from modules.career_studio.shared.db import init_career_db
@@ -89,6 +93,7 @@ from modules.career_studio.cover_letter.router import router as career_cover_let
 async def _lifespan(_app: FastAPI):
     init_db()
     init_pdf_db()
+    init_lms_db()
     init_career_db()  # CAREER STUDIO INTEGRATION — creates career_studio.sqlite3 tables
     # Promote any LABNINJA_ADMIN_EMAILS accounts to admin (idempotent; see admin_router).
     promoted = promote_admins_from_env()
@@ -141,6 +146,7 @@ app.include_router(goals_router)
 app.include_router(pareto_router)
 app.include_router(import_router)
 app.include_router(pdf_router)
+app.include_router(lms_router)
 
 # CAREER STUDIO INTEGRATION
 app.include_router(career_router)

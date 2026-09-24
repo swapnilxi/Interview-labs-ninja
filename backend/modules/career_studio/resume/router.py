@@ -1,8 +1,8 @@
 """Career Studio HTTP API — resume CRUD, sections, versioning, and import.
 
-Mounted at /career and guarded by the app's existing JWT auth (mirrors the todo
-module): the router-level dependency enforces a valid Bearer token, and each
-endpoint injects the caller's user_id so every row stays user-scoped.
+Mounted at /career and guarded by the app's existing JWT auth: the router-level
+dependency enforces a valid Bearer token, and each endpoint injects the caller's
+user_id so every row stays user-scoped.
 """
 
 from __future__ import annotations

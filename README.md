@@ -251,7 +251,7 @@ at `/todo` in the frontend. It has three tabs — **Quick Daily** (flat day-list
 node trees with AI roadmaps) — plus a Copilot sidebar, a cross-tab "80/20" Pareto
 analysis, and a floating Distraction Inbox for capturing off-task thoughts.
 
-### Backend layout (`backend/modules/todo/`)
+### Backend layout (`backend/modules/ai-todo/`)
 
 | File | Responsibility |
 |---|---|
@@ -263,7 +263,7 @@ analysis, and a floating Distraction Inbox for capturing off-task thoughts.
 | `schema.py` | Shared Pydantic request models (`TaskCreate`/`TaskUpdate`/AI request shapes). |
 
 Frontend service clients live in `frontend/src/lib/services/{todoService,quickTaskService,projectService,paretoService}.ts`,
-and components in `frontend/src/modules/todo/`.
+and components in `frontend/src/modules/ai-todo/`.
 
 ### Known gaps / tech debt
 
