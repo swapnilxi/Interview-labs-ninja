@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import type { LmsClass } from '../types';
 
@@ -9,26 +10,96 @@ interface ClassCardProps {
   lmsClass: LmsClass;
   onEdit?: (cls: LmsClass) => void;
   onDelete?: (cls: LmsClass) => void;
+  isOrganizeMode?: boolean;
+  orderIndex?: number;
+  canMoveLeft?: boolean;
+  canMoveRight?: boolean;
+  onMoveLeft?: () => void;
+  onMoveRight?: () => void;
 }
 
-export default function ClassCard({ lmsClass, onEdit, onDelete }: ClassCardProps) {
+export default function ClassCard({
+  lmsClass,
+  onEdit,
+  onDelete,
+  isOrganizeMode = false,
+  orderIndex,
+  canMoveLeft = false,
+  canMoveRight = false,
+  onMoveLeft,
+  onMoveRight,
+}: ClassCardProps) {
+  const router = useRouter();
   const isOther = lmsClass.slug === 'other';
+  const href = `/ai-lms/classes/${lmsClass.slug}`;
 
   return (
-    <div className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-300 hover:border-primary/50 hover:shadow-lg hover:-translate-y-0.5">
+    <div 
+      onClick={() => {
+        if (!isOrganizeMode) {
+          router.push(href);
+        }
+      }}
+      className={`group relative flex flex-col justify-between rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 ${
+        isOrganizeMode
+          ? 'border-primary/40 ring-1 ring-primary/20 cursor-default'
+          : 'border-border cursor-pointer hover:border-primary/50 hover:shadow-lg hover:-translate-y-0.5'
+      }`}
+    >
       <div>
-        {/* Top Header: Icon & System badge/menu */}
+        {/* Top Header: Icon & System badge/menu/reorder */}
         <div className="flex items-center justify-between">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
-            <Icon name={(lmsClass.icon || 'BookmarkIcon') as any} size={24} />
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
+              <Icon name={(lmsClass.icon || 'BookmarkIcon') as any} size={24} />
+            </div>
+
+            {orderIndex !== undefined && (
+              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
+                #{orderIndex + 1}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">
-            {lmsClass.is_system === 1 && (
+            {/* Reorder Buttons */}
+            {(onMoveLeft || onMoveRight) && (
+              <div className={`flex items-center gap-1 bg-muted/70 p-1 rounded-xl border border-border ${isOrganizeMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                <button
+                  type="button"
+                  disabled={!canMoveLeft}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onMoveLeft?.();
+                  }}
+                  title="Move left"
+                  className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-background disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                >
+                  <Icon name="ArrowLeftIcon" size={13} />
+                </button>
+                <button
+                  type="button"
+                  disabled={!canMoveRight}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onMoveRight?.();
+                  }}
+                  title="Move right"
+                  className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-background disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                >
+                  <Icon name="ArrowRightIcon" size={13} />
+                </button>
+              </div>
+            )}
+
+            {lmsClass.is_system === 1 && !isOrganizeMode && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border">
                 Core
               </span>
             )}
+
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               {onEdit && (
                 <button
@@ -96,13 +167,12 @@ export default function ClassCard({ lmsClass, onEdit, onDelete }: ClassCardProps
           )}
         </div>
 
-        <Link
-          href={`/ai-lms/classes/${lmsClass.slug}`}
+        <div
           className="inline-flex items-center gap-1 text-xs font-semibold text-primary group-hover:translate-x-1 transition-transform"
         >
           <span>Open</span>
           <Icon name="ArrowRightIcon" size={14} />
-        </Link>
+        </div>
       </div>
     </div>
   );

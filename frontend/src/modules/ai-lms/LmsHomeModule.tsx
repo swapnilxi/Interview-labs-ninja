@@ -22,6 +22,7 @@ export default function LmsHomeModule() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [classToEdit, setClassToEdit] = useState<LmsClass | null>(null);
   const [classToDelete, setClassToDelete] = useState<LmsClass | null>(null);
+  const [isOrganizeMode, setIsOrganizeMode] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -60,6 +61,25 @@ export default function LmsHomeModule() {
       loadData();
     } catch (err) {
       console.error('Failed to delete class', err);
+    }
+  };
+
+  const handleMoveClass = async (index: number, direction: 'left' | 'right') => {
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= classes.length) return;
+
+    const newClasses = [...classes];
+    const temp = newClasses[index];
+    newClasses[index] = newClasses[targetIndex];
+    newClasses[targetIndex] = temp;
+
+    setClasses(newClasses);
+
+    try {
+      await lmsService.reorderClasses(newClasses.map((c) => c.id));
+    } catch (err) {
+      console.error('Failed to reorder classes', err);
+      loadData();
     }
   };
 
@@ -120,7 +140,7 @@ export default function LmsHomeModule() {
 
       {/* Classes Section */}
       <section className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="font-heading text-xl md:text-2xl font-bold text-foreground">
               Curriculum Classes
@@ -130,15 +150,32 @@ export default function LmsHomeModule() {
             </p>
           </div>
 
-          {/* Aggregate counts */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">
-              {classes.length} classes
-            </span>
-            <span>•</span>
-            <span>{totalSubjects} subjects</span>
-            <span>•</span>
-            <span>{totalLessons} lessons</span>
+          <div className="flex items-center gap-3">
+            {classes.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setIsOrganizeMode(!isOrganizeMode)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                  isOrganizeMode
+                    ? 'bg-primary text-white border-primary shadow-sm'
+                    : 'bg-card text-foreground border-border hover:bg-muted'
+                }`}
+              >
+                <Icon name="ArrowsUpDownIcon" size={14} />
+                <span>{isOrganizeMode ? 'Done Organizing' : 'Organize Classes'}</span>
+              </button>
+            )}
+
+            {/* Aggregate counts */}
+            <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">
+                {classes.length} classes
+              </span>
+              <span>•</span>
+              <span>{totalSubjects} subjects</span>
+              <span>•</span>
+              <span>{totalLessons} lessons</span>
+            </div>
           </div>
         </div>
 
@@ -154,12 +191,18 @@ export default function LmsHomeModule() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {classes.map((cls) => (
+            {classes.map((cls, idx) => (
               <ClassCard
                 key={cls.id}
                 lmsClass={cls}
                 onEdit={(c) => setClassToEdit(c)}
                 onDelete={(c) => setClassToDelete(c)}
+                isOrganizeMode={isOrganizeMode}
+                orderIndex={idx}
+                canMoveLeft={idx > 0}
+                canMoveRight={idx < classes.length - 1}
+                onMoveLeft={() => handleMoveClass(idx, 'left')}
+                onMoveRight={() => handleMoveClass(idx, 'right')}
               />
             ))}
           </div>

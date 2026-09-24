@@ -8,6 +8,7 @@ import { lmsService } from '../services/lmsService';
 import type { LmsClass, LmsLesson, LmsNavigation, LmsSubject } from '../types';
 import ManualLessonModal from './ManualLessonModal';
 import ConfirmDialog from './ConfirmDialog';
+import VoiceAssistant from './VoiceAssistant';
 
 interface LessonViewerProps {
   lesson: LmsLesson;
@@ -281,6 +282,11 @@ export default function LessonViewer({
           )}
         </div>
       </div>
+
+      <VoiceAssistant 
+        lessonTitle={currentLesson.title} 
+        lessonContentHtml={currentLesson.generated_html || ''} 
+      />
 
       {/* Edit Modal */}
       <ManualLessonModal

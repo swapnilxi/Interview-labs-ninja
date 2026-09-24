@@ -44,6 +44,13 @@ export const lmsService = {
     });
   },
 
+  async reorderClasses(classIds: string[]): Promise<void> {
+    await apiJson('/api/lms/classes/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ class_ids: classIds }),
+    });
+  },
+
   // ── Subjects ─────────────────────────────────────────────────────────────
   async getSubjects(classIdOrSlug: string): Promise<LmsSubject[]> {
     return apiJson<LmsSubject[]>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/subjects`);
@@ -78,6 +85,13 @@ export const lmsService = {
   async deleteSubject(subjectId: string): Promise<void> {
     await apiJson(`/api/lms/subjects/${encodeURIComponent(subjectId)}`, {
       method: 'DELETE',
+    });
+  },
+
+  async reorderSubjects(subjectIds: string[]): Promise<void> {
+    await apiJson('/api/lms/subjects/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ subject_ids: subjectIds }),
     });
   },
 

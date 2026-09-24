@@ -31,7 +31,9 @@ from .db import (
     get_subject_by_id_or_slug,
     get_subjects_by_class,
     record_lesson_view,
+    reorder_classes,
     reorder_lessons,
+    reorder_subjects,
     search_lms,
     update_class,
     update_lesson,
@@ -102,6 +104,14 @@ class UpdateLessonRequest(BaseModel):
     generated_html: Optional[str] = Field(default=None, min_length=10)
     summary: Optional[str] = Field(default=None)
     order_index: Optional[int] = Field(default=None)
+
+
+class ReorderClassesRequest(BaseModel):
+    class_ids: List[str]
+
+
+class ReorderSubjectsRequest(BaseModel):
+    subject_ids: List[str]
 
 
 class ReorderLessonsRequest(BaseModel):
@@ -305,6 +315,20 @@ async def handle_delete_lesson(lesson_id: str) -> Dict[str, Any]:
     if not success:
         raise HTTPException(status_code=404, detail="Lesson not found.")
     return {"status": "deleted", "id": lesson_id}
+
+
+@router.post("/classes/reorder")
+async def handle_reorder_classes(payload: ReorderClassesRequest) -> Dict[str, Any]:
+    """Reorder a list of classes by order_index."""
+    reorder_classes(payload.class_ids)
+    return {"status": "reordered", "count": len(payload.class_ids)}
+
+
+@router.post("/subjects/reorder")
+async def handle_reorder_subjects(payload: ReorderSubjectsRequest) -> Dict[str, Any]:
+    """Reorder a list of subjects by order_index."""
+    reorder_subjects(payload.subject_ids)
+    return {"status": "reordered", "count": len(payload.subject_ids)}
 
 
 @router.post("/lessons/reorder")

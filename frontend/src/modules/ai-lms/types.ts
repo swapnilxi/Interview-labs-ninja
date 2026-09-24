@@ -25,6 +25,8 @@ export interface LmsSubject {
   lesson_count: number;
   lessons?: LmsLesson[];
   class?: LmsClass;
+  class_name?: string;
+  class_slug?: string;
   created_at: string;
   updated_at: string;
 }

@@ -78,6 +78,9 @@ export function ensureLmsTables(): void {
     if (!classCols.some((c) => c.name === 'ai_context')) {
       db.exec("ALTER TABLE lms_classes ADD COLUMN ai_context TEXT DEFAULT ''");
     }
+    if (!classCols.some((c) => c.name === 'order_index')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN order_index INTEGER DEFAULT 0");
+    }
     const subjCols = db.prepare('PRAGMA table_info(lms_subjects)').all() as { name: string }[];
     if (!subjCols.some((c) => c.name === 'ai_context')) {
       db.exec("ALTER TABLE lms_subjects ADD COLUMN ai_context TEXT DEFAULT ''");
@@ -135,6 +138,7 @@ export function getAllClasses(): Record<string, unknown>[] {
     LEFT JOIN lms_lessons l ON l.class_id = c.id
     GROUP BY c.id
     ORDER BY 
+      c.order_index ASC,
       CASE WHEN c.slug = 'other' THEN 1 ELSE 0 END ASC,
       c.name ASC
   `).all() as Record<string, unknown>[];
@@ -286,12 +290,12 @@ export function getSubjectByIdOrSlug(classIdOrSlug: string, subjectIdOrSlug: str
   if (!res) return null;
   const { db } = res;
 
-  const cls = db.prepare('SELECT id, name, slug FROM lms_classes WHERE id = ? OR slug = ?').get(classIdOrSlug, classIdOrSlug) as { id: string; name: string; slug: string } | undefined;
+  const cls = db.prepare('SELECT * FROM lms_classes WHERE id = ? OR slug = ? COLLATE NOCASE').get(classIdOrSlug, classIdOrSlug) as Record<string, unknown> | undefined;
   if (!cls) return null;
 
   const subj = db.prepare(`
     SELECT * FROM lms_subjects
-    WHERE class_id = ? AND (id = ? OR slug = ?)
+    WHERE class_id = ? AND (id = ? OR slug = ? COLLATE NOCASE)
   `).get(cls.id, subjectIdOrSlug, subjectIdOrSlug) as Record<string, unknown> | undefined;
 
   if (!subj) return null;
@@ -306,8 +310,10 @@ export function getSubjectByIdOrSlug(classIdOrSlug: string, subjectIdOrSlug: str
 
   return {
     ...subj,
+    class: cls,
     class_name: cls.name,
     class_slug: cls.slug,
+    class_ai_context: cls.ai_context || '',
     lessons,
     lesson_count: lessons.length,
   };
@@ -551,6 +557,36 @@ export function deleteLesson(lessonId: string): boolean {
 
   db.prepare('DELETE FROM lms_user_progress WHERE lesson_id = ?').run(lessonId);
   db.prepare('DELETE FROM lms_lessons WHERE id = ?').run(lessonId);
+  return true;
+}
+
+export function reorderClasses(classIds: string[]): boolean {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return false;
+  const { db } = res;
+
+  const nowIso = new Date().toISOString();
+  const update = db.prepare('UPDATE lms_classes SET order_index = ?, updated_at = ? WHERE id = ? OR slug = ?');
+
+  for (let i = 0; i < classIds.length; i++) {
+    update.run(i, nowIso, classIds[i], classIds[i]);
+  }
+  return true;
+}
+
+export function reorderSubjects(subjectIds: string[]): boolean {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return false;
+  const { db } = res;
+
+  const nowIso = new Date().toISOString();
+  const update = db.prepare('UPDATE lms_subjects SET order_index = ?, updated_at = ? WHERE id = ? OR slug = ?');
+
+  for (let i = 0; i < subjectIds.length; i++) {
+    update.run(i, nowIso, subjectIds[i], subjectIds[i]);
+  }
   return true;
 }
 

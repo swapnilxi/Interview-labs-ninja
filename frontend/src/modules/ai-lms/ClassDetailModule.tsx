@@ -31,6 +31,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
   const [subjectToDelete, setSubjectToDelete] = useState<LmsSubject | null>(null);
   const [lessonToDelete, setLessonToDelete] = useState<LmsLesson | null>(null);
   const [lessonToEdit, setLessonToEdit] = useState<LmsLesson | null>(null);
+  const [isOrganizeSubjects, setIsOrganizeSubjects] = useState(false);
 
   const loadClass = async () => {
     setLoading(true);
@@ -72,11 +73,36 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
   };
 
   const handleReorderDirectLessons = async (newIds: string[]) => {
+    if (!lmsClass || !lmsClass.direct_lessons) return;
+    const lessonMap = new Map(lmsClass.direct_lessons.map((l) => [l.id, l]));
+    const reordered = newIds.map((id) => lessonMap.get(id)).filter(Boolean) as LmsLesson[];
+    setLmsClass({ ...lmsClass, direct_lessons: reordered });
+
     try {
       await lmsService.reorderLessons(newIds);
-      loadClass();
     } catch (err) {
       console.error('Failed to reorder lessons', err);
+      loadClass();
+    }
+  };
+
+  const handleMoveSubject = async (index: number, direction: 'left' | 'right') => {
+    if (!lmsClass || !lmsClass.subjects) return;
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= lmsClass.subjects.length) return;
+
+    const newSubjects = [...lmsClass.subjects];
+    const temp = newSubjects[index];
+    newSubjects[index] = newSubjects[targetIndex];
+    newSubjects[targetIndex] = temp;
+
+    setLmsClass({ ...lmsClass, subjects: newSubjects });
+
+    try {
+      await lmsService.reorderSubjects(newSubjects.map((s) => s.id));
+    } catch (err) {
+      console.error('Failed to reorder subjects', err);
+      loadClass();
     }
   };
 
@@ -216,25 +242,49 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
             <span>{lmsClass.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
           </button>
         </div>
+
       </div>
 
       {/* Normal Classes: Show Subjects Grid */}
       {!isOtherClass && (
         <section className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="font-heading text-xl font-bold text-foreground">
-              Module Subjects ({subjects.length})
-            </h2>
-            <span className="text-xs text-muted-foreground font-medium">
-              {lmsClass.lesson_count} total lessons in this class
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-heading text-xl font-bold text-foreground">
+                Module Subjects ({subjects.length})
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Organized topic modules and sequential lesson tracks
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {subjects.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setIsOrganizeSubjects(!isOrganizeSubjects)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                    isOrganizeSubjects
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-card text-foreground border-border hover:bg-muted'
+                  }`}
+                >
+                  <Icon name="ArrowsUpDownIcon" size={14} />
+                  <span>{isOrganizeSubjects ? 'Done Organizing' : 'Organize Subjects'}</span>
+                </button>
+              )}
+
+              <span className="text-xs text-muted-foreground font-medium">
+                {lmsClass.lesson_count} total lessons in this class
+              </span>
+            </div>
           </div>
 
           {subjects.length === 0 ? (
             <EmptyState
               icon="FolderIcon"
               title="No subjects created yet"
-              description={`Add your first subject module under ${lmsClass.name}, or generate an interactive lesson with AI.`}
+              description={`Add your first subject module under ${lmsClass.name}, or use the Quick AI Generator above.`}
               primaryAction={{
                 label: 'Create Subject',
                 onClick: () => setIsSubjectModalOpen(true),
@@ -248,13 +298,19 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
             />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {subjects.map((subj) => (
+              {subjects.map((subj, idx) => (
                 <SubjectCard
                   key={subj.id}
                   subject={subj}
                   classSlug={lmsClass.slug}
                   onEdit={(s) => setSubjectToEdit(s)}
                   onDelete={(s) => setSubjectToDelete(s)}
+                  isOrganizeMode={isOrganizeSubjects}
+                  orderIndex={idx}
+                  canMoveLeft={idx > 0}
+                  canMoveRight={idx < subjects.length - 1}
+                  onMoveLeft={() => handleMoveSubject(idx, 'left')}
+                  onMoveRight={() => handleMoveSubject(idx, 'right')}
                 />
               ))}
             </div>

@@ -126,6 +126,8 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
         class_cols = [row[1] for row in cursor.fetchall()]
         if "ai_context" not in class_cols:
             cursor.execute("ALTER TABLE lms_classes ADD COLUMN ai_context TEXT DEFAULT '';")
+        if "order_index" not in class_cols:
+            cursor.execute("ALTER TABLE lms_classes ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0;")
 
         # ── 2. Subjects Table ──────────────────────────────────────────────────
         cursor.execute("""
@@ -250,7 +252,7 @@ def get_all_classes() -> List[Dict[str, Any]]:
                 (SELECT COUNT(*) FROM lms_subjects s WHERE s.class_id = c.id) AS subject_count,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.class_id = c.id) AS lesson_count
             FROM lms_classes c
-            ORDER BY c.is_system DESC, c.name ASC
+            ORDER BY c.order_index ASC, c.is_system DESC, c.name ASC
         """)
         rows = cursor.fetchall()
         return [dict(r) for r in rows]
@@ -649,6 +651,34 @@ def delete_lesson(lesson_id: str) -> bool:
         cursor.execute("DELETE FROM lms_lessons WHERE id = ? OR slug = ?", (lesson_id, lesson_id))
         conn.commit()
         return cursor.rowcount > 0
+
+
+def reorder_classes(class_ids: List[str]) -> bool:
+    """Batch reorder classes according to the order of IDs/slugs in the list."""
+    now_iso = datetime.utcnow().isoformat() + "Z"
+    with _get_conn() as conn:
+        cursor = conn.cursor()
+        for idx, cid in enumerate(class_ids):
+            cursor.execute(
+                "UPDATE lms_classes SET order_index = ?, updated_at = ? WHERE id = ? OR slug = ?",
+                (idx, now_iso, cid, cid),
+            )
+        conn.commit()
+    return True
+
+
+def reorder_subjects(subject_ids: List[str]) -> bool:
+    """Batch reorder subjects according to the order of IDs/slugs in the list."""
+    now_iso = datetime.utcnow().isoformat() + "Z"
+    with _get_conn() as conn:
+        cursor = conn.cursor()
+        for idx, sid in enumerate(subject_ids):
+            cursor.execute(
+                "UPDATE lms_subjects SET order_index = ?, updated_at = ? WHERE id = ? OR slug = ?",
+                (idx, now_iso, sid, sid),
+            )
+        conn.commit()
+    return True
 
 
 def reorder_lessons(lesson_ids: List[str]) -> bool:

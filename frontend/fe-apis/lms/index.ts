@@ -23,6 +23,8 @@ import {
   createLesson,
   updateLesson,
   deleteLesson,
+  reorderClasses,
+  reorderSubjects,
   reorderLessons,
   getLessonNavigation,
   recordLessonView,
@@ -107,6 +109,19 @@ export async function handleDeleteClass(classSlug: string): Promise<NextResponse
   }
 }
 
+export async function handleReorderClasses(req: Request): Promise<NextResponse> {
+  try {
+    const body = await req.json();
+    if (!Array.isArray(body.class_ids)) {
+      return NextResponse.json({ detail: 'class_ids must be an array' }, { status: 400 });
+    }
+    reorderClasses(body.class_ids);
+    return NextResponse.json({ message: 'Classes reordered successfully' });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to reorder classes' }, { status: 500 });
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Subjects Handlers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,6 +187,19 @@ export async function handleDeleteSubject(subjectId: string): Promise<NextRespon
     return NextResponse.json({ message: 'Subject deleted successfully' });
   } catch (err: any) {
     return NextResponse.json({ detail: err.message || 'Failed to delete subject' }, { status: 500 });
+  }
+}
+
+export async function handleReorderSubjects(req: Request): Promise<NextResponse> {
+  try {
+    const body = await req.json();
+    if (!Array.isArray(body.subject_ids)) {
+      return NextResponse.json({ detail: 'subject_ids must be an array' }, { status: 400 });
+    }
+    reorderSubjects(body.subject_ids);
+    return NextResponse.json({ message: 'Subjects reordered successfully' });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to reorder subjects' }, { status: 500 });
   }
 }
 

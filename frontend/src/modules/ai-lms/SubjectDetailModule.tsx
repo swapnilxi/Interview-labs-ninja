@@ -10,6 +10,7 @@ import ManualLessonModal from './components/ManualLessonModal';
 import EditSubjectModal from './components/EditSubjectModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import EmptyState from './components/EmptyState';
+import QuickLessonGenerator from './components/QuickLessonGenerator';
 
 interface SubjectDetailModuleProps {
   classSlug: string;
@@ -38,7 +39,12 @@ export default function SubjectDetailModule({
     try {
       const data = await lmsService.getSubject(classSlug, subjectSlug);
       setSubject(data);
-      setLmsClass(data.class || null);
+      if (data.class) {
+        setLmsClass(data.class);
+      } else {
+        const cls = await lmsService.getClass(classSlug);
+        setLmsClass(cls);
+      }
       setLessons(data.lessons || []);
     } catch (err: any) {
       setError(err?.message || 'Subject not found.');
@@ -63,11 +69,15 @@ export default function SubjectDetailModule({
   };
 
   const handleReorderLessons = async (newIds: string[]) => {
+    const lessonMap = new Map(lessons.map((l) => [l.id, l]));
+    const reordered = newIds.map((id) => lessonMap.get(id)).filter(Boolean) as LmsLesson[];
+    setLessons(reordered);
+
     try {
       await lmsService.reorderLessons(newIds);
-      loadSubject();
     } catch (err) {
       console.error('Failed to reorder lessons', err);
+      loadSubject();
     }
   };
 
@@ -201,6 +211,17 @@ export default function SubjectDetailModule({
           </button>
         </div>
       </div>
+
+      {/* Quick AI Lesson Generator (One text box + One upload button) */}
+      <QuickLessonGenerator
+        classId={lmsClass.id}
+        classSlug={lmsClass.slug}
+        classNameText={lmsClass.name}
+        subjectId={subject.id}
+        subjectSlug={subject.slug}
+        subjectNameText={subject.name}
+        onLessonGenerated={() => loadSubject()}
+      />
 
       {/* Lesson List */}
       <section className="space-y-4">

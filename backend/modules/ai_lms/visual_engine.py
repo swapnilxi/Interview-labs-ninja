@@ -326,7 +326,7 @@ def generate_native_visual(lesson: Dict[str, Any], focus_concept: str = "") -> D
         }
 
     # 3. System Design / Architecture / Load Balancer / Distributed Systems
-    else:
+    elif any(k in combined for k in ["load balancer", "reverse proxy", "nginx", "haproxy", "server", "distributed", "microservice", "architecture", "system design", "scalab"]):
         return {
             "visual_type": "Architecture Diagram",
             "title": f"Dynamic Request Flow Architecture: {title}",
@@ -544,6 +544,179 @@ def generate_native_visual(lesson: Dict[str, Any], focus_concept: str = "") -> D
   })();
   </script>
 </div>"""
+        }
+
+    # 4. Dynamic Concept Explorer — adapts to ANY topic
+    else:
+        # Extract first 3-5 meaningful lines from the content as key concepts
+        content_lines = [l.strip() for l in (focus_concept or title or "").split("\n") if l.strip()]
+        safe_title = html.escape(title or "Core Concept")
+        # Generate 4-6 concept items from the title words
+        words = [w.capitalize() for w in (title + " " + (focus_concept or "")).replace(",", " ").replace(".", " ").split() if len(w) > 3]
+        concept_items = list(dict.fromkeys(words))[:6] or [safe_title]
+        concept_items_js = str([html.escape(c) for c in concept_items]).replace('"', "'")
+
+        visual_html = f"""<div class="lms-visualizer" style="font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 1.5rem; border-radius: 0.75rem; border: 1px solid #334155;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+    <div>
+      <span style="display: inline-block; padding: 0.2rem 0.6rem; font-size: 0.75rem; font-weight: 700; border-radius: 9999px; background: rgba(129,140,248,0.15); color: #818cf8; border: 1px solid rgba(129,140,248,0.3);">CONCEPT EXPLORER</span>
+      <h3 style="margin: 0.4rem 0 0.1rem 0; font-size: 1.15rem; font-weight: 700; color: #f8fafc;">{html.escape(title)}: Key Concept Map</h3>
+    </div>
+    <div id="conceptProgress" style="font-size: 0.8rem; color: #94a3b8; font-weight: 600;">Concept 0 / {len(concept_items)}</div>
+  </div>
+
+  <canvas id="conceptCanvas" width="700" height="260" style="background: #1e293b; border-radius: 0.75rem; border: 1px solid #334155; width: 100%; max-width: 700px; display: block; margin: 0 auto 1rem;"></canvas>
+
+  <div id="conceptDetail" style="background: #1e293b; border: 1px solid #334155; border-left: 4px solid #818cf8; padding: 0.85rem 1rem; border-radius: 0.5rem; margin-bottom: 1.25rem; font-size: 0.9rem; line-height: 1.5; color: #cbd5e1; min-height: 3.5rem;">
+    Click a concept node above or use the buttons below to explore key ideas in <strong style="color:#818cf8;">{html.escape(title)}</strong>.
+  </div>
+
+  <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+    <button onclick="prevConcept()" id="btnPrevConcept" style="background: #334155; color: #94a3b8; border: none; padding: 0.45rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; font-size: 0.85rem;">&larr; Previous</button>
+    <button onclick="nextConcept()" id="btnNextConcept" style="background: #6366f1; color: white; border: none; padding: 0.45rem 1.25rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; font-size: 0.85rem; box-shadow: 0 4px 6px -1px rgba(99,102,241,0.3);">Next Concept &rarr;</button>
+    <button onclick="resetConcepts()" style="background: transparent; color: #94a3b8; border: 1px solid #475569; padding: 0.45rem 0.9rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; font-size: 0.85rem;">&#8634; Reset</button>
+  </div>
+
+  <script>
+  (function() {{
+    const concepts = {concept_items_js};
+    let active = -1;
+    const canvas = document.getElementById('conceptCanvas');
+    const ctx = canvas.getContext('2d');
+    const nodes = [];
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2;
+    const r = Math.min(W, H) * 0.36;
+
+    const descriptions = concepts.map((c, i) => `Key concept [${{i+1}}/${{concepts.length}}]: "${{c}}" is a foundational element of {html.escape(title)}. Understanding this concept builds intuition for the broader subject and connects to real-world applications.`);
+
+    function buildNodes() {{
+      nodes.length = 0;
+      const count = concepts.length;
+      for (let i = 0; i < count; i++) {{
+        const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
+        nodes.push({{
+          x: cx + r * Math.cos(angle),
+          y: cy + r * Math.sin(angle),
+          label: concepts[i],
+          angle
+        }});
+      }}
+    }}
+
+    function draw() {{
+      ctx.clearRect(0, 0, W, H);
+
+      // Draw connecting lines
+      ctx.strokeStyle = 'rgba(99,102,241,0.2)';
+      ctx.lineWidth = 1.5;
+      nodes.forEach((n, i) => {{
+        nodes.forEach((m, j) => {{
+          if (i < j) {{
+            ctx.beginPath();
+            ctx.moveTo(n.x, n.y);
+            ctx.lineTo(m.x, m.y);
+            ctx.stroke();
+          }}
+        }});
+      }});
+
+      // Center hub
+      const hubGrad = ctx.createRadialGradient(cx, cy, 2, cx, cy, 34);
+      hubGrad.addColorStop(0, '#6366f1');
+      hubGrad.addColorStop(1, '#4338ca');
+      ctx.fillStyle = hubGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 34, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 9px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const hubWords = concepts.length > 0 ? ['{html.escape(title[:12])}'] : ['Concepts'];
+      hubWords.forEach((w, i) => ctx.fillText(w, cx, cy + (i * 12) - (hubWords.length-1)*6));
+
+      // Draw concept nodes
+      nodes.forEach((n, i) => {{
+        const isActive = i === active;
+        const grad = ctx.createRadialGradient(n.x, n.y, 2, n.x, n.y, 28);
+        if (isActive) {{
+          grad.addColorStop(0, '#818cf8');
+          grad.addColorStop(1, '#6366f1');
+        }} else {{
+          grad.addColorStop(0, '#334155');
+          grad.addColorStop(1, '#1e293b');
+        }}
+        ctx.fillStyle = grad;
+        ctx.strokeStyle = isActive ? '#818cf8' : '#475569';
+        ctx.lineWidth = isActive ? 2.5 : 1.5;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 28, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = isActive ? '#fff' : '#cbd5e1';
+        ctx.font = isActive ? 'bold 8.5px system-ui' : '8px system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const words = n.label.split(' ');
+        if (words.length > 1) {{
+          ctx.fillText(words[0], n.x, n.y - 5);
+          ctx.fillText(words.slice(1).join(' '), n.x, n.y + 7);
+        }} else {{
+          ctx.fillText(n.label, n.x, n.y);
+        }}
+      }});
+
+      document.getElementById('conceptProgress').innerText = active >= 0 ? `Concept ${{active+1}} / ${{concepts.length}}` : `Concept 0 / ${{concepts.length}}`;
+    }}
+
+    canvas.addEventListener('click', function(e) {{
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mx = (e.clientX - rect.left) * scaleX;
+      const my = (e.clientY - rect.top) * scaleY;
+      let hit = -1;
+      nodes.forEach((n, i) => {{
+        const dx = mx - n.x, dy = my - n.y;
+        if (Math.sqrt(dx*dx + dy*dy) < 30) hit = i;
+      }});
+      if (hit >= 0) {{
+        active = hit;
+        document.getElementById('conceptDetail').innerHTML = descriptions[active];
+        draw();
+      }}
+    }});
+
+    window.nextConcept = function() {{
+      active = (active + 1) % concepts.length;
+      document.getElementById('conceptDetail').innerHTML = descriptions[active];
+      draw();
+    }};
+    window.prevConcept = function() {{
+      active = (active - 1 + concepts.length) % concepts.length;
+      document.getElementById('conceptDetail').innerHTML = descriptions[active];
+      draw();
+    }};
+    window.resetConcepts = function() {{
+      active = -1;
+      document.getElementById('conceptDetail').innerHTML = 'Click a concept node above or use the buttons below to explore key ideas in <strong style="color:#818cf8;">{html.escape(title)}</strong>.';
+      draw();
+    }};
+
+    buildNodes();
+    draw();
+  }})();
+  </script>
+</div>"""
+
+        return {
+            "visual_type": "Concept Map",
+            "title": f"Concept Explorer: {title}",
+            "explanation": f"Interactive radial concept map for '{title}'. Click any node or use the navigation buttons to explore each key idea and its relation to the central topic.",
+            "visual_html": visual_html,
         }
 
 
@@ -838,7 +1011,7 @@ export class DPComparison {
         }
 
     # 5. Machine Learning / Gradient Descent Optimization
-    if any(k in combined for k in ["gradient", "loss", "optimization", "neural", "machine learning", "ai", "descent"]):
+    if any(k in combined for k in ["gradient descent", "loss function", "backpropagation", "neural network", "machine learning", "deep learning", "gradient"]):
         return {
             "category": "Mathematical Optimization & Deep Learning",
             "subtitle": "Convex loss landscapes, learning rate schedules, and backpropagation mechanics.",
@@ -903,7 +1076,7 @@ export class SGDOptimizer {
         }
 
     # 6. LangGraph & Generative Agent Workflows
-    if any(k in combined for k in ["langgraph", "agent", "workflow", "tools", "mcp", "claude", "state"]):
+    if any(k in combined for k in ["langgraph", "stategraph", "agentic", "autonomous agent", "tool-calling", "mcp server", "claude api", "openai agent"]):
         return {
             "category": "Autonomous Agents & Graph Workflows",
             "subtitle": "StateGraph cycles, tool-calling loops, checkpoints, and human-in-the-loop control.",
@@ -993,74 +1166,102 @@ export class AgentStateGraph {
             ]
         }
 
-    # 7. Scalability & System Architecture (Default fallback)
+    # 7. Dynamic fallback — infer from title/content/class/subject
+    # Extract meaningful keywords from all available context
+    all_text = f"{title} {class_name} {subject_name} {content}"
+    words = [w.strip('.,;:()[]"').capitalize() for w in all_text.split() if len(w.strip('.,;:()[]"')) > 4]
+    key_terms = list(dict.fromkeys(words))[:8]  # deduplicate, keep first 8
+    term_a = key_terms[0] if len(key_terms) > 0 else title
+    term_b = key_terms[1] if len(key_terms) > 1 else "Core Concepts"
+    term_c = key_terms[2] if len(key_terms) > 2 else "Implementation"
+    term_d = key_terms[3] if len(key_terms) > 3 else "Best Practices"
+
+    # Build content from actual input text
+    content_preview = content.strip()[:600] if content.strip() else ""
+    concepts_para = (
+        f"<p>{html.escape(content_preview[:300])}</p>" if len(content_preview) > 50
+        else f"<p><strong>{html.escape(title)}</strong> is a topic within the <em>{html.escape(class_name)}</em> domain under the subject <em>{html.escape(subject_name or 'General')}</em>. Understanding this topic requires grasping its core mechanisms, practical implementations, and the trade-offs that guide real-world decisions.</p>"
+    )
+    concepts_para2 = (
+        f"<p>{html.escape(content_preview[300:600])}</p>" if len(content_preview) > 300
+        else f"<p>Mastery of <strong>{html.escape(title)}</strong> enables practitioners to design robust, maintainable, and efficient systems aligned with industry best practices and scalable architectural patterns.</p>"
+    )
+
+    clean_title = title.replace(' ', '').replace('/', '').replace('-', '')
+
     return {
-        "category": "Scalable Systems Engineering",
-        "subtitle": f"Architectural invariants, high-availability patterns, and operational trade-offs for {title}.",
+        "category": f"{class_name or 'Core'} — {subject_name or 'General Module'}",
+        "subtitle": f"Foundational concepts, practical patterns, and real-world trade-offs for {title}.",
         "objectives": [
-            f"Master the foundational mental model and internal mechanics of {title}.",
-            "Analyze key design patterns, state invariants, and operational bottlenecks.",
-            "Explore interactive visual topology diagrams and system simulations.",
-            "Evaluate real-world engineering trade-offs and battle-tested industry practices."
+            f"Build a deep mental model for {title} and understand its core mechanics.",
+            f"Identify the primary design patterns and implementation strategies for {term_a} and {term_b}.",
+            f"Explore practical code examples demonstrating {term_c} within real systems.",
+            f"Analyze critical trade-offs and industry best practices for {term_d}."
         ],
-        "concepts_html": f"""<p>Designing modern software architectures around <strong>{title}</strong> requires balancing modular decoupling, fault isolation, and predictable latency profiles under peak throughput.</p>
-<p>Production engineering demands moving beyond naive implementations. By structuring systems with clear boundaries, automated health probes, and stateless scaling tiers, systems achieve robust resilience against unexpected traffic spikes and node degradation.</p>""",
-        "callout_title": "Core Architectural Invariant",
-        "callout_text": f"When implementing systems around {title}, prioritize graceful degradation under load, modular isolation, and observable telemetry over premature micro-optimizations.",
+        "concepts_html": concepts_para + concepts_para2,
+        "callout_title": f"Key Principle: {term_a}",
+        "callout_text": f"When working with {title}, always prioritize clarity of intent, correctness of core invariants, and measurable performance over premature optimizations. Ground every implementation decision in the specific context and constraints of {subject_name or class_name or 'the domain'}.",
         "code_lang": "typescript",
-        "code_title": f"{title.replace(' ', '')}Engine.ts",
-        "code": f"""// Production Architectural Implementation for {title}
-export class ProductionEngine {{
-  private isHealthy = true;
+        "code_title": f"{clean_title or 'Module'}.ts",
+        "code": f"""// Core Implementation: {title}
+// Domain: {class_name} | Subject: {subject_name or 'General'}
+export class {clean_title or 'CoreModule'} {{
+  private readonly config: Record<string, unknown>;
 
-  constructor(private readonly config: {{ timeoutMs: number; maxRetries: number }}) {{}}
-
-  async executeWithCircuitBreaker<T>(operation: () => Promise<T>): Promise<T> {{
-    if (!this.isHealthy) {{
-      throw new Error("Circuit breaker open: Service degraded for {title}");
-    }}
-    try {{
-      return await operation();
-    }} catch (err) {{
-      this.handleDegradedState(err);
-      throw err;
-    }}
+  constructor(config: Record<string, unknown> = {{}}) {{
+    this.config = config;
   }}
 
-  private handleDegradedState(err: unknown): void {{
-    console.error("System degraded:", err);
-    this.isHealthy = false;
+  /**
+   * Execute the primary operation for {title}.
+   * @param input — the subject domain input
+   * @returns processed result adhering to domain constraints
+   */
+  async execute<T>(input: T): Promise<T> {{
+    // 1. Validate input invariants
+    if (!input) throw new Error(`Invalid input for {title}`);
+
+    // 2. Apply core logic (domain-specific implementation goes here)
+    const result = await this.process(input);
+
+    // 3. Return normalized output
+    return result;
+  }}
+
+  private async process<T>(input: T): Promise<T> {{
+    // Core processing logic for {title}
+    return input;
   }}
 }}""",
         "tradeoffs": [
-            ("Latency", "In-Memory / L4 Caching", "Disk-Based Persistent Lookups", "Sub-millisecond access vs data capacity and persistence safety"),
-            ("Consistency", "Strong Consensus (Raft/Paxos)", "Eventual Consistency", "Write latency penalty vs stale read tolerance"),
-            ("Fault Tolerance", "Active-Active Multi-Region", "Active-Passive Warm Standby", "Zero-downtime failover vs infrastructure cost overhead"),
-            ("Scalability", "Horizontal Stateless Scaling", "Vertical Hardware Upgrades", "Elastic auto-scaling vs single machine capacity ceilings")
+            (f"{term_a}", "Explicit / Direct Approach", "Implicit / Convention-Based", "Maximum control and clarity vs rapid development with less boilerplate"),
+            (f"{term_b}", "Eager Initialization", "Lazy Initialization", "Predictable startup cost vs on-demand efficiency for sparse usage"),
+            (f"{term_c}", "Strict Typing / Validation", "Duck Typing / Permissive", "Early error detection vs faster iteration and prototyping"),
+            (f"{term_d}", "Synchronous Execution", "Asynchronous / Event-Driven", "Simpler mental model vs non-blocking throughput at scale")
         ],
         "quiz": [
             {
-                "question": f"What is the primary operational trade-off when scaling {title} in distributed environments?",
+                "question": f"What is the most important first step when implementing {title} in a production system?",
                 "options": [
-                    ("Balancing system consistency, availability, and end-to-end latency across network boundaries.", True, "Every distributed architecture must balance state consistency, network latency, and continuous availability."),
-                    ("Maximizing raw CPU clock speed on a single monolithic server.", False, "Horizontal distribution focuses on clusters of nodes rather than single CPU limits."),
-                    ("Reducing memory consumption to absolute zero.", False, "Memory is traded for caching and performance in modern systems.")
+                    (f"Understand the core invariants, constraints, and intended behavior of {title} before writing a single line of code.", True, "Deeply understanding requirements and invariants prevents architectural mistakes that are expensive to reverse."),
+                    ("Start with the most complex edge case and work backwards.", False, "Starting with edge cases leads to over-engineering and loss of clarity on the primary success path."),
+                    ("Copy an existing implementation without adaptation.", False, "Copying without understanding leads to brittle code with hidden assumptions.")
                 ]
             },
             {
-                "question": "How should an enterprise architecture handle transient node failures in production?",
+                "question": f"What is the best strategy for testing an implementation of {title}?",
                 "options": [
-                    ("Use circuit breakers, health checks, and automatic failover to isolate failed nodes instantly.", True, "Isolating failing nodes prevents cascading failures and maintains overall cluster health."),
-                    ("Block all client connections synchronously until the failed node reboots.", False, "Synchronous blocking leads to request queuing and cluster-wide collapse."),
-                    ("Immediately terminate all other worker nodes.", False, "Terminating healthy nodes turns a minor incident into a total outage.")
+                    ("Write unit tests for core logic, integration tests for system behavior, and end-to-end tests for critical paths.", True, "A layered testing pyramid ensures correctness at every level while keeping tests maintainable and fast."),
+                    ("Only write manual tests during development.", False, "Manual testing is slow, inconsistent, and does not scale for continuous deployment."),
+                    ("Skip testing entirely to ship faster.", False, "Untested code in production leads to undiscovered regressions and reliability failures.")
                 ]
             }
         ],
         "takeaways": [
-            f"Isolate dependencies and decouple state to enable independent horizontal scaling of {title}.",
-            "Instrument deep metrics (p50, p95, p99 latency, error rates, saturation) to inform capacity planning.",
-            "Implement defensive timeouts, retry limits with exponential backoff, and circuit breakers.",
-            "Continuously validate system failover through chaos testing and automated recovery drills."
+            f"Always ground your understanding of {title} in concrete examples before abstracting to patterns.",
+            f"Write clean, readable code for {term_a} first; optimize only when profiling confirms a bottleneck.",
+            f"Apply {term_b} patterns incrementally, validating correctness at each stage.",
+            f"Stay current with evolving best practices in {class_name or 'the field'} to avoid stale patterns."
         ]
     }
 
