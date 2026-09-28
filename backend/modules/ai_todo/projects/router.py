@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from modules.auth.dependencies import get_current_user_id
-from modules.common.ai_client import AISettings
+from modules.common.ai import AISettings
 
 class NodeUpdate(BaseModel):
     title: Optional[str] = None

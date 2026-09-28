@@ -2,7 +2,15 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import { settingsService, DEFAULT_SETTINGS, UserSettings, OllamaStatus } from '@/lib/services/settingsService';
+import {
+  settingsService,
+  DEFAULT_SETTINGS,
+  UserSettings,
+  OllamaStatus,
+  AiDefaultInfo,
+  USE_ENV_DEFAULT_MODEL,
+} from '@/lib/services/settingsService';
+import { API_BASE_URL } from '@/lib/http/apiClient';
 
 const PROVIDERS = [
   {
@@ -75,6 +83,12 @@ const PROVIDERS = [
     color: 'text-violet-500',
     bg: 'bg-violet-500/10',
     models: [
+      {
+        id: 'claude-sonnet-5',
+        name: 'Claude Sonnet 5',
+        badge: 'Latest · Recommended',
+        tier: 'pro',
+      },
       { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', badge: 'State-of-the-Art', tier: 'pro' },
       { id: 'claude-3-5-haiku-latest',  name: 'Claude 3.5 Haiku',  badge: 'Fast', tier: 'cheap' },
     ],
@@ -105,9 +119,91 @@ const PROVIDERS = [
       { id: 'ollama', name: 'Ollama — use configured model', badge: 'Local', tier: 'free' },
     ],
   },
+  {
+    key: 'Custom',
+    label: 'Custom (OpenAI-compatible)',
+    icon: 'WrenchScrewdriverIcon',
+    color: 'text-fuchsia-500',
+    bg: 'bg-fuchsia-500/10',
+    models: [
+      { id: 'custom', name: 'Custom endpoint — use configured model', badge: 'Together.ai, Fireworks, local server…', tier: 'free' },
+    ],
+  },
 ];
 
 const ALL_MODELS = PROVIDERS.flatMap(p => p.models.map(m => ({ ...m, provider: p.key })));
+
+function findModel(id: string) {
+  return ALL_MODELS.find((m) => m.id === (id.startsWith('ollama::') ? 'ollama' : id));
+}
+
+function ollamaModelName(id: string, configured: string): string | null {
+  if (id === 'ollama') return configured || null;
+  return id.startsWith('ollama::') ? id.slice('ollama::'.length) : null;
+}
+
+const ENV_PROVIDER_KEYS: Record<string, string> = {
+  gemini: 'Google',
+  vertex: 'Vertex',
+  deepseek: 'DeepSeek',
+  groq: 'Groq',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  openrouter: 'OpenRouter',
+  ollama: 'Ollama',
+  custom: 'Custom',
+};
+
+/** undefined = GET /config/ai-default still in flight, null = it failed. */
+type AiDefaultState = AiDefaultInfo | null | undefined;
+
+const IS_FASTAPI_MODE = API_BASE_URL !== '';
+
+function describeEnvDefault(aiDefault: AiDefaultState, ollamaModel: string) {
+  if (!aiDefault) return null;
+  const { model, provider } = aiDefault;
+  const found = findModel(model);
+  // AI_PROVIDER decides where the request goes, except for ids the backend always routes by
+  // their own prefix (Vertex/Ollama/Custom); a bare '/' id with no provider goes to OpenRouter.
+  const selfRouted = model.startsWith('vertex_gemini_')
+    ? 'Vertex'
+    : model === 'ollama' || model.startsWith('ollama::')
+      ? 'Ollama'
+      : model === 'custom'
+        ? 'Custom'
+        : undefined;
+  const providerKey =
+    selfRouted ??
+    (provider ? ENV_PROVIDER_KEYS[provider] : undefined) ??
+    found?.provider ??
+    (model.includes('/') ? 'OpenRouter' : undefined);
+  const known = found && found.provider === providerKey ? found : undefined;
+  const name = ollamaModelName(model, ollamaModel) ?? known?.name ?? model;
+  const sources = {
+    AI_MODEL: provider ? `AI_PROVIDER=${provider} · AI_MODEL` : 'AI_MODEL',
+    AI_PROVIDER: `AI_PROVIDER=${provider}`,
+    builtin: 'built-in default',
+  };
+  return {
+    label: providerKey ? `${providerKey} · ${name}` : name,
+    providerKey,
+    tier: known?.tier,
+    source: sources[aiDefault.source] ?? sources.builtin,
+  };
+}
+
+function envDefaultText(aiDefault: AiDefaultState, ollamaModel: string): string {
+  if (aiDefault === undefined) return 'resolving…';
+  const d = describeEnvDefault(aiDefault, ollamaModel);
+  return d ? `${d.label} (${d.source})` : 'backend unreachable, model unknown';
+}
+
+function envPinnedOllamaModel(aiDefault: AiDefaultState): string | null {
+  if (!aiDefault) return null;
+  const { model, provider } = aiDefault;
+  if (model.startsWith('ollama::')) return model.slice('ollama::'.length);
+  return provider === 'ollama' && model !== 'ollama' ? model : null;
+}
 
 /** Pricing tier → small colored chip. free = usable at $0, cheap = low-cost paid, pro = premium paid. */
 const TIER_CHIP: Record<string, { label: string; cls: string }> = {
@@ -133,6 +229,7 @@ const API_KEY_FIELDS = [
   { key: 'openrouterKey', label: 'OpenRouter API Key',       placeholder: 'sk-or-v1-…',  note: 'Required for OpenRouter models', provider: 'OpenRouter' },
   { key: 'openaiKey',     label: 'OpenAI API Key',           placeholder: 'sk-proj-…',   note: 'Required for GPT models',      provider: 'OpenAI'    },
   { key: 'anthropicKey',  label: 'Anthropic Claude API Key', placeholder: 'sk-ant-…',    note: 'Required for Claude models',   provider: 'Anthropic' },
+  { key: 'customKey',     label: 'Custom Endpoint API Key',  placeholder: 'sk-…',        note: 'Required for the custom endpoint', provider: 'Custom' },
 ] as const;
 
 interface ModelOption { value: string; name: string; badge: string; tier?: string }
@@ -142,13 +239,19 @@ interface ModelOption { value: string; name: string; badge: string; tier?: strin
  * colored tier chip — native <option> elements only render plain text.
  */
 function ModelSelect({
-  id, value, onChange, ollamaModels, currentOllamaModel,
+  id,
+  value,
+  onChange,
+  ollamaModels,
+  currentOllamaModel,
+  aiDefault,
 }: {
   id: string;
   value: string;
   onChange: (v: string) => void;
   ollamaModels: string[];
   currentOllamaModel: string;
+  aiDefault: AiDefaultState;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -168,7 +271,19 @@ function ModelSelect({
   }, [open]);
 
   const ollamaOptions = Array.from(new Set([...(currentOllamaModel ? [currentOllamaModel] : []), ...ollamaModels]));
+  const envDefault = describeEnvDefault(aiDefault, currentOllamaModel);
   const groups: { label: string; items: ModelOption[] }[] = [
+    {
+      label: 'Server default',
+      items: [
+        {
+          value: USE_ENV_DEFAULT_MODEL,
+          name: 'Use .env default',
+          badge: envDefaultText(aiDefault, currentOllamaModel),
+          tier: envDefault?.tier,
+        },
+      ],
+    },
     ...PROVIDERS.filter(p => p.key !== 'Ollama').map(p => ({
       label: p.label,
       items: p.models.map(m => ({ value: m.id, name: m.name, badge: m.badge, tier: m.tier })),
@@ -245,11 +360,120 @@ interface EnvPrefillEntry {
   masked?: string;
 }
 
+type ToastState = { type: 'success' | 'warning' | 'error'; message: string };
+
+const TOAST_STYLES: Record<ToastState['type'], { box: string; icon: string; iconCls: string }> = {
+  success: {
+    box: 'bg-success/15 border-success text-success-foreground',
+    icon: 'CheckCircleIcon',
+    iconCls: 'text-success',
+  },
+  warning: {
+    box: 'bg-warning/15 border-warning text-foreground',
+    icon: 'ExclamationTriangleIcon',
+    iconCls: 'text-warning',
+  },
+  error: {
+    box: 'bg-error/15 border-error text-error-foreground',
+    icon: 'ExclamationTriangleIcon',
+    iconCls: 'text-error',
+  },
+};
+
+const MODEL_FIELDS = [
+  { key: 'textGenerationModel', env: 'TEXT_GENERATION_MODEL', label: 'Text Generation' },
+  { key: 'answerModel', env: 'ANSWER_MODEL', label: 'Answer Evaluation' },
+] as const;
+type ModelField = (typeof MODEL_FIELDS)[number];
+
+/** What "Import from .env" will write, so the button count and the toast agree. */
+function planEnvImport(found: EnvPrefillEntry[]) {
+  const patch: Partial<UserSettings> = {};
+  let count = 0;
+  for (const entry of found) {
+    if (entry.masked && entry.setting !== 'aiDefault') {
+      (patch as Record<string, string>)[entry.setting] = entry.masked;
+      count++;
+    }
+  }
+  // An explicit TEXT_GENERATION_MODEL / ANSWER_MODEL still wins over AI_PROVIDER / AI_MODEL.
+  const aiDefaultEnvs = found
+    .filter((e) => e.setting === 'aiDefault' && e.masked)
+    .map((e) => e.env);
+  const followEnv: ModelField[] =
+    aiDefaultEnvs.length > 0 ? MODEL_FIELDS.filter((f) => patch[f.key] === undefined) : [];
+  for (const f of followEnv) patch[f.key] = USE_ENV_DEFAULT_MODEL;
+  if (followEnv.length > 0) count += aiDefaultEnvs.length;
+  const providerEntry = found.find((e) => e.env === 'AI_PROVIDER');
+  const provider = providerEntry?.masked?.trim().toLowerCase() || null;
+  const model = found.find((e) => e.env === 'AI_MODEL')?.masked?.trim() || null;
+  return { patch, count, aiDefaultEnvs, followEnv, provider, model };
+}
+
+function envImportToast(
+  plan: ReturnType<typeof planEnvImport>,
+  aiDefault: AiDefaultState,
+  ollamaModel: string,
+  fastapiMode: boolean
+): ToastState {
+  const { count, aiDefaultEnvs, followEnv, provider, model } = plan;
+  const parts = [`Imported ${count} value${count !== 1 ? 's' : ''} from .env.`];
+  let type: ToastState['type'] = 'success';
+  if (aiDefaultEnvs.length > 0 && followEnv.length === 0) {
+    parts.push(
+      `${aiDefaultEnvs.join('/')} not applied: TEXT_GENERATION_MODEL and ANSWER_MODEL take precedence.`
+    );
+  } else if (followEnv.length > 0) {
+    const fields = followEnv.map((f) => f.label).join(' and ');
+    const explicit = MODEL_FIELDS.find((f) => !followEnv.includes(f));
+    const kept = explicit ? ` (${explicit.label} model comes from ${explicit.env})` : '';
+    parts.push(
+      `${fields} model${followEnv.length > 1 ? 's' : ''} set to "Use .env default"${kept}.`
+    );
+    const backendReads =
+      'the FastAPI backend reads AI_PROVIDER/AI_MODEL from backend/.env, not frontend/.env';
+    if (aiDefault === undefined) {
+      if (fastapiMode) type = 'warning';
+      parts.push(
+        `${fastapiMode ? `Note: ${backendReads}; its` : 'The server'} default is still resolving — check the model hints below.`
+      );
+    } else if (aiDefault === null) {
+      type = 'warning';
+      parts.push(
+        fastapiMode
+          ? `Note: ${backendReads}, and it couldn't be reached to confirm what it resolves to.`
+          : `Couldn't reach the server to confirm what "Use .env default" resolves to.`
+      );
+    } else {
+      const resolved = envDefaultText(aiDefault, ollamaModel);
+      // The backend prefixes ollama/vertex ids and ignores AI_MODEL for custom, so compare those forms.
+      const modelMismatch =
+        model !== null &&
+        provider !== 'custom' &&
+        ![model, `ollama::${model}`, `vertex_gemini_${model}`].includes(aiDefault.model);
+      const mismatch =
+        aiDefault.source === 'builtin' ||
+        (provider !== null && provider !== aiDefault.provider) ||
+        modelMismatch;
+      if (fastapiMode && mismatch) {
+        type = 'warning';
+        parts.push(
+          `Heads up: ${backendReads}, and it currently resolves "Use .env default" to ${resolved}. Edit backend/.env and restart the backend to change that.`
+        );
+      } else {
+        parts.push(`This backend resolves "Use .env default" to ${resolved}.`);
+      }
+    }
+  }
+  parts.push('Click "Save Configuration" to persist.');
+  return { type, message: parts.join(' ') };
+}
+
 export default function ConfigInteractive() {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
 
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
@@ -262,6 +486,8 @@ export default function ConfigInteractive() {
   const detectDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [testStatus, setTestStatus] = useState<Record<string, { loading: boolean; ok?: boolean; message?: string }>>({});
+
+  const [aiDefault, setAiDefault] = useState<AiDefaultState>(undefined);
 
   // ── .env prefill state ─────────────────────────────────────────────────────
   const [envPanel, setEnvPanel] = useState<{
@@ -285,17 +511,20 @@ export default function ConfigInteractive() {
     }
   };
 
+  const envImportPlan = planEnvImport(envPanel.found);
+
   const importFromEnv = () => {
-    const patch: Partial<UserSettings> = {};
-    for (const entry of envPanel.found) {
-      if (entry.masked) {
-        (patch as Record<string, string>)[entry.setting] = entry.masked;
-      }
-    }
+    const { patch } = envImportPlan;
     setSettings(prev => ({ ...prev, ...patch }));
     setEnvPanel(p => ({ ...p, imported: true }));
-    setToast({ type: 'success', message: `Imported ${envPanel.found.length} value${envPanel.found.length !== 1 ? 's' : ''} from .env — click "Save Configuration" to persist.` });
-    setTimeout(() => setToast(null), 6000);
+    const next = envImportToast(
+      envImportPlan,
+      aiDefault,
+      patch.ollamaModel ?? settings.ollamaModel,
+      IS_FASTAPI_MODE
+    );
+    setToast(next);
+    setTimeout(() => setToast(null), next.type === 'success' ? 6000 : 12000);
   };
 
   useEffect(() => {
@@ -308,6 +537,13 @@ export default function ConfigInteractive() {
       .catch(err => console.error('Failed to load settings:', err))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    settingsService
+      .getAiDefault()
+      .then(setAiDefault)
+      .catch(() => setAiDefault(null));
   }, []);
 
   const detectOllama = useCallback(async (url?: string) => {
@@ -398,10 +634,50 @@ export default function ConfigInteractive() {
     }
   };
 
-  const usesOllama = settings.textGenerationModel === 'ollama' || settings.answerModel === 'ollama';
+  type ModelKey = 'textGenerationModel' | 'answerModel';
+  const isOllamaModel = (id: string) => id === 'ollama' || id.startsWith('ollama::');
+  const effectiveModel = (key: ModelKey) => settings[key] || (aiDefault?.model ?? '');
+  const envDefault = describeEnvDefault(aiDefault, settings.ollamaModel);
+  const providerOf = (key: ModelKey) =>
+    settings[key] ? findModel(settings[key])?.provider : envDefault?.providerKey;
 
-  const selectedTextModel = ALL_MODELS.find(m => m.id === settings.textGenerationModel);
-  const selectedAModel = ALL_MODELS.find(m => m.id === settings.answerModel);
+  const usesOllama = MODEL_FIELDS.some(
+    ({ key }) =>
+      isOllamaModel(effectiveModel(key)) || (!settings[key] && aiDefault?.provider === 'ollama')
+  );
+  const activeProviders = [providerOf('textGenerationModel'), providerOf('answerModel')];
+  const envOllamaModel = MODEL_FIELDS.some(({ key }) => !settings[key])
+    ? envPinnedOllamaModel(aiDefault)
+    : null;
+  const ollamaFieldInUse = MODEL_FIELDS.some(({ key }) => effectiveModel(key) === 'ollama');
+  const isOllamaChecked = (name: string) =>
+    settings.ollamaModel === name && (ollamaFieldInUse || !envOllamaModel);
+
+  const modelHint = (key: ModelKey): string | null => {
+    const id = settings[key];
+    if (!id) return `Server default → ${envDefaultText(aiDefault, settings.ollamaModel)}`;
+    const m = findModel(id);
+    return m ? `${m.provider} · ${ollamaModelName(id, settings.ollamaModel) ?? m.badge}` : null;
+  };
+  const textModelHint = modelHint('textGenerationModel');
+  const answerModelHint = modelHint('answerModel');
+
+  const aiDefaultRowsIn = envPanel.found.some((e) => e.setting === 'aiDefault')
+    ? 'found'
+    : envPanel.missing.some((e) => e.setting === 'aiDefault')
+      ? 'missing'
+      : null;
+  const aiDefaultEnvNote = IS_FASTAPI_MODE && (
+    <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <Icon name="InformationCircleIcon" size={12} className="shrink-0" />
+      <span>
+        AI_PROVIDER / AI_MODEL are read from{' '}
+        <code className="bg-muted px-1 rounded text-[10px] font-code">backend/.env</code> by the
+        FastAPI backend — importing them only sets models to &quot;Use .env default&quot; (now:{' '}
+        {envDefaultText(aiDefault, settings.ollamaModel)}).
+      </span>
+    </p>
+  );
 
   useEffect(() => {
     if (!loading && settings.ollamaUrl) {
@@ -421,11 +697,17 @@ export default function ConfigInteractive() {
   return (
     <div className="space-y-24">
       {toast && (
-        <div className={`p-18 rounded-lg border flex items-center gap-12 animate-fade-in shadow-lg ${
-          toast.type === 'success' ? 'bg-success/15 border-success text-success-foreground' : 'bg-error/15 border-error text-error-foreground'
-        }`}>
-          <Icon name={toast.type === 'success' ? 'CheckCircleIcon' : 'ExclamationTriangleIcon'} size={20} variant="solid"
-            className={toast.type === 'success' ? 'text-success' : 'text-error'} />
+        <div
+          className={`p-18 rounded-lg border flex items-center gap-12 animate-fade-in shadow-lg ${
+            TOAST_STYLES[toast.type].box
+          }`}
+        >
+          <Icon
+            name={TOAST_STYLES[toast.type].icon}
+            size={20}
+            variant="solid"
+            className={`shrink-0 ${TOAST_STYLES[toast.type].iconCls}`}
+          />
           <span className="text-sm font-medium">{toast.message}</span>
         </div>
       )}
@@ -500,6 +782,7 @@ export default function ConfigInteractive() {
                         </div>
                       ))}
                     </div>
+                    {aiDefaultRowsIn === 'found' && aiDefaultEnvNote}
                   </div>
                 )}
 
@@ -520,6 +803,7 @@ export default function ConfigInteractive() {
                         </div>
                       ))}
                     </div>
+                    {aiDefaultRowsIn === 'missing' && aiDefaultEnvNote}
                   </div>
                 )}
 
@@ -544,7 +828,11 @@ export default function ConfigInteractive() {
                       {envPanel.imported ? (
                         <><Icon name="CheckIcon" size={14} />Imported — save below</>
                       ) : (
-                        <><Icon name="ArrowDownTrayIcon" size={14} />Import {envPanel.found.length} value{envPanel.found.length !== 1 ? 's' : ''} into fields</>
+                        <>
+                          <Icon name="ArrowDownTrayIcon" size={14} />
+                          Import {envImportPlan.count} value{envImportPlan.count !== 1 ? 's' : ''}{' '}
+                          into fields
+                        </>
                       )}
                     </button>
                     <span className="text-[11px] text-muted-foreground">
@@ -574,8 +862,7 @@ export default function ConfigInteractive() {
           {/* Provider pills */}
           <div className="flex flex-wrap gap-2">
             {PROVIDERS.map(p => {
-              const active = settings.textGenerationModel && ALL_MODELS.find(m => m.id === settings.textGenerationModel)?.provider === p.key
-                          || settings.answerModel && ALL_MODELS.find(m => m.id === settings.answerModel)?.provider === p.key;
+              const active = activeProviders.includes(p.key);
               return (
                 <span key={p.key}
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
@@ -599,11 +886,10 @@ export default function ConfigInteractive() {
                 onChange={handleModelSelectChange('textGenerationModel')}
                 ollamaModels={ollamaModels}
                 currentOllamaModel={settings.ollamaModel}
+                aiDefault={aiDefault}
               />
-              {selectedTextModel && (
-                <span className="text-[11px] text-muted-foreground">
-                  {selectedTextModel.provider} · {settings.textGenerationModel === 'ollama' ? settings.ollamaModel : selectedTextModel.badge}
-                </span>
+              {textModelHint && (
+                <span className="text-[11px] text-muted-foreground">{textModelHint}</span>
               )}
               <span className="block text-[11px] text-muted-foreground/60">The main LLM for the app — used for daily topic expansion, parsing CV details, and all other AI generation (e.g. LinkedIn Post Generator).</span>
             </div>
@@ -618,15 +904,21 @@ export default function ConfigInteractive() {
                 onChange={handleModelSelectChange('answerModel')}
                 ollamaModels={ollamaModels}
                 currentOllamaModel={settings.ollamaModel}
+                aiDefault={aiDefault}
               />
-              {selectedAModel && (
-                <span className="text-[11px] text-muted-foreground">
-                  {selectedAModel.provider} · {settings.answerModel === 'ollama' ? settings.ollamaModel : selectedAModel.badge}
-                </span>
+              {answerModelHint && (
+                <span className="text-[11px] text-muted-foreground">{answerModelHint}</span>
               )}
               <span className="block text-[11px] text-muted-foreground/60">Used to score answers, provide STAR guidelines, and highlight improvements.</span>
             </div>
           </div>
+
+          {aiDefault?.warning && (
+            <p className="flex items-center gap-1.5 text-[11px] text-amber-500">
+              <Icon name="ExclamationTriangleIcon" size={12} className="shrink-0" />
+              {aiDefault.warning}
+            </p>
+          )}
         </div>
 
         {/* Ollama Local Config */}
@@ -757,6 +1049,17 @@ export default function ConfigInteractive() {
                 ) : (
                   <span className="block text-[11px] text-muted-foreground/60">Any model pulled via <code className="bg-muted px-1 rounded text-[10px]">ollama pull &lt;name&gt;</code></span>
                 )}
+                {envOllamaModel && (
+                  <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                    <Icon name="InformationCircleIcon" size={12} className="shrink-0 mt-0.5" />
+                    <span>
+                      Server default uses <span className="font-code">{envOllamaModel}</span>{' '}
+                      (AI_MODEL); this field applies to models set to plain{' '}
+                      <code className="bg-muted px-1 rounded text-[10px]">ollama</code>, e.g. the
+                      To-Do local toggle.
+                    </span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -771,20 +1074,29 @@ export default function ConfigInteractive() {
                       type="button"
                       onClick={() => handleChange('ollamaModel', m.name)}
                       className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-smooth ${
-                        settings.ollamaModel === m.name
+                        isOllamaChecked(m.name)
                           ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                           : 'border-border text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground'
                       }`}
                     >
                       <span className="font-code">{m.name}</span>
                       {m.size_gb && (
-                        <span className={`text-[9px] font-semibold px-1 rounded ${
-                          settings.ollamaModel === m.name ? 'bg-emerald-500/20 text-emerald-500' : 'bg-muted text-muted-foreground'
-                        }`}>
+                        <span
+                          className={`text-[9px] font-semibold px-1 rounded ${
+                            isOllamaChecked(m.name)
+                              ? 'bg-emerald-500/20 text-emerald-500'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
                           {m.size_gb} GB
                         </span>
                       )}
-                      {settings.ollamaModel === m.name && (
+                      {m.name === envOllamaModel && (
+                        <span className="text-[9px] font-semibold px-1 rounded bg-muted text-muted-foreground">
+                          AI_MODEL
+                        </span>
+                      )}
+                      {isOllamaChecked(m.name) && (
                         <Icon name="CheckIcon" size={10} className="text-emerald-500" variant="solid" />
                       )}
                     </button>
@@ -892,6 +1204,40 @@ export default function ConfigInteractive() {
                     />
                     <p className="text-[11px] text-muted-foreground">
                       Default: <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-code">https://openrouter.ai/api/v1</code>. Supports OpenRouter proxies and compatible endpoints.
+                    </p>
+                  </div>
+                )}
+
+                {field.key === 'customKey' && (
+                  <div className="mt-8 p-12 rounded-md bg-muted/40 border border-border/80 space-y-10">
+                    <div className="space-y-6">
+                      <label htmlFor="customBaseUrl" className="block text-xs font-semibold text-foreground">
+                        Base URL
+                      </label>
+                      <input
+                        id="customBaseUrl"
+                        type="text"
+                        value={settings.customBaseUrl}
+                        onChange={e => handleChange('customBaseUrl', e.target.value)}
+                        placeholder="https://api.together.xyz/v1"
+                        className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring font-code"
+                      />
+                    </div>
+                    <div className="space-y-6">
+                      <label htmlFor="customModel" className="block text-xs font-semibold text-foreground">
+                        Model Name
+                      </label>
+                      <input
+                        id="customModel"
+                        type="text"
+                        value={settings.customModel}
+                        onChange={e => handleChange('customModel', e.target.value)}
+                        placeholder="meta-llama/Llama-3.3-70B-Instruct-Turbo"
+                        className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring font-code"
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Any server exposing an OpenAI-compatible <code className="bg-muted px-1 rounded text-[10px] font-code">/chat/completions</code> endpoint — Together.ai, Fireworks, a local LM Studio or vLLM server, etc. Select &quot;Custom endpoint&quot; above as your Text Generation Model to use it.
                     </p>
                   </div>
                 )}

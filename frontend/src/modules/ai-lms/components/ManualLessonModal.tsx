@@ -122,8 +122,8 @@ export default function ManualLessonModal({
         onSaved(created);
       }
       onClose();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to save lesson');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save lesson');
     } finally {
       setLoading(false);
     }
@@ -142,7 +142,8 @@ export default function ManualLessonModal({
                 {lessonToEdit ? 'Edit Lesson' : 'Create Lesson Manually'}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Target: {targetClass.name} {targetSubject ? `→ ${targetSubject.name}` : '(Direct Class)'}
+                Target: {targetClass.name}{' '}
+                {targetSubject ? `→ ${targetSubject.name}` : '(Direct Class)'}
               </p>
             </div>
           </div>

@@ -1,11 +1,11 @@
 import { handleGetLesson, handleUpdateLesson, handleDeleteLesson } from 'fe-apis/lms';
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ lessonId: string }> }
 ) {
   const { lessonId } = await params;
-  return handleGetLesson(lessonId);
+  return handleGetLesson(lessonId, req);
 }
 
 export async function PATCH(
@@ -17,9 +17,9 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ lessonId: string }> }
 ) {
   const { lessonId } = await params;
-  return handleDeleteLesson(lessonId);
+  return handleDeleteLesson(lessonId, req);
 }

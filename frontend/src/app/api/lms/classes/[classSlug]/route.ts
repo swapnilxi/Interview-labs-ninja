@@ -1,11 +1,11 @@
 import { handleGetClass, handleUpdateClass, handleDeleteClass } from 'fe-apis/lms';
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ classSlug: string }> }
 ) {
   const { classSlug } = await params;
-  return handleGetClass(classSlug);
+  return handleGetClass(classSlug, req);
 }
 
 export async function PATCH(
@@ -17,9 +17,9 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ classSlug: string }> }
 ) {
   const { classSlug } = await params;
-  return handleDeleteClass(classSlug);
+  return handleDeleteClass(classSlug, req);
 }

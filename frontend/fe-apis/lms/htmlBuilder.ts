@@ -5,7 +5,130 @@
  * technical educational structure. No lesson is ever blank, unstyled, or incomplete.
  */
 
-import { generateNativeVisual } from './ai';
+import { generateNativeVisual } from './visualEngine';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared "premium" design system: the single source of truth for lesson colors,
+// used both by the deterministic fallback template below (buildStructuredLessonHtml)
+// and embedded as a literal instruction block inside the AI lesson-generation prompt
+// (see index.ts's handleGenerateLesson) -- so AI-generated and template-generated
+// lessons land on the same palette instead of each inventing its own dark-navy/neon
+// look. Palette mirrors the host app's own design tokens
+// (frontend/src/styles/tailwind.css) so a lesson reads as part of the same product
+// rather than a bolted-on AI artifact. Kept as a text-identical mirror of
+// backend/modules/ai_lms/visual_engine.py's PREMIUM_DESIGN_TOKENS_CSS /
+// PREMIUM_DESIGN_SYSTEM_PROMPT for the FastAPI-mode code path.
+// ─────────────────────────────────────────────────────────────────────────────
+export const PREMIUM_DESIGN_TOKENS_CSS = `:root {
+      color-scheme: light dark;
+      --bg: #f7f3ec;
+      --surface: #fffaf2;
+      --surface-2: #efe7d9;
+      --text: #24201b;
+      --text-muted: #71695f;
+      --border: rgba(64, 55, 45, 0.14);
+      --border-strong: rgba(64, 55, 45, 0.22);
+      --primary: #5b5bd6;
+      --primary-soft: rgba(91, 91, 214, 0.1);
+      --secondary: #127c7a;
+      --secondary-soft: rgba(18, 124, 122, 0.1);
+      --accent: #b36b17;
+      --accent-soft: rgba(179, 107, 23, 0.12);
+      --success: #14845f;
+      --success-soft: rgba(20, 132, 95, 0.12);
+      --danger: #c24151;
+      --danger-soft: rgba(194, 65, 81, 0.12);
+      --code-bg: #1c1a17;
+      --code-text: #f2ede2;
+      --code-border: rgba(255, 255, 255, 0.08);
+      --shadow: 0 1px 2px rgba(36, 32, 27, 0.05), 0 12px 28px -14px rgba(36, 32, 27, 0.2);
+      --radius: 14px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #17140f;
+        --surface: #201c16;
+        --surface-2: #2a251d;
+        --text: #f4efe7;
+        --text-muted: #b3a696;
+        --border: rgba(255, 246, 235, 0.1);
+        --border-strong: rgba(255, 246, 235, 0.16);
+        --primary: #9694f5;
+        --primary-soft: rgba(150, 148, 245, 0.14);
+        --secondary: #5fc6bd;
+        --secondary-soft: rgba(95, 198, 189, 0.12);
+        --accent: #f1ad55;
+        --accent-soft: rgba(241, 173, 85, 0.14);
+        --success: #54c79a;
+        --success-soft: rgba(84, 199, 154, 0.14);
+        --danger: #fb7185;
+        --danger-soft: rgba(251, 113, 133, 0.14);
+        --code-bg: #14110d;
+        --code-text: #f2ede2;
+        --code-border: rgba(255, 255, 255, 0.07);
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
+      }
+    }`;
+
+export const PREMIUM_DESIGN_SYSTEM_PROMPT = `AESTHETICS & DESIGN SYSTEM (MANDATORY -- "premium, clean, modern", not generic
+AI-slop dark-navy-with-neon-gradients):
+- This lesson must look like it belongs inside a polished, cohesive product (think
+  Stripe's docs, Linear, ByteByteGo) -- restrained and editorial, content-first.
+  Avoid: neon glow effects, gradient-filled headline text, emoji used as primary
+  iconography, an over-saturated "hacker" dark-blue palette, or excessive box-shadow.
+- Embed this exact \`:root\` custom-property block near the top of your <style> --
+  it auto-adapts to the reader's OS light/dark preference via prefers-color-scheme.
+  You may add a few extra tokens if a specific visual genuinely needs one, but do
+  not rename or drop these:
+  \`\`\`css
+  ${PREMIUM_DESIGN_TOKENS_CSS}
+  \`\`\`
+- Typography: system font stack (already specified above); body copy 1-1.05rem at
+  1.7 line-height in var(--text). h1 ~2.1rem/800 weight, tight letter-spacing, plain
+  var(--text) color (NOT a gradient fill -- at most one word may use var(--primary)
+  for emphasis). h2 ~1.4rem/700 with a small 4px tall accent-colored bar to its left.
+  Content column max-width ~760-820px, centered, with generous 2.5-3rem vertical
+  rhythm between sections.
+- Badges/pills: small uppercase label, border-radius:999px, soft tinted background
+  (one of the *-soft tokens) with matching text color, no border, text only (e.g.
+  "AI", "8 MIN READ") -- no emoji.
+- Callout boxes (Key Takeaway / Tip / Warning / Deep Dive): background var(--surface-2),
+  a 3-4px solid left border in the matching semantic color, border-radius rounded
+  only on the right side, label text in that same color, body text in var(--text).
+- Code blocks: a distinct dark "terminal" surface (var(--code-bg)/var(--code-text))
+  even in light mode, with a small header bar above the code -- three small
+  decorative dots and an optional language label on the left, a plain-text "Copy"
+  button on the right -- rather than a button floating on top of the code itself.
+- Quiz cards: var(--surface) background, options as full-width left-aligned buttons
+  with a subtle hover (border becomes var(--primary)); once answered, apply
+  var(--success-soft)/var(--success) or var(--danger-soft)/var(--danger) -- reference
+  these CSS variables for state colors, never hardcode raw green/red hex, so the
+  page stays correct in both themes.
+- Takeaways: a checklist using a small custom circular checkmark (a CSS ::before,
+  not an emoji), not the browser's default list bullets.
+- Any inline SVG/Canvas diagram you draw should also pull its colors from these same
+  CSS variables (var(--surface), var(--border), var(--primary), var(--secondary),
+  var(--accent)) instead of inventing an unrelated palette, so the diagram reads as
+  part of the same page rather than a pasted-in widget.
+- Keep every color as a CSS variable reference -- no ad-hoc hardcoded hex scattered
+  through component rules -- so the single prefers-color-scheme block above is the
+  only place theme-switching logic lives.
+- VISIBILITY CHECKLIST (verify each of these explicitly before finishing -- these are
+  exactly the elements most often left with a hardcoded color that only works in ONE
+  theme, breaking the other):
+  * Every heading (h1-h6) has \`color: var(--text)\` (or a semantic accent variable) --
+    never a bare hardcoded hex, and never left to inherit a browser default.
+  * \`hr\` and any decorative divider line has \`border-color: var(--border)\` (or
+    equivalent) -- a plain unstyled \`<hr>\` renders with the browser's own default
+    color, which is not guaranteed to be visible against your \`--bg\` in both themes.
+  * Links (\`a\`) have an explicit \`color\` from a variable, not the browser default blue.
+  * Body text, list items, table cells, and blockquotes all resolve to \`var(--text)\`
+    or \`var(--text-muted)\` -- never left unset to inherit something that only happens
+    to look right in the theme you were previewing.
+  * Every rule you write inside the \`@media (prefers-color-scheme: dark)\` block has a
+    matching rule (or inherited variable) for light mode, and vice versa -- a color
+    correctly overridden for only one theme is the single most common cause of
+    invisible text.`;
 
 export interface StructuredLessonOptions {
   title: string;
@@ -561,17 +684,30 @@ export class ProductionEngine {
   };
 }
 
+/**
+ * True when `rawAiOutput` looks like a genuinely complete, usable lesson document
+ * (as opposed to something truncated mid-generation or otherwise malformed) --
+ * shared by the manual-lesson-creation fallback below and by the AI generation path
+ * in index.ts, which errors out rather than silently substituting the generic
+ * template in this file when this returns false.
+ */
+export function isCompleteAiLessonHtml(rawAiOutput: string): boolean {
+  const raw = (rawAiOutput || '').trim();
+  const rawLower = raw.toLowerCase();
+  return (
+    rawLower.includes('<html') &&
+    rawLower.includes('</html>') &&
+    (rawLower.includes('<style') || rawLower.includes('class=')) &&
+    raw.length > 1000 &&
+    (rawLower.includes('quiz') || rawLower.includes('objective') || rawLower.includes('visual'))
+  );
+}
+
 export function buildStructuredLessonHtml(opts: StructuredLessonOptions): string {
   const raw = (opts.rawAiOutput || '').trim();
 
   // If the model already returned a complete, valid HTML document with styles and structure
-  if (
-    raw.includes('<html') &&
-    raw.includes('</html>') &&
-    (raw.includes('<style') || raw.includes('class=')) &&
-    raw.length > 1000 &&
-    (raw.includes('quiz') || raw.includes('objective') || raw.includes('visual'))
-  ) {
+  if (isCompleteAiLessonHtml(raw)) {
     let clean = raw;
     if (clean.startsWith('```')) {
       clean = clean.replace(/^```[a-zA-Z0-9_-]*\n?/, '');
@@ -636,10 +772,10 @@ ${optButtons}
     contextBannerItems.push(`<div class="context-item"><span class="context-label">Domain Scope:</span> ${escapeHtml(opts.classDescription)}</div>`);
   }
   if (opts.classContext) {
-    contextBannerItems.push(`<div class="context-item"><span class="context-label">🤖 AI Guidance:</span> ${escapeHtml(opts.classContext)}</div>`);
+    contextBannerItems.push(`<div class="context-item"><span class="context-label">AI Guidance:</span> ${escapeHtml(opts.classContext)}</div>`);
   }
   if (opts.subjectContext) {
-    contextBannerItems.push(`<div class="context-item"><span class="context-label">🎯 Subject Focus:</span> ${escapeHtml(opts.subjectContext)}</div>`);
+    contextBannerItems.push(`<div class="context-item"><span class="context-label">Subject Focus:</span> ${escapeHtml(opts.subjectContext)}</div>`);
   }
   if (opts.subjectDescription) {
     contextBannerItems.push(`<div class="context-item"><span class="context-label">Subject Scope:</span> ${escapeHtml(opts.subjectDescription)}</div>`);
@@ -647,7 +783,7 @@ ${optButtons}
 
   const contextBannerHtml = contextBannerItems.length > 0
     ? `  <div class="context-banner">
-    <div class="context-badge">📘 Class: <strong>${escapeHtml(clsName)}</strong> &bull; Subject: <strong>${escapeHtml(subjName)}</strong></div>
+    <div class="context-badge">Class: <strong>${escapeHtml(clsName)}</strong> &bull; Subject: <strong>${escapeHtml(subjName)}</strong></div>
     ${contextBannerItems.join('\n    ')}
   </div>`
     : '';
@@ -659,237 +795,249 @@ ${optButtons}
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${finalTitle} | AI LMS</title>
   <style>
-    :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --card-hover: #334155;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --primary: #818cf8;
-      --success: #34d399;
-      --warning: #fbbf24;
-      --danger: #f87171;
-      --border: #334155;
-    }
+    ${PREMIUM_DESIGN_TOKENS_CSS}
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      line-height: 1.65;
-      padding: 3rem 1.5rem;
-      max-width: 900px;
+      line-height: 1.7;
+      padding: 3.5rem 1.5rem 5rem;
+      max-width: 800px;
       margin: 0 auto;
     }
+    ::selection { background: var(--primary-soft); color: var(--text); }
     header {
-      margin-bottom: 1.5rem;
+      margin-bottom: 2rem;
       border-bottom: 1px solid var(--border);
-      padding-bottom: 1.5rem;
+      padding-bottom: 1.75rem;
     }
     .badges {
       display: flex;
       gap: 0.5rem;
       align-items: center;
-      margin-bottom: 1rem;
+      margin-bottom: 1.1rem;
       flex-wrap: wrap;
     }
     .badge {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 700;
-      padding: 0.25rem 0.65rem;
-      border-radius: 9999px;
-      letter-spacing: 0.03em;
+      padding: 0.3rem 0.7rem;
+      border-radius: 999px;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
     }
-    .badge-class {
-      background: rgba(129, 140, 248, 0.15);
-      color: var(--primary);
-      border: 1px solid rgba(129, 140, 248, 0.3);
-    }
-    .badge-subject {
-      background: rgba(56, 189, 248, 0.15);
-      color: var(--accent);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-    }
-    .badge-time {
-      background: rgba(251, 191, 36, 0.15);
-      color: var(--warning);
-      border: 1px solid rgba(251, 191, 36, 0.3);
-    }
-    .badge-interactive {
-      background: rgba(52, 211, 153, 0.15);
-      color: var(--success);
-      border: 1px solid rgba(52, 211, 153, 0.3);
-    }
+    .badge-class { background: var(--primary-soft); color: var(--primary); }
+    .badge-subject { background: var(--secondary-soft); color: var(--secondary); }
+    .badge-time { background: var(--surface-2); color: var(--text-muted); }
+    .badge-interactive { background: var(--success-soft); color: var(--success); }
     h1 {
-      font-size: 2.4rem;
+      font-size: 2.1rem;
       font-weight: 800;
-      color: #ffffff;
-      letter-spacing: -0.025em;
+      color: var(--text);
+      letter-spacing: -0.02em;
       margin-bottom: 0.6rem;
       line-height: 1.25;
     }
     .subtitle {
-      font-size: 1.15rem;
-      color: var(--muted);
-      line-height: 1.5;
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 60ch;
     }
     .context-banner {
-      background: rgba(30, 41, 59, 0.5);
+      background: var(--surface-2);
       border: 1px solid var(--border);
       border-left: 3px solid var(--primary);
-      border-radius: 0.5rem;
-      padding: 0.85rem 1.25rem;
-      margin: 1.5rem 0 2rem 0;
+      border-radius: 0 10px 10px 0;
+      padding: 0.9rem 1.25rem;
+      margin: 1.75rem 0 2rem;
       font-size: 0.85rem;
-      color: #94a3b8;
+      color: var(--text-muted);
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
     }
     .context-badge {
-      color: #f8fafc;
+      color: var(--text);
       font-size: 0.88rem;
+      font-weight: 600;
     }
     .context-item {
-      line-height: 1.45;
+      line-height: 1.5;
     }
     .context-label {
-      color: var(--accent);
+      color: var(--primary);
       font-weight: 600;
       margin-right: 0.35rem;
     }
     .objectives-card {
-      background: var(--card);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 0.75rem;
-      padding: 1.5rem;
+      border-radius: var(--radius);
+      padding: 1.5rem 1.75rem;
       margin: 2rem 0;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      box-shadow: var(--shadow);
     }
     .objectives-title {
-      font-size: 0.95rem;
+      font-size: 0.78rem;
       font-weight: 700;
-      color: var(--accent);
+      color: var(--primary);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.85rem;
     }
     .objectives-list {
-      padding-left: 1.25rem;
-      color: #cbd5e1;
+      list-style: none;
+      color: var(--text);
     }
     .objectives-list li {
-      margin-bottom: 0.4rem;
+      position: relative;
+      padding-left: 1.4rem;
+      margin-bottom: 0.55rem;
+      line-height: 1.55;
+    }
+    .objectives-list li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.5em;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--primary);
     }
     section {
       margin-bottom: 3rem;
     }
     h2 {
-      font-size: 1.5rem;
+      font-size: 1.4rem;
       font-weight: 700;
-      color: #ffffff;
-      margin-bottom: 1rem;
+      color: var(--text);
+      margin-bottom: 1.1rem;
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.65rem;
     }
     h2::before {
       content: '';
       display: inline-block;
       width: 4px;
-      height: 1.2em;
-      background: var(--accent);
+      height: 1.1em;
+      background: var(--primary);
       border-radius: 2px;
+      flex-shrink: 0;
     }
     p {
       margin-bottom: 1.2rem;
-      color: #cbd5e1;
-      font-size: 1.05rem;
-      line-height: 1.7;
+      color: var(--text);
+      opacity: 0.92;
+      font-size: 1.02rem;
+      line-height: 1.75;
     }
     .callout {
-      background: rgba(30, 41, 59, 0.7);
-      border-left: 4px solid var(--accent);
-      border-radius: 0 0.5rem 0.5rem 0;
-      padding: 1.25rem;
+      background: var(--surface-2);
+      border-left: 3px solid var(--primary);
+      border-radius: 0 10px 10px 0;
+      padding: 1.15rem 1.4rem;
       margin: 1.5rem 0;
-      color: #e2e8f0;
+      color: var(--text);
+      font-size: 0.98rem;
+      line-height: 1.65;
     }
     .callout strong {
-      color: var(--accent);
+      color: var(--primary);
+    }
+    .code-block {
+      border: 1px solid var(--code-border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 1.5rem 0;
+      box-shadow: var(--shadow);
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0.9rem;
+      background: var(--code-bg);
+      border-bottom: 1px solid var(--code-border);
+    }
+    .code-dots {
+      display: flex;
+      gap: 0.35rem;
+    }
+    .code-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: rgba(242, 237, 226, 0.18);
     }
     pre {
-      background: #020617;
-      border: 1px solid var(--border);
-      border-radius: 0.5rem;
-      padding: 1.25rem;
+      background: var(--code-bg);
+      padding: 1.25rem 1.4rem;
       overflow-x: auto;
       font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 0.9rem;
-      margin: 1.5rem 0;
-      color: #e2e8f0;
-      position: relative;
+      font-size: 0.88rem;
+      color: var(--code-text);
+      margin: 0;
     }
     .copy-btn {
-      position: absolute;
-      top: 0.6rem;
-      right: 0.6rem;
-      background: #1e293b;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      border-radius: 0.375rem;
-      padding: 0.25rem 0.6rem;
-      font-size: 0.75rem;
+      background: transparent;
+      border: 1px solid var(--code-border);
+      color: rgba(242, 237, 226, 0.7);
+      border-radius: 6px;
+      padding: 0.25rem 0.65rem;
+      font-size: 0.72rem;
       cursor: pointer;
       font-family: inherit;
-      transition: all 0.2s;
+      transition: all 0.15s ease;
     }
     .copy-btn:hover {
-      background: #334155;
-      color: #ffffff;
+      background: rgba(242, 237, 226, 0.08);
+      color: var(--code-text);
     }
     .table-container {
       overflow-x: auto;
       margin: 1.5rem 0;
-      border-radius: 0.5rem;
+      border-radius: 10px;
       border: 1px solid var(--border);
     }
     table {
       width: 100%;
       border-collapse: collapse;
       text-align: left;
-      font-size: 0.95rem;
+      font-size: 0.92rem;
     }
     th {
-      background: #1e293b;
-      color: #ffffff;
+      background: var(--surface-2);
+      color: var(--text);
       padding: 0.75rem 1rem;
       font-weight: 700;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
       border-bottom: 1px solid var(--border);
     }
     td {
       padding: 0.75rem 1rem;
-      border-bottom: 1px solid rgba(51, 65, 85, 0.5);
-      color: #cbd5e1;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
     }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: rgba(30, 41, 59, 0.5); }
+    tr:hover td { background: var(--surface-2); }
     .quiz-section {
-      background: var(--card);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 0.75rem;
+      border-radius: var(--radius);
       padding: 1.75rem;
       margin-top: 3rem;
+      box-shadow: var(--shadow);
     }
     .quiz-header {
-      font-size: 1.25rem;
+      font-size: 1.05rem;
       font-weight: 700;
-      color: var(--accent);
+      color: var(--text);
       margin-bottom: 1.25rem;
       display: flex;
       align-items: center;
@@ -898,77 +1046,126 @@ ${optButtons}
       flex-wrap: wrap;
     }
     .quiz-score-badge {
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 700;
-      padding: 0.2rem 0.6rem;
-      border-radius: 9999px;
-      background: rgba(56, 189, 248, 0.15);
-      color: var(--accent);
-      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--text-muted);
+    }
+    .quiz-score-badge.is-correct {
+      background: var(--success-soft);
+      color: var(--success);
     }
     .quiz-card {
-      background: #0f172a;
+      background: var(--bg);
       border: 1px solid var(--border);
-      border-radius: 0.5rem;
+      border-radius: 10px;
       padding: 1.25rem;
-      margin-bottom: 1.25rem;
+      margin-bottom: 1.1rem;
     }
     .quiz-question {
       font-weight: 600;
       margin-bottom: 1rem;
-      color: #ffffff;
-      font-size: 1rem;
+      color: var(--text);
+      font-size: 0.98rem;
     }
     .quiz-options {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 0.55rem;
     }
     .quiz-option-btn {
-      background: #1e293b;
+      background: var(--surface);
       border: 1px solid var(--border);
-      color: #cbd5e1;
-      padding: 0.75rem 1rem;
-      border-radius: 0.375rem;
+      color: var(--text);
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
       text-align: left;
       cursor: pointer;
-      font-size: 0.95rem;
-      transition: all 0.2s;
+      font-size: 0.92rem;
+      font-family: inherit;
+      transition: all 0.15s ease;
     }
     .quiz-option-btn:hover {
-      border-color: var(--accent);
-      color: #ffffff;
-      background: #273549;
+      border-color: var(--primary);
+      background: var(--primary-soft);
+    }
+    .quiz-option-btn:disabled { cursor: default; }
+    .quiz-option-btn.is-correct {
+      border-color: var(--success);
+      background: var(--success-soft);
+      color: var(--text);
+    }
+    .quiz-option-btn.is-incorrect {
+      border-color: var(--danger);
+      background: var(--danger-soft);
+      color: var(--text);
     }
     .quiz-feedback {
       margin-top: 0.75rem;
       padding: 0.75rem 1rem;
-      border-radius: 0.375rem;
-      font-size: 0.9rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      line-height: 1.55;
       display: none;
     }
+    .quiz-feedback.is-correct {
+      display: block;
+      background: var(--success-soft);
+      color: var(--success);
+      border: 1px solid var(--success);
+    }
+    .quiz-feedback.is-incorrect {
+      display: block;
+      background: var(--danger-soft);
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
     .takeaways-card {
-      background: rgba(30, 41, 59, 0.5);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 0.75rem;
-      padding: 1.5rem;
+      border-radius: var(--radius);
+      padding: 1.5rem 1.75rem;
       margin-top: 2rem;
     }
     .takeaways-title {
-      font-size: 1rem;
+      font-size: 0.85rem;
       font-weight: 700;
-      color: var(--success);
-      margin-bottom: 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      color: var(--secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.85rem;
     }
     .takeaways-list {
-      padding-left: 1.25rem;
-      color: #cbd5e1;
+      list-style: none;
     }
     .takeaways-list li {
-      margin-bottom: 0.4rem;
+      position: relative;
+      padding-left: 1.6rem;
+      margin-bottom: 0.6rem;
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .takeaways-list li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      top: -0.05em;
+      width: 1.05rem;
+      height: 1.05rem;
+      border-radius: 50%;
+      background: var(--success-soft);
+      color: var(--success);
+      font-size: 0.65rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    @media (max-width: 640px) {
+      body { padding: 2rem 1.1rem 4rem; }
+      h1 { font-size: 1.6rem; }
     }
   </style>
 </head>
@@ -977,8 +1174,8 @@ ${optButtons}
     <div class="badges">
       <span class="badge badge-class">${clsName}</span>
       <span class="badge badge-subject">${subjName}</span>
-      <span class="badge badge-time">⏱️ 8 min read</span>
-      <span class="badge badge-interactive">⚡ Interactive Simulation</span>
+      <span class="badge badge-time">8 min read</span>
+      <span class="badge badge-interactive">Interactive</span>
     </div>
     <h1>${finalTitle}</h1>
     <div class="subtitle">${profile.subtitle}</div>
@@ -987,7 +1184,7 @@ ${optButtons}
 ${contextBannerHtml}
 
   <div class="objectives-card">
-    <div class="objectives-title">🎯 Core Learning Objectives</div>
+    <div class="objectives-title">Learning Objectives</div>
     <ul class="objectives-list">
 ${objsHtml}
     </ul>
@@ -1031,28 +1228,33 @@ ${tradeoffRows}
   <section>
     <h2>Production Implementation Pattern</h2>
     <p>Below is a production-grade TypeScript implementation illustrating the core architectural mechanics:</p>
-    <pre><code><button class="copy-btn" onclick="navigator.clipboard.writeText(this.parentElement.innerText); this.innerText='Copied!'; setTimeout(() => this.innerText='Copy', 2000)">Copy</button>${escapeHtml(profile.code)}</code></pre>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></span>
+        <button class="copy-btn" onclick="const codeEl=this.closest('.code-block').querySelector('code'); navigator.clipboard.writeText(codeEl.innerText); this.innerText='Copied'; setTimeout(() => this.innerText='Copy', 2000)">Copy</button>
+      </div>
+      <pre><code>${escapeHtml(profile.code)}</code></pre>
+    </div>
   </section>
 
   <!-- Interactive Knowledge Check Quiz -->
   <div class="quiz-section">
     <div class="quiz-header">
-      <span>🧠 Interactive Knowledge Check</span>
+      <span>Knowledge Check</span>
       <span class="quiz-score-badge" id="quizScoreBadge">Score: 0 / ${profile.quiz.length}</span>
     </div>
-    
+
 ${quizCards}
   </div>
 
   <div class="takeaways-card">
-    <div class="takeaways-title">🏁 Key Takeaways & Checklist</div>
+    <div class="takeaways-title">Key Takeaways</div>
     <ul class="takeaways-list">
 ${takeawaysHtml}
     </ul>
   </div>
 
   <script>
-    let answered = 0;
     let correctCount = 0;
     const totalQ = ${profile.quiz.length};
 
@@ -1062,28 +1264,19 @@ ${takeawaysHtml}
       const btns = card.querySelectorAll('.quiz-option-btn');
       btns.forEach((btn, idx) => {
         btn.disabled = true;
-        btn.style.cursor = 'default';
         if (idx === optIdx) {
-          btn.style.borderColor = isCorrect ? '#22c55e' : '#ef4444';
-          btn.style.background = isCorrect ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-          btn.style.color = '#ffffff';
+          btn.classList.add(isCorrect ? 'is-correct' : 'is-incorrect');
         }
       });
-      fb.style.display = 'block';
-      fb.style.background = isCorrect ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)';
-      fb.style.color = isCorrect ? '#4ade80' : '#f87171';
-      fb.style.border = '1px solid ' + (isCorrect ? '#22c55e' : '#ef4444');
-      fb.innerHTML = (isCorrect ? '<strong>Correct!</strong> ' : '<strong>Incorrect.</strong> ') + explanation;
+      fb.classList.add(isCorrect ? 'is-correct' : 'is-incorrect');
+      fb.innerHTML = (isCorrect ? '<strong>Correct.</strong> ' : '<strong>Not quite.</strong> ') + explanation;
 
-      answered++;
       if (isCorrect) correctCount++;
       const scoreBadge = document.getElementById('quizScoreBadge');
       if (scoreBadge) {
-        scoreBadge.innerText = 'Score: ' + correctCount + ' / ' + totalQ + ' (' + Math.round((correctCount / totalQ) * 100) + '%)';
+        scoreBadge.innerText = 'Score: ' + correctCount + ' / ' + totalQ;
         if (correctCount === totalQ) {
-          scoreBadge.style.background = 'rgba(34, 197, 94, 0.2)';
-          scoreBadge.style.color = '#4ade80';
-          scoreBadge.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+          scoreBadge.classList.add('is-correct');
         }
       }
     }

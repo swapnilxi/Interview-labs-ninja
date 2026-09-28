@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from modules.auth.dependencies import get_current_user_id
 from modules.common.db import get_db_path
-from modules.common.ai_client import AISettings
+from modules.common.ai import AISettings
 
 router = APIRouter(prefix="/pareto", tags=["pareto"], dependencies=[Depends(get_current_user_id)])
 

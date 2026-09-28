@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { lmsService } from '../services/lmsService';
-import type { LmsClass, LmsSubject } from '../types';
+import type { LmsClass, LmsLesson, LmsSubject } from '../types';
 import CreateClassModal from './CreateClassModal';
 import CreateSubjectModal from './CreateSubjectModal';
 import EditClassModal from './EditClassModal';
@@ -13,10 +13,8 @@ import EditSubjectModal from './EditSubjectModal';
 interface GenerateLessonFormProps {
   initialClassSlug?: string;
   initialSubjectSlug?: string;
-  onSuccess?: (createdLesson: any) => void;
+  onSuccess?: (createdLesson: LmsLesson) => void;
 }
-
-type InputMode = 'topic' | 'text' | 'file';
 
 const GENERATION_STEPS = [
   'Analyzing learning material & extracting concepts...',
@@ -164,8 +162,8 @@ export default function GenerateLessonForm({
       if (!customTitle) {
         setCustomTitle(file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '));
       }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to extract text from file.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to extract text from file.');
     } finally {
       setIsUploadingFile(false);
     }
@@ -174,8 +172,13 @@ export default function GenerateLessonForm({
   // Submit Generation
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isGenerating) return;
     if (!selectedClassId) {
       setError('Please select a Class.');
+      return;
+    }
+    if (!isOtherClass && !selectedSubjectId) {
+      setError('Please select a Target Subject.');
       return;
     }
 
@@ -220,8 +223,13 @@ export default function GenerateLessonForm({
           router.push(`/ai-lms/classes/${classSlug}/lesson/${lessonSlug}`);
         }
       }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to generate lesson. Please check your AI API key in Config.');
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to generate lesson. Please check your AI API key in Config.'
+      );
+    } finally {
       setIsGenerating(false);
     }
   };
@@ -239,7 +247,8 @@ export default function GenerateLessonForm({
             Generate an Interactive Lesson
           </h2>
           <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-            Turn topics, technical notes, or uploaded documents into structured, interactive standalone lessons complete with diagrams and quizzes.
+            Turn topics, technical notes, or uploaded documents into structured, interactive
+            standalone lessons complete with diagrams and quizzes.
           </p>
         </div>
 
@@ -371,7 +380,11 @@ export default function GenerateLessonForm({
                 <div className="rounded-lg bg-card/70 border border-border p-3 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-foreground flex items-center gap-1.5">
-                      <Icon name={(selectedClass?.icon || 'BookmarkIcon') as any} size={13} className="text-primary" />
+                      <Icon
+                        name={selectedClass?.icon || 'BookmarkIcon'}
+                        size={13}
+                        className="text-primary"
+                      />
                       <span>{selectedClass?.name || 'Class'}</span>
                     </span>
                     <span className="text-[10px] uppercase font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
@@ -415,7 +428,9 @@ export default function GenerateLessonForm({
                   </div>
                 ) : (
                   <div className="rounded-lg bg-card/50 border border-dashed border-border p-3 flex items-center justify-center text-[11px] text-muted-foreground text-center">
-                    {isOtherClass ? 'Lessons generated directly under Other class' : 'Select a subject to view its module context'}
+                    {isOtherClass
+                      ? 'Lessons generated directly under Other class'
+                      : 'Select a subject to view its module context'}
                   </div>
                 )}
               </div>
@@ -451,7 +466,9 @@ export default function GenerateLessonForm({
                     <Icon name="DocumentCheckIcon" size={18} />
                   </div>
                   <div className="truncate">
-                    <div className="font-semibold text-foreground truncate">{uploadedFile.name}</div>
+                    <div className="font-semibold text-foreground truncate">
+                      {uploadedFile.name}
+                    </div>
                     <div className="text-[11px] text-muted-foreground">
                       {uploadedFile.wordCount.toLocaleString()} words extracted
                     </div>
@@ -497,7 +514,9 @@ export default function GenerateLessonForm({
                 ) : (
                   <>
                     <Icon name="ArrowUpTrayIcon" size={14} className="text-primary" />
-                    <span>{uploadedFile ? 'Replace Document' : 'Upload Document (PDF / Text / MD)'}</span>
+                    <span>
+                      {uploadedFile ? 'Replace Document' : 'Upload Document (PDF / Text / MD)'}
+                    </span>
                   </>
                 )}
               </button>

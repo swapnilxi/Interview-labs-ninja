@@ -56,7 +56,11 @@ export default function SearchBar() {
     <div ref={containerRef} className="relative w-full max-w-xl">
       <div className="relative flex items-center">
         <div className="absolute left-3.5 text-muted-foreground pointer-events-none">
-          <Icon name={loading ? 'ArrowPathIcon' : 'MagnifyingGlassIcon'} size={18} className={loading ? 'animate-spin' : ''} />
+          <Icon
+            name={loading ? 'ArrowPathIcon' : 'MagnifyingGlassIcon'}
+            size={18}
+            className={loading ? 'animate-spin' : ''}
+          />
         </div>
         <input
           type="text"
@@ -85,7 +89,7 @@ export default function SearchBar() {
 
       {/* Dropdown Results */}
       {isOpen && results && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-[250] bg-card border border-border rounded-xl shadow-2xl overflow-hidden max-h-[420px] overflow-y-auto animate-fadeIn divide-y divide-border/60">
+        <div className="absolute top-full left-0 right-0 mt-2 z-[250] bg-card border border-border rounded-xl shadow-lg overflow-hidden max-h-[420px] overflow-y-auto animate-fadeIn divide-y divide-border/60">
           {totalResults === 0 ? (
             <div className="p-6 text-center text-xs text-muted-foreground">
               No matching classes, subjects, or lessons found for &ldquo;{query}&rdquo;
@@ -107,12 +111,14 @@ export default function SearchBar() {
                         className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-muted transition-colors"
                       >
                         <div className="p-1.5 rounded-md bg-primary/10 text-primary">
-                          <Icon name={(cls.icon || 'BookmarkIcon') as any} size={15} />
+                          <Icon name={cls.icon || 'BookmarkIcon'} size={15} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-xs truncate">{cls.name}</div>
                           {cls.description && (
-                            <div className="text-[11px] text-muted-foreground truncate">{cls.description}</div>
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              {cls.description}
+                            </div>
                           )}
                         </div>
                       </Link>
@@ -131,11 +137,15 @@ export default function SearchBar() {
                     {results.subjects.map((subj) => (
                       <Link
                         key={subj.id}
-                        href={`/ai-lms/classes/${subj.class_slug}/${subj.slug}`}
+                        href={
+                          subj.class_slug
+                            ? `/ai-lms/classes/${subj.class_slug}/${subj.slug}`
+                            : '/ai-lms'
+                        }
                         onClick={() => setIsOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-muted transition-colors"
                       >
-                        <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-500">
+                        <div className="p-1.5 rounded-md bg-secondary/10 text-secondary">
                           <Icon name="FolderIcon" size={15} />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -175,7 +185,8 @@ export default function SearchBar() {
                           <div className="min-w-0 flex-1">
                             <div className="font-semibold text-xs truncate">{lesson.title}</div>
                             <div className="text-[11px] text-muted-foreground truncate">
-                              {lesson.class_name} {lesson.subject_name ? `→ ${lesson.subject_name}` : ''}
+                              {lesson.class_name}{' '}
+                              {lesson.subject_name ? `→ ${lesson.subject_name}` : ''}
                             </div>
                           </div>
                         </Link>

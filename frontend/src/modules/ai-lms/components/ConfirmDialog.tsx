@@ -37,7 +37,10 @@ export default function ConfirmDialog({
                 : 'bg-primary/10 text-primary border border-primary/20'
             }`}
           >
-            <Icon name={isDestructive ? 'ExclamationTriangleIcon' : 'InformationCircleIcon'} size={24} />
+            <Icon
+              name={isDestructive ? 'ExclamationTriangleIcon' : 'InformationCircleIcon'}
+              size={24}
+            />
           </div>
           <div className="flex-1">
             <h3 className="font-heading text-lg font-semibold text-foreground">{title}</h3>

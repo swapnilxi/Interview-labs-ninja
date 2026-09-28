@@ -7,7 +7,7 @@ linkedin_post_generator/generation/llm.py.
 
 from __future__ import annotations
 
-from modules.common.ai_client import (
+from modules.common.ai import (
     AISettings,
     call_ai_text,
     extract_json_array,

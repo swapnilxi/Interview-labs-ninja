@@ -536,7 +536,7 @@ def fetch_progress_stats(user_id: int) -> dict:
 ## NOTE: There used to be fetch_settings()/save_settings() functions here backing
 ## a single shared `user_settings` row of AI provider keys. That's gone — keys now
 ## live only in each browser's localStorage and are sent per-request (see
-## modules/common/ai_client.py). The user_settings table above is kept only so
+## modules/common/ai/). The user_settings table above is kept only so
 ## existing installs don't need a migration; nothing reads or writes it anymore.
 
 

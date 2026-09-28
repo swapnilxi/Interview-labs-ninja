@@ -7,16 +7,19 @@ import type { LmsLesson, VisualExplanationResult } from '../types';
 
 interface VisualizerPanelProps {
   lesson: LmsLesson;
+  visual: VisualExplanationResult | null;
+  onVisualChange: (visual: VisualExplanationResult | null) => void;
   onVisualEmbedded?: () => void;
   onSwitchToRead?: () => void;
 }
 
 export default function VisualizerPanel({
   lesson,
+  visual,
+  onVisualChange,
   onVisualEmbedded,
   onSwitchToRead,
 }: VisualizerPanelProps) {
-  const [visual, setVisual] = useState<VisualExplanationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [customConcept, setCustomConcept] = useState('');
   const [showPromptInput, setShowPromptInput] = useState(false);
@@ -30,9 +33,13 @@ export default function VisualizerPanel({
     setEmbedSuccess(false);
     try {
       const result = await lmsService.visualizeLesson(lesson.id, focusConcept || undefined);
-      setVisual(result);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to generate visual explanation. Check your AI key in Config.');
+      onVisualChange(result);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to generate visual explanation. Check your AI key in Config.'
+      );
     } finally {
       setLoading(false);
     }
@@ -51,18 +58,22 @@ export default function VisualizerPanel({
       if (onVisualEmbedded) {
         onVisualEmbedded();
       }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to embed visual into lesson document.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to embed visual into lesson document.');
     } finally {
       setEmbedding(false);
     }
   };
 
-  // Generate automatically if not generated yet
+  // Generate automatically if not generated yet. Intentionally only depends on lesson.id:
+  // `visual` is a lifted prop from the parent, so re-running this on every state change
+  // (loading/error/visual) would wipe or regenerate the visual whenever the user just
+  // toggles tabs. Only regenerate when the lesson itself actually changes.
   React.useEffect(() => {
     if (!visual && !loading && !error) {
       handleGenerateVisual();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson.id]);
 
   const wrapVisualInTemplate = (visualHtml: string) => {
@@ -73,16 +84,31 @@ export default function VisualizerPanel({
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --primary: #818cf8;
-      --success: #34d399;
-      --warning: #fbbf24;
-      --danger: #f87171;
-      --border: #334155;
+      color-scheme: light dark;
+      --bg: #f7f3ec;
+      --card: #fffaf2;
+      --text: #24201b;
+      --muted: #71695f;
+      --accent: #b36b17;
+      --primary: #5b5bd6;
+      --success: #14845f;
+      --warning: #a45d12;
+      --danger: #c24151;
+      --border: rgba(64, 55, 45, 0.16);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --card: #1e293b;
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --primary: #818cf8;
+        --success: #34d399;
+        --warning: #fbbf24;
+        --danger: #f87171;
+        --border: #334155;
+      }
     }
     * { box-sizing: border-box; }
     body {
@@ -153,7 +179,8 @@ export default function VisualizerPanel({
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {visual?.explanation || 'AI autonomously chooses the optimal visual medium for this topic.'}
+                {visual?.explanation ||
+                  'AI autonomously chooses the optimal visual medium for this topic.'}
               </p>
             </div>
           </div>
@@ -168,7 +195,13 @@ export default function VisualizerPanel({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50"
               >
                 <Icon name={embedSuccess ? 'CheckIcon' : 'ArrowDownTrayIcon'} size={14} />
-                <span>{embedSuccess ? 'Embedded in Lesson!' : embedding ? 'Embedding...' : 'Embed into Lesson'}</span>
+                <span>
+                  {embedSuccess
+                    ? 'Embedded in Lesson!'
+                    : embedding
+                      ? 'Embedding...'
+                      : 'Embed into Lesson'}
+                </span>
               </button>
             )}
 
@@ -242,7 +275,8 @@ export default function VisualizerPanel({
                 Synthesizing Visual Reinforcement...
               </h4>
               <p className="text-xs text-muted-foreground max-w-sm">
-                AI is analyzing the mental model and generating an interactive native web simulation or diagram.
+                AI is analyzing the mental model and generating an interactive native web simulation
+                or diagram.
               </p>
             </div>
           </div>

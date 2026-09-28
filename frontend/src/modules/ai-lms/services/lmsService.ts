@@ -1,7 +1,10 @@
-import { apiFetch, apiJson, API_BASE_URL } from '@/lib/http/apiClient';
+import { apiFetch, apiJson } from '@/lib/http/apiClient';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
 import type {
+  BreakdownResult,
   ContinueLearningItem,
+  DeeperExplanationResult,
+  EasyReadResult,
   GenerateLessonRequest,
   LmsClass,
   LmsLesson,
@@ -21,7 +24,12 @@ export const lmsService = {
     return apiJson<LmsClass>(`/api/lms/classes/${encodeURIComponent(idOrSlug)}`);
   },
 
-  async createClass(payload: { name: string; description?: string; icon?: string; ai_context?: string }): Promise<LmsClass> {
+  async createClass(payload: {
+    name: string;
+    description?: string;
+    icon?: string;
+    ai_context?: string;
+  }): Promise<LmsClass> {
     return apiJson<LmsClass>('/api/lms/classes', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -248,12 +256,40 @@ export const lmsService = {
   // ── Visual Reinforcement & Simulation ────────────────────────────────────
   async visualizeLesson(lessonId: string, concept?: string): Promise<VisualExplanationResult> {
     const aiFields = defaultAIRequestFields();
-    return apiJson<VisualExplanationResult>(`/api/lms/lessons/${encodeURIComponent(lessonId)}/visualize`, {
+    return apiJson<VisualExplanationResult>(
+      `/api/lms/lessons/${encodeURIComponent(lessonId)}/visualize`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ...aiFields,
+          concept: concept || undefined,
+        }),
+      }
+    );
+  },
+
+  // ── Easy Read (lighter, less text-heavy rewrite of the lesson's own content) ──
+  async generateEasyRead(lessonId: string): Promise<EasyReadResult> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<EasyReadResult>(`/api/lms/lessons/${encodeURIComponent(lessonId)}/easy-read`, {
       method: 'POST',
-      body: JSON.stringify({
-        ...aiFields,
-        concept: concept || undefined,
-      }),
+      body: JSON.stringify({ ...aiFields }),
+    });
+  },
+
+  async generateDeeperExplanation(lessonId: string): Promise<DeeperExplanationResult> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<DeeperExplanationResult>(`/api/lms/lessons/${encodeURIComponent(lessonId)}/deeper`, {
+      method: 'POST',
+      body: JSON.stringify({ ...aiFields }),
+    });
+  },
+
+  async generateBreakdown(lessonId: string): Promise<BreakdownResult> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<BreakdownResult>(`/api/lms/lessons/${encodeURIComponent(lessonId)}/breakdown`, {
+      method: 'POST',
+      body: JSON.stringify({ ...aiFields }),
     });
   },
 
@@ -265,5 +301,19 @@ export const lmsService = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  // ── Voice Assistant ──────────────────────────────────────────────────────
+  async askVoiceAssistant(payload: {
+    message: string;
+    contextTitle: string;
+    contextText: string;
+  }): Promise<string> {
+    const aiFields = defaultAIRequestFields();
+    const res = await apiJson<{ text: string }>('/api/lms/voice-chat', {
+      method: 'POST',
+      body: JSON.stringify({ ...aiFields, ...payload }),
+    });
+    return res.text;
   },
 };

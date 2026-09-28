@@ -78,8 +78,8 @@ export default function QuickLessonGenerator({
         wordCount: res.word_count,
         preview: res.preview,
       });
-    } catch (err: any) {
-      setError(err?.message || 'Failed to extract text from file.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to extract text from file.');
     } finally {
       setIsUploading(false);
     }
@@ -108,7 +108,9 @@ export default function QuickLessonGenerator({
 
       if (hasFile) {
         inputType = 'file';
-        finalContent = uploadedFile!.text + (trimmedText ? `\n\nAdditional Focus Instructions:\n${trimmedText}` : '');
+        finalContent =
+          uploadedFile!.text +
+          (trimmedText ? `\n\nAdditional Focus Instructions:\n${trimmedText}` : '');
       } else if (trimmedText.length > 120 || trimmedText.includes('\n')) {
         inputType = 'text';
       }
@@ -126,8 +128,8 @@ export default function QuickLessonGenerator({
       if (fileInputRef.current) fileInputRef.current.value = '';
 
       onLessonGenerated(newLesson);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to generate lesson. Please try again.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to generate lesson. Please try again.');
     } finally {
       setIsGenerating(false);
     }
@@ -180,7 +182,9 @@ export default function QuickLessonGenerator({
           <div className="flex items-center gap-2 truncate">
             <Icon name="DocumentTextIcon" size={15} className="text-primary flex-shrink-0" />
             <span className="font-semibold text-foreground truncate">{uploadedFile.name}</span>
-            <span className="text-muted-foreground text-[11px]">({uploadedFile.wordCount} words attached)</span>
+            <span className="text-muted-foreground text-[11px]">
+              ({uploadedFile.wordCount} words attached)
+            </span>
           </div>
           <button
             type="button"
@@ -189,7 +193,7 @@ export default function QuickLessonGenerator({
               if (fileInputRef.current) fileInputRef.current.value = '';
             }}
             title="Remove attachment"
-            className="p-1 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors ml-2"
+            className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors ml-2"
           >
             <Icon name="XMarkIcon" size={13} />
           </button>
@@ -234,7 +238,12 @@ export default function QuickLessonGenerator({
           </button>
 
           <span className="hidden md:inline-block text-[11px] text-muted-foreground/60 font-mono">
-            Press <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px]">⌘</kbd>+<kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px]">Enter</kbd>
+            Press{' '}
+            <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px]">⌘</kbd>
+            +
+            <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px]">
+              Enter
+            </kbd>
           </span>
         </div>
 
@@ -243,7 +252,7 @@ export default function QuickLessonGenerator({
           type="button"
           onClick={() => handleGenerate()}
           disabled={isGenerating || (!content.trim() && !uploadedFile)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-102 flex-shrink-0"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-[1.02] flex-shrink-0"
         >
           {isGenerating ? (
             <>
@@ -267,7 +276,8 @@ export default function QuickLessonGenerator({
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-foreground">
-              Step {currentStepIdx + 1} of {GENERATION_STEPS.length}: {GENERATION_STEPS[currentStepIdx]}
+              Step {currentStepIdx + 1} of {GENERATION_STEPS.length}:{' '}
+              {GENERATION_STEPS[currentStepIdx]}
             </div>
           </div>
           <div className="w-20 sm:w-28 bg-muted/60 h-1.5 rounded-full overflow-hidden flex-shrink-0">
@@ -281,7 +291,7 @@ export default function QuickLessonGenerator({
 
       {/* Error Banner */}
       {error && (
-        <div className="mt-3 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-500 flex items-center justify-between gap-2">
+        <div className="mt-3 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Icon name="ExclamationTriangleIcon" size={14} />
             <span>{error}</span>
@@ -289,7 +299,7 @@ export default function QuickLessonGenerator({
           <button
             type="button"
             onClick={() => setError(null)}
-            className="text-rose-400 hover:text-rose-300 font-bold px-1"
+            className="text-destructive/70 hover:text-destructive font-bold px-1"
           >
             ×
           </button>
@@ -298,13 +308,13 @@ export default function QuickLessonGenerator({
 
       {/* Success Notification Banner */}
       {latestGeneratedLesson && (
-        <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+        <div className="mt-3 rounded-xl border border-success/30 bg-success/10 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-500 flex-shrink-0">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-success/20 text-success flex-shrink-0">
               <Icon name="CheckCircleIcon" size={16} />
             </div>
             <div className="min-w-0">
-              <div className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider">
+              <div className="text-[11px] font-bold text-success uppercase tracking-wider">
                 Lesson Generated & Added to Sequence!
               </div>
               <div className="text-xs text-foreground font-semibold truncate">
@@ -319,7 +329,7 @@ export default function QuickLessonGenerator({
                 ? `/ai-lms/classes/${classSlug}/${subjectSlug}/${latestGeneratedLesson.slug}`
                 : `/ai-lms/classes/${classSlug}/lesson/${latestGeneratedLesson.slug}`
             }
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 text-white font-medium text-xs hover:bg-emerald-600 transition-colors shadow-sm flex-shrink-0 self-end sm:self-auto"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-success text-success-foreground font-medium text-xs hover:opacity-90 transition-opacity shadow-sm flex-shrink-0 self-end sm:self-auto"
           >
             <span>Open Lesson</span>
             <Icon name="ArrowRightIcon" size={12} />

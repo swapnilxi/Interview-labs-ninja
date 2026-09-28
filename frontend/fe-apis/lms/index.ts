@@ -30,10 +30,10 @@ import {
   recordLessonView,
   getContinueLearning,
   searchLms,
-  slugify,
 } from './db';
-import { callAIText, cleanHtmlOutput, extractJsonObject, generateNativeVisual } from './ai';
-import { buildStructuredLessonHtml } from './htmlBuilder';
+import { callAIText, cleanHtmlOutput, extractJsonObject } from '../ai';
+import { generateNativeVisual } from './visualEngine';
+import { isCompleteAiLessonHtml, PREMIUM_DESIGN_SYSTEM_PROMPT } from './htmlBuilder';
 
 function getUserId(req: Request): number | null {
   const authHeader = req.headers.get('authorization');
@@ -41,12 +41,22 @@ function getUserId(req: Request): number | null {
   return user ? user.id : null;
 }
 
+function requireUserId(req: Request): number | NextResponse {
+  const userId = getUserId(req);
+  if (userId === null) {
+    return NextResponse.json({ detail: 'Log in to use this feature.' }, { status: 401 });
+  }
+  return userId;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Classes Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleListClasses(): Promise<NextResponse> {
+export async function handleListClasses(req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const classes = getAllClasses();
     return NextResponse.json(classes);
   } catch (err: any) {
@@ -56,6 +66,8 @@ export async function handleListClasses(): Promise<NextResponse> {
 
 export async function handleCreateClass(req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     if (!body.name || typeof body.name !== 'string') {
       return NextResponse.json({ detail: 'Name is required' }, { status: 400 });
@@ -72,8 +84,10 @@ export async function handleCreateClass(req: Request): Promise<NextResponse> {
   }
 }
 
-export async function handleGetClass(classSlug: string): Promise<NextResponse> {
+export async function handleGetClass(classSlug: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const cls = getClassByIdOrSlug(classSlug);
     if (!cls) {
       return NextResponse.json({ detail: 'Class not found' }, { status: 404 });
@@ -86,6 +100,8 @@ export async function handleGetClass(classSlug: string): Promise<NextResponse> {
 
 export async function handleUpdateClass(classSlug: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     const updated = updateClass(classSlug, body);
     if (!updated) {
@@ -97,8 +113,10 @@ export async function handleUpdateClass(classSlug: string, req: Request): Promis
   }
 }
 
-export async function handleDeleteClass(classSlug: string): Promise<NextResponse> {
+export async function handleDeleteClass(classSlug: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const ok = deleteClass(classSlug);
     if (!ok) {
       return NextResponse.json({ detail: 'Class not found' }, { status: 404 });
@@ -111,6 +129,8 @@ export async function handleDeleteClass(classSlug: string): Promise<NextResponse
 
 export async function handleReorderClasses(req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     if (!Array.isArray(body.class_ids)) {
       return NextResponse.json({ detail: 'class_ids must be an array' }, { status: 400 });
@@ -126,8 +146,10 @@ export async function handleReorderClasses(req: Request): Promise<NextResponse> 
 // Subjects Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleListSubjects(classSlug: string): Promise<NextResponse> {
+export async function handleListSubjects(classSlug: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const subjects = getSubjectsByClass(classSlug);
     return NextResponse.json(subjects);
   } catch (err: any) {
@@ -137,6 +159,8 @@ export async function handleListSubjects(classSlug: string): Promise<NextRespons
 
 export async function handleCreateSubject(classSlug: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     if (!body.name || typeof body.name !== 'string') {
       return NextResponse.json({ detail: 'Name is required' }, { status: 400 });
@@ -153,8 +177,10 @@ export async function handleCreateSubject(classSlug: string, req: Request): Prom
   }
 }
 
-export async function handleGetSubject(classSlug: string, subjectSlug: string): Promise<NextResponse> {
+export async function handleGetSubject(classSlug: string, subjectSlug: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const subj = getSubjectByIdOrSlug(classSlug, subjectSlug);
     if (!subj) {
       return NextResponse.json({ detail: 'Subject not found' }, { status: 404 });
@@ -167,6 +193,8 @@ export async function handleGetSubject(classSlug: string, subjectSlug: string): 
 
 export async function handleUpdateSubject(subjectId: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     const updated = updateSubject(subjectId, body);
     if (!updated) {
@@ -178,8 +206,10 @@ export async function handleUpdateSubject(subjectId: string, req: Request): Prom
   }
 }
 
-export async function handleDeleteSubject(subjectId: string): Promise<NextResponse> {
+export async function handleDeleteSubject(subjectId: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const ok = deleteSubject(subjectId);
     if (!ok) {
       return NextResponse.json({ detail: 'Subject not found' }, { status: 404 });
@@ -192,6 +222,8 @@ export async function handleDeleteSubject(subjectId: string): Promise<NextRespon
 
 export async function handleReorderSubjects(req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     if (!Array.isArray(body.subject_ids)) {
       return NextResponse.json({ detail: 'subject_ids must be an array' }, { status: 400 });
@@ -207,8 +239,10 @@ export async function handleReorderSubjects(req: Request): Promise<NextResponse>
 // Lessons Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleListSubjectLessons(subjectId: string): Promise<NextResponse> {
+export async function handleListSubjectLessons(subjectId: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const lessons = getLessonsBySubject(subjectId);
     return NextResponse.json(lessons);
   } catch (err: any) {
@@ -216,8 +250,10 @@ export async function handleListSubjectLessons(subjectId: string): Promise<NextR
   }
 }
 
-export async function handleListDirectLessons(classSlug: string): Promise<NextResponse> {
+export async function handleListDirectLessons(classSlug: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const lessons = getDirectLessonsByClass(classSlug);
     return NextResponse.json(lessons);
   } catch (err: any) {
@@ -225,8 +261,10 @@ export async function handleListDirectLessons(classSlug: string): Promise<NextRe
   }
 }
 
-export async function handleGetLesson(lessonId: string): Promise<NextResponse> {
+export async function handleGetLesson(lessonId: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const lesson = getLessonById(lessonId);
     if (!lesson) {
       return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
@@ -239,6 +277,8 @@ export async function handleGetLesson(lessonId: string): Promise<NextResponse> {
 
 export async function handleCreateLesson(req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     if (!body.class_id || !body.title || !body.generated_html) {
       return NextResponse.json({ detail: 'class_id, title, and generated_html are required' }, { status: 400 });
@@ -261,6 +301,8 @@ export async function handleCreateLesson(req: Request): Promise<NextResponse> {
 
 export async function handleUpdateLesson(lessonId: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     const updated = updateLesson(lessonId, body);
     if (!updated) {
@@ -272,8 +314,10 @@ export async function handleUpdateLesson(lessonId: string, req: Request): Promis
   }
 }
 
-export async function handleDeleteLesson(lessonId: string): Promise<NextResponse> {
+export async function handleDeleteLesson(lessonId: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const ok = deleteLesson(lessonId);
     if (!ok) {
       return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
@@ -286,6 +330,8 @@ export async function handleDeleteLesson(lessonId: string): Promise<NextResponse
 
 export async function handleReorderLessons(req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     if (!Array.isArray(body.lesson_ids)) {
       return NextResponse.json({ detail: 'lesson_ids must be an array' }, { status: 400 });
@@ -297,8 +343,10 @@ export async function handleReorderLessons(req: Request): Promise<NextResponse> 
   }
 }
 
-export async function handleGetLessonNavigation(lessonId: string): Promise<NextResponse> {
+export async function handleGetLessonNavigation(lessonId: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const nav = getLessonNavigation(lessonId);
     return NextResponse.json(nav);
   } catch (err: any) {
@@ -306,8 +354,10 @@ export async function handleGetLessonNavigation(lessonId: string): Promise<NextR
   }
 }
 
-export async function handleDownloadLesson(lessonId: string): Promise<Response> {
+export async function handleDownloadLesson(lessonId: string, req: Request): Promise<Response> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const lesson = getLessonById(lessonId);
     if (!lesson) {
       return new Response(JSON.stringify({ detail: 'Lesson not found' }), {
@@ -338,7 +388,9 @@ export async function handleDownloadLesson(lessonId: string): Promise<Response> 
 
 export async function handleRecordLessonView(lessonId: string, req: Request): Promise<NextResponse> {
   try {
-    const userId = getUserId(req);
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const userId = auth;
     recordLessonView(lessonId, userId);
     return NextResponse.json({ message: 'View recorded' });
   } catch (err: any) {
@@ -352,7 +404,9 @@ export async function handleRecordLessonView(lessonId: string, req: Request): Pr
 
 export async function handleContinueLearning(req: Request): Promise<NextResponse> {
   try {
-    const userId = getUserId(req);
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const userId = auth;
     const item = getContinueLearning(userId);
     return NextResponse.json({ item });
   } catch (err: any) {
@@ -362,6 +416,8 @@ export async function handleContinueLearning(req: Request): Promise<NextResponse
 
 export async function handleSearch(req: NextRequest): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q') || '';
     if (!query.trim()) {
@@ -380,6 +436,8 @@ export async function handleSearch(req: NextRequest): Promise<NextResponse> {
 
 export async function handleUploadSource(req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file) {
@@ -422,6 +480,8 @@ export async function handleUploadSource(req: Request): Promise<NextResponse> {
 
 export async function handleGenerateLesson(req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     const { class_id, subject_id, input_type, content, title: suggestedTitle } = body;
 
@@ -465,29 +525,45 @@ Target Domain & Guidance Context:
 ${content}
 ${suggestedTitle ? `- Suggested Title: ${suggestedTitle}` : ''}
 
-Output ONLY a complete, standalone, valid HTML5 document starting with <!DOCTYPE html> and ending with </html>.
-No surrounding markdown code blocks. Include embedded CSS, inline SVG diagrams or animations, syntax-highlighted code blocks, and at least 2 interactive multiple-choice quiz questions with instant feedback buttons.`;
+OUTPUT CONTRACT:
+- Output ONLY the complete, valid standalone HTML5 document, starting with <!DOCTYPE html> and ending with </html>.
+- No surrounding markdown code blocks, no intro chatter.
+- Everything (HTML, CSS, JavaScript) must be self-contained in this single document -- no external CDNs.
+
+${PREMIUM_DESIGN_SYSTEM_PROMPT}
+
+CONTENT STRUCTURE:
+- Lesson header: class/subject breadcrumb badges, a clear descriptive title, a read-time badge.
+- Learning objectives: 3-4 bullet goals.
+- Core concepts, with real-world analogies tailored to the class/subject domain.
+- At least one inline SVG/Canvas visual (see design system above) illustrating the mental model -- pick the medium (architecture diagram, pointer/array simulation, loss curve, packet flow, decision matrix, etc.) that best fits this specific topic.
+- Practical code examples in a code block with a working "Copy" button.
+- Interactive knowledge check: at least 2 multiple-choice questions with clickable options, immediate feedback, and a score counter.
+- A closing summary or key-takeaways checklist.
+- All interactive JavaScript (quiz clicks, copy button, visual controls) must be self-contained and run cleanly inside a sandboxed iframe without errors.`;
 
     let rawAiText = '';
     try {
-      rawAiText = await callAIText(prompt, body);
+      rawAiText = await callAIText(prompt, body, undefined, 16000);
     } catch (aiErr) {
-      console.warn('[fe-api/lms/generate] AI generation note:', aiErr);
+      // Surface the real failure instead of silently substituting a generic,
+      // topic-unaware template -- a lesson that looks legitimate but isn't actually
+      // about what was asked for is worse than a visible error the user can retry.
+      return NextResponse.json(
+        { detail: `AI generation failed: ${aiErr instanceof Error ? aiErr.message : String(aiErr)}` },
+        { status: 502 }
+      );
+    }
+
+    const finalHtml = cleanHtmlOutput(rawAiText);
+    if (!isCompleteAiLessonHtml(finalHtml)) {
+      return NextResponse.json(
+        { detail: 'The AI provider returned an incomplete or invalid response. Please try again.' },
+        { status: 502 }
+      );
     }
 
     const titleGuess = suggestedTitle || (content.length < 60 ? content.trim() : 'System Architecture & Mechanics');
-    const finalHtml = buildStructuredLessonHtml({
-      title: titleGuess,
-      className: cls.name as string,
-      subjectName,
-      topicOrContent: content,
-      rawAiOutput: rawAiText,
-      classContext: classAiContext,
-      subjectContext: subjectAiContext,
-      classDescription: classDesc,
-      subjectDescription: subjectDesc,
-    });
-
     const titleMatch = finalHtml.match(/<h1[^>]*>(.*?)<\/h1>/i) || finalHtml.match(/<title[^>]*>(.*?)<\/title>/i);
     const finalTitle = suggestedTitle || (titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : titleGuess);
     const finalSummary = `Interactive technical lesson on ${finalTitle}`;
@@ -511,6 +587,8 @@ No surrounding markdown code blocks. Include embedded CSS, inline SVG diagrams o
 
 export async function handleVisualizeLesson(lessonId: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const lesson = getLessonById(lessonId);
     if (!lesson) {
       return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
@@ -527,6 +605,15 @@ Create an intuitive, interactive NATIVE WEB VISUALIZATION for:
 - Focus: ${focusConcept || 'Core architectural or algorithmic mechanism'}
 
 Rules:
+- COLOR & THEME SAFETY (CRITICAL): This visual renders inside a page that supports BOTH
+  light and dark mode via prefers-color-scheme. Prefer CSS classes with
+  color: var(--text), background: var(--card), border-color: var(--border) etc. over raw
+  hex values so the visual adapts automatically. If you draw raw SVG fills/strokes or
+  Canvas colors that can't reference a CSS variable, choose mid-tone, moderately
+  saturated colors (e.g. a blue like #4f7cff, not #0f172a or #f8fafc) that stay visible
+  against BOTH a dark (#0f172a) and a light (#f7f3ec) background -- never rely on
+  near-black or near-white for a shape's own fill/stroke, and never render text in a
+  color that could match its background in either theme.
 Return a JSON object in EXACTLY this format:
 {
   "visual_type": "Architecture Diagram" | "Interactive Simulation" | "Flowchart & Process",
@@ -537,7 +624,7 @@ Return a JSON object in EXACTLY this format:
 Output ONLY the JSON object.`;
 
     try {
-      const raw = await callAIText(prompt, body);
+      const raw = await callAIText(prompt, body, undefined, 8192);
       const parsed = extractJsonObject(raw);
       if (parsed.visual_html) {
         return NextResponse.json({
@@ -558,8 +645,203 @@ Output ONLY the JSON object.`;
   }
 }
 
+export async function handleEasyReadLesson(lessonId: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const lesson = getLessonById(lessonId);
+    if (!lesson) {
+      return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+
+    const sourceText = String(lesson.generated_html || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 8000);
+    if (!sourceText) {
+      return NextResponse.json({ detail: 'Lesson has no content to simplify yet.' }, { status: 400 });
+    }
+
+    const prompt = `You are an expert technical editor who specializes in making dense material fast
+and easy to read, without ever removing or dumbing down the actual technical substance.
+
+Lesson title: ${lesson.title}
+Lesson content (extracted, tags stripped):
+"""
+${sourceText}
+"""
+
+Rewrite this content into an "easy read" version of the SAME material:
+1. Start with a "Key Takeaways" list of 3-6 short bullets capturing the core ideas.
+2. Break the rest into short sections, each with a clear, bold heading.
+3. Keep paragraphs to 1-3 short sentences. Prefer bullet lists over dense prose wherever
+   the source content is enumerable (steps, comparisons, properties, examples).
+4. Bold the key terms a reader should remember.
+5. Preserve every distinct technical fact, number, and example from the source -- you are
+   restructuring for readability, not summarizing away detail or inventing new content.
+6. Output ONLY semantic HTML for the body content (h2/h3, p, ul/li, strong, code) -- no
+   <html>/<head>/<body> wrapper, no inline styles, no scripts.
+
+Return a JSON object in EXACTLY this format:
+{
+  "title": "Lesson title, unchanged or lightly cleaned up",
+  "summary": "One sentence describing what this easy-read view covers.",
+  "easy_read_html": "<div class=\\"lms-easy-read\\">...semantic HTML only...</div>"
+}
+Output ONLY the JSON object. No markdown code blocks before or after.`;
+
+    const raw = await callAIText(prompt, body, undefined, 8192);
+    const parsed = extractJsonObject(raw);
+    if (!parsed.easy_read_html) {
+      throw new Error('No easy_read_html in AI response');
+    }
+    return NextResponse.json({
+      title: parsed.title || lesson.title,
+      summary: parsed.summary || 'A lighter, scannable version of this lesson.',
+      easy_read_html: parsed.easy_read_html,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Easy Read generation failed' }, { status: 502 });
+  }
+}
+
+export async function handleDeeperLesson(lessonId: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const lesson = getLessonById(lessonId);
+    if (!lesson) {
+      return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+
+    const sourceText = String(lesson.generated_html || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 8000);
+    if (!sourceText) {
+      return NextResponse.json({ detail: 'Lesson has no content to go deeper on yet.' }, { status: 400 });
+    }
+
+    const prompt = `You are a principal-level engineer who writes "go deeper" extensions for
+technical lessons -- the reader has already read and understood the lesson below, so your job
+is to extend it with material a solid intro lesson leaves out, not to repeat it.
+
+Lesson title: ${lesson.title}
+Lesson content (extracted, tags stripped) -- treat this as material the reader ALREADY KNOWS:
+"""
+${sourceText}
+"""
+
+Write a deeper-dive extension of this SAME topic:
+1. Do NOT re-explain the basics already covered above -- assume they're understood. Every
+   sentence should teach something the source content didn't already say.
+2. Cover what an intro lesson skips: edge cases and failure modes, the underlying mechanics
+   or math, production/real-world trade-offs, common misconceptions, and how this connects to
+   more advanced related topics.
+3. Organize into short sections, each with a clear, bold heading.
+4. Keep the same technical domain and terminology as the source -- this is a continuation,
+   not a new topic.
+5. Output ONLY semantic HTML for the body content (h2/h3, p, ul/li, strong, code) -- no
+   <html>/<head>/<body> wrapper, no inline styles, no scripts.
+
+Return a JSON object in EXACTLY this format:
+{
+  "title": "Lesson title, unchanged or lightly cleaned up",
+  "summary": "One sentence describing what this deeper-dive extension covers.",
+  "deeper_html": "<div class=\\"lms-deeper\\">...semantic HTML only...</div>"
+}
+Output ONLY the JSON object. No markdown code blocks before or after.`;
+
+    const raw = await callAIText(prompt, body, undefined, 8192);
+    const parsed = extractJsonObject(raw);
+    if (!parsed.deeper_html) {
+      throw new Error('No deeper_html in AI response');
+    }
+    return NextResponse.json({
+      title: parsed.title || lesson.title,
+      summary: parsed.summary || 'A deeper dive into this lesson\'s material.',
+      deeper_html: parsed.deeper_html,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Explain Deeper generation failed' }, { status: 502 });
+  }
+}
+
+export async function handleBreakdownLesson(lessonId: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const lesson = getLessonById(lessonId);
+    if (!lesson) {
+      return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+
+    const sourceText = String(lesson.generated_html || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 8000);
+    if (!sourceText) {
+      return NextResponse.json({ detail: 'Lesson has no content to break down yet.' }, { status: 400 });
+    }
+
+    const prompt = `You are an expert at distilling dense technical material into a small
+number of short, punchy, high-signal chunks for a reader who wants the essence fast.
+
+Lesson title: ${lesson.title}
+Lesson content (extracted, tags stripped):
+"""
+${sourceText}
+"""
+
+Break this lesson down into 5-8 small chunks, in the same logical order as the source:
+1. Each chunk = one short, bold micro-heading (a few words) + at most 2-3 sentences covering
+   ONE idea -- the single most important point from that part of the lesson.
+2. Actively trim: cut supporting detail, caveats, and examples that aren't essential to
+   understanding the core idea. This is a condensed, high-impact skim version, not a
+   restructuring that keeps everything -- prioritize clarity and brevity over completeness.
+3. Every chunk should be independently readable and feel like a complete, standalone thought.
+4. Output ONLY semantic HTML for the body content: a series of short <section> or <div>
+   blocks each with one heading + a short paragraph. No <html>/<head>/<body> wrapper, no
+   inline styles, no scripts.
+
+Return a JSON object in EXACTLY this format:
+{
+  "title": "Lesson title, unchanged or lightly cleaned up",
+  "summary": "One sentence describing what this breakdown covers.",
+  "chunk_count": 6,
+  "breakdown_html": "<div class=\\"lms-breakdown\\">...semantic HTML only...</div>"
+}
+Output ONLY the JSON object. No markdown code blocks before or after.`;
+
+    const raw = await callAIText(prompt, body, undefined, 8192);
+    const parsed = extractJsonObject(raw);
+    if (!parsed.breakdown_html) {
+      throw new Error('No breakdown_html in AI response');
+    }
+    return NextResponse.json({
+      title: parsed.title || lesson.title,
+      summary: parsed.summary || 'A condensed, high-impact breakdown of this lesson.',
+      chunk_count: parsed.chunk_count,
+      breakdown_html: parsed.breakdown_html,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Breakdown generation failed' }, { status: 502 });
+  }
+}
+
 export async function handleEmbedVisual(lessonId: string, req: Request): Promise<NextResponse> {
   try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
     const lesson = getLessonById(lessonId);
     if (!lesson) {
       return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });

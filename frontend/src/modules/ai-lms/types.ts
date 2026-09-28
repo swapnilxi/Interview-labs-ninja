@@ -105,3 +105,22 @@ export interface VisualExplanationResult {
   explanation: string;
   visual_html: string;
 }
+
+export interface EasyReadResult {
+  title: string;
+  summary: string;
+  easy_read_html: string;
+}
+
+export interface DeeperExplanationResult {
+  title: string;
+  summary: string;
+  deeper_html: string;
+}
+
+export interface BreakdownResult {
+  title: string;
+  summary: string;
+  chunk_count?: number;
+  breakdown_html: string;
+}

@@ -328,7 +328,11 @@ export function createSubject(classIdOrSlug: string, name: string, description: 
   const cls = db.prepare('SELECT id FROM lms_classes WHERE id = ? OR slug = ?').get(classIdOrSlug, classIdOrSlug) as { id: string } | undefined;
   if (!cls) throw new Error('Class not found');
 
-  const baseSlug = slugify(name) || 'subject';
+  let baseSlug = slugify(name) || 'subject';
+  // "lesson" collides with the /classes/[slug]/lesson/[lessonSlug] route used for
+  // Other-class (no-subject) lessons -- Next.js resolves that static segment before
+  // this subject's own [subjectSlug] route ever gets a chance to match.
+  if (baseSlug === 'lesson') baseSlug = 'lesson-subject';
   let slug = baseSlug;
   let counter = 1;
 

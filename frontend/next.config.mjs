@@ -52,6 +52,8 @@ const nextConfig = {
       { source: '/health', destination: '/api/health' },
       { source: '/auth/:path*', destination: '/api/auth/:path*' },
       { source: '/admin/:path*', destination: '/api/admin/:path*' },
+      // Exact path only: '/config/:path*' would also match '/config' and hijack the Config page.
+      { source: '/config/ai-default', destination: '/api/config/ai-default' },
     ];
   },
   // Cross-Origin Isolation headers required by PDF.js 4.x (SharedArrayBuffer)

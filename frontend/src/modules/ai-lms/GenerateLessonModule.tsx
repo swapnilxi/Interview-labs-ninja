@@ -24,10 +24,7 @@ export default function GenerateLessonModule() {
         </Link>
       </div>
 
-      <GenerateLessonForm
-        initialClassSlug={classSlug}
-        initialSubjectSlug={subjectSlug}
-      />
+      <GenerateLessonForm initialClassSlug={classSlug} initialSubjectSlug={subjectSlug} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import LmsHomeModule from '@/modules/ai-lms/LmsHomeModule';
+import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
   title: 'AI LMS - Interactive AI-Powered Curriculum | InterviewNinja',
@@ -11,9 +12,12 @@ export default function AiLmsPage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-background pt-[60px]">
-        <LmsHomeModule />
-      </main>
+      <RequireAuth feature="AI LMS">
+        <main className="min-h-screen bg-background pt-[60px]">
+          <LmsHomeModule />
+        </main>
+      </RequireAuth>
     </>
   );
 }
+

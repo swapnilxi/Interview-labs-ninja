@@ -25,7 +25,7 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user';")
 
     # Per-user AI model/provider selection, synced across devices once logged in.
-    # Deliberately holds no API keys — those stay browser-only (see modules/common/ai_client.py).
+    # Deliberately holds no API keys — those stay browser-only (see modules/common/ai/settings.py).
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS user_profile (
             user_id INTEGER PRIMARY KEY,

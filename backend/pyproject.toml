@@ -19,6 +19,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "google-auth>=2.30.0",
     "xhtml2pdf>=0.2.17",
+    "mlx-whisper>=0.4.3",
 ]
 
 [dependency-groups]

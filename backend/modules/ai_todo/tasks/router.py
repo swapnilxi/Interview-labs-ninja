@@ -421,7 +421,8 @@ def _is_scanned_pdf(file_path: str) -> bool:
 @router.post("/tasks/upload-context")
 async def upload_context(
     file: UploadFile = File(...),
-    vision_model: str = Form("gemini-flash-latest"),
+    # FastAPI swaps an empty form value for this default, so it must be "" for AISettings to resolve the .env default.
+    vision_model: str = Form(""),
     geminiKey: str = Form(""),
     ollamaUrl: str = Form("http://localhost:11434"),
     ollamaModel: str = Form("llama3.2"),

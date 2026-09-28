@@ -27,9 +27,8 @@ export default function ContinueLearningBanner({ item, loading }: ContinueLearni
     ? `/ai-lms/classes/${item.class_slug}/${item.subject_slug}/${item.lesson_slug}`
     : `/ai-lms/classes/${item.class_slug}/lesson/${item.lesson_slug}`;
 
-  const progressPercent = item.total_lessons > 0
-    ? Math.round((item.current_index / item.total_lessons) * 100)
-    : 0;
+  const progressPercent =
+    item.total_lessons > 0 ? Math.round((item.current_index / item.total_lessons) * 100) : 0;
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-card via-card to-primary/5 p-6 shadow-md transition-all duration-300 hover:border-primary/40">
@@ -70,7 +69,7 @@ export default function ContinueLearningBanner({ item, loading }: ContinueLearni
             </span>
             <div className="w-28 h-1.5 rounded-full bg-muted overflow-hidden">
               <div
-                className="h-full bg-primary transition-all duration-500 rounded-full"
+                className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500 rounded-full"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -82,7 +81,7 @@ export default function ContinueLearningBanner({ item, loading }: ContinueLearni
         <div className="flex items-center gap-3">
           <Link
             href={targetHref}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-medium text-sm shadow-md shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-102 flex-shrink-0"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-medium text-sm shadow-md shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] flex-shrink-0"
           >
             <span>Continue Lesson</span>
             <Icon name="ArrowRightIcon" size={16} />

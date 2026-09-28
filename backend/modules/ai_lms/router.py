@@ -6,14 +6,17 @@ import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import HTMLResponse, Response
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
 
-from modules.auth.security import decode_token
-from modules.common.ai_client import AISettings, call_ai_text, extract_json_object
-from .visual_engine import generate_native_visual, build_structured_lesson_html
+from modules.auth.dependencies import get_current_user_id
+from modules.common.ai import AISettings, call_ai_text, extract_json_object
+from .visual_engine import (
+    generate_native_visual,
+    build_structured_lesson_html,
+    PREMIUM_DESIGN_SYSTEM_PROMPT,
+)
 from .db import (
     create_class,
     create_lesson,
@@ -40,24 +43,7 @@ from .db import (
     update_subject,
 )
 
-router = APIRouter(prefix="/api/lms", tags=["AI LMS"])
-
-_bearer_optional = HTTPBearer(auto_error=False)
-
-
-def _get_optional_user_id(
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_optional),
-) -> Optional[int]:
-    """Extract user_id from Bearer token if present, otherwise return None."""
-    if not creds:
-        return None
-    claims = decode_token(creds.credentials)
-    if not claims:
-        return None
-    try:
-        return int(claims["sub"])
-    except (KeyError, ValueError):
-        return None
+router = APIRouter(prefix="/api/lms", tags=["AI LMS"], dependencies=[Depends(get_current_user_id)])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -128,6 +114,18 @@ class GenerateLessonRequest(AISettings):
 
 class LessonVisualizeRequest(AISettings):
     concept: Optional[str] = None
+
+
+class LessonEasyReadRequest(AISettings):
+    pass
+
+
+class LessonDeeperRequest(AISettings):
+    pass
+
+
+class LessonBreakdownRequest(AISettings):
+    pass
 
 
 class EmbedVisualRequest(BaseModel):
@@ -282,7 +280,7 @@ async def handle_create_lesson(payload: CreateLessonManualRequest) -> Dict[str, 
 @router.get("/lessons/{lesson_id}")
 async def get_lesson_detail(
     lesson_id: str,
-    user_id: Optional[int] = Depends(_get_optional_user_id),
+    user_id: int = Depends(get_current_user_id),
 ) -> Dict[str, Any]:
     """Retrieve full lesson details including generated HTML."""
     lesson = get_lesson_by_id(lesson_id)
@@ -372,7 +370,7 @@ async def download_lesson_html(lesson_id: str) -> Response:
 
 @router.get("/continue-learning")
 async def get_continue_learning_data(
-    user_id: Optional[int] = Depends(_get_optional_user_id),
+    user_id: int = Depends(get_current_user_id),
 ) -> Dict[str, Any]:
     """Retrieve authentic continue learning information."""
     data = get_continue_learning(user_id)
@@ -382,7 +380,7 @@ async def get_continue_learning_data(
 @router.post("/lessons/{lesson_id}/view")
 async def record_view_endpoint(
     lesson_id: str,
-    user_id: Optional[int] = Depends(_get_optional_user_id),
+    user_id: int = Depends(get_current_user_id),
 ) -> Dict[str, str]:
     """Explicitly record a lesson view."""
     record_lesson_view(lesson_id, user_id)
@@ -586,11 +584,7 @@ CRITICAL REQUIREMENTS & CONTRACT:
    - Do NOT include intro chatter ("Here is your lesson...").
    - Everything (HTML, CSS, JavaScript) MUST be self-contained in this single document.
 
-2. AESTHETICS & DESIGN DIRECTION (ByteByteGo + NeetCode + Modern Tech Documentation):
-   - Professional, technical, content-first, beautiful dark-mode first design (with auto-detecting light/dark CSS variables).
-   - Use clean typography with system font stack: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif; code font: 'Fira Code', 'JetBrains Mono', monospace.
-   - Rich contrast, subtle borders (#2d3748 or rgba(255,255,255,0.1)), rounded corners (8px-12px), soft shadows.
-   - Visual callout boxes (Key Takeaway, Tip, Warning, Deep Dive).
+2. {PREMIUM_DESIGN_SYSTEM_PROMPT}
 
 3. VISUALLY INTELLIGENT REINFORCEMENT (CRITICAL):
    - Do NOT rely only on written text and code. Determine which concepts benefit from visual explanation.
@@ -602,6 +596,7 @@ CRITICAL REQUIREMENTS & CONTRACT:
      * Networking & Cloud -> Packet flow, protocol stack, or VPC network layout.
      * Leadership / Strategy -> Process decision flow or comparison matrix.
    - Do not force visuals into every section; use visuals where they accelerate intuition and clarity.
+   - Style every diagram with the same CSS variables as the rest of the page (see design system above) so it reads as native content, not a pasted-in widget.
 
 4. CONTENT STRUCTURE:
    - Lesson Header: Class & Subject breadcrumb badge, Clear descriptive Title, Read Time badge (~5-10 min).
@@ -618,24 +613,25 @@ CRITICAL REQUIREMENTS & CONTRACT:
    - No external CDNs required (all styles and scripts are embedded).
 """
 
-    raw_ai_html = ""
     try:
-        raw_ai_html = call_ai_text(system_prompt, payload)
+        raw_ai_html = call_ai_text(system_prompt, payload, max_tokens=16000)
     except Exception as exc:
-        raw_ai_html = ""
+        # Surface the real failure instead of silently substituting a generic,
+        # topic-unaware template -- a lesson that looks legitimate but isn't actually
+        # about what was asked for is worse than a visible error the user can retry.
+        raise HTTPException(status_code=502, detail=f"AI generation failed: {exc}")
 
-    clean_html = _clean_ai_html_output(raw_ai_html) if raw_ai_html else ""
-    if not clean_html or "<html" not in clean_html.lower() or len(clean_html) < 800 or "quiz-section" not in clean_html:
-        clean_html = build_structured_lesson_html(
-            title=suggested_title,
-            class_name=cls["name"],
-            subject_name=subject_name,
-            content=raw_content,
-            raw_ai_output=raw_ai_html,
-            class_context=class_ai_context,
-            subject_context=subject_ai_context,
-            class_description=class_desc,
-            subject_description=subject_desc,
+    clean_html = _clean_ai_html_output(raw_ai_html)
+    lower_html = clean_html.lower()
+    # "quiz-section" used to be required here, but that's the *fallback* template's own
+    # CSS class name (build_structured_lesson_html, used elsewhere for manual lessons)
+    # -- the system prompt never asks the model to use that exact string, so real AI
+    # output almost never matched and this discarded good generations nearly every call.
+    has_content_markers = any(marker in lower_html for marker in ("quiz", "objective", "visual"))
+    if not clean_html or "<html" not in lower_html or len(clean_html) < 800 or not has_content_markers:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI provider returned an incomplete or invalid response. Please try again.",
         )
 
     final_title = _extract_title_from_html(clean_html, suggested_title)
@@ -696,7 +692,20 @@ VISUAL DECISION RULES:
    - ZERO external CDN dependencies (no D3, no external scripts or stylesheets).
    - Everything must run safely inside a sandboxed container.
 
-3. RESPONSE CONTRACT:
+3. COLOR & THEME SAFETY (CRITICAL): This visual renders inside a page that supports BOTH
+   light and dark mode via prefers-color-scheme. Any element you style must stay clearly
+   readable in both:
+   - Prefer CSS classes with `color: var(--text)`, `background: var(--card)`,
+     `border-color: var(--border)` etc. over raw hex values, so the visual adapts
+     automatically via the page's existing light/dark CSS variables.
+   - If you draw raw SVG fills/strokes or Canvas colors that can't reference a CSS
+     variable, choose mid-tone, moderately saturated colors (e.g. a blue like #4f7cff,
+     not #0f172a or #f8fafc) that stay visible against BOTH a dark (#0f172a) and a light
+     (#f7f3ec) background -- never rely on near-black or near-white for a shape's own
+     fill/stroke, and never render text in a color that could match its background in
+     either theme.
+
+4. RESPONSE CONTRACT:
    Return a JSON object in EXACTLY this format:
    {{
      "visual_type": "Architecture Diagram" | "Interactive Simulation" | "Flowchart & Process" | "Data & Metric Visualization" | "State Machine",
@@ -708,7 +717,7 @@ VISUAL DECISION RULES:
 """
 
     try:
-        raw_resp = call_ai_text(visual_prompt, payload)
+        raw_resp = call_ai_text(visual_prompt, payload, max_tokens=8192)
         result = extract_json_object(raw_resp)
         if not result.get("visual_html"):
             raise ValueError("No visual_html in AI response")
@@ -721,6 +730,178 @@ VISUAL DECISION RULES:
     except Exception as exc:
         print(f"[AI-LMS] Model visual generation notice: {exc}. Using native visual engine.")
         return generate_native_visual(lesson, focus_concept)
+
+
+@router.post("/lessons/{lesson_id}/easy-read")
+async def easy_read_lesson(lesson_id: str, payload: LessonEasyReadRequest) -> Dict[str, Any]:
+    """Rewrite a lesson's existing content into a lighter, less text-heavy format:
+    a short TL;DR, clear section headers, short paragraphs, and bullets in place of
+    dense prose. Restructures the lesson's own content -- never invents new material."""
+    lesson = get_lesson_by_id(lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+
+    source_text = re.sub(r"<[^>]+>", " ", lesson.get("generated_html") or "")
+    source_text = re.sub(r"\s+", " ", source_text).strip()[:8000]
+    if not source_text:
+        raise HTTPException(status_code=400, detail="Lesson has no content to simplify yet.")
+
+    easy_read_prompt = f"""You are an expert technical editor who specializes in making dense material fast
+and easy to read, without ever removing or dumbing down the actual technical substance.
+
+Lesson title: {lesson['title']}
+Lesson content (extracted, tags stripped):
+\"\"\"
+{source_text}
+\"\"\"
+
+Rewrite this content into an "easy read" version of the SAME material:
+1. Start with a "Key Takeaways" list of 3-6 short bullets capturing the core ideas.
+2. Break the rest into short sections, each with a clear, bold heading.
+3. Keep paragraphs to 1-3 short sentences. Prefer bullet lists over dense prose wherever
+   the source content is enumerable (steps, comparisons, properties, examples).
+4. Bold the key terms a reader should remember.
+5. Preserve every distinct technical fact, number, and example from the source -- you are
+   restructuring for readability, not summarizing away detail or inventing new content.
+6. Output ONLY semantic HTML for the body content (h2/h3, p, ul/li, strong, code) -- no
+   <html>/<head>/<body> wrapper, no inline styles, no scripts.
+
+Return a JSON object in EXACTLY this format:
+{{
+  "title": "Lesson title, unchanged or lightly cleaned up",
+  "summary": "One sentence describing what this easy-read view covers.",
+  "easy_read_html": "<div class=\\"lms-easy-read\\">...semantic HTML only...</div>"
+}}
+Output ONLY the JSON object. No markdown code blocks before or after."""
+
+    try:
+        raw_resp = call_ai_text(easy_read_prompt, payload, max_tokens=8192)
+        result = extract_json_object(raw_resp)
+        if not result.get("easy_read_html"):
+            raise ValueError("No easy_read_html in AI response")
+        return {
+            "title": result.get("title", lesson["title"]),
+            "summary": result.get("summary", "A lighter, scannable version of this lesson."),
+            "easy_read_html": result.get("easy_read_html", ""),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Easy Read generation failed: {exc}")
+
+
+@router.post("/lessons/{lesson_id}/deeper")
+async def deeper_lesson(lesson_id: str, payload: LessonDeeperRequest) -> Dict[str, Any]:
+    """Extend a lesson with a "go deeper" continuation: assumes the reader already
+    understands the current lesson and adds genuinely new depth -- it never just
+    repeats or rephrases what's already there."""
+    lesson = get_lesson_by_id(lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+
+    source_text = re.sub(r"<[^>]+>", " ", lesson.get("generated_html") or "")
+    source_text = re.sub(r"\s+", " ", source_text).strip()[:8000]
+    if not source_text:
+        raise HTTPException(status_code=400, detail="Lesson has no content to go deeper on yet.")
+
+    deeper_prompt = f"""You are a principal-level engineer who writes "go deeper" extensions for
+technical lessons -- the reader has already read and understood the lesson below, so your job
+is to extend it with material a solid intro lesson leaves out, not to repeat it.
+
+Lesson title: {lesson['title']}
+Lesson content (extracted, tags stripped) -- treat this as material the reader ALREADY KNOWS:
+\"\"\"
+{source_text}
+\"\"\"
+
+Write a deeper-dive extension of this SAME topic:
+1. Do NOT re-explain the basics already covered above -- assume they're understood. Every
+   sentence should teach something the source content didn't already say.
+2. Cover what an intro lesson skips: edge cases and failure modes, the underlying mechanics
+   or math, production/real-world trade-offs, common misconceptions, and how this connects to
+   more advanced related topics.
+3. Organize into short sections, each with a clear, bold heading.
+4. Keep the same technical domain and terminology as the source -- this is a continuation,
+   not a new topic.
+5. Output ONLY semantic HTML for the body content (h2/h3, p, ul/li, strong, code) -- no
+   <html>/<head>/<body> wrapper, no inline styles, no scripts.
+
+Return a JSON object in EXACTLY this format:
+{{
+  "title": "Lesson title, unchanged or lightly cleaned up",
+  "summary": "One sentence describing what this deeper-dive extension covers.",
+  "deeper_html": "<div class=\\"lms-deeper\\">...semantic HTML only...</div>"
+}}
+Output ONLY the JSON object. No markdown code blocks before or after."""
+
+    try:
+        raw_resp = call_ai_text(deeper_prompt, payload, max_tokens=8192)
+        result = extract_json_object(raw_resp)
+        if not result.get("deeper_html"):
+            raise ValueError("No deeper_html in AI response")
+        return {
+            "title": result.get("title", lesson["title"]),
+            "summary": result.get("summary", "A deeper dive into this lesson's material."),
+            "deeper_html": result.get("deeper_html", ""),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Explain Deeper generation failed: {exc}")
+
+
+@router.post("/lessons/{lesson_id}/breakdown")
+async def breakdown_lesson(lesson_id: str, payload: LessonBreakdownRequest) -> Dict[str, Any]:
+    """Condense a lesson into a small number of short, high-signal chunks -- unlike Easy
+    Read (which restructures for scannability but preserves every detail), this actively
+    trims down to only the most essential, impactful point per chunk."""
+    lesson = get_lesson_by_id(lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+
+    source_text = re.sub(r"<[^>]+>", " ", lesson.get("generated_html") or "")
+    source_text = re.sub(r"\s+", " ", source_text).strip()[:8000]
+    if not source_text:
+        raise HTTPException(status_code=400, detail="Lesson has no content to break down yet.")
+
+    breakdown_prompt = f"""You are an expert at distilling dense technical material into a small
+number of short, punchy, high-signal chunks for a reader who wants the essence fast.
+
+Lesson title: {lesson['title']}
+Lesson content (extracted, tags stripped):
+\"\"\"
+{source_text}
+\"\"\"
+
+Break this lesson down into 5-8 small chunks, in the same logical order as the source:
+1. Each chunk = one short, bold micro-heading (a few words) + at most 2-3 sentences covering
+   ONE idea -- the single most important point from that part of the lesson.
+2. Actively trim: cut supporting detail, caveats, and examples that aren't essential to
+   understanding the core idea. This is a condensed, high-impact skim version, not a
+   restructuring that keeps everything -- prioritize clarity and brevity over completeness.
+3. Every chunk should be independently readable and feel like a complete, standalone thought.
+4. Output ONLY semantic HTML for the body content: a series of short <section> or <div>
+   blocks each with one heading + a short paragraph. No <html>/<head>/<body> wrapper, no
+   inline styles, no scripts.
+
+Return a JSON object in EXACTLY this format:
+{{
+  "title": "Lesson title, unchanged or lightly cleaned up",
+  "summary": "One sentence describing what this breakdown covers.",
+  "chunk_count": 6,
+  "breakdown_html": "<div class=\\"lms-breakdown\\">...semantic HTML only...</div>"
+}}
+Output ONLY the JSON object. No markdown code blocks before or after."""
+
+    try:
+        raw_resp = call_ai_text(breakdown_prompt, payload, max_tokens=8192)
+        result = extract_json_object(raw_resp)
+        if not result.get("breakdown_html"):
+            raise ValueError("No breakdown_html in AI response")
+        return {
+            "title": result.get("title", lesson["title"]),
+            "summary": result.get("summary", "A condensed, high-impact breakdown of this lesson."),
+            "chunk_count": result.get("chunk_count"),
+            "breakdown_html": result.get("breakdown_html", ""),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Breakdown generation failed: {exc}")
 
 
 @router.post("/lessons/{lesson_id}/embed-visual")
@@ -753,3 +934,39 @@ async def embed_visual_in_lesson(lesson_id: str, payload: EmbedVisualRequest) ->
     if not updated:
         raise HTTPException(status_code=500, detail="Failed to save visual to lesson.")
     return updated
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Voice Assistant (spoken Q&A about the current lesson)
+#
+# Lesson-tutoring-specific: builds a prompt referencing "the lesson" the
+# student is viewing, so it stays in ai_lms. The raw Deepgram STT/TTS calls
+# that used to be proxied here too were never actually lesson-specific and
+# have moved to the generic modules.voice package (POST /api/voice/stt,
+# /api/voice/tts — see modules/voice/router.py) so any module can reuse them.
+# Mirrors frontend/src/app/api/lms/voice-chat/route.ts (the Next.js path used
+# when NEXT_PUBLIC_BACKEND_MODE=fastapi isn't set) so the voice assistant
+# works identically under either backend.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class VoiceChatRequest(AISettings):
+    message: str = Field(..., min_length=1)
+    contextTitle: Optional[str] = ""
+    contextText: Optional[str] = ""
+
+
+@router.post("/voice-chat")
+async def voice_chat(payload: VoiceChatRequest) -> Dict[str, str]:
+    """Answer a spoken question about the current lesson in 1-3 short sentences."""
+    prompt = f"""You are a friendly, encouraging AI teaching assistant. The student is studying: {payload.contextTitle}.
+Lesson context excerpt:
+{(payload.contextText or "")[:2000]}
+
+The student asked verbally: "{payload.message}"
+Respond concisely in plain text (no markdown formatting, no code blocks, no asterisks). Your response will be spoken out loud via text-to-speech, so make it conversational, easy to understand, and brief (1-3 sentences max)."""
+    try:
+        response = call_ai_text(prompt, payload)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    spoken_text = re.sub(r"[*#_`]", "", response).strip()
+    return {"text": spoken_text}

@@ -6,7 +6,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from modules.common.ai_client import AISettings
+from modules.common.ai import AISettings
 
 from ..templates.db import fetch_templates_by_ids
 from .llm import generate_json, generate_text

@@ -1,5 +1,5 @@
 """Shared AI-call helpers for every todo vertical. Thin re-export of
-modules.common.ai_client, plus the one real local helper (image prep) that
+modules.common.ai, plus the one real local helper (image prep) that
 used to live in tasks/router.py and every other vertical pulled in via a
 deferred cross-import."""
 
@@ -10,7 +10,7 @@ import io
 
 from fastapi import HTTPException
 
-from modules.common.ai_client import (
+from modules.common.ai import (
     AISettings,
     call_ai_text as call_ai,
     call_ai_vision as call_vision_ai,

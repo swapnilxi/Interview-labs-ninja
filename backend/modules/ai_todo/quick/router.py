@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from modules.auth.dependencies import get_current_user_id
-from modules.common.ai_client import AISettings
+from modules.common.ai import AISettings
 from .db import (
     create_quick_task,
     get_quick_tasks_for_date,
@@ -229,7 +229,8 @@ async def move_to_plan_endpoint(task_id: int, user_id: int = Depends(get_current
 @router.post("/brain-dump-upload")
 async def brain_dump_upload_endpoint(
     file: UploadFile = File(...),
-    model: str = Form("gemini-flash-latest"),
+    # FastAPI swaps an empty form value for this default, so it must be "" for AISettings to resolve the .env default.
+    model: str = Form(""),
     geminiKey: str = Form(""),
     deepseekKey: str = Form(""),
     groqKey: str = Form(""),

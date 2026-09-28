@@ -49,8 +49,8 @@ export default function EditSubjectModal({
       });
       onUpdated(updated);
       onClose();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to update subject');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update subject');
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,9 @@ export default function EditSubjectModal({
             </div>
             <div>
               <h3 className="font-heading text-lg font-semibold text-foreground">Edit Subject</h3>
-              <p className="text-xs text-muted-foreground">Update subject overview and AI prompt instructions</p>
+              <p className="text-xs text-muted-foreground">
+                Update subject overview and AI prompt instructions
+              </p>
             </div>
           </div>
           <button
@@ -101,7 +103,10 @@ export default function EditSubjectModal({
 
           <div>
             <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">
-              Description <span className="text-muted-foreground font-normal lowercase">(for human-readable overview)</span>
+              Description{' '}
+              <span className="text-muted-foreground font-normal lowercase">
+                (for human-readable overview)
+              </span>
             </label>
             <textarea
               rows={2}
@@ -119,7 +124,12 @@ export default function EditSubjectModal({
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Icon name="SparklesIcon" size={13} className="text-emerald-500" />
-                <span>Context <span className="text-emerald-500 font-normal lowercase">(for AI generation)</span></span>
+                <span>
+                  Context{' '}
+                  <span className="text-emerald-500 font-normal lowercase">
+                    (for AI generation)
+                  </span>
+                </span>
               </label>
               <span className="text-[11px] font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
                 Subject AI Directives
@@ -133,7 +143,8 @@ export default function EditSubjectModal({
               className="w-full px-3.5 py-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none placeholder:text-muted-foreground/60"
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Passed along with class context to the AI when generating lessons inside this subject module.
+              Passed along with class context to the AI when generating lessons inside this subject
+              module.
             </p>
           </div>
 

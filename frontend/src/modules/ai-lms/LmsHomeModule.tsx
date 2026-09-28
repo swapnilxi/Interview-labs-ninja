@@ -101,7 +101,8 @@ export default function LmsHomeModule() {
           </h1>
 
           <p className="text-base text-muted-foreground font-body max-w-2xl leading-relaxed">
-            Generate, organize, and consume interactive engineering lessons. Transform complex topics into standalone, structured modules.
+            Generate, organize, and consume interactive engineering lessons. Transform complex
+            topics into standalone, structured modules.
           </p>
         </div>
 
@@ -118,7 +119,7 @@ export default function LmsHomeModule() {
 
           <Link
             href="/ai-lms/generate"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 transition-all hover:scale-102"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 transition-all hover:scale-[1.02]"
           >
             <Icon name="SparklesIcon" size={16} />
             <span>Generate Lesson</span>
@@ -150,7 +151,16 @@ export default function LmsHomeModule() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Aggregate counts */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{classes.length} classes</span>
+              <span>•</span>
+              <span>{totalSubjects} subjects</span>
+              <span>•</span>
+              <span>{totalLessons} lessons</span>
+            </div>
+
             {classes.length > 1 && (
               <button
                 type="button"
@@ -165,17 +175,6 @@ export default function LmsHomeModule() {
                 <span>{isOrganizeMode ? 'Done Organizing' : 'Organize Classes'}</span>
               </button>
             )}
-
-            {/* Aggregate counts */}
-            <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {classes.length} classes
-              </span>
-              <span>•</span>
-              <span>{totalSubjects} subjects</span>
-              <span>•</span>
-              <span>{totalLessons} lessons</span>
-            </div>
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import SubjectDetailModule from '@/modules/ai-lms/SubjectDetailModule';
+import RequireAuth from '@/modules/auth/RequireAuth';
 
 interface PageProps {
   params: Promise<{
@@ -24,9 +25,12 @@ export default async function SubjectDetailPage({ params }: PageProps) {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-background pt-[60px]">
-        <SubjectDetailModule classSlug={classSlug} subjectSlug={subjectSlug} />
-      </main>
+      <RequireAuth feature="AI LMS">
+        <main className="min-h-screen bg-background pt-[60px]">
+          <SubjectDetailModule classSlug={classSlug} subjectSlug={subjectSlug} />
+        </main>
+      </RequireAuth>
     </>
   );
 }
+

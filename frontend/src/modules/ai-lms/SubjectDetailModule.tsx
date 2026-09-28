@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { lmsService } from './services/lmsService';
@@ -17,10 +17,7 @@ interface SubjectDetailModuleProps {
   subjectSlug: string;
 }
 
-export default function SubjectDetailModule({
-  classSlug,
-  subjectSlug,
-}: SubjectDetailModuleProps) {
+export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectDetailModuleProps) {
   const [subject, setSubject] = useState<LmsSubject | null>(null);
   const [lmsClass, setLmsClass] = useState<LmsClass | null>(null);
   const [lessons, setLessons] = useState<LmsLesson[]>([]);
@@ -33,7 +30,7 @@ export default function SubjectDetailModule({
   const [lessonToEdit, setLessonToEdit] = useState<LmsLesson | null>(null);
   const [lessonToDelete, setLessonToDelete] = useState<LmsLesson | null>(null);
 
-  const loadSubject = async () => {
+  const loadSubject = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -46,16 +43,16 @@ export default function SubjectDetailModule({
         setLmsClass(cls);
       }
       setLessons(data.lessons || []);
-    } catch (err: any) {
-      setError(err?.message || 'Subject not found.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Subject not found.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [classSlug, subjectSlug]);
 
   useEffect(() => {
     loadSubject();
-  }, [classSlug, subjectSlug]);
+  }, [loadSubject]);
 
   const handleDeleteLesson = async () => {
     if (!lessonToDelete) return;
@@ -170,7 +167,7 @@ export default function SubjectDetailModule({
 
             <Link
               href={`/ai-lms/generate?class=${lmsClass.slug}&subject=${subject.slug}`}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 transition-all hover:scale-102"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 transition-all hover:scale-[1.02]"
             >
               <Icon name="SparklesIcon" size={15} />
               <span>Generate with AI</span>
@@ -179,13 +176,13 @@ export default function SubjectDetailModule({
         </div>
 
         {/* Subject AI Directives Card */}
-        <div className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div className="mt-4 rounded-xl border border-secondary/25 bg-secondary/5 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-500">
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-secondary/20 text-secondary">
                 <Icon name="SparklesIcon" size={12} />
               </span>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-500">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-secondary">
                 Subject AI Directives & Context
               </h3>
             </div>
@@ -204,7 +201,7 @@ export default function SubjectDetailModule({
           <button
             type="button"
             onClick={() => setIsSubjectEditOpen(true)}
-            className="flex-shrink-0 self-start sm:self-auto text-xs font-semibold text-emerald-500 hover:underline flex items-center gap-1 pl-7 sm:pl-0"
+            className="flex-shrink-0 self-start sm:self-auto ml-7 sm:ml-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-secondary/30 bg-secondary/10 text-secondary text-xs font-semibold hover:bg-secondary/15 transition-colors"
           >
             <Icon name="PencilIcon" size={12} />
             <span>{subject.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>

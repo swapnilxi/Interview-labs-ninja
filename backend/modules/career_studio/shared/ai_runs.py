@@ -39,7 +39,7 @@ def insert_ai_run(
 
 
 def provider_of(model: str) -> str:
-    """Best-effort provider label from a model id (mirrors ai_client._provider_order)."""
+    """Best-effort provider label from a model id (mirrors modules.common.ai.client._provider_order)."""
     m = (model or "").lower()
     if m.startswith("gemini") or m.startswith("gemma"):
         return "gemini"

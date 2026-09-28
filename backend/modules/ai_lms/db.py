@@ -428,6 +428,10 @@ def create_subject(class_identifier: str, name: str, description: Optional[str] 
 
     clean_name = name.strip()
     base_slug = slugify(clean_name)
+    if base_slug == "lesson":
+        # Collides with the /classes/<slug>/lesson/<lessonSlug> route used for
+        # Other-class (no-subject) lessons.
+        base_slug = "lesson-subject"
     now_iso = datetime.utcnow().isoformat() + "Z"
     new_id = f"subj-{uuid.uuid4().hex[:8]}"
 

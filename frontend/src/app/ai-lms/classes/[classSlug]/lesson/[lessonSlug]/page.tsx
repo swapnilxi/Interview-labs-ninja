@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import LessonViewerModule from '@/modules/ai-lms/LessonViewerModule';
+import RequireAuth from '@/modules/auth/RequireAuth';
 
 interface PageProps {
   params: Promise<{
@@ -24,12 +25,15 @@ export default async function DirectLessonViewerPage({ params }: PageProps) {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-background pt-[60px]">
-        <LessonViewerModule
-          classSlug={classSlug}
-          lessonSlug={lessonSlug}
-        />
-      </main>
+      <RequireAuth feature="AI LMS">
+        <main className="min-h-screen bg-background pt-[60px]">
+          <LessonViewerModule
+            classSlug={classSlug}
+            lessonSlug={lessonSlug}
+          />
+        </main>
+      </RequireAuth>
     </>
   );
 }
+

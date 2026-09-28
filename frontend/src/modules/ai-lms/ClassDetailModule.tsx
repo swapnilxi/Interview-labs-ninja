@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { lmsService } from './services/lmsService';
@@ -33,22 +33,22 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
   const [lessonToEdit, setLessonToEdit] = useState<LmsLesson | null>(null);
   const [isOrganizeSubjects, setIsOrganizeSubjects] = useState(false);
 
-  const loadClass = async () => {
+  const loadClass = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await lmsService.getClass(classSlug);
       setLmsClass(data);
-    } catch (err: any) {
-      setError(err?.message || 'Class not found.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Class not found.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [classSlug]);
 
   useEffect(() => {
     loadClass();
-  }, [classSlug]);
+  }, [loadClass]);
 
   const handleDeleteSubject = async () => {
     if (!subjectToDelete) return;
@@ -147,7 +147,10 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
       {/* Header & Breadcrumbs */}
       <div className="space-y-4 pb-6 border-b border-border">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Link href="/ai-lms" className="hover:text-foreground transition-colors flex items-center gap-1">
+          <Link
+            href="/ai-lms"
+            className="hover:text-foreground transition-colors flex items-center gap-1"
+          >
             <Icon name="ArrowLeftIcon" size={12} />
             <span>AI LMS</span>
           </Link>
@@ -158,8 +161,8 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
-                <Icon name={(lmsClass.icon || 'BookmarkIcon') as any} size={22} />
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+                <Icon name={lmsClass.icon || 'BookmarkIcon'} size={22} />
               </div>
               <h1 className="font-heading text-2xl md:text-4xl font-extrabold text-foreground">
                 {lmsClass.name}
@@ -208,7 +211,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
 
             <Link
               href={`/ai-lms/generate?class=${lmsClass.slug}`}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 transition-all hover:scale-102"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 transition-all hover:scale-[1.02]"
             >
               <Icon name="SparklesIcon" size={15} />
               <span>Generate Lesson</span>
@@ -236,13 +239,12 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
           <button
             type="button"
             onClick={() => setIsClassEditOpen(true)}
-            className="flex-shrink-0 self-start sm:self-auto text-xs font-semibold text-primary hover:underline flex items-center gap-1 pl-7 sm:pl-0"
+            className="flex-shrink-0 self-start sm:self-auto ml-7 sm:ml-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors"
           >
             <Icon name="PencilIcon" size={12} />
             <span>{lmsClass.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
           </button>
         </div>
-
       </div>
 
       {/* Normal Classes: Show Subjects Grid */}
@@ -265,7 +267,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
                   onClick={() => setIsOrganizeSubjects(!isOrganizeSubjects)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
                     isOrganizeSubjects
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      ? 'bg-primary text-white border-primary shadow-sm'
                       : 'bg-card text-foreground border-border hover:bg-muted'
                   }`}
                 >

@@ -54,8 +54,8 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
       setAiContext('');
       onCreated(created);
       onClose();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to create class');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create class');
     } finally {
       setLoading(false);
     }
@@ -70,8 +70,12 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
               <Icon name="AcademicCapIcon" size={20} />
             </div>
             <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">Create New Class</h3>
-              <p className="text-xs text-muted-foreground">Top-level domain/category for subjects and lessons</p>
+              <h3 className="font-heading text-lg font-semibold text-foreground">
+                Create New Class
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Top-level domain/category for subjects and lessons
+              </p>
             </div>
           </div>
           <button
@@ -107,7 +111,10 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
 
           <div>
             <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">
-              Description <span className="text-muted-foreground font-normal lowercase">(for human-readable overview)</span>
+              Description{' '}
+              <span className="text-muted-foreground font-normal lowercase">
+                (for human-readable overview)
+              </span>
             </label>
             <textarea
               rows={2}
@@ -125,7 +132,10 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Icon name="SparklesIcon" size={13} className="text-primary" />
-                <span>Context <span className="text-primary font-normal lowercase">(for AI generation)</span></span>
+                <span>
+                  Context{' '}
+                  <span className="text-primary font-normal lowercase">(for AI generation)</span>
+                </span>
               </label>
               <span className="text-[11px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                 AI Prompt Directives
@@ -139,7 +149,8 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
               className="w-full px-3.5 py-2.5 rounded-lg border border-primary/30 bg-primary/5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none placeholder:text-muted-foreground/60"
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Injected directly into the AI prompt when generating lessons under this class to set technical depth, persona, and focus.
+              Injected directly into the AI prompt when generating lessons under this class to set
+              technical depth, persona, and focus.
             </p>
           </div>
 
@@ -159,7 +170,7 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
                       : 'border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`}
                 >
-                  <Icon name={ic as any} size={18} />
+                  <Icon name={ic} size={18} />
                 </button>
               ))}
             </div>

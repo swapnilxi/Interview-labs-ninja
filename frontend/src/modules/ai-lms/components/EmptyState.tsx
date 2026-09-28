@@ -32,7 +32,7 @@ export default function EmptyState({
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card/60 p-12 text-center max-w-lg mx-auto my-8">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4 border border-primary/20">
-        <Icon name={icon as any} size={28} />
+        <Icon name={icon} size={28} />
       </div>
 
       <h3 className="font-heading text-lg font-bold text-foreground">{title}</h3>
@@ -46,18 +46,18 @@ export default function EmptyState({
             (primaryAction.href ? (
               <Link
                 href={primaryAction.href}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-102"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02]"
               >
-                {primaryAction.icon && <Icon name={primaryAction.icon as any} size={15} />}
+                {primaryAction.icon && <Icon name={primaryAction.icon} size={15} />}
                 <span>{primaryAction.label}</span>
               </Link>
             ) : (
               <button
                 type="button"
                 onClick={primaryAction.onClick}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-102"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02]"
               >
-                {primaryAction.icon && <Icon name={primaryAction.icon as any} size={15} />}
+                {primaryAction.icon && <Icon name={primaryAction.icon} size={15} />}
                 <span>{primaryAction.label}</span>
               </button>
             ))}
@@ -68,7 +68,7 @@ export default function EmptyState({
                 href={secondaryAction.href}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors"
               >
-                {secondaryAction.icon && <Icon name={secondaryAction.icon as any} size={15} />}
+                {secondaryAction.icon && <Icon name={secondaryAction.icon} size={15} />}
                 <span>{secondaryAction.label}</span>
               </Link>
             ) : (
@@ -77,7 +77,7 @@ export default function EmptyState({
                 onClick={secondaryAction.onClick}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors"
               >
-                {secondaryAction.icon && <Icon name={secondaryAction.icon as any} size={15} />}
+                {secondaryAction.icon && <Icon name={secondaryAction.icon} size={15} />}
                 <span>{secondaryAction.label}</span>
               </button>
             ))}

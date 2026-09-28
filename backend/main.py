@@ -77,6 +77,9 @@ from modules.swipe_pdf_reader.router import router as pdf_router
 from modules.ai_lms.db import init_lms_db
 from modules.ai_lms.router import router as lms_router
 
+# Generic voice module (Deepgram STT/TTS) — shared across any module that needs it
+from modules.voice.router import router as voice_router
+
 # CAREER STUDIO INTEGRATION — self-contained module with its own sqlite DB
 from modules.career_studio.shared.db import init_career_db
 from modules.career_studio.resume.router import router as career_router
@@ -147,6 +150,7 @@ app.include_router(pareto_router)
 app.include_router(import_router)
 app.include_router(pdf_router)
 app.include_router(lms_router)
+app.include_router(voice_router)
 
 # CAREER STUDIO INTEGRATION
 app.include_router(career_router)

@@ -46,8 +46,8 @@ export default function LessonViewerModule({
           const subjData = await lmsService.getSubject(classSlug, subjectSlug);
           setSubject(subjData);
         }
-      } catch (err: any) {
-        setError(err?.message || 'Failed to load lesson.');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to load lesson.');
       } finally {
         setLoading(false);
       }
@@ -74,7 +74,7 @@ export default function LessonViewerModule({
         <EmptyState
           icon="ExclamationTriangleIcon"
           title="Lesson Not Found"
-          description={error || "The requested lesson could not be loaded."}
+          description={error || 'The requested lesson could not be loaded.'}
           primaryAction={{
             label: 'Return to LMS Home',
             href: '/ai-lms',
@@ -86,11 +86,6 @@ export default function LessonViewerModule({
   }
 
   return (
-    <LessonViewer
-      lesson={lesson}
-      navigation={navigation}
-      lmsClass={lmsClass}
-      subject={subject}
-    />
+    <LessonViewer lesson={lesson} navigation={navigation} lmsClass={lmsClass} subject={subject} />
   );
 }

@@ -1,42 +1,29 @@
-export const getDeepgramKey = () =>
-  process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY ||
-  process.env.DEEPGRAM_API_KEY ||
-  (typeof window !== 'undefined' ? window.localStorage.getItem('deepgram_api_key') || '' : '');
+import { apiFetch } from '@/lib/http/apiClient';
+
+// Only a non-secret feature flag reaches the browser -- the real Deepgram key lives
+// server-side only (DEEPGRAM_API_KEY, no NEXT_PUBLIC_ prefix) inside the generic
+// /api/voice/stt and /api/voice/tts proxy routes, so it can never be extracted from
+// the JS bundle.
+export const isDeepgramEnabled = () =>
+  process.env.NEXT_PUBLIC_DEEPGRAM_ENABLED === 'true' ||
+  (typeof window !== 'undefined' && window.localStorage.getItem('deepgram_enabled') === 'true');
 
 export async function deepgramSTT(audioBlob: Blob): Promise<string> {
-  const key = getDeepgramKey();
-  if (!key) throw new Error("No Deepgram key");
-
-  const formData = new FormData();
-  formData.append('buffer', audioBlob);
-
-  const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true', {
+  const res = await apiFetch('/api/voice/stt', {
     method: 'POST',
-    headers: {
-      Authorization: `Token ${key}`,
-      'Content-Type': audioBlob.type,
-    },
-    body: audioBlob
+    headers: { 'Content-Type': audioBlob.type },
+    body: audioBlob,
   });
-
-  if (!res.ok) throw new Error("Deepgram STT failed");
+  if (!res.ok) throw new Error('Deepgram STT failed');
   const data = await res.json();
-  return data.results?.channels[0]?.alternatives[0]?.transcript || "";
+  return data.text || '';
 }
 
 export async function deepgramTTS(text: string): Promise<Blob> {
-  const key = getDeepgramKey();
-  if (!key) throw new Error("No Deepgram key");
-
-  const res = await fetch('https://api.deepgram.com/v1/speak?model=aura-asteria-en', {
+  const res = await apiFetch('/api/voice/tts', {
     method: 'POST',
-    headers: {
-      Authorization: `Token ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ text })
+    body: JSON.stringify({ text }),
   });
-
-  if (!res.ok) throw new Error("Deepgram TTS failed");
+  if (!res.ok) throw new Error('Deepgram TTS failed');
   return await res.blob();
 }
