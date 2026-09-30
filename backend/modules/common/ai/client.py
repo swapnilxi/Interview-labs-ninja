@@ -20,6 +20,9 @@ from .providers import (
     _call_ollama,
     _call_openai_compatible,
     _call_vertex,
+    _embed_gemini,
+    _embed_ollama,
+    _embed_openai,
     _gemini_model_name,
     _is_ollama_choice,
     _is_vertex_choice,
@@ -282,3 +285,55 @@ def stream_ai_text(prompt: str, settings: AISettings):
                         pass
     except Exception as e:
         yield f"\n[Streaming error: {e}]"
+
+
+class NoEmbeddingProviderError(RuntimeError):
+    """Raised by embed_texts when no embedding-capable provider is configured or
+    reachable. Distinct from a plain RuntimeError so callers can catch it
+    specifically and degrade gracefully (e.g. skip RAG indexing) instead of
+    surfacing a generic failure."""
+
+
+def embed_texts(texts: List[str], settings: AISettings) -> List[List[float]]:
+    """Embed a batch of texts, trying each embedding-capable provider the caller has
+    a key for: OpenAI, then Gemini, then a local Ollama (no key needed, tried last —
+    same "always attempt, but never let its failure drown out a real provider
+    error" treatment call_ai_text gives it). Anthropic has no embeddings API, and
+    the other OpenAI-compatible providers (DeepSeek/Groq/OpenRouter/custom) aren't
+    wired up here since they'd each need their own embedding model id, which
+    AISettings doesn't carry.
+
+    Raises NoEmbeddingProviderError (not a generic RuntimeError) if nothing worked,
+    so callers -- e.g. the RAG indexing endpoint -- can turn that into a clear,
+    actionable message instead of a bare 500.
+    """
+    if not texts:
+        return []
+
+    errors: dict = {}
+
+    openai_key = settings.openaiKey or os.environ.get("OPENAI_API_KEY", "")
+    if openai_key:
+        try:
+            return _embed_openai(texts, openai_key)
+        except Exception as exc:
+            errors["openai"] = str(exc)
+
+    gemini_key = settings.geminiKey or os.environ.get("GEMINI_API_KEY", "")
+    if gemini_key:
+        try:
+            return _embed_gemini(texts, gemini_key)
+        except Exception as exc:
+            errors["gemini"] = str(exc)
+
+    try:
+        return _embed_ollama(texts, settings.ollamaUrl)
+    except Exception as exc:
+        errors["ollama"] = str(exc)
+
+    detail = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no provider configured"
+    raise NoEmbeddingProviderError(
+        f"No embedding-capable provider is configured or reachable ({detail}). RAG "
+        "indexing needs an OpenAI key, a Gemini key, or a running local Ollama with "
+        "an embedding model pulled (e.g. `ollama pull nomic-embed-text`)."
+    )

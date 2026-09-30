@@ -27,7 +27,7 @@ import ...`), exactly like they used to from the old single-file module.
 
 from __future__ import annotations
 
-from .client import call_ai_text, call_ai_vision, stream_ai_text, test_provider_key
+from .client import NoEmbeddingProviderError, call_ai_text, call_ai_vision, embed_texts, stream_ai_text, test_provider_key
 from .settings import AISettings, GROQ_MODELS, ai_default_info, resolve_model
 from .utils import extract_json_array, extract_json_object
 
@@ -39,6 +39,8 @@ __all__ = [
     "call_ai_text",
     "call_ai_vision",
     "stream_ai_text",
+    "embed_texts",
+    "NoEmbeddingProviderError",
     "extract_json_array",
     "extract_json_object",
     "test_provider_key",

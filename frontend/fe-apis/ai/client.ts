@@ -10,7 +10,16 @@
  * same rule: an empty model means "use the .env default" (see ./defaults.ts).
  */
 
-import { GROQ_MODELS, providerOrder, callOpenAiCompatible, callAnthropicText, callGeminiText } from './providers';
+import {
+  GROQ_MODELS,
+  providerOrder,
+  callOpenAiCompatible,
+  callAnthropicText,
+  callGeminiText,
+  embedOpenAi,
+  embedGemini,
+  embedOllama,
+} from './providers';
 import {
   PROVIDER_DEFAULT_MODELS,
   envDefaultModel,
@@ -141,4 +150,60 @@ export async function callAIText(
   }
   const [firstProvider, detail] = Object.entries(errors)[0];
   throw new Error(`${firstProvider} failed: ${detail}`);
+}
+
+/** Thrown by embedTexts when no embedding-capable provider is configured or
+ * reachable. Distinct from a plain Error so callers can catch it specifically and
+ * degrade gracefully (e.g. skip RAG indexing) instead of surfacing a generic
+ * failure. Mirrors backend/modules/common/ai/client.py's NoEmbeddingProviderError. */
+export class NoEmbeddingProviderError extends Error {}
+
+/**
+ * Embed a batch of texts, trying each embedding-capable provider the caller has a
+ * key for: OpenAI, then Gemini, then a local Ollama (no key needed, tried last --
+ * same "always attempt, but never let its failure drown out a real provider error"
+ * treatment callAIText gives it). Anthropic has no embeddings API, and the other
+ * OpenAI-compatible providers (DeepSeek/Groq/OpenRouter/custom) aren't wired up
+ * here since they'd each need their own embedding model id, which
+ * AISettingsPayload doesn't carry.
+ *
+ * Mirrors backend/modules/common/ai/client.py's embed_texts.
+ */
+export async function embedTexts(texts: string[], settings: AISettingsPayload = {}): Promise<number[][]> {
+  if (texts.length === 0) return [];
+
+  const errors: Record<string, string> = {};
+
+  const openaiKey = settings.openaiKey || process.env.OPENAI_API_KEY || '';
+  if (openaiKey) {
+    try {
+      return await embedOpenAi(texts, openaiKey);
+    } catch (err) {
+      errors.openai = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  const geminiKey = settings.geminiKey || process.env.GEMINI_API_KEY || '';
+  if (geminiKey) {
+    try {
+      return await embedGemini(texts, geminiKey);
+    } catch (err) {
+      errors.gemini = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  try {
+    return await embedOllama(texts, settings.ollamaUrl || 'http://localhost:11434');
+  } catch (err) {
+    errors.ollama = err instanceof Error ? err.message : String(err);
+  }
+
+  const detail = Object.entries(errors).length
+    ? Object.entries(errors).map(([k, v]) => `${k}: ${v}`).join('; ')
+    : 'no provider configured';
+  throw new NoEmbeddingProviderError(
+    `No embedding-capable provider is configured or reachable (${detail}). RAG indexing ` +
+      'needs an OpenAI key, a Gemini key, or a running local Ollama with an embedding ' +
+      'model pulled (e.g. `ollama pull nomic-embed-text`).'
+  );
 }

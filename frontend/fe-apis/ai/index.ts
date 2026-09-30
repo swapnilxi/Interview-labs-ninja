@@ -6,7 +6,7 @@
  * point rather than reaching into client.ts, providers.ts, or utils.ts directly.
  */
 
-export { callAIText } from './client';
+export { callAIText, embedTexts, NoEmbeddingProviderError } from './client';
 export type { AISettingsPayload } from './client';
 export { resolveModel, aiDefaultInfo } from './defaults';
 export type { AIDefaultInfo } from './defaults';

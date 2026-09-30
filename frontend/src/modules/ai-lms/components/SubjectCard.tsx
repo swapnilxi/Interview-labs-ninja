@@ -32,6 +32,7 @@ export default function SubjectCard({
 }: SubjectCardProps) {
   const router = useRouter();
   const href = `/ai-lms/classes/${classSlug}/${subject.slug}`;
+  const isProject = subject.kind === 'project';
 
   return (
     <div
@@ -43,14 +44,22 @@ export default function SubjectCard({
       className={`group relative flex flex-col justify-between rounded-xl border bg-card p-5 shadow-sm transition-all duration-200 ${
         isOrganizeMode
           ? 'border-secondary/40 ring-1 ring-secondary/20 cursor-default'
-          : 'border-border cursor-pointer hover:border-secondary/40 hover:shadow-md hover:-translate-y-0.5'
+          : isProject
+            ? 'border-border cursor-pointer hover:border-indigo-500/40 hover:shadow-md hover:-translate-y-0.5'
+            : 'border-border cursor-pointer hover:border-secondary/40 hover:shadow-md hover:-translate-y-0.5'
       }`}
     >
       <div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary/10 text-secondary font-semibold text-xs border border-secondary/20">
-              <Icon name="FolderIcon" size={18} />
+            <div
+              className={`flex h-9 w-9 items-center justify-center rounded-lg font-semibold text-xs border ${
+                isProject
+                  ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'
+                  : 'bg-secondary/10 text-secondary border-secondary/20'
+              }`}
+            >
+              <Icon name={isProject ? 'CodeBracketSquareIcon' : 'FolderIcon'} size={18} />
             </div>
 
             {orderIndex !== undefined && (
@@ -60,8 +69,12 @@ export default function SubjectCard({
             )}
 
             {!isOrganizeMode && (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                Module
+              <span
+                className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  isProject ? 'bg-indigo-500/10 text-indigo-500' : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {isProject ? 'Project' : 'Module'}
               </span>
             )}
           </div>
@@ -141,7 +154,10 @@ export default function SubjectCard({
             {subject.name}
           </h4>
           <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-            {subject.description || 'Structured sequence of lessons.'}
+            {subject.description ||
+              (isProject
+                ? 'AI-generated implementation modules for this project.'
+                : 'Structured sequence of lessons.')}
           </p>
           {subject.ai_context && (
             <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-secondary font-mono bg-secondary/5 px-2.5 py-1 rounded-lg border border-secondary/10">
@@ -154,11 +170,17 @@ export default function SubjectCard({
 
       <div className="mt-5 flex items-center justify-between pt-3 border-t border-border/60 text-xs">
         <span className="font-medium text-muted-foreground">
-          {subject.lesson_count} {subject.lesson_count === 1 ? 'lesson' : 'lessons'}
+          {isProject
+            ? `${subject.lesson_count} ${subject.lesson_count === 1 ? 'lesson generated' : 'lessons generated'}`
+            : `${subject.lesson_count} ${subject.lesson_count === 1 ? 'lesson' : 'lessons'}`}
         </span>
 
-        <div className="inline-flex items-center gap-1 font-semibold text-primary group-hover:translate-x-1 transition-transform">
-          <span>View Lessons</span>
+        <div
+          className={`inline-flex items-center gap-1 font-semibold group-hover:translate-x-1 transition-transform ${
+            isProject ? 'text-indigo-500' : 'text-primary'
+          }`}
+        >
+          <span>{isProject ? 'Open Project' : 'View Lessons'}</span>
           <Icon name="ArrowRightIcon" size={13} />
         </div>
       </div>

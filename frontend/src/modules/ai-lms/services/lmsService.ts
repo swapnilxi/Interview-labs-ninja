@@ -14,6 +14,14 @@ import type {
   VisualExplanationResult,
 } from '../types';
 
+/** Response shape from the project module/sublesson generate endpoints -- the freshly
+ * generated (or regenerated) lesson, plus the project's full updated detail (plan + lessons)
+ * so the caller can refresh in one round trip. */
+export interface ProjectGenerateResult {
+  lesson: LmsLesson;
+  project: LmsSubject;
+}
+
 export const lmsService = {
   // ── Classes ──────────────────────────────────────────────────────────────
   async getClasses(): Promise<LmsClass[]> {
@@ -72,7 +80,14 @@ export const lmsService = {
 
   async createSubject(
     classIdOrSlug: string,
-    payload: { name: string; description?: string; ai_context?: string }
+    payload: {
+      name: string;
+      description?: string;
+      ai_context?: string;
+      kind?: 'subject' | 'project';
+      project_context?: string;
+      context_source_name?: string;
+    }
   ): Promise<LmsSubject> {
     return apiJson<LmsSubject>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/subjects`, {
       method: 'POST',
@@ -80,9 +95,24 @@ export const lmsService = {
     });
   },
 
+  /** Sugar over createSubject(kind: 'project') -- a Project is a Subject row with kind='project'
+   * plus a README/context, so it reuses the same table, lesson schema, and viewer. */
+  async createProject(
+    classIdOrSlug: string,
+    payload: { name: string; description?: string; project_context?: string; context_source_name?: string }
+  ): Promise<LmsSubject> {
+    return this.createSubject(classIdOrSlug, { ...payload, kind: 'project' });
+  },
+
   async updateSubject(
     subjectId: string,
-    payload: { name?: string; description?: string; ai_context?: string }
+    payload: {
+      name?: string;
+      description?: string;
+      ai_context?: string;
+      project_context?: string;
+      context_source_name?: string;
+    }
   ): Promise<LmsSubject> {
     return apiJson<LmsSubject>(`/api/lms/subjects/${encodeURIComponent(subjectId)}`, {
       method: 'PATCH',
@@ -315,5 +345,110 @@ export const lmsService = {
       body: JSON.stringify({ ...aiFields, ...payload }),
     });
     return res.text;
+  },
+
+  // ── Project Track: README/context -> AI-planned implementation modules ──
+  /** Ask the AI to (re)decompose the project's README/context into an ordered module outline.
+   * Replaces any existing outline and deletes the lessons it pointed to. */
+  async planProjectModules(projectId: string): Promise<LmsSubject> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<LmsSubject>(`/api/lms/projects/${encodeURIComponent(projectId)}/plan`, {
+      method: 'POST',
+      body: JSON.stringify({ ...aiFields }),
+    });
+  },
+
+  /** Generate (or regenerate in place) the standalone lesson for one planned module. */
+  async generateProjectModule(projectId: string, moduleIndex: number): Promise<ProjectGenerateResult> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<ProjectGenerateResult>(
+      `/api/lms/projects/${encodeURIComponent(projectId)}/modules/${moduleIndex}/generate`,
+      { method: 'POST', body: JSON.stringify({ ...aiFields }) }
+    );
+  },
+
+  /** Insert a user-authored step. `moduleIndex` null = top-level module at `position`;
+   * otherwise a sublesson of that module. Returns the updated project. */
+  async addProjectStep(
+    projectId: string,
+    payload: { title: string; focus?: string; module_index: number | null; position: number }
+  ): Promise<LmsSubject> {
+    return apiJson<LmsSubject>(`/api/lms/projects/${encodeURIComponent(projectId)}/steps`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /** Break an already-generated module lesson down into smaller, sequential sublessons the
+   * user can then generate individually. Requires the module to be generated first. */
+  async breakDownProjectModule(projectId: string, moduleIndex: number): Promise<LmsSubject> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<LmsSubject>(
+      `/api/lms/projects/${encodeURIComponent(projectId)}/modules/${moduleIndex}/breakdown`,
+      { method: 'POST', body: JSON.stringify({ ...aiFields }) }
+    );
+  },
+
+  /** Generate (or regenerate in place) the standalone lesson for one sublesson. */
+  async generateProjectSublesson(
+    projectId: string,
+    moduleIndex: number,
+    subIndex: number
+  ): Promise<ProjectGenerateResult> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<ProjectGenerateResult>(
+      `/api/lms/projects/${encodeURIComponent(projectId)}/modules/${moduleIndex}/sublessons/${subIndex}/generate`,
+      { method: 'POST', body: JSON.stringify({ ...aiFields }) }
+    );
+  },
+
+  // ── Long context handling (multi-doc + long text) ───────────────────────
+  /** AI-condense a subject/project's long-form context (project_context for a project,
+   * ai_context for a subject) into a compact summary. Generation then prefers this
+   * summary over a raw-text prefix, so a long multi-document upload's substance
+   * actually reaches the prompt instead of being silently cut off. */
+  async summarizeContext(subjectId: string): Promise<LmsSubject> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<LmsSubject>(`/api/lms/subjects/${encodeURIComponent(subjectId)}/summarize-context`, {
+      method: 'POST',
+      body: JSON.stringify({ ...aiFields }),
+    });
+  },
+
+  /** Discard the stored summary, reverting generation to a raw-text prefix. */
+  async clearContextSummary(subjectId: string): Promise<LmsSubject> {
+    return apiJson<LmsSubject>(`/api/lms/subjects/${encodeURIComponent(subjectId)}/summarize-context`, {
+      method: 'DELETE',
+    });
+  },
+
+  // ── RAG index (retrieval-augmented generation over long context) ────────
+  /** Chunk + embed + index this subject/project's raw context. Requires an
+   * embedding-capable provider (OpenAI, Gemini, or a reachable local Ollama) --
+   * throws with a clear, actionable message if none is configured. Once indexed,
+   * generation automatically pulls the most relevant excerpts for each specific
+   * module/lesson, grounding it in the source document rather than the general
+   * summary alone. */
+  async buildRagIndex(subjectId: string): Promise<LmsSubject & { rag_chunk_count: number }> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<LmsSubject & { rag_chunk_count: number }>(
+      `/api/lms/subjects/${encodeURIComponent(subjectId)}/rag/index`,
+      { method: 'POST', body: JSON.stringify({ ...aiFields }) }
+    );
+  },
+
+  /** Drop the RAG index -- generation falls back to the summary/raw-text prefix. */
+  async clearRagIndex(subjectId: string): Promise<LmsSubject & { rag_chunk_count: number }> {
+    return apiJson<LmsSubject & { rag_chunk_count: number }>(
+      `/api/lms/subjects/${encodeURIComponent(subjectId)}/rag/index`,
+      { method: 'DELETE' }
+    );
+  },
+
+  /** Chunk count for this subject/project's RAG index (0 if never built). */
+  async getRagIndexStatus(subjectId: string): Promise<{ subject_id: string; rag_chunk_count: number }> {
+    return apiJson<{ subject_id: string; rag_chunk_count: number }>(
+      `/api/lms/subjects/${encodeURIComponent(subjectId)}/rag/index`
+    );
   },
 };

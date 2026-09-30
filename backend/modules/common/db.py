@@ -205,12 +205,17 @@ def init_db() -> None:
         from modules.dsa_lab.schema import register as dsa_register
         from modules.linkedin_post_generator.templates.schema import register as linkedin_register
         from modules.ai_todo.shared.schema import register as todo_register
+        from modules.common.rag.storage import register as rag_register
 
         sd_register(cursor)
         cv_register(cursor)
         dsa_register(cursor)
         linkedin_register(cursor)
         todo_register(cursor)
+        # Shared RAG chunk storage (modules.common.rag) -- registered centrally, like
+        # every other module's schema, regardless of which module ends up using it
+        # first (currently ai_lms; see modules/ai_lms/router.py's thin wrapper).
+        rag_register(cursor)
 
         from modules.ai_lms.db import init_lms_db
         init_lms_db(conn)

@@ -51,7 +51,7 @@ const STATE_ORB_BG: Record<AssistantState, string> = {
 };
 
 const STATE_ORB_ICON: Record<AssistantState, string> = {
-  idle: 'MicrophoneIcon',
+  idle: 'SparklesIcon',
   listening: 'StopIcon',
   transcribing: 'ArrowPathIcon',
   reviewing: 'PencilSquareIcon',
@@ -195,6 +195,16 @@ export default function VoiceAssistant({ lessonTitle, lessonContentHtml }: Voice
   // the recognition object, paired with the isMountedRef/teardown logic in the cleanup
   // below, which must only run on actual unmount.
   useEffect(() => {
+    // React 18 StrictMode (on by default in `next dev`) deliberately mounts every
+    // component, runs this effect, tears it down, then mounts it again -- so the
+    // cleanup below always fires once before the "real" mount settles. Without this
+    // line, isMountedRef.current would be left `false` forever after that first
+    // simulated unmount (it's only ever set back to true here, never in the cleanup),
+    // so every async flow that checks it post-await -- e.g. startListening() after
+    // `await getUserMedia(...)` -- would always take its "unmounted" branch and never
+    // start recording. This is why voice input worked in production but appeared
+    // completely dead in local dev.
+    isMountedRef.current = true;
     if (
       typeof window !== 'undefined' &&
       ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)

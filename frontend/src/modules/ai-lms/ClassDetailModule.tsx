@@ -8,6 +8,7 @@ import type { LmsClass, LmsLesson, LmsSubject } from './types';
 import SubjectCard from './components/SubjectCard';
 import LessonList from './components/LessonList';
 import CreateSubjectModal from './components/CreateSubjectModal';
+import CreateProjectModal from './components/CreateProjectModal';
 import EditClassModal from './components/EditClassModal';
 import EditSubjectModal from './components/EditSubjectModal';
 import ManualLessonModal from './components/ManualLessonModal';
@@ -26,6 +27,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
   // Modals
   const [isClassEditOpen, setIsClassEditOpen] = useState(false);
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [subjectToEdit, setSubjectToEdit] = useState<LmsSubject | null>(null);
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [subjectToDelete, setSubjectToDelete] = useState<LmsSubject | null>(null);
@@ -195,6 +197,17 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               </button>
             )}
 
+            {!isOtherClass && (
+              <button
+                type="button"
+                onClick={() => setIsProjectModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/5 text-indigo-500 font-medium text-xs hover:bg-indigo-500/10 transition-colors shadow-sm"
+              >
+                <Icon name="CodeBracketSquareIcon" size={14} />
+                <span>Add Project</span>
+              </button>
+            )}
+
             {isOtherClass && (
               <button
                 type="button"
@@ -253,10 +266,10 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="font-heading text-xl font-bold text-foreground">
-                Module Subjects ({subjects.length})
+                Subjects & Projects ({subjects.length})
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Organized topic modules and sequential lesson tracks
+                Topic modules for concepts, or projects for AI-planned implementation roadmaps
               </p>
             </div>
 
@@ -285,17 +298,17 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
           {subjects.length === 0 ? (
             <EmptyState
               icon="FolderIcon"
-              title="No subjects created yet"
-              description={`Add your first subject module under ${lmsClass.name}, or use the Quick AI Generator above.`}
+              title="No subjects or projects created yet"
+              description={`Add a subject to teach concepts, or a project to generate a step-by-step implementation roadmap under ${lmsClass.name}.`}
               primaryAction={{
                 label: 'Create Subject',
                 onClick: () => setIsSubjectModalOpen(true),
                 icon: 'PlusIcon',
               }}
               secondaryAction={{
-                label: 'Generate Lesson with AI',
-                href: `/ai-lms/generate?class=${lmsClass.slug}`,
-                icon: 'SparklesIcon',
+                label: 'Add Project',
+                onClick: () => setIsProjectModalOpen(true),
+                icon: 'CodeBracketSquareIcon',
               }}
             />
           ) : (
@@ -381,6 +394,14 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
         isOpen={isSubjectModalOpen}
         targetClass={lmsClass}
         onClose={() => setIsSubjectModalOpen(false)}
+        onCreated={() => loadClass()}
+      />
+
+      {/* Create Project Modal */}
+      <CreateProjectModal
+        isOpen={isProjectModalOpen}
+        targetClass={lmsClass}
+        onClose={() => setIsProjectModalOpen(false)}
         onCreated={() => loadClass()}
       />
 

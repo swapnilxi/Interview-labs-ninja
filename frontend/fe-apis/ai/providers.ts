@@ -138,3 +138,68 @@ export async function callGeminiText(
   if (!text) throw new Error('Empty response');
   return text;
 }
+
+// ── Embeddings (for RAG-style retrieval, e.g. fe-apis/lms's context indexing) ──
+// Mirrors backend/modules/common/ai/providers.py's _embed_openai/_embed_gemini/
+// _embed_ollama. A separate, smaller provider order than text generation:
+// Anthropic has no public embeddings API, and the other OpenAI-compatible
+// providers wired up above (DeepSeek/Groq/OpenRouter/custom) aren't included here
+// since they'd each need their own embedding-specific model name, which
+// AISettingsPayload doesn't carry.
+
+export async function embedOpenAi(
+  texts: string[],
+  apiKey: string,
+  model: string = 'text-embedding-3-small'
+): Promise<number[][]> {
+  const res = await fetch('https://api.openai.com/v1/embeddings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, input: texts }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  // Preserve input order via each item's own "index" -- providers aren't
+  // guaranteed to return them in request order.
+  const ordered = [...data.data].sort((a: any, b: any) => a.index - b.index);
+  return ordered.map((d: any) => d.embedding);
+}
+
+export async function embedGemini(
+  texts: string[],
+  apiKey: string,
+  model: string = 'gemini-embedding-001'
+): Promise<number[][]> {
+  const embeddings: number[][] = [];
+  for (const text of texts) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: `models/${model}`, content: { parts: [{ text }] } }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    embeddings.push(data.embedding.values);
+  }
+  return embeddings;
+}
+
+export async function embedOllama(
+  texts: string[],
+  baseUrl: string,
+  model: string = 'nomic-embed-text'
+): Promise<number[][]> {
+  const embeddings: number[][] = [];
+  for (const text of texts) {
+    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/embeddings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt: text }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    embeddings.push(data.embedding);
+  }
+  return embeddings;
+}

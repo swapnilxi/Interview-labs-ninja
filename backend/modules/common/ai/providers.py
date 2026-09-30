@@ -249,3 +249,55 @@ def _vertex_model_name(model: str) -> str:
     if not (name.startswith("gemini") or name.startswith("gemma")):
         name = "gemini-" + name
     return name or "gemini-2.5-flash"
+
+
+# ── Embeddings (for RAG-style retrieval, e.g. modules/ai_lms's context indexing) ──
+# A separate, smaller provider order than text generation: Anthropic has no public
+# embeddings API at all, and the other OpenAI-compatible providers wired up above
+# (DeepSeek/Groq/OpenRouter/custom) aren't included here since they'd each need their
+# own embedding-specific model name, which AISettings doesn't carry (only a chat
+# model per provider). OpenAI, Gemini, and Ollama each have a well-known, stable
+# embedding model id, so those three are enough to cover the common cases.
+
+def _embed_openai(texts: List[str], api_key: str, model: str = "text-embedding-3-small") -> List[List[float]]:
+    body = json.dumps({"model": model, "input": texts}).encode()
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/embeddings",
+        data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST",
+    )
+    with _urlopen_surfacing_errors(req, timeout=60) as resp:
+        data = json.loads(resp.read())
+    # Preserve input order via each item's own "index" -- providers aren't
+    # guaranteed to return them in request order.
+    ordered = sorted(data["data"], key=lambda d: d["index"])
+    return [d["embedding"] for d in ordered]
+
+
+def _embed_gemini(texts: List[str], api_key: str, model: str = "gemini-embedding-001") -> List[List[float]]:
+    embeddings: List[List[float]] = []
+    for text in texts:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent?key={api_key}"
+        body = json.dumps({"model": f"models/{model}", "content": {"parts": [{"text": text}]}}).encode()
+        req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+        with _urlopen_surfacing_errors(req, timeout=60) as resp:
+            data = json.loads(resp.read())
+        embeddings.append(data["embedding"]["values"])
+    return embeddings
+
+
+def _embed_ollama(texts: List[str], base_url: str, model: str = "nomic-embed-text", timeout: int = 60) -> List[List[float]]:
+    embeddings: List[List[float]] = []
+    for text in texts:
+        body = json.dumps({"model": model, "prompt": text}).encode()
+        req = urllib.request.Request(
+            f"{base_url.rstrip('/')}/api/embeddings",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+        embeddings.append(data["embedding"])
+    return embeddings

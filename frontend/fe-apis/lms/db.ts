@@ -85,6 +85,26 @@ export function ensureLmsTables(): void {
     if (!subjCols.some((c) => c.name === 'ai_context')) {
       db.exec("ALTER TABLE lms_subjects ADD COLUMN ai_context TEXT DEFAULT ''");
     }
+    // Project track: a "project" is a subject row with kind='project' plus a README /
+    // context doc and an AI-planned module outline, so it reuses lessons, routing,
+    // navigation and the lesson viewer unchanged. Mirrors backend/modules/ai_lms/db.py.
+    if (!subjCols.some((c) => c.name === 'kind')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN kind TEXT NOT NULL DEFAULT 'subject'");
+    }
+    if (!subjCols.some((c) => c.name === 'project_context')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN project_context TEXT DEFAULT ''");
+    }
+    if (!subjCols.some((c) => c.name === 'context_source_name')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN context_source_name TEXT DEFAULT ''");
+    }
+    if (!subjCols.some((c) => c.name === 'project_plan')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN project_plan TEXT DEFAULT ''");
+    }
+    // AI-generated condensed version of this row's long-form context (project_context
+    // for a project, ai_context for a subject) -- mirrors backend/modules/ai_lms/db.py.
+    if (!subjCols.some((c) => c.name === 'context_summary')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN context_summary TEXT DEFAULT ''");
+    }
   } catch (migErr) {
     console.warn('[fe-apis/lms/db] Migration notice:', migErr);
   }
@@ -168,8 +188,9 @@ export function getClassByIdOrSlug(idOrSlug: string): Record<string, unknown> | 
 
   // Subjects with their lesson counts
   const subjects = db.prepare(`
-    SELECT 
-      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
+    SELECT
+      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name,
+      s.order_index, s.created_at, s.updated_at,
       COUNT(l.id) AS lesson_count
     FROM lms_subjects s
     LEFT JOIN lms_lessons l ON l.subject_id = s.id
@@ -273,8 +294,9 @@ export function getSubjectsByClass(classIdOrSlug: string): Record<string, unknow
   if (!cls) return [];
 
   return db.prepare(`
-    SELECT 
-      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
+    SELECT
+      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name,
+      s.order_index, s.created_at, s.updated_at,
       COUNT(l.id) AS lesson_count
     FROM lms_subjects s
     LEFT JOIN lms_lessons l ON l.subject_id = s.id
@@ -282,6 +304,52 @@ export function getSubjectsByClass(classIdOrSlug: string): Record<string, unknow
     GROUP BY s.id
     ORDER BY s.order_index ASC, s.name ASC
   `).all(cls.id) as Record<string, unknown>[];
+}
+
+/** Decode the stored module outline, dropping links to lessons that no longer exist
+ * (e.g. a module lesson the user deleted) so the UI shows that module as not generated.
+ * Mirrors backend/modules/ai_lms/db.py's _parse_project_plan. */
+/** Normalize one module or sublesson entry: {title, focus, lesson_id, sublessons}. Recurses,
+ * so a module's sublessons (populated on demand by the "Break Down" action) round-trip too.
+ * Mirrors backend/modules/ai_lms/db.py's _parse_plan_item. */
+function parsePlanItem(item: unknown, lessonIds: Set<string>): Record<string, unknown> | null {
+  if (!item || typeof item !== 'object') return null;
+  const rec = item as Record<string, unknown>;
+  const title = String(rec.title || '').trim();
+  if (!title) return null;
+  const lessonId = rec.lesson_id;
+  const rawSubs = rec.sublessons;
+  const sublessons: Record<string, unknown>[] = [];
+  if (Array.isArray(rawSubs)) {
+    for (const sub of rawSubs) {
+      const parsedSub = parsePlanItem(sub, lessonIds);
+      if (parsedSub) sublessons.push(parsedSub);
+    }
+  }
+  return {
+    title,
+    focus: String(rec.focus || '').trim(),
+    lesson_id: typeof lessonId === 'string' && lessonIds.has(lessonId) ? lessonId : null,
+    sublessons,
+  };
+}
+
+function parseProjectPlan(raw: unknown, lessons: Record<string, unknown>[]): Record<string, unknown>[] {
+  if (!raw || typeof raw !== 'string') return [];
+  let items: unknown;
+  try {
+    items = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(items)) return [];
+  const lessonIds = new Set(lessons.map((l) => l.id as string));
+  const plan: Record<string, unknown>[] = [];
+  for (const item of items) {
+    const parsed = parsePlanItem(item, lessonIds);
+    if (parsed) plan.push(parsed);
+  }
+  return plan;
 }
 
 export function getSubjectByIdOrSlug(classIdOrSlug: string, subjectIdOrSlug: string): Record<string, unknown> | null {
@@ -316,10 +384,32 @@ export function getSubjectByIdOrSlug(classIdOrSlug: string, subjectIdOrSlug: str
     class_ai_context: cls.ai_context || '',
     lessons,
     lesson_count: lessons.length,
+    project_plan: parseProjectPlan(subj.project_plan, lessons),
   };
 }
 
-export function createSubject(classIdOrSlug: string, name: string, description: string = '', aiContext: string = ''): Record<string, unknown> {
+/** Resolve a subject/project by id alone, scanning classes -- used by the /projects/[id]
+ * routes, which (like the backend's) address a project by id without a class in the URL. */
+export function getSubjectByIdAnyClass(subjectId: string): Record<string, unknown> | null {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return null;
+  const { db } = res;
+
+  const row = db.prepare('SELECT class_id FROM lms_subjects WHERE id = ?').get(subjectId) as { class_id: string } | undefined;
+  if (!row) return null;
+  return getSubjectByIdOrSlug(row.class_id, subjectId);
+}
+
+export function createSubject(
+  classIdOrSlug: string,
+  name: string,
+  description: string = '',
+  aiContext: string = '',
+  kind: 'subject' | 'project' = 'subject',
+  projectContext: string = '',
+  contextSourceName: string = ''
+): Record<string, unknown> {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
   if (!res) throw new Error('Database unavailable');
@@ -347,14 +437,33 @@ export function createSubject(classIdOrSlug: string, name: string, description: 
   const nowIso = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO lms_subjects (id, class_id, name, slug, description, ai_context, order_index, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(subjectId, cls.id, name.trim(), slug, description.trim(), aiContext.trim(), orderIndex, nowIso, nowIso);
+    INSERT INTO lms_subjects (
+      id, class_id, name, slug, description, ai_context, kind,
+      project_context, context_source_name, order_index, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    subjectId,
+    cls.id,
+    name.trim(),
+    slug,
+    description.trim(),
+    aiContext.trim(),
+    kind === 'project' ? 'project' : 'subject',
+    projectContext.trim(),
+    contextSourceName.trim(),
+    orderIndex,
+    nowIso,
+    nowIso
+  );
 
   return getSubjectByIdOrSlug(cls.id, subjectId)!;
 }
 
-export function updateSubject(subjectId: string, updates: { name?: string; description?: string; ai_context?: string }): Record<string, unknown> | null {
+export function updateSubject(
+  subjectId: string,
+  updates: { name?: string; description?: string; ai_context?: string; project_context?: string; context_source_name?: string }
+): Record<string, unknown> | null {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
   if (!res) return null;
@@ -366,15 +475,46 @@ export function updateSubject(subjectId: string, updates: { name?: string; descr
   const newName = updates.name !== undefined ? updates.name.trim() : (current.name as string);
   const newDesc = updates.description !== undefined ? updates.description.trim() : (current.description as string);
   const newAiCtx = updates.ai_context !== undefined ? updates.ai_context.trim() : ((current.ai_context as string) || '');
+  const newProjectCtx = updates.project_context !== undefined ? updates.project_context : ((current.project_context as string) || '');
+  const newSourceName = updates.context_source_name !== undefined ? updates.context_source_name.trim() : ((current.context_source_name as string) || '');
   const nowIso = new Date().toISOString();
 
   db.prepare(`
     UPDATE lms_subjects
-    SET name = ?, description = ?, ai_context = ?, updated_at = ?
+    SET name = ?, description = ?, ai_context = ?, project_context = ?, context_source_name = ?, updated_at = ?
     WHERE id = ?
-  `).run(newName, newDesc, newAiCtx, nowIso, subjectId);
+  `).run(newName, newDesc, newAiCtx, newProjectCtx, newSourceName, nowIso, subjectId);
 
   return getSubjectByIdOrSlug(current.class_id as string, subjectId);
+}
+
+/** Persist a project's implementation-module outline (list of {title, focus, lesson_id}). */
+export function saveProjectPlan(subjectId: string, plan: Record<string, unknown>[]): void {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return;
+  const { db } = res;
+  const nowIso = new Date().toISOString();
+  db.prepare('UPDATE lms_subjects SET project_plan = ?, updated_at = ? WHERE id = ?').run(
+    JSON.stringify(plan),
+    nowIso,
+    subjectId
+  );
+}
+
+/** Persist an AI-condensed version of this row's long-form context. An empty string
+ * reverts generation prompts to the raw-text-prefix behavior. */
+export function saveContextSummary(subjectId: string, summary: string): void {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return;
+  const { db } = res;
+  const nowIso = new Date().toISOString();
+  db.prepare('UPDATE lms_subjects SET context_summary = ?, updated_at = ? WHERE id = ?').run(
+    summary,
+    nowIso,
+    subjectId
+  );
 }
 
 export function deleteSubject(subjectId: string): boolean {

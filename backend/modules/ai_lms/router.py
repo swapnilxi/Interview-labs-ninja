@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
@@ -11,7 +11,11 @@ from pydantic import BaseModel, Field
 from pypdf import PdfReader
 
 from modules.auth.dependencies import get_current_user_id
-from modules.common.ai import AISettings, call_ai_text, extract_json_object
+from modules.common.ai import AISettings, NoEmbeddingProviderError, call_ai_text, extract_json_object
+from modules.common.rag import clear_index as rag_clear_index
+from modules.common.rag import index_document as rag_index_document
+from modules.common.rag import index_status as rag_index_status
+from modules.common.rag import retrieve as rag_retrieve
 from .visual_engine import (
     generate_native_visual,
     build_structured_lesson_html,
@@ -37,6 +41,8 @@ from .db import (
     reorder_classes,
     reorder_lessons,
     reorder_subjects,
+    save_context_summary,
+    save_project_plan,
     search_lms,
     update_class,
     update_lesson,
@@ -49,6 +55,22 @@ router = APIRouter(prefix="/api/lms", tags=["AI LMS"], dependencies=[Depends(get
 # ─────────────────────────────────────────────────────────────────────────────
 # Request / Response Schemas
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Stored README/context can be one or several whole uploaded docs; only a prefix of
+# each is sent to the LLM, so storage can stay generous without blowing up prompt cost.
+PROJECT_CONTEXT_MAX_CHARS = 400_000
+PROJECT_CONTEXT_PROMPT_CHARS = 16_000
+# Class/Subject ai_context can likewise now be built from multiple uploaded docs plus
+# typed text; stored size is generous but only a prefix is ever sent per generation
+# call, since (unlike project_context) it's re-included on EVERY lesson in that
+# class/subject, not just once per project-plan/module call.
+AI_CONTEXT_MAX_CHARS = 100_000
+AI_CONTEXT_PROMPT_CHARS = 8_000
+# RAG retrieval chunk size -- deliberately much smaller than the prompt-insertion
+# budgets above, since these chunks are meant to be individually retrievable, precise
+# excerpts (see rag/index endpoints + _retrieve_relevant_chunks), not one big blob.
+RAG_CHUNK_CHAR_SIZE = 2_000
+RAG_TOP_K = 5
 
 class CreateClassRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
@@ -67,13 +89,20 @@ class UpdateClassRequest(BaseModel):
 class CreateSubjectRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     description: Optional[str] = Field(default="", max_length=1000)
-    ai_context: Optional[str] = Field(default="", max_length=3000)
+    ai_context: Optional[str] = Field(default="", max_length=AI_CONTEXT_MAX_CHARS)
+    kind: Literal["subject", "project"] = "subject"
+    project_context: Optional[str] = Field(default="", max_length=PROJECT_CONTEXT_MAX_CHARS)
+    # Comma-joined names of every file the context was extracted from (subject or
+    # project) -- purely a display label ("From: a.pdf, b.docx"), not sent to the LLM.
+    context_source_name: Optional[str] = Field(default="", max_length=2000)
 
 
 class UpdateSubjectRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=120)
     description: Optional[str] = Field(default=None, max_length=1000)
-    ai_context: Optional[str] = Field(default=None, max_length=3000)
+    ai_context: Optional[str] = Field(default=None, max_length=AI_CONTEXT_MAX_CHARS)
+    project_context: Optional[str] = Field(default=None, max_length=PROJECT_CONTEXT_MAX_CHARS)
+    context_source_name: Optional[str] = Field(default=None, max_length=2000)
 
 
 class CreateLessonManualRequest(BaseModel):
@@ -110,6 +139,31 @@ class GenerateLessonRequest(AISettings):
     input_type: str = "topic"  # "topic" | "text" | "file"
     content: str = Field(..., min_length=1)
     title: Optional[str] = None
+
+
+class ProjectPlanRequest(AISettings):
+    pass
+
+
+class ProjectModuleGenerateRequest(AISettings):
+    pass
+
+
+class AddProjectStepRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    focus: Optional[str] = Field(default="", max_length=1000)
+    # None = insert a top-level module; otherwise insert a sublesson into that module.
+    module_index: Optional[int] = None
+    # Index the new step takes in its list (clamped to the list's bounds).
+    position: int = 0
+
+
+class SummarizeContextRequest(AISettings):
+    pass
+
+
+class RagIndexRequest(AISettings):
+    pass
 
 
 class LessonVisualizeRequest(AISettings):
@@ -189,7 +243,15 @@ async def list_subjects_for_class(class_id_or_slug: str) -> List[Dict[str, Any]]
 @router.post("/classes/{class_id_or_slug}/subjects", status_code=status.HTTP_201_CREATED)
 async def handle_create_subject(class_id_or_slug: str, payload: CreateSubjectRequest) -> Dict[str, Any]:
     """Create a subject under a specific class."""
-    created = create_subject(class_id_or_slug, payload.name, payload.description, payload.ai_context)
+    created = create_subject(
+        class_id_or_slug,
+        payload.name,
+        payload.description,
+        payload.ai_context,
+        kind=payload.kind,
+        project_context=payload.project_context,
+        context_source_name=payload.context_source_name,
+    )
     if not created:
         raise HTTPException(status_code=404, detail="Class not found.")
     return created
@@ -207,7 +269,14 @@ async def get_subject_detail(class_id_or_slug: str, subject_id_or_slug: str) -> 
 @router.patch("/subjects/{subject_id}")
 async def handle_update_subject(subject_id: str, payload: UpdateSubjectRequest) -> Dict[str, Any]:
     """Update subject name, description, or ai_context."""
-    updated = update_subject(subject_id, payload.name, payload.description, payload.ai_context)
+    updated = update_subject(
+        subject_id,
+        payload.name,
+        payload.description,
+        payload.ai_context,
+        project_context=payload.project_context,
+        context_source_name=payload.context_source_name,
+    )
     if not updated:
         raise HTTPException(status_code=404, detail="Subject not found.")
     return updated
@@ -220,6 +289,176 @@ async def handle_delete_subject(subject_id: str) -> Dict[str, Any]:
     if not success:
         raise HTTPException(status_code=404, detail="Subject not found.")
     return {"status": "deleted", "id": subject_id}
+
+
+@router.post("/subjects/{subject_id}/summarize-context")
+async def summarize_context(subject_id: str, payload: SummarizeContextRequest) -> Dict[str, Any]:
+    """AI-condense this row's long-form context (project_context for a project,
+    ai_context for a subject) into a compact, information-dense summary.
+
+    Once stored, generation prompts prefer this summary over a raw-text prefix (see
+    _generate_lesson_content / plan_project_modules), so a long multi-document upload's
+    substance reaches the prompt instead of being silently cut off past the raw-prefix
+    character budget -- the efficient alternative to standing up a vector-DB/RAG
+    pipeline for what is, here, a small, fixed number of single-shot generation calls
+    rather than open-ended conversational retrieval."""
+    subj = get_subject_by_id_or_slug_any_class(subject_id)
+    if not subj:
+        raise HTTPException(status_code=404, detail="Subject not found.")
+
+    is_project = subj.get("kind") == "project"
+    field_label = "project README / context" if is_project else "AI generation guidance context"
+    raw_text = ((subj.get("project_context") if is_project else subj.get("ai_context")) or "").strip()
+    if not raw_text:
+        raise HTTPException(status_code=400, detail=f"No {field_label} to summarize yet.")
+
+    target_chars = PROJECT_CONTEXT_PROMPT_CHARS if is_project else AI_CONTEXT_PROMPT_CHARS
+    summarize_prompt = f"""You are condensing a long {field_label} so it can be used efficiently in future AI
+prompts, without losing anything a downstream generation step would need.
+
+Source text:
+\"\"\"
+{raw_text[:100_000]}
+\"\"\"
+
+Produce a dense, structured summary that:
+1. Preserves every concrete fact a generator would need: goals, tech stack, constraints,
+   APIs/endpoints, schemas, numbers, names, and scope boundaries -- do not vaguely
+   paraphrase these away.
+2. Cuts prose, repetition, and filler that doesn't change what gets built or how.
+3. Uses short headed sections or bullets, not a single wall of text.
+4. Stays well under {target_chars} characters.
+
+Output ONLY the summary text. No preamble, no markdown code fences."""
+
+    try:
+        summary = call_ai_text(summarize_prompt, payload, max_tokens=4096).strip()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Summarization failed: {exc}")
+
+    if not summary:
+        raise HTTPException(status_code=502, detail="The AI provider returned an empty summary. Please try again.")
+
+    save_context_summary(subj["id"], summary)
+    return get_subject_by_id_or_slug(subj["class_id"], subj["id"])  # type: ignore
+
+
+@router.delete("/subjects/{subject_id}/summarize-context")
+async def clear_context_summary(subject_id: str) -> Dict[str, Any]:
+    """Discard the stored AI summary, reverting generation prompts to a raw-text prefix."""
+    subj = get_subject_by_id_or_slug_any_class(subject_id)
+    if not subj:
+        raise HTTPException(status_code=404, detail="Subject not found.")
+    save_context_summary(subj["id"], "")
+    return get_subject_by_id_or_slug(subj["class_id"], subj["id"])  # type: ignore
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RAG: chunk + embed + retrieve a subject/project's raw context
+#
+# All the actual chunk/embed/store/retrieve logic lives in modules.common.rag --
+# a generic pipeline any module can use for any (namespace, owner_id), not just
+# this one (see that package's docstring). Everything below is ai_lms's thin
+# domain-specific wrapper: it resolves a subject_id to its raw context text, does
+# the one ai_lms-specific bit (splitting multi-file-upload text on its own
+# "--- File: name ---" markers so a chunk never straddles two unrelated
+# documents), and calls straight into the shared package for the rest.
+#
+# Indexing (POST /rag/index) is a user-triggered action, not automatic on every
+# save, since it costs real embedding-API calls -- same reasoning as Summarize &
+# Store being a button rather than running on every keystroke. Retrieval
+# (_retrieve_relevant_chunks) runs automatically inside _generate_lesson_content
+# whenever a subject/project has an index, pulling the chunks most relevant to
+# THIS specific module/lesson (its title/focus, or its topic for a plain Subject
+# lesson) as grounding material alongside the compressed context_summary -- the
+# summary carries the big picture, retrieved chunks carry precise, sourced detail
+# a compressed summary alone might not preserve.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Namespaces this table in the shared rag_chunks store from any other module's
+# rows (see modules/common/rag's docstring on (namespace, owner_id)).
+RAG_NAMESPACE = "ai_lms_subject"
+
+_FILE_MARKER_RE = re.compile(r"^--- File: (.+?) ---$", re.MULTILINE)
+
+
+def _split_into_file_sections(text: str) -> List[Tuple[str, str]]:
+    """Split raw multi-file-upload text on its "--- File: name ---" markers (see
+    extract_multiple_files on the frontend) into (source_label, text) sections, one
+    per uploaded file -- passed to modules.common.rag.index_document so a chunk
+    never straddles two unrelated documents. Falls back to one unlabeled section
+    for plain typed text or a single-file upload."""
+    matches = list(_FILE_MARKER_RE.finditer(text))
+    if not matches:
+        return [("", text.strip())]
+    sections: List[Tuple[str, str]] = []
+    for i, m in enumerate(matches):
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        sections.append((m.group(1).strip(), text[start:end].strip()))
+    return sections
+
+
+@router.post("/subjects/{subject_id}/rag/index")
+async def build_rag_index(subject_id: str, payload: RagIndexRequest) -> Dict[str, Any]:
+    """Chunk this row's raw long-form context and embed each chunk, replacing any
+    previous index. Requires an embedding-capable provider (OpenAI key, Gemini key,
+    or a reachable local Ollama) -- raises a clear, actionable 400 if none is
+    configured, rather than a bare 500, since this is an optional enhancement on top
+    of context_summary (which works with any provider), not a hard requirement."""
+    subj = get_subject_by_id_or_slug_any_class(subject_id)
+    if not subj:
+        raise HTTPException(status_code=404, detail="Subject not found.")
+
+    is_project = subj.get("kind") == "project"
+    field_label = "project README / context" if is_project else "AI generation guidance context"
+    raw_text = ((subj.get("project_context") if is_project else subj.get("ai_context")) or "").strip()
+    if not raw_text:
+        raise HTTPException(status_code=400, detail=f"No {field_label} to index yet.")
+
+    sections = _split_into_file_sections(raw_text)
+    try:
+        chunk_count = rag_index_document(RAG_NAMESPACE, subj["id"], sections, payload, chunk_size=RAG_CHUNK_CHAR_SIZE)
+    except NoEmbeddingProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Embedding failed: {exc}")
+
+    if chunk_count == 0:
+        raise HTTPException(status_code=400, detail="Nothing to index -- the context is empty after cleanup.")
+
+    updated = get_subject_by_id_or_slug(subj["class_id"], subj["id"])
+    return {**updated, "rag_chunk_count": chunk_count}  # type: ignore
+
+
+@router.delete("/subjects/{subject_id}/rag/index")
+async def clear_rag_index(subject_id: str) -> Dict[str, Any]:
+    """Drop this row's RAG index. Generation falls back to context_summary / a raw
+    prefix, exactly as if it had never been indexed."""
+    subj = get_subject_by_id_or_slug_any_class(subject_id)
+    if not subj:
+        raise HTTPException(status_code=404, detail="Subject not found.")
+    rag_clear_index(RAG_NAMESPACE, subj["id"])
+    updated = get_subject_by_id_or_slug(subj["class_id"], subj["id"])
+    return {**updated, "rag_chunk_count": 0}  # type: ignore
+
+
+@router.get("/subjects/{subject_id}/rag/index")
+async def get_rag_index_status(subject_id: str) -> Dict[str, Any]:
+    """Chunk count for this row's RAG index (0 if never built) -- lets the UI show
+    indexed/not-indexed status without fetching the whole subject."""
+    subj = get_subject_by_id_or_slug_any_class(subject_id)
+    if not subj:
+        raise HTTPException(status_code=404, detail="Subject not found.")
+    return {"subject_id": subj["id"], "rag_chunk_count": rag_index_status(RAG_NAMESPACE, subj["id"])}
+
+
+def _retrieve_relevant_chunks(subject_id: str, query_text: str, ai: AISettings, top_k: int = RAG_TOP_K) -> List[Dict[str, Any]]:
+    """Thin ai_lms-scoped wrapper over modules.common.rag.retrieve. Returns []
+    (never raises) if nothing is indexed or embedding the query fails -- retrieval
+    is a best-effort enhancement on top of context_summary, not a hard dependency
+    of generation."""
+    return rag_retrieve(RAG_NAMESPACE, subject_id, query_text, ai, top_k=top_k)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -514,68 +753,82 @@ def _extract_summary_from_html(html: str, fallback: str) -> str:
     return fallback[:200]
 
 
-@router.post("/lessons/generate", status_code=status.HTTP_201_CREATED)
-async def generate_lesson(payload: GenerateLessonRequest) -> Dict[str, Any]:
-    """Generate an interactive standalone HTML lesson using the configured AI provider."""
-    # Verify class exists
-    cls = get_class_by_id_or_slug(payload.class_id)
-    if not cls:
-        raise HTTPException(status_code=404, detail="Selected class not found.")
+def _generate_lesson_content(
+    cls: Dict[str, Any],
+    subj: Optional[Dict[str, Any]],
+    input_type: str,
+    raw_content: str,
+    ai: AISettings,
+    fallback_title: str,
+    extra_instructions: str = "",
+) -> Tuple[str, str, str, int]:
+    """Run the lesson-generation prompt and validate the output.
 
-    subject_name = ""
-    subject_id = payload.subject_id
-
-    # If subject_id is provided, verify it exists under this class
-    subject_desc = ""
-    subject_ai_context = ""
-    if subject_id:
-        subj = get_subject_by_id_or_slug(cls["id"], subject_id)
-        if not subj:
-            raise HTTPException(status_code=404, detail="Selected subject not found in this class.")
-        subject_name = subj["name"]
-        subject_id = subj["id"]
-        subject_desc = subj.get("description", "") or ""
-        subject_ai_context = subj.get("ai_context", "") or ""
-    else:
-        # If class is NOT 'other' and has subjects, subject is recommended
-        if cls["slug"] != "other":
-            # Check if this class has existing subjects
-            existing_subjs = get_subjects_by_class(cls["id"])
-            if existing_subjs:
-                # Use first subject if none specified
-                subject_id = existing_subjs[0]["id"]
-                subject_name = existing_subjs[0]["name"]
-                subject_desc = existing_subjs[0].get("description", "") or ""
-                subject_ai_context = existing_subjs[0].get("ai_context", "") or ""
+    Shared by one-off lesson generation and project implementation modules, so both
+    produce the same lesson schema. When `subj` is a project, its README/context is
+    included in the prompt. Returns (html, title, summary, read_minutes); raises
+    HTTPException(502) if the provider fails or returns unusable HTML.
+    """
+    subject_name = subj["name"] if subj else ""
+    subject_desc = (subj.get("description") or "") if subj else ""
+    is_project = bool(subj) and subj.get("kind") == "project"
+    # A stored AI summary (see save_context_summary / the /summarize-context endpoint)
+    # is preferred over a naive raw-text prefix when present -- it's denser, so more of
+    # the source document's substance actually reaches the prompt within the same
+    # character budget, instead of silently dropping everything past the prefix cutoff.
+    context_summary = (subj.get("context_summary") or "").strip() if subj else ""
+    subject_ai_context = (
+        context_summary if (context_summary and not is_project) else ((subj.get("ai_context") or "") if subj else "")
+    ).strip()[:AI_CONTEXT_PROMPT_CHARS]
+    raw_project_context = (subj.get("project_context") or "").strip() if is_project else ""
+    project_context = (context_summary if (context_summary and is_project) else raw_project_context)[
+        :PROJECT_CONTEXT_PROMPT_CHARS
+    ]
 
     class_desc = cls.get("description", "") or ""
-    class_ai_context = cls.get("ai_context", "") or ""
+    class_ai_context = (cls.get("ai_context", "") or "").strip()[:AI_CONTEXT_PROMPT_CHARS]
 
-    source_desc = f"Input Mode: {payload.input_type.upper()}"
-    raw_content = payload.content.strip()
-
-    suggested_title = payload.title or (
-        raw_content[:80].splitlines()[0] if payload.input_type == "topic" else f"Lesson on {raw_content[:40]}..."
-    )
-
+    subject_label = "Project" if is_project else "Subject"
     class_context_section = f"\n- Class Description (for learners): {class_desc}" if class_desc else ""
     class_guidance_section = f"\n- Class AI Generation Guidance / Target Context: {class_ai_context}" if class_ai_context else ""
-    subject_context_section = f"\n- Subject Description (for learners): {subject_desc}" if subject_desc else ""
-    subject_guidance_section = f"\n- Subject AI Generation Guidance / Target Focus: {subject_ai_context}" if subject_ai_context else ""
+    subject_context_section = f"\n- {subject_label} Description (for learners): {subject_desc}" if subject_desc else ""
+    subject_guidance_section = f"\n- {subject_label} AI Generation Guidance / Target Focus: {subject_ai_context}" if subject_ai_context else ""
+    project_context_section = (
+        f'\n- Project README / Context (the project the learner is building):\n"""\n{project_context}\n"""'
+        if project_context else ""
+    )
+    extra_section = f"\n{extra_instructions.strip()}\n" if extra_instructions.strip() else ""
+
+    # RAG: pull the source-context chunks most relevant to THIS specific module/lesson
+    # (best-effort -- [] if nothing's indexed, or if embedding the query fails, so this
+    # never blocks generation). context_summary above carries the big picture; these
+    # excerpts carry precise, sourced detail a compressed summary can drop.
+    retrieved_chunks = _retrieve_relevant_chunks(subj["id"], f"{fallback_title}\n{raw_content[:1000]}", ai) if subj else []
+    retrieved_context_section = ""
+    if retrieved_chunks:
+        excerpts = "\n\n".join(f"[{c['source_label'] or 'source'}]\n{c['content']}" for c in retrieved_chunks)
+        retrieved_context_section = f"""
+
+Retrieved Relevant Context (grounded excerpts from the actual source document(s) for
+this specific module/lesson -- ground implementation-level specifics in these over
+generic/invented detail wherever they apply):
+\"\"\"
+{excerpts}
+\"\"\""""
 
     system_prompt = f"""You are a world-class technical educator, staff software engineer, and interactive curriculum designer at the level of ByteByteGo and NeetCode.
 Your task is to transform the provided source learning material into a comprehensive, highly pedagogical, and INTERACTIVE standalone HTML lesson.
 
 Target Domain & Guidance Context:
 - Class: {cls['name']}{class_context_section}{class_guidance_section}
-- Subject: {subject_name if subject_name else 'Core Module'}{subject_context_section}{subject_guidance_section}
-- Source Mode: {payload.input_type}
+- {subject_label}: {subject_name if subject_name else 'Core Module'}{subject_context_section}{subject_guidance_section}{project_context_section}
+- Source Mode: {input_type}
 
 Source Material:
 \"\"\"
 {raw_content}
 \"\"\"
-
+{extra_section}{retrieved_context_section}
 CRITICAL REQUIREMENTS & CONTRACT:
 1. OUTPUT CONTRACT:
    - Output ONLY the complete, valid standalone HTML document.
@@ -614,7 +867,7 @@ CRITICAL REQUIREMENTS & CONTRACT:
 """
 
     try:
-        raw_ai_html = call_ai_text(system_prompt, payload, max_tokens=16000)
+        raw_ai_html = call_ai_text(system_prompt, ai, max_tokens=16000)
     except Exception as exc:
         # Surface the real failure instead of silently substituting a generic,
         # topic-unaware template -- a lesson that looks legitimate but isn't actually
@@ -634,17 +887,49 @@ CRITICAL REQUIREMENTS & CONTRACT:
             detail="The AI provider returned an incomplete or invalid response. Please try again.",
         )
 
-    final_title = _extract_title_from_html(clean_html, suggested_title)
+    final_title = _extract_title_from_html(clean_html, fallback_title)
     final_summary = _extract_summary_from_html(clean_html, f"Interactive lesson on {final_title}")
 
     # Estimate read time based on word count
     word_count = len(re.sub(r"<[^>]+>", " ", clean_html).split())
     read_minutes = max(3, min(30, round(word_count / 180)))
 
+    return clean_html, final_title, final_summary, read_minutes
+
+
+@router.post("/lessons/generate", status_code=status.HTTP_201_CREATED)
+async def generate_lesson(payload: GenerateLessonRequest) -> Dict[str, Any]:
+    """Generate an interactive standalone HTML lesson using the configured AI provider."""
+    # Verify class exists
+    cls = get_class_by_id_or_slug(payload.class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Selected class not found.")
+
+    subj: Optional[Dict[str, Any]] = None
+    if payload.subject_id:
+        # If subject_id is provided, verify it exists under this class
+        subj = get_subject_by_id_or_slug(cls["id"], payload.subject_id)
+        if not subj:
+            raise HTTPException(status_code=404, detail="Selected subject not found in this class.")
+    elif cls["slug"] != "other":
+        # If class is NOT 'other' and has subjects, use the first one if none specified
+        existing_subjs = get_subjects_by_class(cls["id"])
+        if existing_subjs:
+            subj = get_subject_by_id_or_slug(cls["id"], existing_subjs[0]["id"])
+
+    raw_content = payload.content.strip()
+    suggested_title = payload.title or (
+        raw_content[:80].splitlines()[0] if payload.input_type == "topic" else f"Lesson on {raw_content[:40]}..."
+    )
+
+    clean_html, final_title, final_summary, read_minutes = _generate_lesson_content(
+        cls, subj, payload.input_type, raw_content, payload, suggested_title
+    )
+
     # Persist lesson to database
-    lesson = create_lesson(
+    return create_lesson(
         class_id=cls["id"],
-        subject_id=subject_id,
+        subject_id=subj["id"] if subj else None,
         title=final_title,
         source_type=payload.input_type,
         source_content=raw_content[:2000],  # store reference source
@@ -653,7 +938,391 @@ CRITICAL REQUIREMENTS & CONTRACT:
         read_time_minutes=read_minutes,
     )
 
-    return lesson
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Project Track: README/context -> AI-planned implementation modules
+#
+# A project is an lms_subjects row with kind='project'. Its modules are ordinary
+# lessons (subject_id = project id), so the lesson viewer, navigation, download,
+# and breadcrumbs all work unchanged. The outline lives in lms_subjects.project_plan
+# as [{title, focus, lesson_id}], linking each planned module to its lesson.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_project_or_404(project_id: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    subj = None
+    lesson_owner = get_subject_by_id_or_slug_any_class(project_id)
+    if lesson_owner:
+        subj = lesson_owner
+    if not subj or subj.get("kind") != "project":
+        raise HTTPException(status_code=404, detail="Project not found.")
+    return subj["class"], subj
+
+
+def get_subject_by_id_or_slug_any_class(subject_id: str) -> Optional[Dict[str, Any]]:
+    """Projects are addressed by id in the /projects routes, so resolve the class first."""
+    for cls in get_all_classes():
+        subj = get_subject_by_id_or_slug(cls["id"], subject_id)
+        if subj and subj["id"] == subject_id:
+            return subj
+    return None
+
+
+def _flatten_plan_lesson_ids(plan: List[Dict[str, Any]]) -> List[str]:
+    """Walk the plan tree in display order: each module's own lesson (if any), then its
+    sublessons (if it's been broken down), then the next module."""
+    ids: List[str] = []
+    for item in plan:
+        if item.get("lesson_id"):
+            ids.append(item["lesson_id"])
+        for sub in item.get("sublessons") or []:
+            if sub.get("lesson_id"):
+                ids.append(sub["lesson_id"])
+    return ids
+
+
+def _sync_project_lesson_order(project: Dict[str, Any], plan: List[Dict[str, Any]]) -> None:
+    """Keep module/sublesson lessons in outline order; any other lessons in the project follow."""
+    planned_ids = _flatten_plan_lesson_ids(plan)
+    current = [l["id"] for l in get_lessons_by_subject(project["id"])]
+    extras = [lid for lid in current if lid not in planned_ids]
+    reorder_lessons([lid for lid in planned_ids if lid in current] + extras)
+
+
+def _build_implementation_extra_instructions(project_name: str, position_label: str, focus: str) -> str:
+    """The 'this is a real implementation step, not a theory chapter' prompt contract shared by
+    module and sublesson generation. Scopes each lesson to ~2 hours of real, verifiable work."""
+    return (
+        "PROJECT TRACK INSTRUCTIONS (CRITICAL -- this is an IMPLEMENTATION lesson, not a theory chapter):\n"
+        f"- This lesson is {position_label} of an implementation roadmap for the project \"{project_name}\". "
+        "The learner's whole goal is to move the project forward by actually building this specific piece: "
+        f"{focus}\n"
+        "- Optimize for implementation momentum, not content volume. Scope this lesson to what a learner can "
+        "realistically implement AND verify in about ONE ~2-hour session, ending with one concrete artifact "
+        "(working code, an endpoint, a schema/migration, a UI component, a passing test suite, etc). Do not "
+        "pad it into a long theory article, and do not repeat the project README back at the learner -- get "
+        "to implementation fast.\n"
+        "- Structure the lesson around: Goal (what's being built), Prerequisites (what should already exist "
+        "from earlier steps), Implementation (concrete steps, file/folder changes, and real code for the "
+        "project's actual stack), Commands to run, Validation (how the learner verifies it works), and a "
+        "closing 'Done When' checklist (e.g. \"Endpoint created\", \"Tests passing\").\n"
+        "- Assume earlier steps in the roadmap are already done; build on them without re-teaching or "
+        "re-implementing them. Briefly point to what comes next at the end.\n"
+        "- Use the project README as the source of truth for goals, stack, scope and constraints."
+    )
+
+
+@router.post("/projects/{project_id}/plan")
+async def plan_project_modules(project_id: str, payload: ProjectPlanRequest) -> Dict[str, Any]:
+    """Ask the LLM to decompose the project README/context into an ordered module outline.
+
+    Replaces any existing outline. Module lessons already generated from the previous
+    outline are deleted, since the new outline no longer refers to them."""
+    cls, project = _get_project_or_404(project_id)
+    raw_project_context = (project.get("project_context") or "").strip()
+    if not raw_project_context:
+        raise HTTPException(status_code=400, detail="Add a README / project context before generating modules.")
+    # Prefer the stored AI summary when present -- denser, so more of the source
+    # document's substance reaches the prompt within the same character budget.
+    context_summary = (project.get("context_summary") or "").strip()
+    project_context = context_summary or raw_project_context
+
+    class_desc = cls.get("description") or ""
+    class_ai_context = (cls.get("ai_context") or "").strip()[:AI_CONTEXT_PROMPT_CHARS]
+    project_desc = project.get("description") or ""
+    project_ai_context = (project.get("ai_context") or "").strip()[:AI_CONTEXT_PROMPT_CHARS]
+
+    plan_prompt = f"""You are a staff software engineer and curriculum designer. A learner wants to BUILD the
+project described below and learn by implementing it step by step. Decompose it into an ordered
+sequence of implementation modules -- each module will later become one hands-on lesson that
+teaches how to implement that step of THIS project.
+
+Context:
+- Class: {cls['name']}{f"{chr(10)}- Class Description: {class_desc}" if class_desc else ""}{f"{chr(10)}- Class AI Guidance: {class_ai_context}" if class_ai_context else ""}
+- Project: {project['name']}{f"{chr(10)}- Project Description: {project_desc}" if project_desc else ""}{f"{chr(10)}- Project AI Guidance: {project_ai_context}" if project_ai_context else ""}
+
+Project README / Context:
+\"\"\"
+{project_context[:PROJECT_CONTEXT_PROMPT_CHARS]}
+\"\"\"
+
+Rules:
+1. Optimize for implementation momentum, not fewer modules: each module must be small enough
+   that a learner can realistically implement AND test it in about one focused ~2-hour session,
+   producing one concrete artifact (an endpoint, a schema/migration, a UI component, a service,
+   a middleware, a test suite, a config/deploy step, etc). If a natural step of the project is
+   bigger than that (e.g. "Authentication"), split it into several sequential modules (e.g. "User
+   Model & Password Hashing", "Login Endpoint", "JWT Middleware", "Protected Routes",
+   "Authentication Tests") rather than one large module -- prefer more, smaller modules over a
+   few big ones. This typically means more like 6-14 modules for a real project, not 4-6.
+2. Order modules by implementation dependency (setup/architecture first, testing/deployment
+   last); each module builds on the ones before it.
+3. "focus" is 1-3 sentences on exactly what gets built in that module (components, files,
+   endpoints, schema, config) and the key concepts it teaches.
+4. Don't invent features the README doesn't call for; you may add essential glue steps
+   (e.g. project setup, testing) that any real implementation needs.
+
+Return a JSON object in EXACTLY this format:
+{{
+  "modules": [
+    {{"title": "Project Setup & Architecture", "focus": "..."}}
+  ]
+}}
+Output ONLY the JSON object. No markdown code blocks before or after."""
+
+    try:
+        raw_resp = call_ai_text(plan_prompt, payload, max_tokens=4096)
+        result = extract_json_object(raw_resp)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Module planning failed: {exc}")
+
+    modules = result.get("modules") if isinstance(result, dict) else None
+    plan = [
+        {
+            "title": str(m.get("title")).strip()[:200],
+            "focus": str(m.get("focus") or "").strip(),
+            "lesson_id": None,
+            "sublessons": [],  # populated on demand via the "Break Down" action
+        }
+        for m in (modules or [])
+        if isinstance(m, dict) and str(m.get("title") or "").strip()
+    ]
+    if not plan:
+        raise HTTPException(status_code=502, detail="The AI provider returned no modules. Please try again.")
+
+    _delete_plan_lessons(project.get("project_plan") or [])
+    save_project_plan(project["id"], plan)
+    return get_subject_by_id_or_slug(cls["id"], project["id"])  # type: ignore
+
+
+def _delete_plan_lessons(plan: List[Dict[str, Any]]) -> None:
+    """Delete every lesson a plan (module + nested sublessons) currently points to."""
+    for item in plan:
+        if item.get("lesson_id"):
+            delete_lesson(item["lesson_id"])
+        _delete_plan_lessons(item.get("sublessons") or [])
+
+
+@router.post("/projects/{project_id}/steps")
+async def add_project_step(project_id: str, payload: AddProjectStepRequest) -> Dict[str, Any]:
+    """Insert a user-authored module/sublesson at any point in the outline (e.g. a finding or
+    extra step discovered mid-project). Ungenerated; existing lessons stay linked by id."""
+    cls, project = _get_project_or_404(project_id)
+    plan: List[Dict[str, Any]] = project.get("project_plan") or []
+    item = {"title": payload.title.strip(), "focus": (payload.focus or "").strip(), "lesson_id": None, "sublessons": []}
+    if not item["title"]:
+        raise HTTPException(status_code=422, detail="Title is required.")
+    if payload.module_index is None:
+        pos = max(0, min(payload.position, len(plan)))
+        plan.insert(pos, item)
+    else:
+        if payload.module_index < 0 or payload.module_index >= len(plan):
+            raise HTTPException(status_code=404, detail="Module not found in this project's outline.")
+        module = plan[payload.module_index]
+        subs = list(module.get("sublessons") or [])
+        subs.insert(max(0, min(payload.position, len(subs))), item)
+        plan[payload.module_index] = {**module, "sublessons": subs}
+    save_project_plan(project["id"], plan)
+    _sync_project_lesson_order(project, plan)
+    return get_subject_by_id_or_slug(cls["id"], project["id"])  # type: ignore
+
+
+@router.post("/projects/{project_id}/modules/{module_index}/generate")
+async def generate_project_module(
+    project_id: str, module_index: int, payload: ProjectModuleGenerateRequest
+) -> Dict[str, Any]:
+    """Generate (or regenerate in place) the lesson for one planned implementation module."""
+    cls, project = _get_project_or_404(project_id)
+    plan: List[Dict[str, Any]] = project.get("project_plan") or []
+    if module_index < 0 or module_index >= len(plan):
+        raise HTTPException(status_code=404, detail="Module not found in this project's outline.")
+
+    module = plan[module_index]
+    outline = "\n".join(
+        f"{i + 1}. {m['title']}{' <- THIS MODULE' if i == module_index else ''}" for i, m in enumerate(plan)
+    )
+    module_brief = (
+        f"Implementation Module {module_index + 1} of {len(plan)}: {module['title']}\n"
+        f"Module focus: {module.get('focus') or module['title']}\n\n"
+        f"Full project module outline:\n{outline}"
+    )
+    extra = _build_implementation_extra_instructions(
+        project["name"],
+        f"module {module_index + 1} of {len(plan)}",
+        module.get("focus") or module["title"],
+    )
+
+    clean_html, final_title, final_summary, read_minutes = _generate_lesson_content(
+        cls, project, "project", module_brief, payload, module["title"], extra_instructions=extra
+    )
+
+    existing_id = module.get("lesson_id")
+    if existing_id and get_lesson_by_id(existing_id):
+        lesson = update_lesson(existing_id, title=final_title, generated_html=clean_html, summary=final_summary)
+    else:
+        lesson = create_lesson(
+            class_id=cls["id"],
+            subject_id=project["id"],
+            title=final_title,
+            source_type="project",
+            source_content=module_brief[:2000],
+            generated_html=clean_html,
+            summary=final_summary,
+            read_time_minutes=read_minutes,
+        )
+
+    plan[module_index] = {**module, "lesson_id": lesson["id"]}  # type: ignore[index]
+    save_project_plan(project["id"], plan)
+    _sync_project_lesson_order(project, plan)
+
+    return {
+        "lesson": lesson,
+        "project": get_subject_by_id_or_slug(cls["id"], project["id"]),
+    }
+
+
+@router.post("/projects/{project_id}/modules/{module_index}/breakdown")
+async def break_down_project_module(
+    project_id: str, module_index: int, payload: ProjectModuleGenerateRequest
+) -> Dict[str, Any]:
+    """User-triggered: break one already-generated module lesson into smaller, sequential,
+    independently-implementable sublessons.
+
+    This reuses the app's existing "AI analyzes a lesson and chunks it" idea (see
+    /lessons/{id}/breakdown, used elsewhere for an ephemeral prose skim view) but adapts it for
+    Projects: instead of a read-only skim, it proposes a small ordered list of implementable
+    sublesson titles, each of which becomes its own real, standalone, navigable lesson once
+    generated via generate_project_sublesson. The original /lessons/{id}/breakdown endpoint and
+    its ephemeral behavior for ordinary Subject lessons are untouched by this."""
+    cls, project = _get_project_or_404(project_id)
+    plan: List[Dict[str, Any]] = project.get("project_plan") or []
+    if module_index < 0 or module_index >= len(plan):
+        raise HTTPException(status_code=404, detail="Module not found in this project's outline.")
+
+    module = plan[module_index]
+    lesson_id = module.get("lesson_id")
+    lesson = get_lesson_by_id(lesson_id) if lesson_id else None
+    if not lesson:
+        raise HTTPException(status_code=400, detail="Generate this module's lesson before breaking it down.")
+
+    source_text = re.sub(r"<[^>]+>", " ", lesson.get("generated_html") or "")
+    source_text = re.sub(r"\s+", " ", source_text).strip()[:8000]
+
+    breakdown_prompt = f"""You are a staff engineer decomposing one implementation module of a larger project
+into small, sequential, independently implementable sublessons.
+
+Project: {project['name']}
+Module {module_index + 1}: {module['title']}
+Module focus: {module.get('focus') or module['title']}
+
+The module's current lesson content (what it currently covers):
+\"\"\"
+{source_text}
+\"\"\"
+
+Break this module down into 2-6 smaller sublessons, each:
+- Scoped to what a learner can implement AND verify in about ~2 hours or less.
+- Focused on ONE concrete deliverable (for example, a module about authentication might split
+  into "User Model & Password Hashing", "Login Endpoint", "JWT Middleware", "Protected Routes",
+  "Authentication Tests").
+- Ordered so each builds on the previous ones.
+
+Return a JSON object in EXACTLY this format:
+{{
+  "sublessons": [
+    {{"title": "User Model & Password Hashing", "focus": "..."}}
+  ]
+}}
+Output ONLY the JSON object. No markdown code blocks before or after."""
+
+    try:
+        raw_resp = call_ai_text(breakdown_prompt, payload, max_tokens=2048)
+        result = extract_json_object(raw_resp)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Breakdown failed: {exc}")
+
+    raw_subs = result.get("sublessons") if isinstance(result, dict) else None
+    sublessons = [
+        {
+            "title": str(s.get("title")).strip()[:200],
+            "focus": str(s.get("focus") or "").strip(),
+            "lesson_id": None,
+            "sublessons": [],
+        }
+        for s in (raw_subs or [])
+        if isinstance(s, dict) and str(s.get("title") or "").strip()
+    ]
+    if not sublessons:
+        raise HTTPException(status_code=502, detail="The AI provider returned no sublessons. Please try again.")
+
+    # Replace whatever this module was previously broken down into (and their lessons), if any.
+    _delete_plan_lessons(module.get("sublessons") or [])
+    plan[module_index] = {**module, "sublessons": sublessons}
+    save_project_plan(project["id"], plan)
+
+    return get_subject_by_id_or_slug(cls["id"], project["id"])  # type: ignore
+
+
+@router.post("/projects/{project_id}/modules/{module_index}/sublessons/{sub_index}/generate")
+async def generate_project_sublesson(
+    project_id: str, module_index: int, sub_index: int, payload: ProjectModuleGenerateRequest
+) -> Dict[str, Any]:
+    """Generate (or regenerate in place) the standalone lesson for one sublesson produced by
+    Break Down. Mirrors generate_project_module one level deeper."""
+    cls, project = _get_project_or_404(project_id)
+    plan: List[Dict[str, Any]] = project.get("project_plan") or []
+    if module_index < 0 or module_index >= len(plan):
+        raise HTTPException(status_code=404, detail="Module not found in this project's outline.")
+
+    module = plan[module_index]
+    sublessons: List[Dict[str, Any]] = list(module.get("sublessons") or [])
+    if sub_index < 0 or sub_index >= len(sublessons):
+        raise HTTPException(status_code=404, detail="Sublesson not found in this module.")
+
+    sub = sublessons[sub_index]
+    sibling_outline = "\n".join(
+        f"  {i + 1}. {s['title']}{' <- THIS SUBLESSON' if i == sub_index else ''}" for i, s in enumerate(sublessons)
+    )
+    module_brief = (
+        f"Implementation Module {module_index + 1} of {len(plan)}: {module['title']} "
+        f"(module focus: {module.get('focus') or module['title']})\n\n"
+        f"Sublesson {sub_index + 1} of {len(sublessons)}: {sub['title']}\n"
+        f"Sublesson focus: {sub.get('focus') or sub['title']}\n\n"
+        f"This module's sublesson breakdown:\n{sibling_outline}"
+    )
+    extra = _build_implementation_extra_instructions(
+        project["name"],
+        f'sublesson {sub_index + 1} of {len(sublessons)} in module "{module["title"]}"',
+        sub.get("focus") or sub["title"],
+    )
+
+    clean_html, final_title, final_summary, read_minutes = _generate_lesson_content(
+        cls, project, "project", module_brief, payload, sub["title"], extra_instructions=extra
+    )
+
+    existing_id = sub.get("lesson_id")
+    if existing_id and get_lesson_by_id(existing_id):
+        lesson = update_lesson(existing_id, title=final_title, generated_html=clean_html, summary=final_summary)
+    else:
+        lesson = create_lesson(
+            class_id=cls["id"],
+            subject_id=project["id"],
+            title=final_title,
+            source_type="project",
+            source_content=module_brief[:2000],
+            generated_html=clean_html,
+            summary=final_summary,
+            read_time_minutes=read_minutes,
+        )
+
+    sublessons[sub_index] = {**sub, "lesson_id": lesson["id"]}
+    plan[module_index] = {**module, "sublessons": sublessons}
+    save_project_plan(project["id"], plan)
+    _sync_project_lesson_order(project, plan)
+
+    return {
+        "lesson": lesson,
+        "project": get_subject_by_id_or_slug(cls["id"], project["id"]),
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

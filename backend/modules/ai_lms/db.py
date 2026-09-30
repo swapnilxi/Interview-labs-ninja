@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 import uuid
@@ -153,6 +154,23 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
         subj_cols = [row[1] for row in cursor.fetchall()]
         if "ai_context" not in subj_cols:
             cursor.execute("ALTER TABLE lms_subjects ADD COLUMN ai_context TEXT DEFAULT '';")
+        # Project track: a "project" is a subject row with kind='project' plus a README /
+        # context doc and an AI-planned module outline, so it reuses lessons, routing,
+        # navigation and the lesson viewer unchanged.
+        if "kind" not in subj_cols:
+            cursor.execute("ALTER TABLE lms_subjects ADD COLUMN kind TEXT NOT NULL DEFAULT 'subject';")
+        if "project_context" not in subj_cols:
+            cursor.execute("ALTER TABLE lms_subjects ADD COLUMN project_context TEXT DEFAULT '';")
+        if "context_source_name" not in subj_cols:
+            cursor.execute("ALTER TABLE lms_subjects ADD COLUMN context_source_name TEXT DEFAULT '';")
+        if "project_plan" not in subj_cols:
+            cursor.execute("ALTER TABLE lms_subjects ADD COLUMN project_plan TEXT DEFAULT '';")
+        # AI-generated condensed version of this row's long-form context (project_context
+        # for a project, ai_context for a subject) -- an alternative to naively truncating
+        # a long multi-document upload at prompt-build time. When present, generation
+        # prompts use this instead of a raw prefix (see router.py's _generate_lesson_content).
+        if "context_summary" not in subj_cols:
+            cursor.execute("ALTER TABLE lms_subjects ADD COLUMN context_summary TEXT DEFAULT '';")
 
         # ── 3. Lessons Table ───────────────────────────────────────────────────
         cursor.execute("""
@@ -279,7 +297,7 @@ def get_class_by_id_or_slug(identifier: str) -> Optional[Dict[str, Any]]:
         # Fetch subjects
         cursor.execute("""
             SELECT 
-                s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
+                s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name, s.order_index, s.created_at, s.updated_at,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.subject_id = s.id) AS lesson_count
             FROM lms_subjects s
             WHERE s.class_id = ?
@@ -378,7 +396,7 @@ def get_subjects_by_class(class_identifier: str) -> List[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
+                s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name, s.order_index, s.created_at, s.updated_at,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.subject_id = s.id) AS lesson_count
             FROM lms_subjects s
             WHERE s.class_id = ?
@@ -397,7 +415,8 @@ def get_subject_by_id_or_slug(class_identifier: str, subject_identifier: str) ->
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.order_index, s.created_at, s.updated_at,
+                s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name,
+                s.project_context, s.project_plan, s.context_summary, s.order_index, s.created_at, s.updated_at,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.subject_id = s.id) AS lesson_count
             FROM lms_subjects s
             WHERE s.class_id = ? AND (s.id = ? OR s.slug = ?)
@@ -417,11 +436,68 @@ def get_subject_by_id_or_slug(class_identifier: str, subject_identifier: str) ->
             ORDER BY order_index ASC, created_at ASC
         """, (subject["id"],))
         subject["lessons"] = [dict(l) for l in cursor.fetchall()]
+        subject["project_plan"] = _parse_project_plan(subject.get("project_plan"), subject["lessons"])
         return subject
 
 
-def create_subject(class_identifier: str, name: str, description: Optional[str] = None, ai_context: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Create a new subject under a class."""
+def _parse_plan_item(item: Dict[str, Any], lesson_ids: set) -> Optional[Dict[str, Any]]:
+    """Normalize one module or sublesson entry: {title, focus, lesson_id, sublessons}."""
+    title = str(item.get("title", "")).strip()
+    if not title:
+        return None
+    lesson_id = item.get("lesson_id")
+    raw_subs = item.get("sublessons")
+    sublessons: List[Dict[str, Any]] = []
+    if isinstance(raw_subs, list):
+        for sub in raw_subs:
+            if isinstance(sub, dict):
+                parsed_sub = _parse_plan_item(sub, lesson_ids)
+                if parsed_sub:
+                    sublessons.append(parsed_sub)
+    return {
+        "title": title,
+        "focus": str(item.get("focus") or "").strip(),
+        "lesson_id": lesson_id if lesson_id in lesson_ids else None,
+        # Populated on demand by the "Break Down" action (see db.py's save_project_plan
+        # callers in router.py); a module with sublessons is generated sublesson-by-
+        # sublesson instead of as one lesson.
+        "sublessons": sublessons,
+    }
+
+
+def _parse_project_plan(raw: Optional[str], lessons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Decode the stored module outline, dropping links to lessons that no longer exist
+    (e.g. a module lesson the user deleted) so the UI shows that module/sublesson as not
+    generated. Recurses into sublessons (see _parse_plan_item)."""
+    if not raw:
+        return []
+    try:
+        items = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(items, list):
+        return []
+    lesson_ids = {l["id"] for l in lessons}
+    plan: List[Dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        parsed = _parse_plan_item(item, lesson_ids)
+        if parsed:
+            plan.append(parsed)
+    return plan
+
+
+def create_subject(
+    class_identifier: str,
+    name: str,
+    description: Optional[str] = None,
+    ai_context: Optional[str] = None,
+    kind: str = "subject",
+    project_context: Optional[str] = None,
+    context_source_name: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Create a new subject (or project, when kind='project') under a class."""
     cls = get_class_by_id_or_slug(class_identifier)
     if not cls:
         return None
@@ -451,19 +527,36 @@ def create_subject(class_identifier: str, name: str, description: Optional[str] 
             cursor.execute("SELECT id FROM lms_subjects WHERE class_id = ? AND slug = ?", (cls["id"], slug))
 
         cursor.execute("""
-            INSERT INTO lms_subjects (id, class_id, name, slug, description, ai_context, order_index, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (new_id, cls["id"], clean_name, slug, description or "", ai_context or "", next_order, now_iso, now_iso))
+            INSERT INTO lms_subjects (
+                id, class_id, name, slug, description, ai_context, kind,
+                project_context, context_source_name, order_index, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            new_id, cls["id"], clean_name, slug, description or "", ai_context or "",
+            "project" if kind == "project" else "subject",
+            project_context or "", context_source_name or "", next_order, now_iso, now_iso,
+        ))
         conn.commit()
 
     return get_subject_by_id_or_slug(cls["id"], new_id)
 
 
-def update_subject(subject_id: str, name: Optional[str] = None, description: Optional[str] = None, ai_context: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Update subject name, description, or ai_context."""
+def update_subject(
+    subject_id: str,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    ai_context: Optional[str] = None,
+    project_context: Optional[str] = None,
+    context_source_name: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Update subject name, description, ai_context, or (for projects) README context."""
     with _get_conn() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, class_id, name, description, ai_context FROM lms_subjects WHERE id = ?", (subject_id,))
+        cursor.execute(
+            "SELECT id, class_id, name, description, ai_context, project_context, context_source_name FROM lms_subjects WHERE id = ?",
+            (subject_id,),
+        )
         row = cursor.fetchone()
         if not row:
             return None
@@ -473,12 +566,14 @@ def update_subject(subject_id: str, name: Optional[str] = None, description: Opt
         new_name = name.strip() if name is not None else current["name"]
         new_desc = description if description is not None else current["description"]
         new_ai_ctx = ai_context if ai_context is not None else current.get("ai_context", "")
+        new_project_ctx = project_context if project_context is not None else (current.get("project_context") or "")
+        new_source_name = context_source_name if context_source_name is not None else (current.get("context_source_name") or "")
 
         cursor.execute("""
             UPDATE lms_subjects
-            SET name = ?, description = ?, ai_context = ?, updated_at = ?
+            SET name = ?, description = ?, ai_context = ?, project_context = ?, context_source_name = ?, updated_at = ?
             WHERE id = ?
-        """, (new_name, new_desc, new_ai_ctx, now_iso, subject_id))
+        """, (new_name, new_desc, new_ai_ctx, new_project_ctx, new_source_name, now_iso, subject_id))
         conn.commit()
 
         return get_subject_by_id_or_slug(current["class_id"], subject_id)
@@ -491,6 +586,36 @@ def delete_subject(subject_id: str) -> bool:
         cursor.execute("DELETE FROM lms_subjects WHERE id = ?", (subject_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+
+def save_project_plan(subject_id: str, plan: List[Dict[str, Any]]) -> None:
+    """Persist a project's implementation-module outline (list of {title, focus, lesson_id})."""
+    now_iso = datetime.utcnow().isoformat() + "Z"
+    with _get_conn() as conn:
+        conn.execute(
+            "UPDATE lms_subjects SET project_plan = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(plan), now_iso, subject_id),
+        )
+        conn.commit()
+
+
+def save_context_summary(subject_id: str, summary: str) -> None:
+    """Persist an AI-condensed version of this row's long-form context. Cleared (empty
+    string) reverts generation prompts to the raw-text-prefix behavior."""
+    now_iso = datetime.utcnow().isoformat() + "Z"
+    with _get_conn() as conn:
+        conn.execute(
+            "UPDATE lms_subjects SET context_summary = ?, updated_at = ? WHERE id = ?",
+            (summary, now_iso, subject_id),
+        )
+        conn.commit()
+
+
+# Note: RAG chunk storage/retrieval used to live here as ai_lms-specific tables and
+# functions. It's now modules/common/rag/ (chunk+embed+store+retrieve, generic over
+# any (namespace, owner_id)) so other modules can reuse it too -- see
+# modules/ai_lms/router.py's build_rag_index/clear_rag_index/_retrieve_relevant_chunks
+# for how this module calls into it as namespace="ai_lms_subject".
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -539,7 +664,7 @@ def get_lesson_by_id(lesson_id: str) -> Optional[Dict[str, Any]]:
                 l.source_type, l.source_content, l.generated_html, l.summary, 
                 l.read_time_minutes, l.created_at, l.updated_at,
                 c.name as class_name, c.slug as class_slug,
-                s.name as subject_name, s.slug as subject_slug
+                s.name as subject_name, s.slug as subject_slug, s.kind as subject_kind
             FROM lms_lessons l
             JOIN lms_classes c ON l.class_id = c.id
             LEFT JOIN lms_subjects s ON l.subject_id = s.id
@@ -843,7 +968,7 @@ def search_lms(query: str) -> Dict[str, Any]:
         classes = [dict(r) for r in cursor.fetchall()]
 
         cursor.execute("""
-            SELECT s.id, s.class_id, s.name, s.slug, s.description, c.name as class_name, c.slug as class_slug
+            SELECT s.id, s.class_id, s.name, s.slug, s.description, s.kind, c.name as class_name, c.slug as class_slug
             FROM lms_subjects s
             JOIN lms_classes c ON s.class_id = c.id
             WHERE s.name LIKE ? OR s.description LIKE ?

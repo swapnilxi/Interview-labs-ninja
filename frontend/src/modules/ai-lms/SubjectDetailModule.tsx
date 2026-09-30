@@ -11,6 +11,7 @@ import EditSubjectModal from './components/EditSubjectModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import EmptyState from './components/EmptyState';
 import QuickLessonGenerator from './components/QuickLessonGenerator';
+import ProjectDetailModule from './components/ProjectDetailModule';
 
 interface SubjectDetailModuleProps {
   classSlug: string;
@@ -105,6 +106,73 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
             href: '/ai-lms',
             icon: 'ArrowLeftIcon',
           }}
+        />
+      </div>
+    );
+  }
+
+  const isProject = subject.kind === 'project';
+
+  if (isProject) {
+    return (
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 space-y-8">
+        {/* Breadcrumbs & Header */}
+        <div className="space-y-4 pb-6 border-b border-border">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Link href="/ai-lms" className="hover:text-foreground transition-colors">
+              AI LMS
+            </Link>
+            <span>/</span>
+            <Link
+              href={`/ai-lms/classes/${lmsClass.slug}`}
+              className="hover:text-foreground transition-colors font-medium"
+            >
+              {lmsClass.name}
+            </Link>
+            <span>/</span>
+            <span className="font-semibold text-foreground">{subject.name}</span>
+          </div>
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                  <Icon name="CodeBracketSquareIcon" size={18} />
+                </div>
+                <h1 className="font-heading text-2xl md:text-4xl font-extrabold text-foreground">
+                  {subject.name}
+                </h1>
+              </div>
+              <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
+                {subject.description || 'AI-generated implementation modules for this project.'}
+              </p>
+              <div className="text-xs font-semibold text-indigo-500 pt-1">
+                {(subject.project_plan || []).length}{' '}
+                {(subject.project_plan || []).length === 1 ? 'module' : 'modules'} planned
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsSubjectEditOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
+              >
+                <Icon name="PencilSquareIcon" size={14} />
+                <span>Edit Project</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <ProjectDetailModule project={subject} lmsClass={lmsClass} onReload={() => loadSubject()} />
+
+        {/* Edit Project Modal (name/description -- README lives in the project body above) */}
+        <EditSubjectModal
+          isOpen={isSubjectEditOpen}
+          subject={subject}
+          onClose={() => setIsSubjectEditOpen(false)}
+          onUpdated={() => loadSubject()}
         />
       </div>
     );
