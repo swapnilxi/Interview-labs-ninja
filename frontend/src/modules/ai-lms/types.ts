@@ -20,6 +20,8 @@ export interface LmsClass {
 export interface LmsProjectPlanItem {
   title: string;
   focus: string;
+  /** User-supplied notes/findings/documents for this step, fed into its lesson generation. */
+  context?: string;
   lesson_id: string | null;
   sublessons: LmsProjectPlanItem[];
 }

@@ -119,6 +119,7 @@ class UpdateLessonRequest(BaseModel):
     generated_html: Optional[str] = Field(default=None, min_length=10)
     summary: Optional[str] = Field(default=None)
     order_index: Optional[int] = Field(default=None)
+    read_time_minutes: Optional[int] = Field(default=None, ge=1, le=240)
 
 
 class ReorderClassesRequest(BaseModel):
@@ -149,9 +150,26 @@ class ProjectModuleGenerateRequest(AISettings):
     pass
 
 
+STEP_CONTEXT_MAX_CHARS = 60_000
+STEP_CONTEXT_PROMPT_CHARS = 12_000
+
+
+class ReorderProjectPlanRequest(BaseModel):
+    # None = reorder top-level modules; otherwise reorder that module's sublessons.
+    module_index: Optional[int] = None
+    from_index: int
+    to_index: int
+
+
+class SuggestPlacementRequest(AISettings):
+    context: str = Field(..., min_length=1, max_length=STEP_CONTEXT_MAX_CHARS)
+    title: Optional[str] = Field(default="", max_length=200)
+
+
 class AddProjectStepRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     focus: Optional[str] = Field(default="", max_length=1000)
+    context: Optional[str] = Field(default="", max_length=STEP_CONTEXT_MAX_CHARS)
     # None = insert a top-level module; otherwise insert a sublesson into that module.
     module_index: Optional[int] = None
     # Index the new step takes in its list (clamped to the list's bounds).
@@ -176,6 +194,15 @@ class LessonEasyReadRequest(AISettings):
 
 class LessonDeeperRequest(AISettings):
     pass
+
+
+LESSON_REVISE_HTML_MAX_CHARS = 90_000
+
+
+class LessonReviseRequest(AISettings):
+    # "update" edits the existing HTML in place; "regenerate" rebuilds the lesson from its source.
+    mode: Literal["update", "regenerate"] = "update"
+    instruction: str = Field(default="", max_length=4000)
 
 
 class LessonBreakdownRequest(AISettings):
@@ -539,6 +566,7 @@ async def handle_update_lesson(lesson_id: str, payload: UpdateLessonRequest) -> 
         generated_html=payload.generated_html,
         summary=payload.summary,
         order_index=payload.order_index,
+        read_time_minutes=payload.read_time_minutes,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Lesson not found.")
@@ -988,6 +1016,14 @@ def _sync_project_lesson_order(project: Dict[str, Any], plan: List[Dict[str, Any
     reorder_lessons([lid for lid in planned_ids if lid in current] + extras)
 
 
+def _step_context_section(item: Dict[str, Any]) -> str:
+    """User-supplied notes/findings attached to a step, folded into its generation brief."""
+    ctx = (item.get("context") or "").strip()[:STEP_CONTEXT_PROMPT_CHARS]
+    if not ctx:
+        return ""
+    return f'\n\nUser-provided context for this step (findings/notes/docs -- treat as authoritative):\n"""\n{ctx}\n"""'
+
+
 def _build_implementation_extra_instructions(project_name: str, position_label: str, focus: str) -> str:
     """The 'this is a real implementation step, not a theory chapter' prompt contract shared by
     module and sublesson generation. Scopes each lesson to ~2 hours of real, verifiable work."""
@@ -1108,7 +1144,7 @@ async def add_project_step(project_id: str, payload: AddProjectStepRequest) -> D
     extra step discovered mid-project). Ungenerated; existing lessons stay linked by id."""
     cls, project = _get_project_or_404(project_id)
     plan: List[Dict[str, Any]] = project.get("project_plan") or []
-    item = {"title": payload.title.strip(), "focus": (payload.focus or "").strip(), "lesson_id": None, "sublessons": []}
+    item = {"title": payload.title.strip(), "focus": (payload.focus or "").strip(), "context": (payload.context or "").strip(), "lesson_id": None, "sublessons": []}
     if not item["title"]:
         raise HTTPException(status_code=422, detail="Title is required.")
     if payload.module_index is None:
@@ -1121,6 +1157,100 @@ async def add_project_step(project_id: str, payload: AddProjectStepRequest) -> D
         subs = list(module.get("sublessons") or [])
         subs.insert(max(0, min(payload.position, len(subs))), item)
         plan[payload.module_index] = {**module, "sublessons": subs}
+    save_project_plan(project["id"], plan)
+    _sync_project_lesson_order(project, plan)
+    return get_subject_by_id_or_slug(cls["id"], project["id"])  # type: ignore
+
+
+def _outline_with_serials(plan: List[Dict[str, Any]]) -> str:
+    lines: List[str] = []
+    for i, m in enumerate(plan):
+        lines.append(f"{i + 1}. {m['title']} -- {m.get('focus') or ''}".rstrip(" -"))
+        for j, sub in enumerate(m.get("sublessons") or []):
+            lines.append(f"   {i + 1}.{j + 1} {sub['title']} -- {sub.get('focus') or ''}".rstrip(" -"))
+    return "\n".join(lines)
+
+
+def _serial_to_target(after: str, plan: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Map 'insert after <serial>' ('start', '3' or '2.1') to a step-insert target."""
+    after = str(after or "").strip().lower()
+    if after in ("0", "start"):
+        return {"label": "at the start", "module_index": None, "position": 0}
+    try:
+        if "." in after:
+            mi, sj = (int(x) for x in after.split(".", 1))
+            subs = (plan[mi - 1].get("sublessons") or []) if 1 <= mi <= len(plan) else []
+            if 1 <= sj <= len(subs):
+                return {"label": f"after {mi}.{sj}", "module_index": mi - 1, "position": sj}
+            return None
+        mi = int(after)
+    except (ValueError, IndexError):
+        return None
+    if 1 <= mi <= len(plan):
+        return {"label": f"after {mi}", "module_index": None, "position": mi}
+    return None
+
+
+@router.post("/projects/{project_id}/suggest-placement")
+async def suggest_project_step_placement(project_id: str, payload: SuggestPlacementRequest) -> Dict[str, Any]:
+    """Recommend where new context (finding/notes) belongs in the outline, judged on each
+    module's title and focus. Returns up to 3 ranked insert targets plus a suggested title/focus."""
+    _cls, project = _get_project_or_404(project_id)
+    plan: List[Dict[str, Any]] = project.get("project_plan") or []
+    if not plan:
+        raise HTTPException(status_code=400, detail="Generate the module outline first.")
+    prompt = f"""You are placing a new step into a project's implementation roadmap.
+
+Current outline (serial. title -- focus):
+{_outline_with_serials(plan)}
+
+New material from the learner{f' (working title: {payload.title})' if payload.title else ''}:
+\"\"\"
+{payload.context[:STEP_CONTEXT_PROMPT_CHARS]}
+\"\"\"
+
+Decide where a new step covering this material should be inserted so the roadmap stays in logical build order.
+Return up to 3 ranked options. "after" is the serial the new step should come AFTER: "start", a module serial like "3", or a sub-step serial like "2.1" (use sub-step serials only to place inside a module's sub-steps). Also write a short "title" (max 80 chars) and a 1-2 sentence "focus" for the new step.
+
+Return JSON exactly like:
+{{"title": "...", "focus": "...", "suggestions": [{{"after": "3", "reason": "one short sentence"}}]}}
+Output ONLY the JSON object."""
+    try:
+        result = extract_json_object(call_ai_text(prompt, payload, max_tokens=1024))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Placement suggestion failed: {exc}")
+    suggestions: List[Dict[str, Any]] = []
+    for s in (result.get("suggestions") if isinstance(result, dict) else None) or []:
+        target = _serial_to_target(s.get("after"), plan) if isinstance(s, dict) else None
+        if target and not any(
+            t["module_index"] == target["module_index"] and t["position"] == target["position"] for t in suggestions
+        ):
+            suggestions.append({**target, "reason": str(s.get("reason") or "").strip()})
+    if not suggestions:
+        raise HTTPException(status_code=502, detail="The AI returned no usable placement. Please try again.")
+    return {
+        "title": str(result.get("title") or "").strip()[:200],
+        "focus": str(result.get("focus") or "").strip()[:1000],
+        "suggestions": suggestions[:3],
+    }
+
+
+@router.post("/projects/{project_id}/reorder")
+async def reorder_project_plan(project_id: str, payload: ReorderProjectPlanRequest) -> Dict[str, Any]:
+    """Move one module (or one sublesson within a module) to a new position in the outline."""
+    cls, project = _get_project_or_404(project_id)
+    plan: List[Dict[str, Any]] = project.get("project_plan") or []
+    if payload.module_index is None:
+        target = plan
+    else:
+        if payload.module_index < 0 or payload.module_index >= len(plan):
+            raise HTTPException(status_code=404, detail="Module not found in this project's outline.")
+        target = list(plan[payload.module_index].get("sublessons") or [])
+    if not (0 <= payload.from_index < len(target)) or not (0 <= payload.to_index < len(target)):
+        raise HTTPException(status_code=422, detail="Index out of range.")
+    target.insert(payload.to_index, target.pop(payload.from_index))
+    if payload.module_index is not None:
+        plan[payload.module_index] = {**plan[payload.module_index], "sublessons": target}
     save_project_plan(project["id"], plan)
     _sync_project_lesson_order(project, plan)
     return get_subject_by_id_or_slug(cls["id"], project["id"])  # type: ignore
@@ -1144,6 +1274,7 @@ async def generate_project_module(
         f"Implementation Module {module_index + 1} of {len(plan)}: {module['title']}\n"
         f"Module focus: {module.get('focus') or module['title']}\n\n"
         f"Full project module outline:\n{outline}"
+        f"{_step_context_section(module)}"
     )
     extra = _build_implementation_extra_instructions(
         project["name"],
@@ -1288,6 +1419,7 @@ async def generate_project_sublesson(
         f"Sublesson {sub_index + 1} of {len(sublessons)}: {sub['title']}\n"
         f"Sublesson focus: {sub.get('focus') or sub['title']}\n\n"
         f"This module's sublesson breakdown:\n{sibling_outline}"
+        f"{_step_context_section(sub)}"
     )
     extra = _build_implementation_extra_instructions(
         project["name"],
@@ -1455,6 +1587,84 @@ Output ONLY the JSON object. No markdown code blocks before or after."""
         }
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Easy Read generation failed: {exc}")
+
+
+@router.post("/lessons/{lesson_id}/revise")
+async def revise_lesson(lesson_id: str, payload: LessonReviseRequest) -> Dict[str, Any]:
+    """Reprompt a lesson: apply the learner's instruction to the lesson's existing HTML and
+    return the full updated document as a PREVIEW -- nothing is saved until the client
+    applies it via PATCH /lessons/{id}."""
+    lesson = get_lesson_by_id(lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+    current_html = (lesson.get("generated_html") or "").strip()
+    if payload.mode == "regenerate":
+        cls = get_class_by_id_or_slug(lesson["class_id"])
+        if not cls:
+            raise HTTPException(status_code=404, detail="Lesson's class not found.")
+        subj = get_subject_by_id_or_slug(cls["id"], lesson["subject_id"]) if lesson.get("subject_id") else None
+        source = (lesson.get("source_content") or "").strip()
+        if not source:
+            source = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", current_html)).strip()[:8000]
+        if not source:
+            raise HTTPException(status_code=400, detail="Lesson has no source material to regenerate from.")
+        extra = (
+            "REGENERATION: a previous version of this lesson exists and the learner wants a fresh take."
+            + (
+                f"\nApply this instruction from the learner (it takes priority):\n{payload.instruction.strip()}"
+                if payload.instruction.strip()
+                else ""
+            )
+        )
+        clean_html, final_title, final_summary, _ = _generate_lesson_content(
+            cls, subj, lesson.get("source_type") or "text", source, payload, lesson["title"], extra_instructions=extra
+        )
+        return {"generated_html": clean_html, "title": final_title, "summary": final_summary}
+
+    if len(payload.instruction.strip()) < 3:
+        raise HTTPException(status_code=422, detail="Tell the AI what to change.")
+    if not current_html:
+        raise HTTPException(status_code=400, detail="Lesson has no content to update yet.")
+    if len(current_html) > LESSON_REVISE_HTML_MAX_CHARS:
+        raise HTTPException(status_code=400, detail="This lesson is too large to revise in one pass.")
+
+    prompt = f"""You are updating an existing interactive HTML lesson according to the learner's instruction.
+
+Learner's instruction:
+\"\"\"
+{payload.instruction.strip()}
+\"\"\"
+
+Current lesson HTML:
+\"\"\"
+{current_html}
+\"\"\"
+
+RULES:
+1. Apply the instruction, and change as little else as possible: keep every section, diagram, quiz,
+   script and style that the instruction does not touch -- exactly as it is.
+2. Keep the same visual design, CSS variables and self-contained structure. Everything (HTML, CSS,
+   JavaScript) stays in this single document with no external CDNs; scripts must still run in a
+   sandboxed iframe.
+3. If the instruction asks for new material, integrate it where it belongs and match the existing style.
+4. Output ONLY the complete updated HTML document, starting with <!DOCTYPE html> and ending with </html>.
+   No markdown code fences and no commentary."""
+
+    try:
+        raw = call_ai_text(prompt, payload, max_tokens=16000)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Lesson update failed: {exc}")
+    clean_html = _clean_ai_html_output(raw)
+    if not clean_html or "<html" not in clean_html.lower() or len(clean_html) < 800:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI provider returned an incomplete or invalid response. Please try again.",
+        )
+    return {
+        "generated_html": clean_html,
+        "title": _extract_title_from_html(clean_html, lesson["title"]),
+        "summary": _extract_summary_from_html(clean_html, lesson.get("summary") or ""),
+    }
 
 
 @router.post("/lessons/{lesson_id}/deeper")

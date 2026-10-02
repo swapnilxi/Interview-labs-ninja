@@ -953,6 +953,13 @@ function flattenPlanLessonIds(plan: PlanItem[]): string[] {
   return ids;
 }
 
+function stepContextSection(item: PlanItem): string {
+  const ctx = String(item.context || '').trim().slice(0, 12000);
+  return ctx
+    ? `\n\nUser-provided context for this step (findings/notes/docs -- treat as authoritative):\n"""\n${ctx}\n"""`
+    : '';
+}
+
 function syncProjectLessonOrder(project: Record<string, unknown>, plan: PlanItem[]): void {
   const plannedIds = flattenPlanLessonIds(plan);
   const current = getLessonsBySubject(project.id as string).map((l) => l.id as string);
@@ -1099,7 +1106,7 @@ export async function handleGenerateProjectModule(
     const outline = plan
       .map((m, i) => `${i + 1}. ${m.title}${i === moduleIndex ? ' <- THIS MODULE' : ''}`)
       .join('\n');
-    const moduleBrief = `Implementation Module ${moduleIndex + 1} of ${plan.length}: ${moduleItem.title}\nModule focus: ${moduleItem.focus || moduleItem.title}\n\nFull project module outline:\n${outline}`;
+    const moduleBrief = `Implementation Module ${moduleIndex + 1} of ${plan.length}: ${moduleItem.title}\nModule focus: ${moduleItem.focus || moduleItem.title}\n\nFull project module outline:\n${outline}${stepContextSection(moduleItem)}`;
     const extraInstructions = buildImplementationExtraInstructions(
       project.name as string,
       `module ${moduleIndex + 1} of ${plan.length}`,
@@ -1168,7 +1175,7 @@ export async function handleAddProjectStep(projectId: string, req: Request): Pro
     const cls = project.class as Record<string, unknown>;
 
     const plan: PlanItem[] = ((project.project_plan as PlanItem[]) || []).slice();
-    const item: PlanItem = { title, focus: String(body.focus || '').trim().slice(0, 1000), lesson_id: null, sublessons: [] };
+    const item: PlanItem = { title, focus: String(body.focus || '').trim().slice(0, 1000), context: String(body.context || '').trim().slice(0, 60000), lesson_id: null, sublessons: [] };
     const position = Number.isInteger(body.position) ? (body.position as number) : 0;
     const clamp = (len: number) => Math.max(0, Math.min(position, len));
 
@@ -1191,6 +1198,123 @@ export async function handleAddProjectStep(projectId: string, req: Request): Pro
       { detail: err instanceof Error ? err.message : 'Failed to add step' },
       { status: 500 }
     );
+  }
+}
+
+function outlineWithSerials(plan: PlanItem[]): string {
+  const lines: string[] = [];
+  plan.forEach((m, i) => {
+    lines.push(`${i + 1}. ${m.title} -- ${m.focus || ''}`);
+    ((m.sublessons as PlanItem[]) || []).forEach((s, j) => lines.push(`   ${i + 1}.${j + 1} ${s.title} -- ${s.focus || ''}`));
+  });
+  return lines.join('\n');
+}
+
+function serialToTarget(afterRaw: unknown, plan: PlanItem[]) {
+  const after = String(afterRaw ?? '').trim().toLowerCase();
+  if (after === '0' || after === 'start') return { label: 'at the start', module_index: null, position: 0 };
+  if (after.includes('.')) {
+    const [mi, sj] = after.split('.', 2).map((x) => parseInt(x, 10));
+    const subs = (plan[mi - 1]?.sublessons as PlanItem[]) || [];
+    if (mi >= 1 && sj >= 1 && sj <= subs.length) return { label: `after ${mi}.${sj}`, module_index: mi - 1, position: sj };
+    return null;
+  }
+  const mi = parseInt(after, 10);
+  if (Number.isInteger(mi) && mi >= 1 && mi <= plan.length) return { label: `after ${mi}`, module_index: null, position: mi };
+  return null;
+}
+
+/** Recommend where new context belongs. Mirrors router.py's suggest_project_step_placement. */
+export async function handleSuggestProjectPlacement(projectId: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const body = await req.json().catch(() => ({}));
+    const context = String(body.context || '').trim();
+    if (!context) return NextResponse.json({ detail: 'Context is required.' }, { status: 422 });
+    const project = getProjectOr404(projectId);
+    if (project instanceof NextResponse) return project;
+    const plan: PlanItem[] = (project.project_plan as PlanItem[]) || [];
+    if (!plan.length) return NextResponse.json({ detail: 'Generate the module outline first.' }, { status: 400 });
+
+    const title = String(body.title || '').trim();
+    const prompt = `You are placing a new step into a project's implementation roadmap.
+
+Current outline (serial. title -- focus):
+${outlineWithSerials(plan)}
+
+New material from the learner${title ? ` (working title: ${title})` : ''}:
+"""
+${context.slice(0, 12000)}
+"""
+
+Decide where a new step covering this material should be inserted so the roadmap stays in logical build order.
+Return up to 3 ranked options. "after" is the serial the new step should come AFTER: "start", a module serial like "3", or a sub-step serial like "2.1" (use sub-step serials only to place inside a module's sub-steps). Also write a short "title" (max 80 chars) and a 1-2 sentence "focus" for the new step.
+
+Return JSON exactly like:
+{"title": "...", "focus": "...", "suggestions": [{"after": "3", "reason": "one short sentence"}]}
+Output ONLY the JSON object.`;
+
+    let result: Record<string, any>;
+    try {
+      result = extractJsonObject(await callAIText(prompt, body, undefined, 1024));
+    } catch (err) {
+      return NextResponse.json(
+        { detail: `Placement suggestion failed: ${err instanceof Error ? err.message : String(err)}` },
+        { status: 502 }
+      );
+    }
+    const suggestions: Record<string, unknown>[] = [];
+    for (const s of Array.isArray(result.suggestions) ? result.suggestions : []) {
+      const t = s && typeof s === 'object' ? serialToTarget(s.after, plan) : null;
+      if (t && !suggestions.some((x) => x.module_index === t.module_index && x.position === t.position)) {
+        suggestions.push({ ...t, reason: String(s.reason || '').trim() });
+      }
+    }
+    if (!suggestions.length) {
+      return NextResponse.json({ detail: 'The AI returned no usable placement. Please try again.' }, { status: 502 });
+    }
+    return NextResponse.json({
+      title: String(result.title || '').trim().slice(0, 200),
+      focus: String(result.focus || '').trim().slice(0, 1000),
+      suggestions: suggestions.slice(0, 3),
+    });
+  } catch (err) {
+    return NextResponse.json({ detail: err instanceof Error ? err.message : 'Failed to suggest placement' }, { status: 500 });
+  }
+}
+
+/** Move a module (moduleIndex null) or a module's sublesson. Mirrors router.py's reorder_project_plan. */
+export async function handleReorderProjectPlan(projectId: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const body = await req.json().catch(() => ({}));
+    const project = getProjectOr404(projectId);
+    if (project instanceof NextResponse) return project;
+    const cls = project.class as Record<string, unknown>;
+
+    const plan: PlanItem[] = ((project.project_plan as PlanItem[]) || []).slice();
+    const mi = body.module_index;
+    let target: PlanItem[] = plan;
+    if (mi !== null && mi !== undefined) {
+      if (!Number.isInteger(mi) || mi < 0 || mi >= plan.length) {
+        return NextResponse.json({ detail: "Module not found in this project's outline." }, { status: 404 });
+      }
+      target = ((plan[mi].sublessons as PlanItem[]) || []).slice();
+    }
+    const from = body.from_index;
+    const to = body.to_index;
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from >= target.length || to >= target.length) {
+      return NextResponse.json({ detail: 'Index out of range.' }, { status: 422 });
+    }
+    target.splice(to, 0, target.splice(from, 1)[0]);
+    if (mi !== null && mi !== undefined) plan[mi] = { ...plan[mi], sublessons: target };
+    saveProjectPlan(project.id as string, plan);
+    syncProjectLessonOrder(project, plan);
+    return NextResponse.json(getSubjectByIdOrSlug(cls.id as string, project.id as string));
+  } catch (err) {
+    return NextResponse.json({ detail: err instanceof Error ? err.message : 'Failed to reorder' }, { status: 500 });
   }
 }
 
@@ -1324,7 +1448,7 @@ export async function handleGenerateProjectSublesson(
     const siblingOutline = sublessons
       .map((s, i) => `  ${i + 1}. ${s.title}${i === subIndex ? ' <- THIS SUBLESSON' : ''}`)
       .join('\n');
-    const moduleBrief = `Implementation Module ${moduleIndex + 1} of ${plan.length}: ${moduleItem.title} (module focus: ${moduleItem.focus || moduleItem.title})\n\nSublesson ${subIndex + 1} of ${sublessons.length}: ${sub.title}\nSublesson focus: ${sub.focus || sub.title}\n\nThis module's sublesson breakdown:\n${siblingOutline}`;
+    const moduleBrief = `Implementation Module ${moduleIndex + 1} of ${plan.length}: ${moduleItem.title} (module focus: ${moduleItem.focus || moduleItem.title})\n\nSublesson ${subIndex + 1} of ${sublessons.length}: ${sub.title}\nSublesson focus: ${sub.focus || sub.title}\n\nThis module's sublesson breakdown:\n${siblingOutline}${stepContextSection(sub)}`;
     const extraInstructions = buildImplementationExtraInstructions(
       project.name as string,
       `sublesson ${subIndex + 1} of ${sublessons.length} in module "${moduleItem.title}"`,
@@ -1499,6 +1623,106 @@ Output ONLY the JSON object. No markdown code blocks before or after.`;
     });
   } catch (err: any) {
     return NextResponse.json({ detail: err.message || 'Easy Read generation failed' }, { status: 502 });
+  }
+}
+
+/** Reprompt a lesson; returns a preview, nothing is saved. Mirrors router.py's revise_lesson. */
+export async function handleReviseLesson(lessonId: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const lesson = getLessonById(lessonId);
+    if (!lesson) return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
+
+    const body = await req.json().catch(() => ({}));
+    const instruction = String(body.instruction || '').trim();
+    const currentHtml = String(lesson.generated_html || '').trim();
+
+    if (body.mode === 'regenerate') {
+      const cls = getClassByIdOrSlug(lesson.class_id as string);
+      if (!cls) return NextResponse.json({ detail: "Lesson's class not found." }, { status: 404 });
+      const subj = lesson.subject_id ? getSubjectByIdOrSlug(cls.id as string, lesson.subject_id as string) : null;
+      let source = String(lesson.source_content || '').trim();
+      if (!source) source = currentHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 8000);
+      if (!source) {
+        return NextResponse.json({ detail: 'Lesson has no source material to regenerate from.' }, { status: 400 });
+      }
+      try {
+        const result = await generateLessonContent({
+          cls,
+          subj: subj || null,
+          inputType: String(lesson.source_type || 'text'),
+          content: source,
+          aiBody: body,
+          fallbackTitle: String(lesson.title || ''),
+          extraInstructions:
+            'REGENERATION: a previous version of this lesson exists and the learner wants a fresh take.' +
+            (instruction ? `\nApply this instruction from the learner (it takes priority):\n${instruction}` : ''),
+        });
+        return NextResponse.json({ generated_html: result.html, title: result.title, summary: result.summary });
+      } catch (err) {
+        return NextResponse.json(
+          { detail: err instanceof Error ? err.message : 'Regeneration failed' },
+          { status: err instanceof LessonGenError ? err.status : 500 }
+        );
+      }
+    }
+
+    if (instruction.length < 3) {
+      return NextResponse.json({ detail: 'Tell the AI what to change.' }, { status: 422 });
+    }
+    if (!currentHtml) return NextResponse.json({ detail: 'Lesson has no content to update yet.' }, { status: 400 });
+    if (currentHtml.length > 90000) {
+      return NextResponse.json({ detail: 'This lesson is too large to revise in one pass.' }, { status: 400 });
+    }
+
+    const prompt = `You are updating an existing interactive HTML lesson according to the learner's instruction.
+
+Learner's instruction:
+"""
+${instruction.slice(0, 4000)}
+"""
+
+Current lesson HTML:
+"""
+${currentHtml}
+"""
+
+RULES:
+1. Apply the instruction, and change as little else as possible: keep every section, diagram, quiz,
+   script and style that the instruction does not touch -- exactly as it is.
+2. Keep the same visual design, CSS variables and self-contained structure. Everything (HTML, CSS,
+   JavaScript) stays in this single document with no external CDNs; scripts must still run in a
+   sandboxed iframe.
+3. If the instruction asks for new material, integrate it where it belongs and match the existing style.
+4. Output ONLY the complete updated HTML document, starting with <!DOCTYPE html> and ending with </html>.
+   No markdown code fences and no commentary.`;
+
+    let raw: string;
+    try {
+      raw = await callAIText(prompt, body, undefined, 16000);
+    } catch (err) {
+      return NextResponse.json(
+        { detail: `Lesson update failed: ${err instanceof Error ? err.message : String(err)}` },
+        { status: 502 }
+      );
+    }
+    const html = cleanHtmlOutput(raw);
+    if (!html || !/<html/i.test(html) || html.length < 800) {
+      return NextResponse.json(
+        { detail: 'The AI provider returned an incomplete or invalid response. Please try again.' },
+        { status: 502 }
+      );
+    }
+    const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/i) || html.match(/<title[^>]*>(.*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+    return NextResponse.json({
+      generated_html: html,
+      title: title || String(lesson.title || ''),
+      summary: String(lesson.summary || ''),
+    });
+  } catch (err) {
+    return NextResponse.json({ detail: err instanceof Error ? err.message : 'Failed to update lesson' }, { status: 500 });
   }
 }
 

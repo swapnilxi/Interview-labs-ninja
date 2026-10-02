@@ -457,6 +457,8 @@ def _parse_plan_item(item: Dict[str, Any], lesson_ids: set) -> Optional[Dict[str
     return {
         "title": title,
         "focus": str(item.get("focus") or "").strip(),
+        # User-supplied notes/findings/pasted docs for this step (added via "Add step").
+        "context": str(item.get("context") or "").strip(),
         "lesson_id": lesson_id if lesson_id in lesson_ids else None,
         # Populated on demand by the "Break Down" action (see db.py's save_project_plan
         # callers in router.py); a module with sublessons is generated sublesson-by-
@@ -749,6 +751,7 @@ def update_lesson(
     generated_html: Optional[str] = None,
     summary: Optional[str] = None,
     order_index: Optional[int] = None,
+    read_time_minutes: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """Update lesson content or metadata."""
     current = get_lesson_by_id(lesson_id)
@@ -760,14 +763,15 @@ def update_lesson(
     new_html = generated_html if generated_html is not None else current["generated_html"]
     new_summary = summary if summary is not None else current["summary"]
     new_order = order_index if order_index is not None else current["order_index"]
+    new_read_time = read_time_minutes if read_time_minutes is not None else current["read_time_minutes"]
 
     with _get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE lms_lessons
-            SET title = ?, generated_html = ?, summary = ?, order_index = ?, updated_at = ?
+            SET title = ?, generated_html = ?, summary = ?, order_index = ?, read_time_minutes = ?, updated_at = ?
             WHERE id = ?
-        """, (new_title, new_html, new_summary, new_order, now_iso, current["id"]))
+        """, (new_title, new_html, new_summary, new_order, new_read_time, now_iso, current["id"]))
         conn.commit()
 
     return get_lesson_by_id(current["id"])

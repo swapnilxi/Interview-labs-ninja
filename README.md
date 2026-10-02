@@ -204,6 +204,50 @@ You can then wire the frontend to call the FastAPI endpoints under
   best-effort approximation, not a dedicated increment-on-completion counter like the
   server side has — fine for the common case, but edits-after-completion can skew it.
 
+## AI LMS Module (`/ai-lms`)
+
+AI-generated learning content. Backend: `backend/modules/ai_lms/` (FastAPI, mirrored for
+`nextjs-api` mode in `frontend/fe-apis/lms/`). Frontend: `frontend/src/modules/ai-lms/`.
+
+### Content hierarchy
+
+```
+Class
+ ├─ Subject   (lms_subjects.kind = 'subject')
+ │    └─ Lesson                      # flat, ordered list of generated lessons
+ └─ Project   (lms_subjects.kind = 'project')
+      └─ Module / Step                # top-level entries of the project outline
+           └─ Sub-step / Sub-module   # optional; created by "Break Down" or added by the user
+                                      # (each one generates exactly one Lesson)
+```
+
+- A **Project** is an `lms_subjects` row with `kind='project'`. Its outline is JSON in
+  `lms_subjects.project_plan`: `[{title, focus, context, lesson_id, sublessons: [...]}]`.
+  The outline is only two levels deep (module -> sublesson). Every module/sub-step that has
+  been generated points at an ordinary `lms_lessons` row via `lesson_id`, so the lesson
+  viewer, navigation and downloads work the same as for Subjects.
+- A module that has sub-steps is generated sub-step by sub-step, not as one lesson.
+- `context` on a step is user-supplied notes/findings/documents (typed or uploaded); it is
+  folded into that step's generation prompt (first 12k chars).
+- The project **README / context** (`project_context`) is the source the AI plans the outline
+  from. It can be AI-summarised (`context_summary`) and RAG-indexed (`backend/modules/common/rag/`).
+
+### Project page UX
+
+- Default view ("modules"): outline list + a **Quick add & generate** box. Paste/upload a
+  finding; "Recommend placement" asks the AI where it fits (judged on module titles + focus),
+  and clicking a position inserts the step there and generates its lesson.
+- "+" gaps between rows add a module or sub-step by hand; rows drag-and-drop to reorder
+  (modules among modules, sub-steps within their module).
+- **Edit Project** switches the page to an in-page edit view (name, description, README /
+  context + summary + search index) -- not a popup. The README editor only appears there.
+
+### Project endpoints (`/api/lms/projects/{id}/...`)
+
+`plan`, `modules/{i}/generate`, `modules/{i}/breakdown`, `modules/{i}/sublessons/{j}/generate`,
+`steps` (insert), `reorder` (move), `suggest-placement` (AI recommendation). Any change to
+these must be made in both `router.py` and `fe-apis/lms/index.ts`.
+
 ## YouTube Exercise Generator (CV / DSA / System Design Labs)
 
 Each of the three practice labs (CV, DSA, System Design) shares one "Generate Practice

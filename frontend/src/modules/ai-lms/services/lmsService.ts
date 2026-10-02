@@ -17,6 +17,12 @@ import type {
 /** Response shape from the project module/sublesson generate endpoints -- the freshly
  * generated (or regenerated) lesson, plus the project's full updated detail (plan + lessons)
  * so the caller can refresh in one round trip. */
+export interface PlacementSuggestion {
+  title: string;
+  focus: string;
+  suggestions: { label: string; module_index: number | null; position: number; reason: string }[];
+}
+
 export interface ProjectGenerateResult {
   lesson: LmsLesson;
   project: LmsSubject;
@@ -167,6 +173,7 @@ export const lmsService = {
       generated_html?: string;
       summary?: string;
       order_index?: number;
+      read_time_minutes?: number;
     }
   ): Promise<LmsLesson> {
     return apiJson<LmsLesson>(`/api/lms/lessons/${encodeURIComponent(lessonId)}`, {
@@ -307,6 +314,20 @@ export const lmsService = {
     });
   },
 
+  /** Reprompt: 'update' edits the existing lesson; 'regenerate' rebuilds it from its source.
+   * Either way returns a preview (not saved). */
+  async reviseLesson(
+    lessonId: string,
+    instruction: string,
+    mode: 'update' | 'regenerate' = 'update'
+  ): Promise<{ generated_html: string; title: string; summary: string }> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson(`/api/lms/lessons/${encodeURIComponent(lessonId)}/revise`, {
+      method: 'POST',
+      body: JSON.stringify({ ...aiFields, instruction, mode }),
+    });
+  },
+
   async generateDeeperExplanation(lessonId: string): Promise<DeeperExplanationResult> {
     const aiFields = defaultAIRequestFields();
     return apiJson<DeeperExplanationResult>(`/api/lms/lessons/${encodeURIComponent(lessonId)}/deeper`, {
@@ -371,9 +392,33 @@ export const lmsService = {
    * otherwise a sublesson of that module. Returns the updated project. */
   async addProjectStep(
     projectId: string,
-    payload: { title: string; focus?: string; module_index: number | null; position: number }
+    payload: { title: string; focus?: string; context?: string; module_index: number | null; position: number }
   ): Promise<LmsSubject> {
     return apiJson<LmsSubject>(`/api/lms/projects/${encodeURIComponent(projectId)}/steps`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /** Ask the AI where new context belongs in the outline (judged on module titles/focus).
+   * Returns ranked insert targets plus a suggested title/focus for the new step. */
+  async suggestProjectPlacement(
+    projectId: string,
+    payload: { context: string; title?: string }
+  ): Promise<PlacementSuggestion> {
+    const aiFields = defaultAIRequestFields();
+    return apiJson<PlacementSuggestion>(
+      `/api/lms/projects/${encodeURIComponent(projectId)}/suggest-placement`,
+      { method: 'POST', body: JSON.stringify({ ...aiFields, ...payload }) }
+    );
+  },
+
+  /** Move a module (moduleIndex null) or one of a module's sublessons to a new position. */
+  async reorderProjectPlan(
+    projectId: string,
+    payload: { module_index: number | null; from_index: number; to_index: number }
+  ): Promise<LmsSubject> {
+    return apiJson<LmsSubject>(`/api/lms/projects/${encodeURIComponent(projectId)}/reorder`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });

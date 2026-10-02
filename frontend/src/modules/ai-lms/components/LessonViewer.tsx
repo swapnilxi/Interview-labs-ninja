@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
@@ -15,7 +15,6 @@ import type {
   LmsSubject,
   VisualExplanationResult,
 } from '../types';
-import ManualLessonModal from './ManualLessonModal';
 import ConfirmDialog from './ConfirmDialog';
 import VoiceAssistant from './VoiceAssistant';
 import { withVisibilitySafetyNet } from '../utils/lessonVisibilitySafetyNet';
@@ -31,9 +30,11 @@ import VisualizerPanel from './VisualizerPanel';
 import EasyReadPanel from './EasyReadPanel';
 import SwipeReadPanel from './SwipeReadPanel';
 import DeeperExplanationPanel from './DeeperExplanationPanel';
+import LessonHtmlEditor, { type LessonHtmlEditorHandle } from './LessonHtmlEditor';
+import UpdateLessonPanel, { type LessonRevision } from './UpdateLessonPanel';
 import BreakdownPanel from './BreakdownPanel';
 
-type ViewMode = 'read' | 'easy' | 'visualize' | 'swipe' | 'deeper' | 'breakdown';
+type ViewMode = 'read' | 'easy' | 'visualize' | 'swipe' | 'deeper' | 'breakdown' | 'update';
 
 const VIEW_MODES: { mode: ViewMode; label: string; icon: string; title?: string }[] = [
   { mode: 'read', label: 'Read', icon: 'BookOpenIcon' },
@@ -62,6 +63,12 @@ const VIEW_MODES: { mode: ViewMode; label: string; icon: string; title?: string 
     icon: 'Squares2X2Icon',
     title: 'Condense this lesson into small, high-impact chunks',
   },
+  {
+    mode: 'update',
+    label: 'Update',
+    icon: 'PencilSquareIcon',
+    title: 'Reprompt the AI to change or extend this lesson',
+  },
 ];
 
 export default function LessonViewer({
@@ -80,7 +87,15 @@ export default function LessonViewer({
   const [easyRead, setEasyRead] = useState<EasyReadResult | null>(null);
   const [deeper, setDeeper] = useState<DeeperExplanationResult | null>(null);
   const [breakdown, setBreakdown] = useState<BreakdownResult | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [revision, setRevision] = useState<LessonRevision | null>(null);
+  // In-place editing (title / read time / summary / WYSIWYG body) -- no popup.
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editSummary, setEditSummary] = useState('');
+  const [editReadTime, setEditReadTime] = useState(5);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const editorRef = useRef<LessonHtmlEditorHandle>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -94,6 +109,7 @@ export default function LessonViewer({
     setEasyRead(null);
     setDeeper(null);
     setBreakdown(null);
+    setRevision(null);
   }, [currentLesson.id]);
 
   const backHref = subject
@@ -159,6 +175,42 @@ export default function LessonViewer({
     }
   };
 
+  const startEditing = () => {
+    setEditTitle(currentLesson.title);
+    setEditSummary(currentLesson.summary || '');
+    setEditReadTime(currentLesson.read_time_minutes || 5);
+    setEditError(null);
+    setViewMode('read');
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim()) {
+      setEditError('Title is required.');
+      return;
+    }
+    setIsSaving(true);
+    setEditError(null);
+    try {
+      const updated = await lmsService.updateLesson(currentLesson.id, {
+        title: editTitle.trim(),
+        summary: editSummary.trim(),
+        read_time_minutes: Math.max(1, Math.round(editReadTime) || 1),
+        generated_html: editorRef.current?.getHtml(),
+      });
+      setCurrentLesson(updated);
+      setEasyRead(null);
+      setDeeper(null);
+      setBreakdown(null);
+      setIsEditing(false);
+      router.refresh();
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : 'Failed to save changes.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleVisualEmbedded = async () => {
     try {
       const refreshed = await lmsService.getLesson(currentLesson.id);
@@ -220,15 +272,50 @@ export default function LessonViewer({
           {/* Title + progress */}
           <div className="space-y-2">
             <div className="flex items-start gap-2.5 flex-wrap">
-              <h1 className="font-heading text-xl sm:text-2xl font-bold text-foreground leading-snug break-words">
-                {currentLesson.title}
-              </h1>
+              {isEditing ? (
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  maxLength={200}
+                  aria-label="Lesson title"
+                  className="flex-1 min-w-0 font-heading text-xl sm:text-2xl font-bold text-foreground leading-snug bg-background border border-primary/40 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              ) : (
+                <h1 className="font-heading text-xl sm:text-2xl font-bold text-foreground leading-snug break-words">
+                  {currentLesson.title}
+                </h1>
+              )}
               {navigation && (
                 <span className="mt-0.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 flex-shrink-0">
                   Lesson {navigation.current_index} of {navigation.total_lessons}
                 </span>
               )}
             </div>
+            {isEditing && (
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-start">
+                <textarea
+                  rows={2}
+                  value={editSummary}
+                  onChange={(e) => setEditSummary(e.target.value)}
+                  placeholder="Short summary"
+                  aria-label="Lesson summary"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-primary/40 bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+                />
+                <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>Est. read</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={240}
+                    value={editReadTime}
+                    onChange={(e) => setEditReadTime(Number(e.target.value))}
+                    className="w-16 px-2 py-1.5 rounded-lg border border-primary/40 bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                  <span>min</span>
+                </label>
+              </div>
+            )}
+            {editError && <div className="text-xs text-destructive">{editError}</div>}
             {progressPct !== null && navigation && navigation.total_lessons > 1 && (
               <div className="h-1.5 w-full max-w-xs rounded-full bg-muted overflow-hidden">
                 <div
@@ -280,15 +367,37 @@ export default function LessonViewer({
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(true)}
-                title="Edit lesson content"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-card hover:bg-muted text-foreground transition-colors shadow-sm"
-              >
-                <Icon name="PencilIcon" size={14} />
-                <span className="hidden sm:inline">Edit</span>
-              </button>
+              {isEditing ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-card hover:bg-muted text-foreground transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    <span>Cancel</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveEdit}
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    <Icon name="CheckIcon" size={14} />
+                    <span>{isSaving ? 'Saving...' : 'Save'}</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  title="Edit title, summary, read time and lesson content on the page"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-card hover:bg-muted text-foreground transition-colors shadow-sm"
+                >
+                  <Icon name="PencilIcon" size={14} />
+                  <span className="hidden sm:inline">Edit</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -319,7 +428,9 @@ export default function LessonViewer({
         </div>
 
         {/* View Mode Switching: Reader vs Easy Read vs Interactive Visualizer vs Swipe vs Explain Deeper vs Breakdown */}
-        {viewMode === 'read' ? (
+        {isEditing ? (
+          <LessonHtmlEditor ref={editorRef} html={currentLesson.generated_html} />
+        ) : viewMode === 'read' ? (
           <div className="flex-1 w-full rounded-2xl border border-border bg-card shadow-lg overflow-hidden relative min-h-[70vh] sm:min-h-[620px] flex flex-col">
             <iframe
               srcDoc={safeLessonHtml}
@@ -356,6 +467,21 @@ export default function LessonViewer({
               deeper={deeper}
               onDeeperChange={setDeeper}
               onSwitchToRead={() => setViewMode('read')}
+            />
+          </div>
+        ) : viewMode === 'update' ? (
+          <div className="flex-1 w-full">
+            <UpdateLessonPanel
+              lesson={currentLesson}
+              revision={revision}
+              onRevisionChange={setRevision}
+              onApplied={(updated) => {
+                setCurrentLesson(updated);
+                setEasyRead(null);
+                setDeeper(null);
+                setBreakdown(null);
+                setViewMode('read');
+              }}
             />
           </div>
         ) : (
@@ -430,20 +556,6 @@ export default function LessonViewer({
       <VoiceAssistant
         lessonTitle={currentLesson.title}
         lessonContentHtml={currentLesson.generated_html || ''}
-      />
-
-      {/* Edit Modal */}
-      <ManualLessonModal
-        isOpen={isEditModalOpen}
-        targetClass={lmsClass}
-        targetSubject={subject}
-        lessonToEdit={currentLesson}
-        onClose={() => setIsEditModalOpen(false)}
-        onSaved={(updated) => {
-          setIsEditModalOpen(false);
-          setCurrentLesson(updated);
-          router.refresh();
-        }}
       />
 
       {/* Delete Confirmation Dialog */}

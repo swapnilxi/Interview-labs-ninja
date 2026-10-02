@@ -329,6 +329,7 @@ function parsePlanItem(item: unknown, lessonIds: Set<string>): Record<string, un
   return {
     title,
     focus: String(rec.focus || '').trim(),
+    context: String(rec.context || '').trim(),
     lesson_id: typeof lessonId === 'string' && lessonIds.has(lessonId) ? lessonId : null,
     sublessons,
   };
@@ -665,6 +666,7 @@ export function updateLesson(
     generated_html?: string;
     summary?: string;
     order_index?: number;
+    read_time_minutes?: number;
   }
 ): Record<string, unknown> | null {
   ensureLmsTables();
@@ -679,13 +681,17 @@ export function updateLesson(
   const newHtml = updates.generated_html !== undefined ? updates.generated_html : (current.generated_html as string);
   const newSummary = updates.summary !== undefined ? updates.summary : (current.summary as string);
   const newOrder = updates.order_index !== undefined ? updates.order_index : (current.order_index as number);
+  const newReadTime =
+    typeof updates.read_time_minutes === 'number' && updates.read_time_minutes >= 1
+      ? Math.min(240, Math.round(updates.read_time_minutes))
+      : (current.read_time_minutes as number);
   const nowIso = new Date().toISOString();
 
   db.prepare(`
     UPDATE lms_lessons
-    SET title = ?, generated_html = ?, summary = ?, order_index = ?, updated_at = ?
+    SET title = ?, generated_html = ?, summary = ?, order_index = ?, read_time_minutes = ?, updated_at = ?
     WHERE id = ?
-  `).run(newTitle, newHtml, newSummary, newOrder, nowIso, current.id);
+  `).run(newTitle, newHtml, newSummary, newOrder, newReadTime, nowIso, current.id);
 
   return getLessonById(current.id as string);
 }

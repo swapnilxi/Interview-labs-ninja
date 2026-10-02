@@ -27,6 +27,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
 
   // Modals
   const [isSubjectEditOpen, setIsSubjectEditOpen] = useState(false);
+  const [projectTab, setProjectTab] = useState<'modules' | 'edit'>('modules');
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [lessonToEdit, setLessonToEdit] = useState<LmsLesson | null>(null);
   const [lessonToDelete, setLessonToDelete] = useState<LmsLesson | null>(null);
@@ -155,24 +156,26 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
             <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
               <button
                 type="button"
-                onClick={() => setIsSubjectEditOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
+                onClick={() => setProjectTab((t) => (t === 'edit' ? 'modules' : 'edit'))}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border font-medium text-xs transition-colors shadow-sm ${
+                  projectTab === 'edit'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-card text-foreground hover:bg-muted'
+                }`}
               >
                 <Icon name="PencilSquareIcon" size={14} />
-                <span>Edit Project</span>
+                <span>{projectTab === 'edit' ? 'Editing Project' : 'Edit Project'}</span>
               </button>
             </div>
           </div>
         </div>
 
-        <ProjectDetailModule project={subject} lmsClass={lmsClass} onReload={() => loadSubject()} />
-
-        {/* Edit Project Modal (name/description -- README lives in the project body above) */}
-        <EditSubjectModal
-          isOpen={isSubjectEditOpen}
-          subject={subject}
-          onClose={() => setIsSubjectEditOpen(false)}
-          onUpdated={() => loadSubject()}
+        <ProjectDetailModule
+          project={subject}
+          lmsClass={lmsClass}
+          onReload={() => loadSubject()}
+          mode={projectTab}
+          onDone={() => setProjectTab('modules')}
         />
       </div>
     );

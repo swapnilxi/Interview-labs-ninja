@@ -88,6 +88,11 @@ further down in `README.md` — check there before assuming a module's shape.
   on `isLoggedIn()` from `frontend/src/lib/auth/tokenStore.ts`. When adding a new
   manual-CRUD method to one of these services, add the guest-mode branch too — don't
   let it silently become login-required.
+- **AI LMS hierarchy:** Class > Subject (-> Lessons) or Project (-> Module/Step -> Sub-step,
+  each generating one Lesson). A Project is an `lms_subjects` row with `kind='project'`; its
+  outline lives in `project_plan` JSON. Both levels of outline items carry `{title, focus,
+  context, lesson_id, sublessons}`. Project endpoints exist in both `backend/modules/ai_lms/router.py`
+  and `frontend/fe-apis/lms/index.ts` -- change both. Details in `README.md` ("AI LMS Module").
 - AI-powered endpoints/methods are login-required everywhere, on purpose — don't add
   guest-mode fallbacks for them without checking with the user first.
 
