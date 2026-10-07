@@ -1,0 +1,648 @@
+Here is a complete, standalone HTML document for an interactive lesson on training a U-Net for crack detection and deploying it to Hugging Face Spaces. It combines clear explanations, visual diagrams, and hands-on code blocks to guide learners through the full workflow.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>U-Net Crack Detection · PyTorch & Hugging Face</title>
+  <!-- Fonts & base styles -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #f8fafc;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: #0b1e33;
+      line-height: 1.6;
+      padding: 2rem 1.5rem;
+    }
+    .lesson-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 2.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      padding: 2.5rem 2.5rem 3rem;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* typography */
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #0f2b4b, #1e4b7a);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+    h2 {
+      font-size: 1.7rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-top: 2.5rem;
+      margin-bottom: 1rem;
+      color: #0b2b4b;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    h2::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 28px;
+      background: #2563eb;
+      border-radius: 8px;
+    }
+    h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-top: 1.75rem;
+      margin-bottom: 0.75rem;
+      color: #1e3a5f;
+    }
+    p, li {
+      color: #1e293b;
+      font-size: 1.05rem;
+    }
+    .subhead {
+      font-size: 1.15rem;
+      color: #475569;
+      margin-bottom: 2rem;
+      border-left: 4px solid #94a3b8;
+      padding-left: 1.2rem;
+      font-weight: 400;
+    }
+
+    /* code */
+    pre {
+      background: #0f172a;
+      border-radius: 1.2rem;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.25rem 0;
+      border: 1px solid #1e293b;
+      box-shadow: 0 8px 20px -8px rgba(0,0,0,0.4);
+    }
+    code {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.9rem;
+      color: #e2e8f0;
+      line-height: 1.6;
+    }
+    .token-keyword { color: #f472b6; }
+    .token-string { color: #a5d6ff; }
+    .token-comment { color: #6b8a9e; font-style: italic; }
+    .token-function { color: #7dd3fc; }
+    .token-number { color: #fbbf24; }
+    .token-class { color: #c084fc; }
+
+    /* inline code */
+    .inline-code {
+      background: #eef2f6;
+      padding: 0.2rem 0.4rem;
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+      color: #0f2b4b;
+      border: 1px solid #d1d9e6;
+    }
+
+    /* diagrams */
+    .diagram-card {
+      background: #f1f5f9;
+      border-radius: 2rem;
+      padding: 1.5rem;
+      margin: 2rem 0;
+      border: 1px solid #dbe3ee;
+    }
+    .diagram-card svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    /* quiz */
+    .quiz-block {
+      background: #f0f7ff;
+      border-radius: 1.75rem;
+      padding: 1.8rem 2rem;
+      margin: 2rem 0;
+      border: 1px solid #b9d4f0;
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.08);
+    }
+    .quiz-question {
+      font-weight: 600;
+      font-size: 1.15rem;
+      margin-bottom: 1.2rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+    .quiz-question .badge {
+      background: #2563eb;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.25rem 0.75rem;
+      border-radius: 30px;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+      margin-bottom: 1.5rem;
+    }
+    .option {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.7rem 1rem;
+      background: white;
+      border-radius: 1rem;
+      border: 1.5px solid #d1dceb;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-size: 1rem;
+    }
+    .option:hover {
+      background: #e8f0fe;
+      border-color: #94b9e8;
+    }
+    .option.selected {
+      border-color: #2563eb;
+      background: #e2edff;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    }
+    .option input[type="radio"] {
+      accent-color: #2563eb;
+      width: 1.1rem;
+      height: 1.1rem;
+      margin: 0;
+    }
+    .feedback {
+      font-size: 0.98rem;
+      padding: 0.9rem 1.2rem;
+      border-radius: 1rem;
+      margin-top: 0.5rem;
+      font-weight: 500;
+    }
+    .feedback.correct {
+      background: #dcfce7;
+      color: #14532d;
+      border-left: 6px solid #22c55e;
+    }
+    .feedback.incorrect {
+      background: #fee2e2;
+      color: #991b1b;
+      border-left: 6px solid #ef4444;
+    }
+    .btn {
+      background: #0f2b4b;
+      color: white;
+      border: none;
+      padding: 0.7rem 1.6rem;
+      border-radius: 3rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      box-shadow: 0 4px 10px rgba(15, 43, 75, 0.2);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .btn:hover {
+      background: #1e4b7a;
+    }
+    .btn:active {
+      transform: scale(0.97);
+    }
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #0b1e33;
+      box-shadow: none;
+    }
+    .btn-secondary:hover {
+      background: #cbd5e1;
+    }
+
+    /* badges and misc */
+    .pill {
+      background: #dbeafe;
+      color: #1e40af;
+      border-radius: 30px;
+      padding: 0.2rem 0.9rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: inline-block;
+      letter-spacing: 0.01em;
+    }
+    .flex-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    hr {
+      border: 0;
+      border-top: 1px solid #e2e8f0;
+      margin: 2rem 0;
+    }
+
+    /* responsive */
+    @media (max-width: 600px) {
+      .lesson-container { padding: 1.5rem; }
+      h1 { font-size: 1.8rem; }
+      h2 { font-size: 1.4rem; }
+      .quiz-block { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="lesson-container">
+    <!-- header -->
+    <div class="flex-row" style="justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+      <span class="pill">Computer Vision · PyTorch</span>
+      <span class="pill" style="background: #f1f5f9; color: #334155;">⏱️ 20 min</span>
+    </div>
+    <h1>U-Net for Crack Detection<br>+ Hugging Face Spaces</h1>
+    <div class="subhead">
+      Train a segmentation model in PyTorch, then deploy it as an interactive web app.
+    </div>
+
+    <!-- ========== SECTION 1: WHY U-NET ========== -->
+    <h2>1. Why U-Net for crack detection?</h2>
+    <p>
+      Cracks in concrete, asphalt, or metal are <strong>thin, elongated, and high-contrast</strong> structures. 
+      Semantic segmentation assigns a label to each pixel — perfect for this task. 
+      <strong>U-Net</strong> (Ronneberger et al., 2015) remains a gold standard for biomedical and industrial 
+      segmentation because its <strong>skip connections</strong> preserve fine spatial detail while the bottleneck 
+      captures global context.
+    </p>
+
+    <!-- SVG diagram: U-Net architecture -->
+    <div class="diagram-card">
+      <svg viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#2563eb" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.9"/>
+          </linearGradient>
+          <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.9"/>
+          </linearGradient>
+        </defs>
+        <!-- encoder blocks -->
+        <rect x="20" y="40" width="90" height="50" rx="12" fill="url(#grad1)" />
+        <text x="65" y="70" font-family="Inter, sans-serif" font-size="12" fill="white" text-anchor="middle" font-weight="600">64</text>
+        <rect x="130" y="70" width="80" height="50" rx="12" fill="url(#grad1)" opacity="0.85"/>
+        <text x="170" y="100" font-family="Inter, sans-serif" font-size="12" fill="white" text-anchor="middle" font-weight="600">128</text>
+        <rect x="230" y="100" width="70" height="50" rx="12" fill="url(#grad1)" opacity="0.7"/>
+        <text x="265" y="130" font-family="Inter, sans-serif" font-size="12" fill="white" text-anchor="middle" font-weight="600">256</text>
+        <rect x="320" y="120" width="60" height="50" rx="12" fill="url(#grad1)" opacity="0.55"/>
+        <text x="350" y="150" font-family="Inter, sans-serif" font-size="12" fill="white" text-anchor="middle" font-weight="600">512</text>
+        <!-- bottleneck -->
+        <rect x="400" y="130" width="60" height="50" rx="12" fill="#1e293b" />
+        <text x="430" y="160" font-family="Inter, sans-serif" font-size="12" fill="white" text-anchor="middle" font-weight="600">1024</text>
+        <!-- decoder blocks -->
+        <rect x="480" y="120" width="60" height="50" rx="12" fill="url(#grad2)" opacity="0.7"/>
+        <text x="510" y="150" font-family="Inter, sans-serif" font-size="12" fill="white" text-anchor="middle" font-weight="600">512</text>
+        <rect x="560" y="100" width="70" height="50" rx="12" fill="url(#grad2)" opacity="0.85"/>
+        <text x="595" y="130" font-family="Inter, sans-serif" font-size="12" fill="white" text-anchor="middle" font-weight="600">256</text>
+        <rect x="650" y="70" width="80" height="50" rx="12" fill="url(#grad2)" opacity="0.95"/>
+        <text x="690" y="100" font-family="Inter, sans-serif" font-size="12" fill="white" text-anchor="middle" font-weight="600">128</text>
+        <!-- skip connections (arrows) -->
+        <path d="M110 65 L130 80" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="5 3" fill="none" marker-end="url(#arrow)"/>
+        <path d="M210 95 L230 110" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="5 3" fill="none"/>
+        <path d="M300 125 L320 135" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="5 3" fill="none"/>
+        <path d="M380 145 L400 150" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="5 3" fill="none"/>
+        <!-- arrows for skip -->
+        <path d="M430 130 L480 130" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="5 3" fill="none"/>
+        <path d="M540 120 L560 110" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="5 3" fill="none"/>
+        <path d="M630 95 L650 85" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="5 3" fill="none"/>
+        <!-- labels -->
+        <text x="65" y="25" font-family="Inter, sans-serif" font-size="11" fill="#475569" text-anchor="middle">input</text>
+        <text x="65" y="115" font-family="Inter, sans-serif" font-size="10" fill="#475569" text-anchor="middle">Conv+ReLU</text>
+        <text x="430" y="205" font-family="Inter, sans-serif" font-size="11" fill="#475569" text-anchor="middle">bottleneck</text>
+        <text x="690" y="145" font-family="Inter, sans-serif" font-size="11" fill="#475569" text-anchor="middle">output mask</text>
+        <!-- legend -->
+        <text x="20" y="250" font-family="Inter, sans-serif" font-size="11" fill="#475569">🔷 encoder</text>
+        <text x="120" y="250" font-family="Inter, sans-serif" font-size="11" fill="#475569">🟣 decoder</text>
+        <text x="230" y="250" font-family="Inter, sans-serif" font-size="11" fill="#475569">🟡 skip connection</text>
+      </svg>
+      <p style="text-align: center; font-size: 0.9rem; color: #475569; margin-top: 0.5rem;">
+        U-Net architecture: contracting path (encoder) + expansive path (decoder) with skip connections.
+      </p>
+    </div>
+
+    <!-- ========== SECTION 2: PYTORCH TRAINING ========== -->
+    <h2>2. Training a U-Net in PyTorch</h2>
+    <p>
+      We’ll use a compact U-Net implementation. The loss combines <strong>Binary Cross-Entropy (BCE)</strong> 
+      and <strong>Dice loss</strong> — a common choice for thin structures.
+    </p>
+
+    <h3>Model definition (simplified)</h3>
+    <pre><code><span class="token-keyword">import</span> torch
+<span class="token-keyword">import</span> torch.nn <span class="token-keyword">as</span> nn
+
+<span class="token-keyword">class</span> <span class="token-class">DoubleConv</span>(nn.Module):
+    <span class="token-keyword">def</span> <span class="token-function">__init__</span>(self, in_c, out_c):
+        <span class="token-function">super</span>().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_c, out_c, <span class="token-number">3</span>, padding=<span class="token-number">1</span>),
+            nn.BatchNorm2d(out_c),
+            nn.ReLU(inplace=<span class="token-keyword">True</span>),
+            nn.Conv2d(out_c, out_c, <span class="token-number">3</span>, padding=<span class="token-number">1</span>),
+            nn.BatchNorm2d(out_c),
+            nn.ReLU(inplace=<span class="token-keyword">True</span>)
+        )
+    <span class="token-keyword">def</span> <span class="token-function">forward</span>(self, x):
+        <span class="token-keyword">return</span> self.conv(x)
+
+<span class="token-keyword">class</span> <span class="token-class">UNet</span>(nn.Module):
+    <span class="token-keyword">def</span> <span class="token-function">__init__</span>(self, in_channels=<span class="token-number">3</span>, out_channels=<span class="token-number">1</span>):
+        <span class="token-function">super</span>().__init__()
+        <span class="token-comment"># encoder</span>
+        self.down1 = DoubleConv(in_channels, <span class="token-number">64</span>)
+        self.down2 = DoubleConv(<span class="token-number">64</span>, <span class="token-number">128</span>)
+        self.down3 = DoubleConv(<span class="token-number">128</span>, <span class="token-number">256</span>)
+        self.down4 = DoubleConv(<span class="token-number">256</span>, <span class="token-number">512</span>)
+        self.pool = nn.MaxPool2d(<span class="token-number">2</span>)
+        <span class="token-comment"># bottleneck</span>
+        self.bottleneck = DoubleConv(<span class="token-number">512</span>, <span class="token-number">1024</span>)
+        <span class="token-comment"># decoder</span>
+        self.up4 = nn.ConvTranspose2d(<span class="token-number">1024</span>, <span class="token-number">512</span>, <span class="token-number">2</span>, stride=<span class="token-number">2</span>)
+        self.up3 = nn.ConvTranspose2d(<span class="token-number">512</span>, <span class="token-number">256</span>, <span class="token-number">2</span>, stride=<span class="token-number">2</span>)
+        self.up2 = nn.ConvTranspose2d(<span class="token-number">256</span>, <span class="token-number">128</span>, <span class="token-number">2</span>, stride=<span class="token-number">2</span>)
+        self.up1 = nn.ConvTranspose2d(<span class="token-number">128</span>, <span class="token-number">64</span>, <span class="token-number">2</span>, stride=<span class="token-number">2</span>)
+        self.conv_up4 = DoubleConv(<span class="token-number">1024</span>, <span class="token-number">512</span>)
+        self.conv_up3 = DoubleConv(<span class="token-number">512</span>, <span class="token-number">256</span>)
+        self.conv_up2 = DoubleConv(<span class="token-number">256</span>, <span class="token-number">128</span>)
+        self.conv_up1 = DoubleConv(<span class="token-number">128</span>, <span class="token-number">64</span>)
+        self.out = nn.Conv2d(<span class="token-number">64</span>, out_channels, <span class="token-number">1</span>)
+
+    <span class="token-keyword">def</span> <span class="token-function">forward</span>(self, x):
+        <span class="token-comment"># encoder</span>
+        d1 = self.down1(x)
+        d2 = self.down2(self.pool(d1))
+        d3 = self.down3(self.pool(d2))
+        d4 = self.down4(self.pool(d3))
+        <span class="token-comment"># bottleneck</span>
+        b = self.bottleneck(self.pool(d4))
+        <span class="token-comment"># decoder + skip connections</span>
+        u4 = self.up4(b)
+        u4 = torch.cat([u4, d4], dim=<span class="token-number">1</span>)
+        u4 = self.conv_up4(u4)
+        u3 = self.up3(u4)
+        u3 = torch.cat([u3, d3], dim=<span class="token-number">1</span>)
+        u3 = self.conv_up3(u3)
+        u2 = self.up2(u3)
+        u2 = torch.cat([u2, d2], dim=<span class="token-number">1</span>)
+        u2 = self.conv_up2(u2)
+        u1 = self.up1(u2)
+        u1 = torch.cat([u1, d1], dim=<span class="token-number">1</span>)
+        u1 = self.conv_up1(u1)
+        <span class="token-keyword">return</span> torch.sigmoid(self.out(u1))</code></pre>
+
+    <h3>Training loop (BCE + Dice)</h3>
+    <pre><code><span class="token-keyword">def</span> <span class="token-function">dice_loss</span>(pred, target, smooth=<span class="token-number">1e-6</span>):
+    pred = pred.contiguous().view(-<span class="token-number">1</span>)
+    target = target.contiguous().view(-<span class="token-number">1</span>)
+    intersection = (pred * target).sum()
+    <span class="token-keyword">return</span> <span class="token-number">1</span> - ((<span class="token-number">2.</span> * intersection + smooth) / (pred.sum() + target.sum() + smooth))
+
+<span class="token-comment"># inside training loop:</span>
+bce = nn.BCELoss()
+pred = model(images)
+loss = bce(pred, masks) + dice_loss(pred, masks)
+loss.backward()
+optimizer.step()</code></pre>
+
+    <!-- ========== SECTION 3: HUGGING FACE SPACES ========== -->
+    <h2>3. Hosting on Hugging Face Spaces</h2>
+    <p>
+      Hugging Face Spaces lets you deploy a Gradio or Streamlit app for free. 
+      We’ll create a <span class="inline-code">app.py</span> that loads your trained U-Net and 
+      performs inference on uploaded images.
+    </p>
+
+    <h3>Project structure</h3>
+    <pre><code>crack-detection-unet/
+├── app.py
+├── model_unet.pth
+├── requirements.txt
+└── README.md</code></pre>
+
+    <h3>app.py (Gradio interface)</h3>
+    <pre><code><span class="token-keyword">import</span> gradio <span class="token-keyword">as</span> gr
+<span class="token-keyword">import</span> torch
+<span class="token-keyword">import</span> numpy <span class="token-keyword">as</span> np
+<span class="token-keyword">from</span> PIL <span class="token-keyword">import</span> Image
+<span class="token-keyword">import</span> torchvision.transforms <span class="token-keyword">as</span> T
+
+<span class="token-comment"># load model (same UNet class as above)</span>
+model = UNet(in_channels=<span class="token-number">3</span>, out_channels=<span class="token-number">1</span>)
+model.load_state_dict(torch.load(<span class="token-string">"model_unet.pth"</span>, map_location=<span class="token-string">"cpu"</span>))
+model.eval()
+
+transform = T.Compose([
+    T.Resize((<span class="token-number">256</span>, <span class="token-number">256</span>)),
+    T.ToTensor(),
+])
+
+<span class="token-keyword">def</span> <span class="token-function">predict</span>(image):
+    img_tensor = transform(image).unsqueeze(<span class="token-number">0</span>)
+    <span class="token-keyword">with</span> torch.no_grad():
+        mask = model(img_tensor).squeeze().cpu().numpy()
+    mask = (mask > <span class="token-number">0.5</span>).astype(np.uint8) * <span class="token-number">255</span>
+    <span class="token-keyword">return</span> Image.fromarray(mask)
+
+gr.Interface(
+    fn=predict,
+    inputs=gr.Image(type=<span class="token-string">"pil"</span>),
+    outputs=gr.Image(type=<span class="token-string">"pil"</span>),
+    title=<span class="token-string">"Crack Detection with U-Net"</span>,
+    description=<span class="token-string">"Upload a surface image to detect cracks."</span>
+).launch()</code></pre>
+
+    <div class="diagram-card" style="background: #eef6ff;">
+      <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; justify-content: center;">
+        <div style="text-align: center;">
+          <div style="background: white; border-radius: 1rem; padding: 1rem 1.5rem; border: 1px solid #cbd5e1;">
+            <span style="font-size: 2rem;">🖼️</span>
+            <p style="font-weight: 600; margin-top: 0.2rem;">Input image</p>
+          </div>
+        </div>
+        <div style="font-size: 2rem; color: #2563eb;">→</div>
+        <div style="text-align: center;">
+          <div style="background: white; border-radius: 1rem; padding: 1rem 1.5rem; border: 1px solid #cbd5e1;">
+            <span style="font-size: 2rem;">🧠</span>
+            <p style="font-weight: 600; margin-top: 0.2rem;">U-Net (PyTorch)</p>
+          </div>
+        </div>
+        <div style="font-size: 2rem; color: #2563eb;">→</div>
+        <div style="text-align: center;">
+          <div style="background: white; border-radius: 1rem; padding: 1rem 1.5rem; border: 1px solid #cbd5e1;">
+            <span style="font-size: 2rem;">🔲</span>
+            <p style="font-weight: 600; margin-top: 0.2rem;">Binary mask</p>
+          </div>
+        </div>
+        <div style="font-size: 2rem; color: #2563eb;">→</div>
+        <div style="text-align: center;">
+          <div style="background: #2563eb; color: white; border-radius: 1rem; padding: 1rem 1.5rem;">
+            <span style="font-size: 2rem;">🤗</span>
+            <p style="font-weight: 600; margin-top: 0.2rem;">Hugging Face Space</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== SECTION 4: QUIZ ========== -->
+    <h2>4. Check your understanding</h2>
+
+    <!-- QUIZ 1 -->
+    <div class="quiz-block" id="quiz1">
+      <div class="quiz-question">
+        <span class="badge">Q1</span>
+        <span>Why are skip connections critical in U-Net for crack detection?</span>
+      </div>
+      <div class="options" id="quiz1-options">
+        <label class="option" data-value="0">
+          <input type="radio" name="q1" value="0"> They reduce the number of parameters.
+        </label>
+        <label class="option" data-value="1">
+          <input type="radio" name="q1" value="1"> They preserve fine spatial detail from the encoder for precise localization.
+        </label>
+        <label class="option" data-value="2">
+          <input type="radio" name="q1" value="2"> They eliminate the need for a decoder.
+        </label>
+        <label class="option" data-value="3">
+          <input type="radio" name="q1" value="3"> They speed up training by skipping layers.
+        </label>
+      </div>
+      <button class="btn" id="quiz1-submit">Submit answer</button>
+      <div id="quiz1-feedback" class="feedback" style="display: none;"></div>
+    </div>
+
+    <!-- QUIZ 2 -->
+    <div class="quiz-block" id="quiz2">
+      <div class="quiz-question">
+        <span class="badge">Q2</span>
+        <span>When deploying to Hugging Face Spaces with Gradio, what does the <span class="inline-code">predict</span> function return?</span>
+      </div>
+      <div class="options" id="quiz2-options">
+        <label class="option" data-value="0">
+          <input type="radio" name="q2" value="0"> A classification label (crack/no-crack).
+        </label>
+        <label class="option" data-value="1">
+          <input type="radio" name="q2" value="1"> A probability map and bounding boxes.
+        </label>
+        <label class="option" data-value="2">
+          <input type="radio" name="q2" value="2"> A binary segmentation mask as a PIL image.
+        </label>
+        <label class="option" data-value="3">
+          <input type="radio" name="q2" value="3"> A JSON file with crack coordinates.
+        </label>
+      </div>
+      <button class="btn" id="quiz2-submit">Submit answer</button>
+      <div id="quiz2-feedback" class="feedback" style="display: none;"></div>
+    </div>
+
+    <!-- ========== FOOTER ========== -->
+    <hr>
+    <p style="text-align: center; color: #64748b; font-size: 0.95rem;">
+      🧠 Built for computer vision learners · U-Net + PyTorch + Hugging Face Spaces
+    </p>
+  </div>
+
+  <!-- interactive quiz logic -->
+  <script>
+    (function() {
+      // QUIZ 1
+      const quiz1Options = document.querySelectorAll('#quiz1-options .option');
+      const quiz1Submit = document.getElementById('quiz1-submit');
+      const quiz1Feedback = document.getElementById('quiz1-feedback');
+      let quiz1Selected = null;
+
+      quiz1Options.forEach(opt => {
+        opt.addEventListener('click', () => {
+          quiz1Options.forEach(o => o.classList.remove('selected'));
+          opt.classList.add('selected');
+          const radio = opt.querySelector('input[type="radio"]');
+          if (radio) radio.checked = true;
+          quiz1Selected = opt.dataset.value;
+        });
+      });
+
+      quiz1Submit.addEventListener('click', () => {
+        if (quiz1Selected === null) {
+          quiz1Feedback.style.display = 'block';
+          quiz1Feedback.className = 'feedback incorrect';
+          quiz1Feedback.textContent = 'Please select an answer first.';
+          return;
+        }
+        const isCorrect = quiz1Selected === '1';
+        quiz1Feedback.style.display = 'block';
+        if (isCorrect) {
+          quiz1Feedback.className = 'feedback correct';
+          quiz1Feedback.textContent = '✅ Correct! Skip connections concatenate encoder features with decoder features, allowing the network to recover precise pixel-level detail — essential for thin cracks.';
+        } else {
+          quiz1Feedback.className = 'feedback incorrect';
+          quiz1Feedback.textContent = '❌ Not quite. Skip connections are about preserving spatial information, not reducing parameters or skipping layers. The correct answer is B.';
+        }
+      });
+
+      // QUIZ 2
+      const quiz2Options = document.querySelectorAll('#quiz2-options .option');
+      const quiz2Submit = document.getElementById('quiz2-submit');
+      const quiz2Feedback = document.getElementById('quiz2-feedback');
+      let quiz2Selected = null;
+
+      quiz2Options.forEach(opt => {
+        opt.addEventListener('click', () => {
+          quiz2Options.forEach(o => o.classList.remove('selected'));
+          opt.classList.add('selected');
+          const radio = opt.querySelector('input[type="radio"]');
+          if (radio) radio.checked = true;
+          quiz2Selected = opt.dataset.value;
+        });
+      });
+
+      quiz2Submit.addEventListener('click', () => {
+        if (quiz2Selected === null) {
+          quiz2Feedback.style.display = 'block';
+          quiz2Feedback.className = 'feedback incorrect';
+          quiz2Feedback.textContent = 'Please select an answer first.';
+          return;
+        }
+        const isCorrect = quiz2Selected === '2';
+        quiz2Feedback.style.display = 'block';
+        if (isCorrect) {
+          quiz2Feedback.className = 'feedback correct';
+          quiz2Feedback.textContent = '✅ Correct! The predict function returns a PIL image of the binary mask (thresholded at 0.5), which Gradio displays directly.';
+        } else {
+          quiz2Feedback.className = 'feedback incorrect';
+          quiz2Feedback.textContent = '❌ Incorrect. The model outputs a segmentation mask, not a classification label or bounding boxes. The correct answer is C.';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
+```

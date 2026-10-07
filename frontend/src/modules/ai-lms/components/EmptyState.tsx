@@ -46,7 +46,7 @@ export default function EmptyState({
             (primaryAction.href ? (
               <Link
                 href={primaryAction.href}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02]"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 transition-all"
               >
                 {primaryAction.icon && <Icon name={primaryAction.icon} size={15} />}
                 <span>{primaryAction.label}</span>
@@ -55,7 +55,7 @@ export default function EmptyState({
               <button
                 type="button"
                 onClick={primaryAction.onClick}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02]"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 transition-all"
               >
                 {primaryAction.icon && <Icon name={primaryAction.icon} size={15} />}
                 <span>{primaryAction.label}</span>

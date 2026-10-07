@@ -562,7 +562,7 @@ export default function GenerateLessonForm({
             <button
               type="submit"
               disabled={isGenerating || isUploadingFile}
-              className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-primary text-white font-medium text-sm shadow-lg shadow-primary/25 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-102 flex items-center justify-center gap-2"
+              className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-primary text-white font-medium text-sm shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-102 flex items-center justify-center gap-2"
             >
               <Icon name="SparklesIcon" size={18} />
               <span>{isGenerating ? 'Generating Lesson...' : 'Generate Lesson'}</span>

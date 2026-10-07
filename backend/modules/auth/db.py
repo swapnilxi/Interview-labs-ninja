@@ -159,7 +159,32 @@ def promote_admins_from_env() -> list[str]:
         for email in emails:
             cursor.execute(
                 "UPDATE users SET role = 'admin', updated_at = datetime('now') "
-                "WHERE email = ? AND role != 'admin'",
+                "WHERE email = ? AND role NOT IN ('admin', 'superadmin')",
+                (email,),
+            )
+            if cursor.rowcount > 0:
+                promoted.append(email)
+        conn.commit()
+        return promoted
+    finally:
+        conn.close()
+
+
+def promote_superadmins_from_env() -> list[str]:
+    """Promote every email in LABNINJA_SUPERADMIN_EMAILS (comma-separated) to superadmin.
+    Same semantics as promote_admins_from_env; this is the only way to mint the first one."""
+    raw = os.environ.get("LABNINJA_SUPERADMIN_EMAILS", "")
+    emails = [e.strip().lower() for e in raw.split(",") if e.strip()]
+    if not emails:
+        return []
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        promoted = []
+        for email in emails:
+            cursor.execute(
+                "UPDATE users SET role = 'superadmin', updated_at = datetime('now') "
+                "WHERE email = ? AND role != 'superadmin'",
                 (email,),
             )
             if cursor.rowcount > 0:
@@ -174,7 +199,7 @@ def count_admins() -> int:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+        cursor.execute("SELECT COUNT(*) FROM users WHERE role IN ('admin', 'superadmin')")
         return cursor.fetchone()[0]
     finally:
         conn.close()
@@ -230,7 +255,7 @@ def system_stats() -> dict:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*), SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) FROM users")
+        cursor.execute("SELECT COUNT(*), SUM(CASE WHEN role IN ('admin', 'superadmin') THEN 1 ELSE 0 END) FROM users")
         total_users, admin_users = cursor.fetchone()
         admin_users = admin_users or 0
 

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
-import { lmsService } from '../services/lmsService';
+import { useAuth } from '@/contexts/AuthContext';
+import { LmsConflictError, lmsService } from '../services/lmsService';
 import type {
   BreakdownResult,
   DeeperExplanationResult,
@@ -17,7 +18,8 @@ import type {
 } from '../types';
 import ConfirmDialog from './ConfirmDialog';
 import VoiceAssistant from './VoiceAssistant';
-import { withVisibilitySafetyNet } from '../utils/lessonVisibilitySafetyNet';
+import LmsHtmlFrame from './LmsHtmlFrame';
+import { useDevContentRefresh } from '../utils/useDevContentRefresh';
 
 interface LessonViewerProps {
   lesson: LmsLesson;
@@ -78,6 +80,7 @@ export default function LessonViewer({
   subject,
 }: LessonViewerProps) {
   const router = useRouter();
+  const { canEdit } = useAuth();
   const [currentLesson, setCurrentLesson] = useState<LmsLesson>(initialLesson);
   const [viewMode, setViewMode] = useState<ViewMode>('read');
   // Lifted out of VisualizerPanel/EasyReadPanel so the generated content survives a
@@ -95,6 +98,8 @@ export default function LessonViewer({
   const [editReadTime, setEditReadTime] = useState(5);
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  // The save was refused because the lesson's file changed meanwhile (see handleSaveEdit).
+  const [saveConflict, setSaveConflict] = useState(false);
   const editorRef = useRef<LessonHtmlEditorHandle>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -180,11 +185,25 @@ export default function LessonViewer({
     setEditSummary(currentLesson.summary || '');
     setEditReadTime(currentLesson.read_time_minutes || 5);
     setEditError(null);
+    setSaveConflict(false);
     setViewMode('read');
     setIsEditing(true);
   };
 
-  const handleSaveEdit = async () => {
+  const reloadAfterConflict = async () => {
+    try {
+      setCurrentLesson(await lmsService.getLesson(currentLesson.id));
+      setIsEditing(false);
+      setSaveConflict(false);
+      setEditError(null);
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : 'Failed to reload the lesson.');
+    }
+  };
+
+  /** `overwrite` re-sends a save the server refused (409) without its base hash; the
+   * version it replaces stays recoverable in lms_html_backups. */
+  const handleSaveEdit = async (overwrite = false) => {
     if (!editTitle.trim()) {
       setEditError('Title is required.');
       return;
@@ -192,19 +211,31 @@ export default function LessonViewer({
     setIsSaving(true);
     setEditError(null);
     try {
+      const editor = editorRef.current;
+      // Only send the body when it was edited (and with the hash it started from, so an
+      // IDE edit of the lesson file made meanwhile is refused instead of overwritten).
+      const bodyEdit =
+        editor && editor.isDirty()
+          ? {
+              generated_html: editor.getHtml(),
+              ...(overwrite ? {} : { base_hash: currentLesson.content_hash }),
+            }
+          : {};
       const updated = await lmsService.updateLesson(currentLesson.id, {
         title: editTitle.trim(),
         summary: editSummary.trim(),
         read_time_minutes: Math.max(1, Math.round(editReadTime) || 1),
-        generated_html: editorRef.current?.getHtml(),
+        ...bodyEdit,
       });
       setCurrentLesson(updated);
       setEasyRead(null);
       setDeeper(null);
       setBreakdown(null);
       setIsEditing(false);
+      setSaveConflict(false);
       router.refresh();
     } catch (err: unknown) {
+      setSaveConflict(err instanceof LmsConflictError);
       setEditError(err instanceof Error ? err.message : 'Failed to save changes.');
     } finally {
       setIsSaving(false);
@@ -224,10 +255,23 @@ export default function LessonViewer({
     ? Math.round((navigation.current_index / Math.max(navigation.total_lessons, 1)) * 100)
     : null;
 
-  const safeLessonHtml = useMemo(
-    () => withVisibilitySafetyNet(currentLesson.generated_html),
-    [currentLesson.generated_html]
-  );
+  // Dev: an IDE save of this lesson's .html file shows up here within ~2s.
+  useDevContentRefresh({
+    enabled: viewMode === 'read' && !isEditing,
+    currentHash: currentLesson.content_hash,
+    check: () => lmsService.getLessonStatus(currentLesson.id),
+    onChange: () => {
+      lmsService
+        .getLesson(currentLesson.id)
+        .then((fresh) => {
+          setCurrentLesson(fresh);
+          setEasyRead(null);
+          setDeeper(null);
+          setBreakdown(null);
+        })
+        .catch(() => {});
+    },
+  });
 
   return (
     <>
@@ -315,7 +359,30 @@ export default function LessonViewer({
                 </label>
               </div>
             )}
-            {editError && <div className="text-xs text-destructive">{editError}</div>}
+            {editError && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+                <span>{editError}</span>
+                {saveConflict && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveEdit(true)}
+                      disabled={isSaving}
+                      className="px-2 py-1 rounded-md border border-destructive/40 font-semibold hover:bg-destructive/10 disabled:opacity-50"
+                    >
+                      Overwrite with my version
+                    </button>
+                    <button
+                      type="button"
+                      onClick={reloadAfterConflict}
+                      className="px-2 py-1 rounded-md border border-border font-semibold text-foreground hover:bg-muted"
+                    >
+                      Reload latest
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             {progressPct !== null && navigation && navigation.total_lessons > 1 && (
               <div className="h-1.5 w-full max-w-xs rounded-full bg-muted overflow-hidden">
                 <div
@@ -330,7 +397,7 @@ export default function LessonViewer({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
             {/* [ Read ] | [ Easy Read ] | [ ✨ Visualize ] | [ Swipe ] | [ Explain Deeper ] | [ Breakdown ] Mode Switcher */}
             <div className="grid grid-cols-3 sm:flex sm:flex-wrap sm:items-center gap-1 p-1 rounded-xl bg-muted/60 border border-border w-full sm:w-auto">
-              {VIEW_MODES.map(({ mode, label, icon, title }) => (
+              {VIEW_MODES.filter(({ mode }) => canEdit || mode !== 'update').map(({ mode, label, icon, title }) => (
                 <button
                   key={mode}
                   type="button"
@@ -379,7 +446,7 @@ export default function LessonViewer({
                   </button>
                   <button
                     type="button"
-                    onClick={handleSaveEdit}
+                    onClick={() => handleSaveEdit()}
                     disabled={isSaving}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
                   >
@@ -387,7 +454,7 @@ export default function LessonViewer({
                     <span>{isSaving ? 'Saving...' : 'Save'}</span>
                   </button>
                 </>
-              ) : (
+              ) : canEdit ? (
                 <button
                   type="button"
                   onClick={startEditing}
@@ -397,7 +464,7 @@ export default function LessonViewer({
                   <Icon name="PencilIcon" size={14} />
                   <span className="hidden sm:inline">Edit</span>
                 </button>
-              )}
+              ) : null}
 
               <button
                 type="button"
@@ -432,11 +499,12 @@ export default function LessonViewer({
           <LessonHtmlEditor ref={editorRef} html={currentLesson.generated_html} />
         ) : viewMode === 'read' ? (
           <div className="flex-1 w-full rounded-2xl border border-border bg-card shadow-lg overflow-hidden relative min-h-[70vh] sm:min-h-[620px] flex flex-col">
-            <iframe
-              srcDoc={safeLessonHtml}
+            <LmsHtmlFrame
+              html={currentLesson.generated_html || ''}
+              filePath={currentLesson.file_path || ''}
+              classSlug={lmsClass.slug}
               title={currentLesson.title}
-              sandbox="allow-scripts"
-              className="w-full h-full flex-1 border-0"
+              docKey={currentLesson.id}
             />
           </div>
         ) : viewMode === 'easy' ? (

@@ -67,7 +67,7 @@ from modules.ai_todo.import_data.router import router as import_router
 # Auth module
 from modules.auth.router import router as auth_router
 from modules.auth.admin_router import router as admin_router
-from modules.auth.db import promote_admins_from_env
+from modules.auth.db import promote_admins_from_env, promote_superadmins_from_env
 
 # Swipe PDF Reader module
 from modules.swipe_pdf_reader.db import init_pdf_db
@@ -75,6 +75,7 @@ from modules.swipe_pdf_reader.router import router as pdf_router
 
 # AI LMS module
 from modules.ai_lms.db import init_lms_db
+from modules.ai_lms.class_folders import reconcile_all as reconcile_lms_class_folders
 from modules.ai_lms.router import router as lms_router
 
 # Generic voice module (Deepgram STT/TTS) — shared across any module that needs it
@@ -97,11 +98,20 @@ async def _lifespan(_app: FastAPI):
     init_db()
     init_pdf_db()
     init_lms_db()
+    try:
+        # Pick up lesson/landing HTML edited in the IDE while the server was down, and
+        # write any files that are missing (see modules/ai_lms/class_folders.py).
+        reconcile_lms_class_folders()
+    except Exception as exc:
+        print(f"[ai_lms] class folder sync at startup failed: {exc}")
     init_career_db()  # CAREER STUDIO INTEGRATION — creates career_studio.sqlite3 tables
     # Promote any LABNINJA_ADMIN_EMAILS accounts to admin (idempotent; see admin_router).
     promoted = promote_admins_from_env()
     if promoted:
         print(f"[admin] Promoted to admin from LABNINJA_ADMIN_EMAILS: {', '.join(promoted)}")
+    promoted_super = promote_superadmins_from_env()
+    if promoted_super:
+        print(f"[admin] Promoted to superadmin from LABNINJA_SUPERADMIN_EMAILS: {', '.join(promoted_super)}")
     yield
 
 

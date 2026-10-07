@@ -1,0 +1,13 @@
+{
+  "$comment": "Generated from the AI-LMS tables on every change; edits here are overwritten. Edit landingpage.html and the lesson .html files instead.",
+  "id": "class-other",
+  "slug": "other",
+  "name": "Other",
+  "description": "Content that does not currently belong to a specific class.",
+  "landing": "landingpage.html",
+  "subjects": [],
+  "lessons": [],
+  "files": {
+    "landingpage.html": "b5e8c6fb26a5acee7d643793f6dfc4069396fa69b26ab59cb2636ba87186a27c"
+  }
+}

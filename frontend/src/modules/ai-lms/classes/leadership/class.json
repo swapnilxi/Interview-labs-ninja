@@ -1,0 +1,13 @@
+{
+  "$comment": "Generated from the AI-LMS tables on every change; edits here are overwritten. Edit landingpage.html and the lesson .html files instead.",
+  "id": "class-leadership",
+  "slug": "leadership",
+  "name": "Leadership",
+  "description": "Leadership, communication, execution, decision making, influence, and team management.",
+  "landing": "landingpage.html",
+  "subjects": [],
+  "lessons": [],
+  "files": {
+    "landingpage.html": "299da010661a22dcaa6cd6f97d2e94d1e8aad0b34f259436e5364aeb29000178"
+  }
+}

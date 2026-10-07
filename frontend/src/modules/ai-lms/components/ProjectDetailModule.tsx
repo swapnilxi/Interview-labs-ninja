@@ -3,6 +3,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 import { lmsService, type PlacementSuggestion } from '../services/lmsService';
 import { extractMultipleFiles, mergeSourceNames } from '../utils/contextFiles';
 import type { LmsClass, LmsLesson, LmsProjectPlanItem, LmsSubject } from '../types';
@@ -337,6 +338,7 @@ export default function ProjectDetailModule({
   mode,
   onDone,
 }: ProjectDetailModuleProps) {
+  const { canEdit } = useAuth();
   const [readme, setReadme] = useState(project.project_context || '');
   const [sourceName, setSourceName] = useState(project.context_source_name || '');
   const [readmeDirty, setReadmeDirty] = useState(false);
@@ -704,6 +706,7 @@ export default function ProjectDetailModule({
             </Link>
           )}
 
+          {canEdit && (
           <button
             type="button"
             disabled={isBusy}
@@ -713,8 +716,9 @@ export default function ProjectDetailModule({
             <Icon name="SparklesIcon" size={12} className="text-primary" />
             <span>{flat.item.lesson_id ? 'Regenerate' : 'Generate'}</span>
           </button>
+          )}
 
-          {canBreakDown && (
+          {canEdit && canBreakDown && (
             <button
               type="button"
               disabled={isBusy}
@@ -749,7 +753,7 @@ export default function ProjectDetailModule({
         </div>
       )}
 
-      {mode === 'edit' && (
+      {mode === 'edit' && canEdit && (
         <>
           <section className="rounded-2xl border border-border bg-card p-5 space-y-3">
             <div className="flex items-center justify-between gap-2">
@@ -890,7 +894,7 @@ export default function ProjectDetailModule({
 
       {mode === 'modules' && (
         <>
-          {plan.length > 0 && (
+          {canEdit && plan.length > 0 && (
             <section className="space-y-1.5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
                 <Icon name="SparklesIcon" size={14} />
@@ -923,7 +927,7 @@ export default function ProjectDetailModule({
                 {generatedCount} of {flatItems.length || 0} lessons generated
               </p>
             </div>
-            <div className="flex items-center gap-2.5 flex-wrap">
+            {canEdit && <div className="flex items-center gap-2.5 flex-wrap">
               {plan.length > 0 && (
                 <button
                   type="button"
@@ -947,7 +951,7 @@ export default function ProjectDetailModule({
                 disabled={isPlanning || !readme.trim() || readmeDirty}
                 onClick={handleGenerateClick}
                 title={readmeDirty ? 'Save your README changes first' : undefined}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium text-xs shadow-md shadow-indigo-500/25 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium text-xs shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {isPlanning ? (
                   <>
@@ -965,7 +969,7 @@ export default function ProjectDetailModule({
                   </>
                 )}
               </button>
-            </div>
+            </div>}
           </section>
 
           {isGeneratingAll && progress && (
@@ -987,29 +991,31 @@ export default function ProjectDetailModule({
 
           {plan.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              {readme.trim()
+              {!canEdit
+                ? 'No implementation modules have been added to this project yet.'
+                : readme.trim()
                 ? 'No implementation modules yet -- click "Generate Implementation Modules" above to have the AI plan them from your README.'
                 : 'Add a README / project context above, then generate implementation modules.'}
             </div>
           ) : (
             <div className="space-y-1">
-              <InsertGap
+              {canEdit && <InsertGap
                 targets={[{ label: 'Add module', moduleIndex: null, position: 0 }]}
                 disabled={isGeneratingAll || isPlanning}
                 indent={false}
                 onAdd={handleAddStep}
                 onSuggest={handleSuggest}
-              />
+              />}
               {flatItems.map((flat) => (
                 <React.Fragment key={flat.key}>
                   {renderItemRow(flat)}
-                  <InsertGap
+                  {canEdit && <InsertGap
                     targets={gapTargetsAfter(flat)}
                     disabled={isGeneratingAll || isPlanning}
                     indent={flat.depth === 1}
                     onAdd={handleAddStep}
                     onSuggest={handleSuggest}
-                  />
+                  />}
                 </React.Fragment>
               ))}
             </div>

@@ -11,6 +11,7 @@ import {
   deleteUser,
   type AdminStats,
   type AdminUser,
+  type AppRole,
 } from '@/lib/services/adminService';
 
 /** Friendly labels for the raw sqlite table names surfaced in resource stats. */
@@ -64,10 +65,17 @@ function StatCard({ icon, label, value, tone = 'primary' }: {
   );
 }
 
-function RoleBadge({ role }: { role: 'user' | 'admin' }) {
-  return role === 'admin' ? (
+function RoleBadge({ role }: { role: AppRole }) {
+  if (role === 'editor') {
+    return (
+      <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium bg-secondary/12 text-secondary border border-secondary/25">
+        <Icon name="PencilSquareIcon" size={12} /> Editor
+      </span>
+    );
+  }
+  return role === 'admin' || role === 'superadmin' ? (
     <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium bg-primary/12 text-primary border border-primary/25">
-      <Icon name="ShieldCheckIcon" size={12} variant="solid" /> Admin
+      <Icon name="ShieldCheckIcon" size={12} variant="solid" /> {role === 'superadmin' ? 'Superadmin' : 'Admin'}
     </span>
   ) : (
     <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border">
@@ -79,10 +87,11 @@ function RoleBadge({ role }: { role: 'user' | 'admin' }) {
 type PendingAction =
   | { type: 'reset'; user: AdminUser }
   | { type: 'delete'; user: AdminUser }
-  | { type: 'role'; user: AdminUser; next: 'user' | 'admin' };
+  | { type: 'role'; user: AdminUser; next: AppRole };
 
 export default function AdminModule() {
   const { user: me } = useAuth();
+  const isSuper = me?.role === 'superadmin';
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [search, setSearch] = useState('');
@@ -123,7 +132,7 @@ export default function AdminModule() {
     try {
       if (pending.type === 'role') {
         await setUserRole(pending.user.id, pending.next);
-        flash(`${pending.user.email} is now ${pending.next === 'admin' ? 'an admin' : 'a user'}.`);
+        flash(`${pending.user.email} is now ${pending.next === 'user' ? 'a regular user' : `${pending.next === 'admin' ? 'an' : 'a'} ${pending.next}`}.`);
       } else if (pending.type === 'reset') {
         await resetUserPassword(pending.user.id, resetPw);
         flash(`Password reset for ${pending.user.email}.`);
@@ -276,13 +285,20 @@ export default function AdminModule() {
                     <td className="px-18 py-12 hidden lg:table-cell text-muted-foreground">{formatDate(u.created_at)}</td>
                     <td className="px-18 py-12">
                       <div className="flex items-center justify-end gap-6">
-                        <button
-                          onClick={() => setPending({ type: 'role', user: u, next: u.role === 'admin' ? 'user' : 'admin' })}
-                          title={u.role === 'admin' ? 'Demote to user' : 'Promote to admin'}
-                          className="p-6 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-smooth focus-ring"
+                        <select
+                          data-testid={`role-select-${u.email}`}
+                          aria-label={`Role for ${u.email}`}
+                          value={u.role}
+                          disabled={!isSuper && (u.role === 'admin' || u.role === 'superadmin')}
+                          onChange={(e) => setPending({ type: 'role', user: u, next: e.target.value as AppRole })}
+                          title="Change role (only superadmins can grant or change admin-level roles)"
+                          className="text-xs rounded-md border border-border bg-background px-6 py-4 focus-ring disabled:opacity-50"
                         >
-                          <Icon name={u.role === 'admin' ? 'ArrowDownCircleIcon' : 'ArrowUpCircleIcon'} size={18} />
-                        </button>
+                          <option value="user">User</option>
+                          <option value="editor">Editor</option>
+                          <option value="admin" disabled={!isSuper}>Admin</option>
+                          <option value="superadmin" disabled={!isSuper}>Superadmin</option>
+                        </select>
                         <button
                           onClick={() => { setResetPw(''); setPending({ type: 'reset', user: u }); }}
                           title="Reset password"
@@ -338,12 +354,16 @@ export default function AdminModule() {
             {pending.type === 'role' && (
               <>
                 <h3 className="font-heading text-lg font-semibold text-foreground">
-                  {pending.next === 'admin' ? 'Promote to admin?' : 'Demote to user?'}
+                  Change role to {pending.next}?
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {pending.next === 'admin'
-                    ? <>Grant <span className="font-medium text-foreground">{pending.user.email}</span> full admin access, including managing all users.</>
-                    : <>Remove admin access from <span className="font-medium text-foreground">{pending.user.email}</span>. They keep their account and data.</>}
+                  <span className="font-medium text-foreground">{pending.user.email}</span> will go from{' '}
+                  <span className="font-medium text-foreground">{pending.user.role}</span> to{' '}
+                  <span className="font-medium text-foreground">{pending.next}</span>.{' '}
+                  {pending.next === 'editor' && 'Editors can create and change LMS content but cannot manage users.'}
+                  {pending.next === 'admin' && 'Admins can edit content and manage users.'}
+                  {pending.next === 'superadmin' && 'Superadmins can also grant or revoke admin roles.'}
+                  {pending.next === 'user' && 'They keep their account and data but can only view LMS content.'}
                 </p>
               </>
             )}
@@ -380,7 +400,7 @@ export default function AdminModule() {
                 }`}
               >
                 {working && <span className="w-[14px] h-[14px] border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {pending.type === 'delete' ? 'Delete' : pending.type === 'reset' ? 'Reset password' : pending.next === 'admin' ? 'Promote' : 'Demote'}
+                {pending.type === 'delete' ? 'Delete' : pending.type === 'reset' ? 'Reset password' : 'Change role'}
               </button>
             </div>
           </div>

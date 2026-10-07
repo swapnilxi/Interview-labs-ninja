@@ -8,6 +8,12 @@
 import crypto from 'crypto';
 import { getSQLiteDatabase } from '../_shared/db';
 import { seedInitialLmsContent } from './seed';
+import { contentHash, recordBackup, refreshLesson } from './classFolders';
+
+// Subject slugs that would collide with a static route segment
+// (/classes/[c]/lesson/[l], /classes/[c]/landing) or with the class folder's own
+// lessons/ directory (see classFolders.ts). Mirrors backend/modules/ai_lms/db.py.
+const RESERVED_SUBJECT_SLUGS = new Set(['lesson', 'landing', 'lessons']);
 
 export function slugify(text: string): string {
   return text
@@ -81,6 +87,40 @@ export function ensureLmsTables(): void {
     if (!classCols.some((c) => c.name === 'order_index')) {
       db.exec("ALTER TABLE lms_classes ADD COLUMN order_index INTEGER DEFAULT 0");
     }
+    // Class landing page: the HTML of classes/<class>/landingpage.html plus the hash the DB
+    // and the file last agreed on (see classFolders.ts). Mirrors backend/modules/ai_lms/db.py.
+    if (!classCols.some((c) => c.name === 'landing_html')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN landing_html TEXT DEFAULT ''");
+    }
+    if (!classCols.some((c) => c.name === 'landing_hash')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN landing_hash TEXT DEFAULT ''");
+    }
+    // Hash of the class data the landing page's lms:auto blocks were last rendered from.
+    if (!classCols.some((c) => c.name === 'landing_data_hash')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN landing_data_hash TEXT DEFAULT ''");
+    }
+    // Class-folder sync bookkeeping: where this lesson's .html file was last written
+    // (relative to the classes folder) and the hash the DB and the file last agreed on.
+    const lessonCols = db.prepare('PRAGMA table_info(lms_lessons)').all() as { name: string }[];
+    if (!lessonCols.some((c) => c.name === 'file_path')) {
+      db.exec("ALTER TABLE lms_lessons ADD COLUMN file_path TEXT DEFAULT ''");
+    }
+    if (!lessonCols.some((c) => c.name === 'file_hash')) {
+      db.exec("ALTER TABLE lms_lessons ADD COLUMN file_hash TEXT DEFAULT ''");
+    }
+    // Earlier versions of lesson/landing HTML that an import or app edit replaced.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS lms_html_backups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        rel_path TEXT DEFAULT '',
+        html TEXT NOT NULL,
+        reason TEXT DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lms_html_backups_entity ON lms_html_backups(entity_type, entity_id);
+    `);
     const subjCols = db.prepare('PRAGMA table_info(lms_subjects)').all() as { name: string }[];
     if (!subjCols.some((c) => c.name === 'ai_context')) {
       db.exec("ALTER TABLE lms_subjects ADD COLUMN ai_context TEXT DEFAULT ''");
@@ -420,10 +460,9 @@ export function createSubject(
   if (!cls) throw new Error('Class not found');
 
   let baseSlug = slugify(name) || 'subject';
-  // "lesson" collides with the /classes/[slug]/lesson/[lessonSlug] route used for
-  // Other-class (no-subject) lessons -- Next.js resolves that static segment before
-  // this subject's own [subjectSlug] route ever gets a chance to match.
-  if (baseSlug === 'lesson') baseSlug = 'lesson-subject';
+  // Next.js resolves the static lesson/ and landing/ segments before a subject's own
+  // [subjectSlug] route, and lessons/ is the class folder's direct-lessons directory.
+  if (RESERVED_SUBJECT_SLUGS.has(baseSlug)) baseSlug = `${baseSlug}-subject`;
   let slug = baseSlug;
   let counter = 1;
 
@@ -577,24 +616,42 @@ export function getDirectLessonsByClass(classIdOrSlug: string): Record<string, u
   `).all(cls.id) as Record<string, unknown>[];
 }
 
-export function getLessonById(lessonId: string): Record<string, unknown> | null {
+/**
+ * Lesson slugs are only unique per class here, so a lookup by slug should pass the class
+ * (and subject) it came from; an exact id match always wins. Before returning, any IDE
+ * edit of the lesson's .html file is pulled into the DB (refreshLesson), so every caller
+ * works on what's on disk. Mirrors get_lesson_by_id in backend/modules/ai_lms/db.py.
+ */
+export function getLessonById(
+  lessonId: string,
+  classIdOrSlug?: string | null,
+  subjectIdOrSlug?: string | null
+): Record<string, unknown> | null {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
   if (!res) return null;
   const { db } = res;
+  const c = classIdOrSlug || '';
+  const s = subjectIdOrSlug || '';
 
   const lesson = db.prepare(`
     SELECT 
       l.*,
       c.name AS class_name, c.slug AS class_slug,
-      s.name AS subject_name, s.slug AS subject_slug
+      s.name AS subject_name, s.slug AS subject_slug, s.kind AS subject_kind
     FROM lms_lessons l
     JOIN lms_classes c ON c.id = l.class_id
     LEFT JOIN lms_subjects s ON s.id = l.subject_id
-    WHERE l.id = ? OR l.slug = ?
-  `).get(lessonId, lessonId) as Record<string, unknown> | undefined;
+    WHERE (l.id = ? OR l.slug = ?)
+      AND (? = '' OR c.id = ? OR c.slug = ?)
+      AND (? = '' OR s.id = ? OR s.slug = ?)
+    ORDER BY CASE WHEN l.id = ? THEN 0 ELSE 1 END, l.created_at ASC
+    LIMIT 1
+  `).get(lessonId, lessonId, c, c, c, s, s, s, lessonId) as Record<string, unknown> | undefined;
 
-  return lesson || null;
+  if (!lesson) return null;
+  const fresh = refreshLesson({ ...lesson });
+  return { ...fresh, content_hash: contentHash(fresh.generated_html as string) };
 }
 
 export function createLesson(data: {
@@ -674,8 +731,10 @@ export function updateLesson(
   if (!res) return null;
   const { db } = res;
 
-  const current = db.prepare('SELECT * FROM lms_lessons WHERE id = ?').get(lessonId) as Record<string, unknown> | undefined;
-  if (!current) return null;
+  const row = db.prepare('SELECT * FROM lms_lessons WHERE id = ?').get(lessonId) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  // Work on what's on disk: an unsynced IDE edit of the lesson file lands in the DB first.
+  const current = refreshLesson({ ...row });
 
   const newTitle = updates.title !== undefined ? updates.title.trim() : (current.title as string);
   const newHtml = updates.generated_html !== undefined ? updates.generated_html : (current.generated_html as string);
@@ -686,6 +745,10 @@ export function updateLesson(
       ? Math.min(240, Math.round(updates.read_time_minutes))
       : (current.read_time_minutes as number);
   const nowIso = new Date().toISOString();
+  if (newHtml !== current.generated_html) {
+    // The last few versions stay recoverable, whichever side (app or IDE) replaced them.
+    recordBackup('lesson', current.id as string, (current.file_path as string) || '', current.generated_html as string, 'replaced by an app edit');
+  }
 
   db.prepare(`
     UPDATE lms_lessons

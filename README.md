@@ -248,6 +248,73 @@ Class
 `steps` (insert), `reorder` (move), `suggest-placement` (AI recommendation). Any change to
 these must be made in both `router.py` and `fe-apis/lms/index.ts`.
 
+### Class folders (editable HTML)
+
+Every class is mirrored to a folder you can edit in the IDE:
+
+```
+frontend/src/modules/ai-lms/classes/<class>/
+  landingpage.html                         landing page (yours; see lms:auto below)
+  class.json                               generated manifest: titles, order, ids, file hashes
+  <subject>/lessons/<lesson>.html
+  <project>/modules/<module>.html          a module's own lesson
+  <project>/modules/<module>/<step>.html   sub-step lessons
+  <project>/lessons/<lesson>.html          project lessons the outline doesn't list
+  lessons/<lesson>.html                    lessons with no subject
+```
+
+- **The DB stays the store of record.** HTML lives in `lms_lessons.generated_html` and
+  `lms_classes.landing_html`. The files are a second copy, kept in sync both ways by
+  `backend/modules/ai_lms/class_folders.py` and its nextjs-api twin
+  `frontend/fe-apis/lms/classFolders.ts`.
+  - The two must write byte-identical files, so change both.
+- **Edit a lesson or landing file in the IDE.** The edit is imported into the DB the next
+  time the app reads it:
+  - opening the lesson or landing page;
+  - opening the class;
+  - any LMS write;
+  - a server start.
+
+  In dev, the open page refreshes about 2 s after you save.
+  - The DB version it replaced goes to `lms_html_backups`, which keeps the last 5 per lesson.
+  - App writes (generate, revise, embed visual, in-app edit) rewrite the file.
+- **Who wins:** each row stores the hash both sides last agreed on (`file_hash`, `landing_hash`).
+  - Only the file changed: it is imported.
+  - Only the DB changed: the file is rewritten.
+  - Both changed: the file wins, and the DB version is backed up.
+
+  The in-app editors send `base_hash`. If the file changed meanwhile they get a 409, with an
+  "Overwrite" option.
+- **landingpage.html** starts from `backend/modules/ai_lms/templates/landingpage.html`, and you
+  can edit anything in it.
+  - Only the regions between `<!-- lms:auto:NAME -->` and `<!-- /lms:auto:NAME -->` are
+    re-rendered: name, description, stats, subjects, projects, lessons.
+  - They re-render only when the class data they show changes. Delete a marker pair to freeze
+    that region.
+  - Links are relative file paths, so the page works when the folder is hosted on its own. In
+    the app they open the matching routes.
+- **Not synced:**
+  - New `.html` files you create don't become lessons.
+  - A lesson file deleted in the IDE is re-created from the DB; delete lessons in the app.
+  - Files that aren't valid UTF-8 are skipped until fixed.
+- **Export site** (class page and landing page) downloads `<class>.zip`. The zip contains the
+  folder as a static site with an `index.html`, plus deploy files from
+  `backend/modules/ai_lms/templates/deploy/`:
+  - Vercel: `npx vercel deploy --prod`.
+  - Google Cloud Run: `gcloud run deploy <name> --source .`, which builds an nginx
+    `Dockerfile` serving on `$PORT`.
+
+  The zip's README has the details.
+- **CLI:** `uv run python -m modules.ai_lms.class_folders` (from `backend/`) forces a full sync.
+  - `--prefer-db` lets the DB win every disagreement. Use it after copying newer `lms_*` tables
+    onto an older checkout of the folders.
+- **When it's off:**
+  - No folder is touched when the DB is redirected (`LABNINJA_TEST_DB_PATH` or
+    `LABNINJA_DB_DIR`) unless `LMS_CLASSES_DIR` names one.
+  - Nothing is written on Vercel, whose filesystem is read-only.
+  - On the Vercel deployment, `/api` is served by the Python function, which runs DB-only. After
+    editing files, open the app (or run the CLI) before committing the DB.
+
 ## YouTube Exercise Generator (CV / DSA / System Design Labs)
 
 Each of the three practice labs (CV, DSA, System Design) shares one "Generate Practice

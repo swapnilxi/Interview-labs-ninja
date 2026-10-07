@@ -10,13 +10,15 @@ export interface AuthUser {
   id: number;
   email: string;
   display_name: string | null;
-  role?: 'user' | 'admin';
+  role?: 'user' | 'editor' | 'admin' | 'superadmin';
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   isGuest: boolean;
   isAdmin: boolean;
+  /** editor, admin or superadmin: may change LMS content (the backend enforces this too). */
+  canEdit: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   signup: (email: string, password: string, displayName?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -120,7 +122,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const value: AuthContextValue = {
     user,
     isGuest: !user,
-    isAdmin: user?.role === 'admin',
+    isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
+    canEdit: user?.role === 'editor' || user?.role === 'admin' || user?.role === 'superadmin',
     loading,
     login,
     signup,

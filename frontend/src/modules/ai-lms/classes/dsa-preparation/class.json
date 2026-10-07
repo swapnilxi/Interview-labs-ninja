@@ -1,0 +1,38 @@
+{
+  "$comment": "Generated from the AI-LMS tables on every change; edits here are overwritten. Edit landingpage.html and the lesson .html files instead.",
+  "id": "class-dsa-preparation",
+  "slug": "dsa-preparation",
+  "name": "DSA Preparation",
+  "description": "Data structures, algorithms, coding patterns, complexity, and interview problem solving.",
+  "landing": "landingpage.html",
+  "subjects": [
+    {
+      "id": "subj-binary-search",
+      "slug": "binary-search-pointers",
+      "name": "Binary Search & Pointers",
+      "kind": "subject",
+      "description": "Pointer patterns, logarithmic space elimination, and search boundary invariants.",
+      "lessons": [
+        {
+          "id": "lesson-binary-search-pointers",
+          "slug": "binary-search-pointer-mechanics",
+          "title": "Binary Search: Pointer Mechanics & Space Elimination",
+          "file": "binary-search-pointers/lessons/binary-search-pointer-mechanics.html"
+        }
+      ]
+    }
+  ],
+  "lessons": [
+    {
+      "id": "lesson-64de5f03",
+      "slug": "the-stack",
+      "title": "The Stack",
+      "file": "lessons/the-stack.html"
+    }
+  ],
+  "files": {
+    "landingpage.html": "1b2101a0b6ee4c8d1556c7e87ab9254b9e2beb1d9cd1b41405d2d1087623e673",
+    "binary-search-pointers/lessons/binary-search-pointer-mechanics.html": "9e836724955ab8ec5105e902cb4435feb8914836487a99a3f8d87f097753fd08",
+    "lessons/the-stack.html": "f7579edcc26b1227ce43f6bd37c439fe41c24f7f1a44330c8c75539eb686ca9d"
+  }
+}

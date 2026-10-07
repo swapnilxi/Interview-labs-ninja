@@ -10,6 +10,9 @@ const nextConfig = {
     '/api/auth/login': ['../backend/data/lab_ninja.sqlite3'],
     '/api/auth/signup': ['../backend/data/lab_ninja.sqlite3'],
     '/api/auth/me': ['../backend/data/lab_ninja.sqlite3'],
+    // AI LMS class folders (lesson/landing HTML) and their templates, read by
+    // fe-apis/lms/classFolders.ts.
+    '/api/lms/**': ['./src/modules/ai-lms/classes/**/*', '../backend/modules/ai_lms/templates/**/*'],
   },
   typescript: {
     ignoreBuildErrors: false,

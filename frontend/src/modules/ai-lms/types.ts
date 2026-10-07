@@ -73,8 +73,58 @@ export interface LmsLesson {
   class_slug?: string;
   subject_name?: string | null;
   subject_slug?: string | null;
+  /** sha256 of generated_html; send it back as base_hash when saving an edit. */
+  content_hash?: string;
+  /** Where this lesson's .html lives, relative to frontend/src/modules/ai-lms/classes/
+   * ('' until the class-folder sync has written it). */
+  file_path?: string;
   created_at: string;
   updated_at: string;
+}
+
+/** A class landing page: classes/<class>/landingpage.html, as the app renders it. */
+export interface LmsLandingSection {
+  id: string;
+  source: 'manual' | 'ai';
+  title: string;
+  html: string;
+}
+
+export interface LmsLandingSaved extends LmsLanding {
+  sections: LmsLandingSection[];
+}
+
+export interface LmsLandingAiResult {
+  html: string;
+  base_hash: string;
+  section_id: string | null;
+  mode: 'generate' | 'edit' | 'section';
+}
+
+export interface LmsLanding {
+  class_id: string;
+  class_slug: string;
+  html: string;
+  hash: string;
+  /** Relative to the classes folder, e.g. "computer-vision/landingpage.html". */
+  file_path: string;
+  /** False when there is no classes folder (e.g. a backend-only deploy): DB copy only. */
+  file_sync: boolean;
+}
+
+/** Response of the lesson / landing status endpoints used by the dev auto-refresh. */
+export interface LmsContentStatus {
+  content_hash: string;
+  file_sync: boolean;
+}
+
+/** What a classes-folder path points at (GET /api/lms/resolve-path). */
+export interface LmsPathTarget {
+  kind: 'class' | 'landing' | 'subject' | 'lesson';
+  class_slug: string;
+  subject_slug?: string | null;
+  lesson_id?: string;
+  lesson_slug?: string;
 }
 
 export interface LmsSiblingLesson {

@@ -1,0 +1,13 @@
+{
+  "$comment": "Generated from the AI-LMS tables on every change; edits here are overwritten. Edit landingpage.html and the lesson .html files instead.",
+  "id": "class-interview-preparation",
+  "slug": "interview-preparation",
+  "name": "Interview Preparation",
+  "description": "Technical interviews, behavioral interviews, system design interviews, coding preparation, and interview strategy.",
+  "landing": "landingpage.html",
+  "subjects": [],
+  "lessons": [],
+  "files": {
+    "landingpage.html": "3b14dee4875236e7f24e53e2eb26dfe6deb2d304bf18ac06c55f4a1219c3135c"
+  }
+}

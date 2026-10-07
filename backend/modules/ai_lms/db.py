@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -16,6 +17,18 @@ def slugify(text: str) -> str:
     text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s_-]+", "-", text)
     return text.strip("-") or "item"
+
+
+def content_hash(text: Optional[str]) -> str:
+    """sha256 hex of the UTF-8 bytes. Twin of contentHash() in fe-apis/lms/db.ts; the
+    class-folder sync compares these, so both must hash identically."""
+    return hashlib.sha256((text or "").encode("utf-8", errors="replace")).hexdigest()
+
+
+# Subject slugs that would collide with a static route segment
+# (/classes/<c>/lesson/<l>, /classes/<c>/landing) or with the class folder's own
+# lessons/ directory (see class_folders.py). Mirrored in fe-apis/lms/db.ts.
+RESERVED_SUBJECT_SLUGS = {"lesson", "landing", "lessons"}
 
 
 INITIAL_CLASSES = [
@@ -129,6 +142,15 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
             cursor.execute("ALTER TABLE lms_classes ADD COLUMN ai_context TEXT DEFAULT '';")
         if "order_index" not in class_cols:
             cursor.execute("ALTER TABLE lms_classes ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0;")
+        # Class landing page: the HTML of classes/<class>/landingpage.html, plus the hash
+        # the DB and the file last agreed on (see class_folders.py).
+        if "landing_html" not in class_cols:
+            cursor.execute("ALTER TABLE lms_classes ADD COLUMN landing_html TEXT DEFAULT '';")
+        if "landing_hash" not in class_cols:
+            cursor.execute("ALTER TABLE lms_classes ADD COLUMN landing_hash TEXT DEFAULT '';")
+        # Hash of the class data the landing page's lms:auto blocks were last rendered from.
+        if "landing_data_hash" not in class_cols:
+            cursor.execute("ALTER TABLE lms_classes ADD COLUMN landing_data_hash TEXT DEFAULT '';")
 
         # ── 2. Subjects Table ──────────────────────────────────────────────────
         cursor.execute("""
@@ -195,6 +217,30 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_lessons_class_id ON lms_lessons(class_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_lessons_subject_id ON lms_lessons(subject_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_lessons_order ON lms_lessons(order_index);")
+
+        # Class-folder sync bookkeeping: where this lesson's .html file was last written
+        # (relative to the classes folder) and the hash the DB and the file last agreed on.
+        cursor.execute("PRAGMA table_info(lms_lessons);")
+        lesson_cols = [row[1] for row in cursor.fetchall()]
+        if "file_path" not in lesson_cols:
+            cursor.execute("ALTER TABLE lms_lessons ADD COLUMN file_path TEXT DEFAULT '';")
+        if "file_hash" not in lesson_cols:
+            cursor.execute("ALTER TABLE lms_lessons ADD COLUMN file_hash TEXT DEFAULT '';")
+
+        # Earlier versions of lesson/landing HTML that a file import replaced, so an IDE
+        # edit can never silently destroy what the DB held (see class_folders.py).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS lms_html_backups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                rel_path TEXT DEFAULT '',
+                html TEXT NOT NULL,
+                reason TEXT DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_html_backups_entity ON lms_html_backups(entity_type, entity_id);")
 
         # ── 4. User Progress Table ─────────────────────────────────────────────
         cursor.execute("""
@@ -506,10 +552,8 @@ def create_subject(
 
     clean_name = name.strip()
     base_slug = slugify(clean_name)
-    if base_slug == "lesson":
-        # Collides with the /classes/<slug>/lesson/<lessonSlug> route used for
-        # Other-class (no-subject) lessons.
-        base_slug = "lesson-subject"
+    if base_slug in RESERVED_SUBJECT_SLUGS:
+        base_slug = f"{base_slug}-subject"
     now_iso = datetime.utcnow().isoformat() + "Z"
     new_id = f"subj-{uuid.uuid4().hex[:8]}"
 
@@ -656,26 +700,50 @@ def get_direct_lessons_by_class(class_identifier: str) -> List[Dict[str, Any]]:
         return [dict(r) for r in cursor.fetchall()]
 
 
-def get_lesson_by_id(lesson_id: str) -> Optional[Dict[str, Any]]:
-    """Get complete lesson record including generated_html."""
+def get_lesson_by_id(
+    lesson_id: str,
+    class_identifier: Optional[str] = None,
+    subject_identifier: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Get complete lesson record including generated_html.
+
+    Lesson slugs are only unique per class in nextjs-api mode, so a lookup by slug should
+    pass the class (and subject) it came from; an exact id match always wins. Before
+    returning, any IDE edit of the lesson's .html file is pulled into the DB, so every
+    caller (viewer, AI revise/embed, update_lesson) works on what's on disk."""
     with _get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
                 l.id, l.class_id, l.subject_id, l.title, l.slug, l.order_index, 
                 l.source_type, l.source_content, l.generated_html, l.summary, 
-                l.read_time_minutes, l.created_at, l.updated_at,
+                l.read_time_minutes, l.created_at, l.updated_at, l.file_path, l.file_hash,
                 c.name as class_name, c.slug as class_slug,
                 s.name as subject_name, s.slug as subject_slug, s.kind as subject_kind
             FROM lms_lessons l
             JOIN lms_classes c ON l.class_id = c.id
             LEFT JOIN lms_subjects s ON l.subject_id = s.id
-            WHERE l.id = ? OR l.slug = ?
-        """, (lesson_id, lesson_id))
+            WHERE (l.id = ? OR l.slug = ?)
+              AND (? = '' OR c.id = ? OR c.slug = ?)
+              AND (? = '' OR s.id = ? OR s.slug = ?)
+            ORDER BY CASE WHEN l.id = ? THEN 0 ELSE 1 END, l.created_at ASC
+            LIMIT 1
+        """, (
+            lesson_id, lesson_id,
+            class_identifier or "", class_identifier or "", class_identifier or "",
+            subject_identifier or "", subject_identifier or "", subject_identifier or "",
+            lesson_id,
+        ))
         row = cursor.fetchone()
         if not row:
             return None
-        return dict(row)
+        lesson = dict(row)
+
+    from .class_folders import refresh_lesson  # late import: class_folders imports this module
+
+    lesson = refresh_lesson(lesson)
+    lesson["content_hash"] = content_hash(lesson.get("generated_html"))
+    return lesson
 
 
 def create_lesson(
@@ -764,6 +832,12 @@ def update_lesson(
     new_summary = summary if summary is not None else current["summary"]
     new_order = order_index if order_index is not None else current["order_index"]
     new_read_time = read_time_minutes if read_time_minutes is not None else current["read_time_minutes"]
+
+    if new_html != current["generated_html"]:
+        from .class_folders import record_backup  # late import: class_folders imports this module
+
+        # The last few versions stay recoverable, whichever side (app or IDE) replaced them.
+        record_backup("lesson", current["id"], current.get("file_path") or "", current["generated_html"], "replaced by an app edit")
 
     with _get_conn() as conn:
         cursor = conn.cursor()

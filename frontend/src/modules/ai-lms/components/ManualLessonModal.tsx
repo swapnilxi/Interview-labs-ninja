@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import { lmsService } from '../services/lmsService';
+import { LmsConflictError, lmsService } from '../services/lmsService';
 import type { LmsClass, LmsLesson, LmsSubject } from '../types';
 
 interface ManualLessonModalProps {
@@ -79,35 +79,65 @@ export default function ManualLessonModal({
   const [readMinutes, setReadMinutes] = useState(5);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The edited lesson's full body + its content_hash, loaded when the modal opens.
+  const [loadedHtml, setLoadedHtml] = useState<string | null>(null);
+  const [baseHash, setBaseHash] = useState<string | undefined>(undefined);
+  // The update was refused (409): the lesson's file changed since the modal loaded it.
+  const [conflict, setConflict] = useState(false);
 
   useEffect(() => {
-    if (lessonToEdit) {
-      setTitle(lessonToEdit.title);
-      setSummary(lessonToEdit.summary || '');
-      setHtmlContent(lessonToEdit.generated_html || STARTER_HTML);
-      setReadMinutes(lessonToEdit.read_time_minutes || 5);
-    } else {
+    setError(null);
+    setConflict(false);
+    setLoadedHtml(null);
+    setBaseHash(undefined);
+    if (!lessonToEdit) {
       setTitle('');
       setSummary('');
       setHtmlContent(STARTER_HTML);
       setReadMinutes(5);
+      return;
     }
+    setTitle(lessonToEdit.title);
+    setSummary(lessonToEdit.summary || '');
+    setReadMinutes(lessonToEdit.read_time_minutes || 5);
+    setHtmlContent('');
+    if (!isOpen) return;
+    // Lesson lists carry metadata only (no generated_html): load the full lesson, or the
+    // starter template would be saved over the real body (and its .html file).
+    let cancelled = false;
+    lmsService
+      .getLesson(lessonToEdit.id)
+      .then((full) => {
+        if (cancelled) return;
+        setHtmlContent(full.generated_html);
+        setLoadedHtml(full.generated_html);
+        setBaseHash(full.content_hash);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load the lesson.');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [lessonToEdit, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent | null, overwrite = false) => {
+    e?.preventDefault();
     if (!title.trim() || !htmlContent.trim()) return;
 
     setLoading(true);
     setError(null);
     try {
       if (lessonToEdit) {
+        if (loadedHtml === null) return;
         const updated = await lmsService.updateLesson(lessonToEdit.id, {
           title: title.trim(),
-          generated_html: htmlContent,
           summary: summary.trim(),
+          ...(htmlContent !== loadedHtml
+            ? { generated_html: htmlContent, ...(overwrite ? {} : { base_hash: baseHash }) }
+            : {}),
         });
         onSaved(updated);
       } else {
@@ -123,6 +153,7 @@ export default function ManualLessonModal({
       }
       onClose();
     } catch (err: unknown) {
+      setConflict(err instanceof LmsConflictError);
       setError(err instanceof Error ? err.message : 'Failed to save lesson');
     } finally {
       setLoading(false);
@@ -157,8 +188,18 @@ export default function ManualLessonModal({
         </div>
 
         {error && (
-          <div className="mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs">
-            {error}
+          <div className="mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs flex flex-wrap items-center gap-2">
+            <span>{error}</span>
+            {conflict && (
+              <button
+                type="button"
+                onClick={() => handleSubmit(null, true)}
+                disabled={loading}
+                className="px-2 py-1 rounded-md border border-rose-500/40 font-semibold hover:bg-rose-500/10 disabled:opacity-50"
+              >
+                Save anyway
+              </button>
+            )}
           </div>
         )}
 
@@ -231,7 +272,12 @@ export default function ManualLessonModal({
             </button>
             <button
               type="submit"
-              disabled={loading || !title.trim() || !htmlContent.trim()}
+              disabled={
+                loading ||
+                !title.trim() ||
+                !htmlContent.trim() ||
+                (!!lessonToEdit && loadedHtml === null)
+              }
               className="px-5 py-2 text-sm font-medium rounded-lg text-white bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               {loading ? 'Saving...' : lessonToEdit ? 'Update Lesson' : 'Save Lesson'}

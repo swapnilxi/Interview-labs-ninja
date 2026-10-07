@@ -1,0 +1,38 @@
+{
+  "$comment": "Generated from the AI-LMS tables on every change; edits here are overwritten. Edit landingpage.html and the lesson .html files instead.",
+  "id": "class-system-design",
+  "slug": "system-design",
+  "name": "System Design",
+  "description": "High-level design, distributed systems, architecture patterns, scalability, reliability, and trade-offs.",
+  "landing": "landingpage.html",
+  "subjects": [
+    {
+      "id": "subj-distributed-systems",
+      "slug": "distributed-systems",
+      "name": "Distributed Systems",
+      "kind": "subject",
+      "description": "Core patterns, fault tolerance, replication, consensus, and load distribution.",
+      "lessons": [
+        {
+          "id": "lesson-load-balancer-traffic",
+          "slug": "how-a-load-balancer-distributes-traffic",
+          "title": "How a Load Balancer Distributes Traffic",
+          "file": "distributed-systems/lessons/how-a-load-balancer-distributes-traffic.html"
+        }
+      ]
+    },
+    {
+      "id": "subj-databases-caching",
+      "slug": "databases-caching",
+      "name": "Databases & Caching",
+      "kind": "subject",
+      "description": "Relational vs NoSQL, indexing strategies, Redis caching patterns, and partitioning.",
+      "lessons": []
+    }
+  ],
+  "lessons": [],
+  "files": {
+    "landingpage.html": "74383b032b773d50c5afbfb5a1c7901e0b716b495a138c1331e460b3e6fb615b",
+    "distributed-systems/lessons/how-a-load-balancer-distributes-traffic.html": "f333aef4e3f383b5def3a9aa9645505d9176d7c97490e0cf31cd34dbf48c8a6e"
+  }
+}

@@ -93,8 +93,24 @@ further down in `README.md` — check there before assuming a module's shape.
   outline lives in `project_plan` JSON. Both levels of outline items carry `{title, focus,
   context, lesson_id, sublessons}`. Project endpoints exist in both `backend/modules/ai_lms/router.py`
   and `frontend/fe-apis/lms/index.ts` -- change both. Details in `README.md` ("AI LMS Module").
+- **Roles: user < editor < admin < superadmin.** Every non-GET `/api/lms/*` request needs editor+
+  (`_require_editor_for_writes` in `ai_lms/router.py`; allowlist `_NON_EDIT_WRITES` for per-user progress and
+  preview-only AI calls). A new LMS write endpoint is gated automatically; a new preview-only one must be added to
+  the allowlist. Only a superadmin can grant/revoke admin-level roles. First superadmin: `LABNINJA_SUPERADMIN_EMAILS`.
+  `fe-apis` has the same gate in `requireUserId` (`fe-apis/lms/index.ts`, same allowlist) — keep the two in sync.
+  Role/landing-editor checks: `tests/e2e/ai-lms/` (Playwright, README there) and `backend/tests/lms_roles_test.py`.
 - AI-powered endpoints/methods are login-required everywhere, on purpose — don't add
   guest-mode fallbacks for them without checking with the user first.
+- **AI LMS class folders (`frontend/src/modules/ai-lms/classes/`) are synced both ways with
+  the DB.**
+  - The sync lives in `backend/modules/ai_lms/class_folders.py` and
+    `frontend/fe-apis/lms/classFolders.ts`, which must write byte-identical files. Change both,
+    and diff their output trees from two DB copies to check.
+  - Tests that copy the DB must also set `LMS_CLASSES_DIR` to a scratch folder. With a
+    redirected DB and no `LMS_CLASSES_DIR`, the layer turns itself off and never touches the
+    repo folder.
+  - Templates (landing page, export deploy files) live in `backend/modules/ai_lms/templates/`.
+  - Details are in README.md ("Class folders").
 
 ## AI provider layer (`backend/modules/common/ai/`)
 

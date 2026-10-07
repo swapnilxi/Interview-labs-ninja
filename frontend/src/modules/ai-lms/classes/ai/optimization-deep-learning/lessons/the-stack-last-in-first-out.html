@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Stack — A Micro-Lesson in Data Structures</title>
+<style>
+  :root{
+    --bg:#0b1020;
+    --bg-2:#0f1630;
+    --panel:#131b3a;
+    --panel-2:#182248;
+    --ink:#e9eefc;
+    --muted:#9aa7c7;
+    --accent:#6ea8ff;
+    --accent-2:#7cf0c4;
+    --warn:#ffb86b;
+    --bad:#ff7a8a;
+    --good:#7cf0c4;
+    --line:#26315c;
+    --code-bg:#0a0f24;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #1a2a5e 0%, transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, #123a3a 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 22px 90px}
+  header.hero{
+    padding:34px 28px;
+    border:1px solid var(--line);
+    border-radius:20px;
+    background:linear-gradient(180deg, rgba(110,168,255,.10), rgba(124,240,196,.05) 60%, transparent);
+    box-shadow:var(--shadow);
+    position:relative;
+    overflow:hidden;
+  }
+  header.hero::after{
+    content:"";
+    position:absolute; inset:0;
+    background-image:linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+                     linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size:28px 28px;
+    mask-image:radial-gradient(600px 300px at 80% 0%, #000 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .kicker{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-2);
+    border:1px solid rgba(124,240,196,.35);
+    background:rgba(124,240,196,.08);
+    padding:6px 12px;border-radius:999px;
+  }
+  h1{font-size:clamp(28px,4.4vw,44px);line-height:1.15;margin:16px 0 8px;letter-spacing:-.02em}
+  h1 .grad{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .sub{color:var(--muted);max-width:70ch;font-size:17px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .chip{
+    font-size:12.5px;color:var(--muted);
+    border:1px solid var(--line);background:var(--panel);
+    padding:6px 11px;border-radius:999px;
+  }
+  section{
+    margin-top:28px;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--panel),var(--bg-2));
+    border-radius:18px;
+    padding:26px 26px 30px;
+    box-shadow:var(--shadow);
+  }
+  h2{
+    font-size:22px;margin:0 0 6px;letter-spacing:-.01em;
+    display:flex;align-items:center;gap:12px;
+  }
+  h2 .num{
+    font-size:13px;color:var(--bg);background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-weight:800;
+  }
+  h3{font-size:16px;margin:22px 0 8px;color:var(--accent)}
+  p{color:#d6ddf3}
+  .muted{color:var(--muted)}
+  ul{color:#d6ddf3}
+  li{margin:6px 0}
+  code.inline{
+    background:var(--code-bg);border:1px solid var(--line);
+    padding:2px 7px;border-radius:6px;font-size:.92em;color:var(--accent-2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .grid{display:grid;gap:18px}
+  @media(min-width:820px){ .grid.two{grid-template-columns:1.05fr .95fr} }
+
+  /* Code block */
+  pre{
+    margin:14px 0 0;background:var(--code-bg);
+    border:1px solid var(--line);border-radius:14px;
+    padding:16px 16px 16px 16px;overflow:auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size:13.5px;line-height:1.65;
+  }
+  pre code{color:#cdd6f4}
+  .tok-k{color:#c792ea}   /* keyword */
+  .tok-f{color:#82aaff}   /* function */
+  .tok-s{color:#c3e88d}   /* string */
+  .tok-c{color:#5c6b95;font-style:italic} /* comment */
+  .tok-n{color:#f78c6c}   /* number */
+  .tok-p{color:#89ddff}   /* punctuation/class */
+
+  /* Stack visualizer */
+  .viz{
+    display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;
+  }
+  @media(max-width:760px){ .viz{grid-template-columns:1fr} }
+  .stack-frame{
+    border:1px dashed var(--line);border-radius:16px;
+    padding:14px;background:rgba(10,15,36,.6);
+    display:flex;flex-direction:column-reverse;justify-content:flex-start;
+    min-height:300px;gap:8px;position:relative;
+  }
+  .stack-frame::before{
+    content:"TOP ↑";
+    position:absolute;top:-11px;left:14px;font-size:11px;letter-spacing:.12em;
+    color:var(--accent-2);background:var(--bg-2);padding:0 8px;border-radius:6px;
+    border:1px solid var(--line);
+  }
+  .cell{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--panel-2),#131c3f);
+    border-radius:12px;padding:12px 14px;
+    display:flex;align-items:center;justify-content:space-between;
+    font-family: ui-monospace, Menlo, monospace;font-size:15px;
+    transform-origin:center;
+    animation:pop .28s cubic-bezier(.2,.9,.3,1.4);
+  }
+  .cell .idx{font-size:11px;color:var(--muted);letter-spacing:.1em}
+  .cell.top{
+    border-color:rgba(124,240,196,.55);
+    box-shadow:0 0 0 1px rgba(124,240,196,.18), 0 8px 24px rgba(124,240,196,.10);
+  }
+  @keyframes pop{
+    0%{opacity:0;transform:translateY(14px) scale(.95)}
+    100%{opacity:1;transform:translateY(0) scale(1)}
+  }
+  .cell.leaving{
+    animation:leave .28s ease forwards;
+  }
+  @keyframes leave{
+    to{opacity:0;transform:translateY(-18px) scale(.92)}
+  }
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+  button{
+    font:inherit;cursor:pointer;border-radius:11px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--ink);padding:10px 14px;
+    transition:.15s transform,.15s background,.15s border-color;
+  }
+  button:hover{transform:translateY(-1px);border-color:var(--accent)}
+  button:active{transform:translateY(0)}
+  button.primary{background:linear-gradient(90deg,var(--accent),#8cc6ff);color:#06122b;font-weight:700;border:none}
+  button.ghost{background:transparent}
+  input[type=text]{
+    font:inherit;background:var(--code-bg);border:1px solid var(--line);color:var(--ink);
+    border-radius:11px;padding:10px 12px;width:120px;
+  }
+  .status{
+    margin-top:12px;font-family:ui-monospace,Menlo,monospace;font-size:13px;
+    color:var(--muted);min-height:20px;
+  }
+  .status .ok{color:var(--good)} .status .err{color:var(--bad)}
+
+  .callout{
+    border-left:3px solid var(--accent);
+    background:rgba(110,168,255,.07);
+    padding:12px 16px;border-radius:0 12px 12px 0;margin:16px 0;
+    color:#dbe4fb;
+  }
+  .callout.warn{border-left-color:var(--warn);background:rgba(255,184,107,.07)}
+  .callout.good{border-left-color:var(--good);background:rgba(124,240,196,.07)}
+
+  .compare{display:grid;gap:14px}
+  @media(min-width:720px){ .compare{grid-template-columns:1fr 1fr} }
+  .card{
+    border:1px solid var(--line);border-radius:14px;padding:16px;background:rgba(19,27,58,.7);
+  }
+  .card h4{margin:0 0 8px;font-size:15px;color:var(--accent-2)}
+  .card.bad h4{color:var(--bad)}
+
+  /* Quiz */
+  .quiz{border:1px solid var(--line);border-radius:16px;padding:20px;background:rgba(10,15,36,.55)}
+  .quiz + .quiz{margin-top:18px}
+  .qtag{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-2)}
+  .qtext{font-size:17px;font-weight:600;margin:8px 0 14px}
+  .opts{display:grid;gap:10px}
+  .opt{
+    display:flex;gap:12px;align-items:flex-start;
+    border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+    background:var(--panel);cursor:pointer;transition:.15s all;
+  }
+  .opt:hover{border-color:var(--accent);background:var(--panel-2)}
+  .opt .key{
+    flex:0 0 26px;height:26px;border-radius:8px;display:grid;place-items:center;
+    background:var(--panel-2);border:1px solid var(--line);font-weight:700;font-size:13px;
+  }
+  .opt.correct{border-color:var(--good);background:rgba(124,240,196,.10)}
+  .opt.correct .key{background:var(--good);color:#06122b;border-color:var(--good)}
+  .opt.wrong{border-color:var(--bad);background:rgba(255,122,138,.10)}
+  .opt.wrong .key{background:var(--bad);color:#2a0710;border-color:var(--bad)}
+  .opt.disabled{pointer-events:none;opacity:.85}
+  .feedback{
+    margin-top:14px;padding:12px 14px;border-radius:12px;font-size:14px;display:none;
+    border:1px solid var(--line);background:var(--panel);
+  }
+  .feedback.show{display:block;animation:pop .25s ease}
+  .feedback.ok{border-color:rgba(124,240,196,.5);background:rgba(124,240,196,.08)}
+  .feedback.no{border-color:rgba(255,122,138,.5);background:rgba(255,122,138,.08)}
+  .quiz-actions{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
+
+  footer{margin-top:34px;text-align:center;color:var(--muted);font-size:13px}
+  .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .pill{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="kicker">● Data Structures · Micro-Lesson</span>
+    <h1>The <span class="grad">Stack</span>: Last In, First Out</h1>
+    <p class="sub">
+      A stack is the simplest useful data structure you'll ever meet. It stores items in order,
+      but only lets you touch <em>one end</em> — the top. Push to add, pop to remove. That's it.
+      And that tiny constraint quietly powers function calls, undo buttons, expression parsers,
+      and the recursive backpropagation loops inside every deep learning framework.
+    </p>
+    <div class="meta">
+      <span class="chip">⏱ 8–10 min</span>
+      <span class="chip">🎯 Beginner</span>
+      <span class="chip">🧠 2 quizzes</span>
+      <span class="chip">🖱 Interactive visualizer</span>
+    </div>
+  </header>
+
+  <!-- SECTION 1 -->
+  <section>
+    <h2><span class="num">1</span> The Core Idea</h2>
+    <p>
+      Imagine a stack of plates in a cafeteria. You can only add a plate to the <strong>top</strong>,
+      and you can only take a plate from the <strong>top</strong>. You can't pull one out of the middle
+      without lifting everything above it first.
+    </p>
+    <p>
+      That's the entire contract. A stack is a <strong>LIFO</strong> structure —
+      <em>Last In, First Out</em>. The most recently added item is the first one you can remove.
+    </p>
+
+    <div class="callout">
+      <strong>The three operations:</strong>
+      <ul style="margin:8px 0 0">
+        <li><code class="inline">push(x)</code> — add <code class="inline">x</code> to the top.</li>
+        <li><code class="inline">pop()</code> — remove and return the top item.</li>
+        <li><code class="inline">peek()</code> — look at the top item without removing it.</li>
+      </ul>
+    </div>
+
+    <h3>Try it yourself</h3>
+    <p class="muted">Push and pop values. Watch the top of the stack move.</p>
+
+    <div class="viz">
+      <div>
+        <div class="stack-frame" id="stackFrame" aria-label="Stack visualizer"></div>
+        <div class="status" id="status">Stack is empty. Push something to begin.</div>
+      </div>
+      <div>
+        <div class="controls">
+          <input type="text" id="pushVal" placeholder="value" maxlength="8" value="A">
+          <button class="primary" id="btnPush">push()</button>
+          <button id="btnPop">pop()</button>
+          <button id="btnPeek">peek()</button>
+          <button class="ghost" id="btnReset">reset</button>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <h4>Why it matters</h4>
+          <ul style="margin:6px 0 0;padding-left:18px">
+            <li>Function call frames live on a stack.</li>
+            <li>Undo/redo in editors is a pair of stacks.</li>
+            <li>Balanced-parentheses checks use a stack.</li>
+            <li>Depth-first search (DFS) is a stack in disguise.</li>
+            <li>Reverse Polish notation evaluation uses a stack.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2 -->
+  <section>
+    <h2><span class="num">2</span> Under the Hood</h2>
+    <p>
+      A stack is an <em>interface</em>, not a specific memory layout. Two common implementations:
+    </p>
+    <div class="compare">
+      <div class="card">
+        <h4>Array-backed</h4>
+        <p class="muted" style="margin:6px 0">
+          Store items in a dynamic array. The top is the last index.
+          <code class="inline">push</code>/<code class="inline">pop</code> are O(1) amortized.
+          Cache-friendly and simple.
+        </p>
+      </div>
+      <div class="card">
+        <h4>Linked-list-backed</h4>
+        <p class="muted" style="margin:6px 0">
+          Each node points to the one below it. The head is the top.
+          O(1) push/pop with no resizing, but extra pointer overhead per item.
+        </p>
+      </div>
+    </div>
+
+    <h3>A minimal Python stack</h3>
+<pre><code><span class="tok-k">class</span> <span class="tok-p">Stack</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self):
+        self._items = []          <span class="tok-c"># list is our backing store</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">push</span>(self, x):
+        self._items.append(x)     <span class="tok-c"># add to the top</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">pop</span>(self):
+        <span class="tok-k">if</span> self.<span class="tok-f">is_empty</span>():
+            <span class="tok-k">raise</span> <span class="tok-p">IndexError</span>(<span class="tok-s">"pop from empty stack"</span>)
+        <span class="tok-k">return</span> self._items.<span class="tok-f">pop</span>()   <span class="tok-c"># removes last item</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">peek</span>(self):
+        <span class="tok-k">return</span> self._items[-<span class="tok-n">1</span>] <span class="tok-k">if</span> self._items <span class="tok-k">else</span> <span class="tok-p">None</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">is_empty</span>(self):
+        <span class="tok-k">return</span> <span class="tok-k">not</span> self._items
+</code></pre>
+
+    <div class="callout warn">
+      <strong>Edge case:</strong> popping an empty stack is a bug in most languages.
+      Always check <code class="inline">is_empty()</code> first — or catch the exception.
+      This is exactly the kind of thing that turns a <em>stack overflow</em> into a crash.
+    </div>
+  </section>
+
+  <!-- SECTION 3 -->
+  <section>
+    <h2><span class="num">3</span> A Real Example: Balanced Parentheses</h2>
+    <p>
+      Given a string of brackets like <code class="inline">"([{}])"</code>, decide if every opening
+      bracket has a matching closer in the right order. A stack solves this in one pass.
+    </p>
+<pre><code><span class="tok-k">def</span> <span class="tok-f">is_balanced</span>(s):
+    pairs = {<span class="tok-s">')'</span>: <span class="tok-s">'('</span>, <span class="tok-s">']'</span>: <span class="tok-s">'['</span>, <span class="tok-s">'}'</span>: <span class="tok-s">'{'</span>}
+    stack = <span class="tok-p">Stack</span>()
+
+    <span class="tok-k">for</span> ch <span class="tok-k">in</span> s:
+        <span class="tok-k">if</span> ch <span class="tok-k">in</span> <span class="tok-s">"([{"</span>:
+            stack.<span class="tok-f">push</span>(ch)
+        <span class="tok-k">elif</span> ch <span class="tok-k">in</span> pairs:
+            <span class="tok-k">if</span> stack.<span class="tok-f">is_empty</span>() <span class="tok-k">or</span> stack.<span class="tok-f">pop</span>() != pairs[ch]:
+                <span class="tok-k">return</span> <span class="tok-p">False</span>
+
+    <span class="tok-k">return</span> stack.<span class="tok-f">is_empty</span>()
+
+<span class="tok-c"># is_balanced("([{}])") -> True</span>
+<span class="tok-c"># is_balanced("([)]")   -> False</span>
+</code></pre>
+    <p class="muted">
+      Every opening bracket is pushed. Every closing bracket must match the most recent
+      unmatched opener — which is, by definition, the top of the stack.
+    </p>
+  </section>
+
+  <!-- SECTION 4: QUIZ -->
+  <section>
+    <h2><span class="num">4</span> Check Your Understanding</h2>
+
+    <div class="quiz" data-quiz="1">
+      <div class="qtag">Question 1 of 2</div>
+      <div class="qtext">
+        You push <code class="inline">1</code>, then <code class="inline">2</code>, then
+        <code class="inline">3</code>. Then you pop twice. What is on top of the stack now?
+      </div>
+      <div class="opts">
+        <div class="opt" data-correct="false"><span class="key">A</span><span>3</span></div>
+        <div class="opt" data-correct="false"><span class="key">B</span><span>2</span></div>
+        <div class="opt" data-correct="true"><span class="key">C</span><span>1</span></div>
+        <div class="opt" data-correct="false"><span class="key">D</span><span>The stack is empty</span></div>
+      </div>
+      <div class="feedback" id="fb1"></div>
+      <div class="quiz-actions">
+        <button class="ghost" data-reset="1">Try again</button>
+      </div>
+    </div>
+
+    <div class="quiz" data-quiz="2">
+      <div class="qtag">Question 2 of 2</div>
+      <div class="qtext">
+        Which statement best describes why a stack is the right tool for checking
+        balanced parentheses?
+      </div>
+      <div class="opts">
+        <div class="opt" data-correct="false">
+          <span class="key">A</span>
+          <span>It sorts the brackets so matching pairs end up next to each other.</span>
+        </div>
+        <div class="opt" data-correct="true">
+          <span class="key">B</span>
+          <span>It remembers the most recent unmatched opener, which is exactly what a closing bracket must match.</span>
+        </div>
+        <div class="opt" data-correct="false">
+          <span class="key">C</span>
+          <span>It allows random access to any bracket in O(1) time.</span>
+        </div>
+        <div class="opt" data-correct="false">
+          <span class="key">D</span>
+          <span>It guarantees the string is balanced, so no checking is needed.</span>
+        </div>
+      </div>
+      <div class="feedback" id="fb2"></div>
+      <div class="quiz-actions">
+        <button class="ghost" data-reset="2">Try again</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 5 -->
+  <section>
+    <h2><span class="num">5</span> Cheat Sheet</h2>
+    <div class="grid two">
+      <div class="card">
+        <h4>Operations &amp; Complexity</h4>
+        <ul style="margin:6px 0 0;padding-left:18px">
+          <li><code class="inline">push(x)</code> — O(1) amortized</li>
+          <li><code class="inline">pop()</code> — O(1)</li>
+          <li><code class="inline">peek()</code> — O(1)</li>
+          <li><code class="inline">is_empty()</code> — O(1)</li>
+        </ul>
+      </div>
+      <div class="card bad">
+        <h4>Common Pitfalls</h4>
+        <ul style="margin:6px 0 0;padding-left:18px">
+          <li>Popping an empty stack.</li>
+          <li>Assuming you can index into the middle.</li>
+          <li>Confusing a stack (LIFO) with a queue (FIFO).</li>
+          <li>Forgetting that recursion uses the call stack implicitly.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pill-row">
+      <span class="pill">LIFO</span>
+      <span class="pill">O(1) push/pop</span>
+      <span class="pill">Undo/redo</span>
+      <span class="pill">DFS</span>
+      <span class="pill">Call frames</span>
+      <span class="pill">Parsing</span>
+    </div>
+  </section>
+
+  <footer>
+    Built as a micro-lesson on the stack data structure · Interactive visualizer, quizzes, and SVG-free CSS cells.
+  </footer>
+</div>
+
+<script>
+(function(){
+  // ---------- Stack visualizer ----------
+  const frame = document.getElementById('stackFrame');
+  const status = document.getElementById('status');
+  const input = document.getElementById('pushVal');
+  let stack = [];
+
+  function render(newTop){
+    frame.innerHTML = '';
+    if(stack.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'muted';
+      empty.style.cssText = 'text-align:center;padding:40px 10px;font-size:13px;';
+      empty.textContent = '— empty —';
+      frame.appendChild(empty);
+      return;
+    }
+    stack.forEach((val, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (i === stack.length - 1 ? ' top' : '');
+      cell.innerHTML = '<span>' + escapeHtml(String(val)) + '</span>' +
+                       '<span class="idx">#' + i + '</span>';
+      if(newTop && i === stack.length - 1){
+        cell.style.animation = 'pop .3s cubic-bezier(.2,.9,.3,1.4)';
+      }
+      frame.appendChild(cell);
+    });
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function setStatus(msg, cls){
+    status.innerHTML = cls ? '<span class="' + cls + '">' + msg + '</span>' : msg;
+  }
+
+  document.getElementById('btnPush').addEventListener('click', () => {
+    let v = input.value.trim();
+    if(v === '') v = '?';
+    stack.push(v);
+    render(true);
+    setStatus('push("' + v + '") → size = ' + stack.length, 'ok');
+    input.value = '';
+    input.focus();
+  });
+
+  document.getElementById('btnPop').addEventListener('click', () => {
+    if(stack.length === 0){
+      setStatus('pop() → ERROR: stack is empty', 'err');
+      return;
+    }
+    const v = stack.pop();
+    render(false);
+    setStatus('pop() → returned "' + v + '" · size = ' + stack.length, 'ok');
+  });
+
+  document.getElementById('btnPeek').addEventListener('click', () => {
+    if(stack.length === 0){
+      setStatus('peek() → None (stack is empty)', 'err');
+      return;
+    }
+    setStatus('peek() → "' + stack[stack.length - 1] + '" (not removed)', 'ok');
+  });
+
+  document.getElementById('btnReset').addEventListener('click', () => {
+    stack = [];
+    render(false);
+    setStatus('Stack reset. Push something to begin.');
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') document.getElementById('btnPush').click();
+  });
+
+  // ---------- Quiz ----------
+  document.querySelectorAll('.quiz').forEach(quiz => {
+    const qid = quiz.dataset.quiz;
+    const fb = document.getElementById('fb' + qid);
+    const opts = quiz.querySelectorAll('.opt');
+
+    opts.forEach(opt => {
+      opt.addEventListener('click', () => {
+        if(opt.classList.contains('disabled')) return;
+        const correct = opt.dataset.correct === 'true';
+        opts.forEach(o => o.classList.add('disabled'));
+        opt.classList.add(correct ? 'correct' : 'wrong');
+        if(!correct){
+          opts.forEach(o => { if(o.dataset.correct === 'true') o.classList.add('correct'); });
+        }
+        fb.classList.add('show', correct ? 'ok' : 'no');
+        fb.innerHTML = correct
+          ? '<strong>Correct.</strong> ' + (qid === '1'
+              ? 'After pushing 1, 2, 3 the top is 3. First pop removes 3, second pop removes 2, leaving 1 on top.'
+              : 'The stack’s top always holds the most recent unmatched opener — exactly the bracket a closer must match.')
+          : '<strong>Not quite.</strong> ' + (qid === '1'
+              ? 'The stack is LIFO: pushes go 1, 2, 3 (top = 3). Pop removes 3, then 2. Top is now 1.'
+              : 'A stack doesn’t sort or grant random access — it simply remembers the most recent unmatched opener, which is what a closer must match.');
+      });
+    });
+
+    quiz.querySelector('[data-reset]').addEventListener('click', () => {
+      opts.forEach(o => o.classList.remove('correct','wrong','disabled'));
+      fb.classList.remove('show','ok','no');
+      fb.innerHTML = '';
+    });
+  });
+
+  // initial render
+  render(false);
+})();
+</script>
+</body>
+</html>

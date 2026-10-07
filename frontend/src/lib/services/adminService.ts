@@ -8,6 +8,8 @@
 
 import { apiFetch, parseApiError } from '@/lib/http/apiClient';
 
+export type AppRole = 'user' | 'editor' | 'admin' | 'superadmin';
+
 export interface AdminStats {
   total_users: number;
   admin_users: number;
@@ -20,7 +22,7 @@ export interface AdminUser {
   id: number;
   email: string;
   display_name: string | null;
-  role: 'user' | 'admin';
+  role: AppRole;
   created_at: string;
   updated_at: string;
   resource_count: number;
@@ -40,7 +42,7 @@ export async function fetchUsers(search?: string): Promise<AdminUser[]> {
   return json<AdminUser[]>(await apiFetch(`/admin/users${qs}`));
 }
 
-export async function setUserRole(userId: number, role: 'user' | 'admin'): Promise<void> {
+export async function setUserRole(userId: number, role: AppRole): Promise<void> {
   const res = await apiFetch(`/admin/users/${userId}/role`, {
     method: 'PATCH',
     body: JSON.stringify({ role }),

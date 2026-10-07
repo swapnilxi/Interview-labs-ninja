@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Stack: A Deep Dive into LIFO Data Structures</title>
+<style>
+  :root {
+    --bg: #0a0e17;
+    --bg-2: #111827;
+    --panel: #141b2d;
+    --panel-2: #1c2438;
+    --border: #2a3550;
+    --text: #e6edf7;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-2: #a78bfa;
+    --accent-3: #34d399;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --code-bg: #0d1424;
+    --mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    overflow-x: hidden;
+  }
+
+  .progress-bar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+    width: 0%;
+    z-index: 1000;
+    transition: width 0.1s ease-out;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  header.hero {
+    padding: 90px 24px 70px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+
+  header.hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(56,189,248,0.12), transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(167,139,250,0.12), transparent 50%);
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    background: rgba(56,189,248,0.05);
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    position: relative;
+  }
+
+  .subtitle {
+    font-size: 1.15rem;
+    color: var(--muted);
+    max-width: 620px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .meta-row {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 32px;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    position: relative;
+  }
+
+  .meta-row span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-3); }
+
+  main { padding: 60px 0 100px; }
+
+  section { margin-bottom: 72px; scroll-margin-top: 40px; }
+
+  h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    background: rgba(56,189,248,0.1);
+    border: 1px solid rgba(56,189,248,0.25);
+    width: 34px; height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 28px 0 12px;
+    color: #fff;
+  }
+
+  p { margin-bottom: 16px; color: #cbd5e1; }
+  p strong { color: #fff; font-weight: 600; }
+  p code, li code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    border-radius: 5px;
+    color: var(--accent);
+  }
+
+  ul, ol { margin: 0 0 16px 22px; color: #cbd5e1; }
+  li { margin-bottom: 8px; }
+
+  .lead {
+    font-size: 1.1rem;
+    color: #cbd5e1;
+    border-left: 3px solid var(--accent);
+    padding-left: 18px;
+    margin-bottom: 28px;
+  }
+
+  /* Stack visualizer */
+  .visualizer {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin: 28px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  @media (max-width: 720px) {
+    .visualizer { grid-template-columns: 1fr; }
+  }
+
+  .stack-view {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 6px;
+    min-height: 320px;
+    padding: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    position: relative;
+    justify-content: flex-start;
+  }
+
+  .stack-view::before {
+    content: 'TOP';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--accent-3);
+    background: var(--panel);
+    padding: 0 8px;
+  }
+
+  .stack-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  .stack-item {
+    background: linear-gradient(135deg, var(--panel-2), #232d45);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: var(--mono);
+    font-size: 14px;
+    color: #fff;
+    text-align: center;
+    animation: popIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+  }
+
+  .stack-item.top-item {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(56,189,248,0.3), 0 0 20px rgba(56,189,248,0.15);
+  }
+
+  .stack-item.top-item::after {
+    content: '← top';
+    position: absolute;
+    right: -58px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  @media (max-width: 500px) {
+    .stack-item.top-item::after { right: -46px; font-size: 9px; }
+  }
+
+  @keyframes popIn {
+    0% { opacity: 0; transform: translateY(-14px) scale(0.94); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes popOut {
+    0% { opacity: 1; transform: translateX(0); }
+    100% { opacity: 0; transform: translateX(30px); }
+  }
+
+  .stack-item.leaving { animation: popOut 0.22s ease-in forwards; }
+
+  .controls { display: flex; flex-direction: column; gap: 16px; }
+
+  .input-row { display: flex; gap: 8px; }
+
+  .input-row input {
+    flex: 1;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .input-row input:focus { border-color: var(--accent); }
+
+  .btn {
+    background: var(--accent);
+    color: #04121c;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 20px;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
+  }
+
+  .btn:hover { background: #5cc9fb; box-shadow: 0 0 20px rgba(56,189,248,0.3); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+  .btn.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn.secondary:hover { border-color: var(--accent-2); color: #fff; background: rgba(167,139,250,0.08); }
+
+  .btn.danger {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid rgba(248,113,113,0.35);
+  }
+  .btn.danger:hover { background: rgba(248,113,113,0.1); }
+
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    padding: 10px 12px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+  }
+  .status .hl { color: var(--accent-3); }
+
+  /* Code blocks */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    overflow-x: auto;
+    margin: 18px 0;
+    font-size: 13.5px;
+    line-height: 1.65;
+    position: relative;
+  }
+
+  pre code { font-family: var(--mono); color: #cbd5e1; }
+
+  .code-label {
+    position: absolute;
+    top: 0; right: 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--panel-2);
+    padding: 5px 12px;
+    border-radius: 0 12px 0 10px;
+    border-left: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tok-kw { color: #c084fc; }
+  .tok-fn { color: #38bdf8; }
+  .tok-str { color: #34d399; }
+  .tok-num { color: #fbbf24; }
+  .tok-cm { color: #64748b; font-style: italic; }
+  .tok-op { color: #f472b6; }
+  .tok-cls { color: #fbbf24; }
+
+  /* Callout */
+  .callout {
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin: 22px 0;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .callout .icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    line-height: 1.4;
+  }
+  .callout .body { flex: 1; }
+  .callout .body p:last-child { margin-bottom: 0; }
+  .callout.info { border-left: 3px solid var(--accent); }
+  .callout.warn { border-left: 3px solid var(--warn); background: rgba(251,191,36,0.04); }
+  .callout.tip { border-left: 3px solid var(--accent-3); background: rgba(52,211,153,0.04); }
+
+  /* Big-O table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--panel-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  td { color: #cbd5e1; }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .big-o { font-family: var(--mono); color: var(--accent-3); font-weight: 600; }
+
+  /* Quiz */
+  .quiz {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 26px;
+    margin: 28px 0;
+    position: relative;
+  }
+
+  .quiz-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .quiz-tag::before {
+    content: '';
+    width: 18px; height: 1px;
+    background: var(--accent-2);
+  }
+
+  .quiz h3 { margin-top: 0; font-size: 1.1rem; color: #fff; }
+
+  .options { display: flex; flex-direction: column; gap: 10px; margin: 18px 0; }
+
+  .option {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+    color: #cbd5e1;
+    text-align: left;
+    font-family: var(--sans);
+    width: 100%;
+  }
+
+  .option:hover:not(.locked) { border-color: var(--accent); background: rgba(56,189,248,0.05); }
+  .option .letter {
+    font-family: var(--mono);
+    font-size: 12px;
+    width: 24px; height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    flex-shrink: 0;
+    font-weight: 600;
+  }
+  .option.locked { cursor: default; }
+  .option.correct {
+    border-color: var(--accent-3);
+    background: rgba(52,211,153,0.08);
+    color: #fff;
+  }
+  .option.correct .letter { background: var(--accent-3); color: #04121c; border-color: var(--accent-3); }
+  .option.incorrect {
+    border-color: var(--danger);
+    background: rgba(248,113,113,0.06);
+  }
+  .option.incorrect .letter { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+  .feedback {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 14.5px;
+    display: none;
+    line-height: 1.6;
+    animation: fadeIn 0.3s ease-out;
+  }
+  .feedback.show { display: block; }
+  .feedback.ok { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.3); color: #a7f3d0; }
+  .feedback.no { background: rgba(248,113,113,0.06); border: 1px solid rgba(248,113,113,0.3); color: #fecaca; }
+  .feedback strong { color: #fff; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Diagram */
+  .diagram-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 28px 0;
+    overflow-x: auto;
+  }
+  .diagram-wrap svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+
+  .caption {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 14px;
+    letter-spacing: 0.03em;
+  }
+
+  /* Real world cards */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card .card-icon { font-size: 24px; margin-bottom: 10px; display: block; }
+  .card h4 { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+  .card p { font-size: 13.5px; color: var(--muted); margin: 0; line-height: 1.55; }
+
+  /* Comparison grid */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  @media (max-width: 620px) { .compare { grid-template-columns: 1fr; } }
+
+  .compare-col {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-col h4 {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .compare-col.stack h4 { color: var(--accent); }
+  .compare-col.queue h4 { color: var(--accent-2); }
+  .compare-col ul { margin-left: 18px; font-size: 14px; }
+  .compare-col li { color: #cbd5e1; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: var(--mono);
+  }
+
+  footer .grad {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 600;
+  }
+
+  .kbd {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    padding: 2px 6px;
+    color: var(--text);
+  }
+
+  ::selection { background: rgba(56,189,248,0.3); color: #fff; }
+
+  .toc {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 26px;
+    margin-bottom: 56px;
+  }
+  .toc h4 {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .toc ol { margin-left: 0; list-style: none; counter-reset: t; }
+  .toc li { counter-increment: t; margin-bottom: 6px; }
+  .toc a {
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .toc a::before {
+    content: counter(t, decimal-leading-zero);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    opacity: 0.7;
+  }
+  .toc a:hover { background: var(--panel-2); color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<header class="hero">
+  <span class="eyebrow">Data Structures · Fundamentals</span>
+  <h1>The Stack</h1>
+  <p class="subtitle">A deceptively simple structure that powers function calls, undo buttons, browser history, and the very execution of your programs. Master the LIFO principle in 12 minutes.</p>
+  <div class="meta-row">
+    <span><span class="dot"></span> Beginner friendly</span>
+    <span><span class="dot"></span> Interactive visualizer</span>
+    <span><span class="dot"></span> 2 quizzes</span>
+  </div>
+</header>
+
+<main class="container">
+
+  <nav class="toc">
+    <h4>In this lesson</h4>
+    <ol>
+      <li><a href="#s1">What is a Stack?</a></li>
+      <li><a href="#s2">The LIFO Principle</a></li>
+      <li><a href="#s3">Core Operations</a></li>
+      <li><a href="#s4">Interactive Visualizer</a></li>
+      <li><a href="#s5">Implementation</a></li>
+      <li><a href="#s6">Complexity Analysis</a></li>
+      <li><a href="#s7">Real-World Uses</a></li>
+      <li><a href="#s8">Stacks vs. Queues</a></li>
+      <li><a href="#s9">Knowledge Check</a></li>
+    </ol>
+  </nav>
+
+  <!-- SECTION 1 -->
+  <section id="s1">
+    <h2><span class="num">01</span> What is a Stack?</h2>
+    <p class="lead">A <strong>stack</strong> is a linear data structure that stores elements in a specific order and only allows you to interact with one end — the <strong>top</strong>.</p>
+
+    <p>Think of a stack of plates in a cafeteria. You can only add a new plate to the top, and you can only take a plate from the top. You cannot pull a plate out from the middle without first removing everything above it.</p>
+
+    <p>That single constraint — <em>only touch the top</em> — is what makes the stack so powerful. It enforces a strict, predictable order of operations that turns out to be exactly what many algorithms need.</p>
+
+    <div class="callout info">
+      <span class="icon">💡</span>
+      <div class="body">
+        <p><strong>Definition:</strong> A stack is an abstract data type (ADT) that supports two primary operations — <code>push</code> (add to top) and <code>pop</code> (remove from top). The most recently added element is always the first one removed.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2 -->
+  <section id="s2">
+    <h2><span class="num">02</span> The LIFO Principle</h2>
+    <p>Stacks follow a rule called <strong>LIFO — Last In, First Out</strong>. The last element you pushed is the first element you can pop.</p>
+
+    <p>This is the opposite of a queue, which is <strong>FIFO — First In, First Out</strong> (like a line at a coffee shop).</p>
+
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 640 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LIFO diagram showing push and pop operations">
+        <defs>
+          <linearGradient id="stackGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.05"/>
+          </linearGradient>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#a78bfa"/>
+          </marker>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#f87171"/>
+          </marker>
+        </defs>
+
+        <!-- Stack container -->
+        <rect x="240" y="60" width="160" height="220" rx="8" fill="url(#stackGrad)" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <text x="320" y="52" text-anchor="middle" fill="#38bdf8" font-family="monospace" font-size="11" letter-spacing="0.1em">STACK</text>
+
+        <!-- Elements -->
+        <rect x="252" y="230" width="136" height="38" rx="5" fill="#1c2438" stroke="#2a3550"/>
+        <text x="320" y="254" text-anchor="middle" fill="#cbd5e1" font-family="monospace" font-size="13">"A"</text>
+
+        <rect x="252" y="188" width="136" height="38" rx="5" fill="#1c2438" stroke="#2a3550"/>
+        <text x="320" y="212" text-anchor="middle" fill="#cbd5e1" font-family="monospace" font-size="13">"B"</text>
+
+        <rect x="252" y="146" width="136" height="38" rx="5" fill="#1c2438" stroke="#2a3550"/>
+        <text x="320" y="170" text-anchor="middle" fill="#cbd5e1" font-family="monospace" font-size="13">"C"</text>
+
+        <rect x="252" y="104" width="136" height="38" rx="5" fill="#141b2d" stroke="#38bdf8" stroke-width="1.5"/>
+        <text x="320" y="128" text-anchor="middle" fill="#fff" font-family="monospace" font-size="13">"D"</text>
+        <text x="400" y="128" fill="#38bdf8" font-family="monospace" font-size="10">← top</text>
+
+        <!-- Push arrow (left) -->
+        <line x1="120" y1="123" x2="235" y2="123" stroke="#a78bfa" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="60" y="112" fill="#a78bfa" font-family="monospace" font-size="12" font-weight="600">push("D")</text>
+        <text x="60" y="128" fill="#94a3b8" font-family="monospace" font-size="10">add to top</text>
+
+        <!-- Pop arrow (right) -->
+        <line x1="405" y1="123" x2="520" y2="123" stroke="#f87171" stroke-width="2" marker-end="url(#arrow2)"/>
+        <text x="525" y="112" fill="#f87171" font-family="monospace" font-size="12" font-weight="600">pop()</text>
+        <text x="525" y="128" fill="#94a3b8" font-family="monospace" font-size="10">remove from top</text>
+
+        <!-- Bottom label -->
+        <text x="320" y="305" text-anchor="middle" fill="#64748b" font-family="monospace" font-size="10">bottom</text>
+      </svg>
+      <p class="caption">Push adds to the top; pop removes from the top. Only the top element is accessible.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 3 -->
+  <section id="s3">
+    <h2><span class="num">03</span> Core Operations</h2>
+    <p>Despite its simplicity, a stack has a small but essential set of operations. Every other operation you might want is built from these.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Operation</th>
+          <th>Description</th>
+          <th>Returns</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>push(x)</code></td>
+          <td>Add element <code>x</code> to the top of the stack</td>
+          <td>Nothing (or new size)</td>
+        </tr>
+        <tr>
+          <td><code>pop()</code></td>
+          <td>Remove and return the top element</td>
+          <td>The removed element</td>
+        </tr>
+        <tr>
+          <td><code>peek()</code> / <code>top()</code></td>
+          <td>Return the top element <em>without</em> removing it</td>
+          <td>The top element</td>
+        </tr>
+        <tr>
+          <td><code>isEmpty()</code></td>
+          <td>Check whether the stack has any elements</td>
+          <td>Boolean</td>
+        </tr>
+        <tr>
+          <td><code>size()</code></td>
+          <td>Return the number of elements in the stack</td>
+          <td>Integer</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <span class="icon">⚠️</span>
+      <div class="body">
+        <p><strong>Stack Underflow:</strong> Calling <code>pop()</code> or <code>peek()</code> on an empty stack is an error. Always check <code>isEmpty()</code> first, or catch the exception — depending on your language.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 4 -->
+  <section id="s4">
+    <h2><span class="num">04</span> Interactive Visualizer</h2>
+    <p>Play with a live stack. Push values, pop them, and watch the LIFO rule in action.</p>
+
+    <div class="visualizer">
+      <div class="stack-view" id="stackView">
+        <div class="stack-empty" id="stackEmpty">empty stack</div>
+      </div>
+
+      <div class="controls">
+        <div class="input-row">
+          <input type="text" id="valueInput" placeholder="value (e.g. 42)" maxlength="12" autocomplete="off">
+          <button class="btn" id="pushBtn">push</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn secondary" id="popBtn">pop</button>
+          <button class="btn secondary" id="peekBtn">peek</button>
+          <button class="btn danger" id="clearBtn">clear</button>
+        </div>
+        <div class="status" id="status">Ready. Try pushing a value.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 5 -->
+  <section id="s5">
+    <h2><span class="num">05</span> Implementation</h2>
+    <p>Stacks are so simple they can be built on top of an array or a linked list. Here's a clean JavaScript implementation using an array under the hood.</p>
+
+    <pre><span class="code-label">JavaScript</span><code><span class="tok-kw">class</span> <span class="tok-cls">Stack</span> {
+  <span class="tok-fn">constructor</span>() {
+    <span class="tok-kw">this</span>.items = [];
+  }
+
+  <span class="tok-cm">// Add an element to the top</span>
+  <span class="tok-fn">push</span>(value) {
+    <span class="tok-kw">this</span>.items.<span class="tok-fn">push</span>(value);
+    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.items.length;
+  }
+
+  <span class="tok-cm">// Remove and return the top element</span>
+  <span class="tok-fn">pop</span>() {
+    <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.<span class="tok-fn">isEmpty</span>()) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-cls">Error</span>(<span class="tok-str">"Stack underflow"</span>);
+    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.items.<span class="tok-fn">pop</span>();
+  }
+
+  <span class="tok-cm">// Look at the top without removing it</span>
+  <span class="tok-fn">peek</span>() {
+    <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.<span class="tok-fn">isEmpty</span>()) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-cls">Error</span>(<span class="tok-str">"Stack is empty"</span>);
+    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.items[<span class="tok-kw">this</span>.items.length - <span class="tok-num">1</span>];
+  }
+
+  <span class="tok-fn">isEmpty</span>() {
+    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.items.length === <span class="tok-num">0</span>;
+  }
+
+  <span class="tok-fn">size</span>() {
+    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.items.length;
+  }
+}
+
+<span class="tok-cm">// Usage</span>
+<span class="tok-kw">const</span> s = <span class="tok-kw">new</span> <span class="tok-cls">Stack</span>();
+s.<span class="tok-fn">push</span>(<span class="tok-str">"A"</span>);
+s.<span class="tok-fn">push</span>(<span class="tok-str">"B"</span>);
+s.<span class="tok-fn">push</span>(<span class="tok-str">"C"</span>);
+console.<span class="tok-fn">log</span>(s.<span class="tok-fn">pop</span>());   <span class="tok-cm">// "C" — last in, first out</span>
+console.<span class="tok-fn">log</span>(s.<span class="tok-fn">peek</span>());  <span class="tok-cm">// "B" — top of the stack now</span>
+</code></pre>
+
+    <p>Notice how the array's native <code>push</code> and <code>pop</code> methods map directly to the stack's operations — this is why arrays are the natural backing store for stacks in most languages.</p>
+  </section>
+
+  <!-- SECTION 6 -->
+  <section id="s6">
+    <h2><span class="num">06</span> Complexity Analysis</h2>
+    <p>Stacks are prized for their efficiency. Every core operation runs in <strong>constant time</strong>.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Operation</th>
+          <th>Time</th>
+          <th>Space</th>
+          <th>Why</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>push</code></td>
+          <td class="big-o">O(1)</td>
+          <td class="big-o">O(1)</td>
+          <td>Append to the end of an array</td>
+        </tr>
+        <tr>
+          <td><code>pop</code></td>
+          <td class="big-o">O(1)</td>
+          <td class="big-o">O(1)</td>
+          <td>Remove from the end of an array</td>
+        </tr>
+        <tr>
+          <td><code>peek</code></td>
+          <td class="big-o">O(1)</td>
+          <td class="big-o">O(1)</td>
+          <td>Direct index lookup</td>
+        </tr>
+        <tr>
+          <td><code>isEmpty</code></td>
+          <td class="big-o">O(1)</td>
+          <td class="big-o">O(1)</td>
+          <td>Length check</td>
+        </tr>
+        <tr>
+          <td><code>search</code></td>
+          <td class="big-o">O(n)</td>
+          <td class="big-o">O(1)</td>
+          <td>Must scan elements (not a native op)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <span class="icon">⚡</span>
+      <div class="body">
+        <p><strong>Why O(1) matters:</strong> Because push and pop are constant time, stacks can process millions of operations per second. That's why they're used in tight loops like expression parsing and recursive function calls.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 7 -->
+  <section id="s7">
+    <h2><span class="num">07</span> Real-World Uses</h2>
+    <p>Stacks aren't just a classroom exercise — they're everywhere in real systems.</p>
+
+    <div class="cards">
+      <div class="card">
+        <span class="card-icon">📞</span>
+        <h4>The Call Stack</h4>
+        <p>Every function call in your program pushes a new frame. When the function returns, its frame is popped. This is how recursion works.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">↩️</span>
+        <h4>Undo / Redo</h4>
+        <p>Text editors and design tools push each action onto an undo stack. Pressing Ctrl+Z pops the last action to reverse it.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">🌐</span>
+        <h4>Browser History</h4>
+        <p>Visited pages are pushed onto a stack. The back button pops the current page and reveals the previous one.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">🧮</span>
+        <h4>Expression Evaluation</h4>
+        <p>Compilers use stacks to convert infix expressions (like <code>3 + 4 * 2</code>) into postfix and evaluate them.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">🔍</span>
+        <h4>Depth-First Search</h4>
+        <p>DFS traverses graphs and trees using a stack (explicitly or via recursion) to explore one path fully before backtracking.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">🔤</span>
+        <h4>Balanced Brackets</h4>
+        <p>Checking if <code>({[()]})</code> is valid uses a stack: push openers, pop and match on closers.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 8 -->
+  <section id="s8">
+    <h2><span class="num">08</span> Stacks vs. Queues</h2>
+    <p>Stacks and queues are often taught together because they're both linear structures with restricted access — but their access rules are opposite.</p>
+
+    <div class="compare">
+      <div class="compare-col stack">
+        <h4>Stack · LIFO</h4>
+        <ul>
+          <li>Access at <strong>one end</strong> (top)</li>
+          <li>Last in, first out</li>
+          <li>Used for: undo, DFS, parsing, call stack</li>
+          <li>Operations: <code>push</code>, <code>pop</code>, <code>peek</code></li>
+        </ul>
+      </div>
+      <div class="compare-col queue">
+        <h4>Queue · FIFO</h4>
+        <ul>
+          <li>Access at <strong>two ends</strong> (front &amp; back)</li>
+          <li>First in, first out</li>
+          <li>Used for: BFS, task scheduling, message queues</li>
+          <li>Operations: <code>enqueue</code>, <code>dequeue</code>, <code>front</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <p>If you can remember one image: a <strong>stack of plates</strong> is a stack, and a <strong>line at a checkout counter</strong> is a queue.</p>
+  </section>
+
+  <!-- SECTION 9 -->
+  <section id="s9">
+    <h2><span class="num">09</span> Knowledge Check</h2>
+    <p>Two quick questions to lock in what you've learned.</p>
+
+    <!-- QUIZ 1 -->
+    <div class="quiz" id="quiz1">
+      <div class="quiz-tag">Question 01 · LIFO</div>
+      <h3>You push the values <code>1</code>, <code>2</code>, and <code>3</code> onto an empty stack in that order. Then you call <code>pop()</code> twice. What is the value returned by the second <code>pop()</code>?</h3>
+      <div class="options" id="q1-options">
+        <button class="option" data-correct="false"><span class="letter">A</span>1</button>
+        <button class="option" data-correct="false"><span class="letter">B</span>3</button>
+        <button class="option" data-correct="true"><span class="letter">C</span>2</button>
+        <button class="option" data-correct="false"><span class="letter">D</span>It throws an error</button>
+      </div>
+      <div class="feedback" id="q1-feedback"></div>
+    </div>
+
+    <!-- QUIZ 2 -->
+    <div class="quiz" id="quiz2">
+      <div class="quiz-tag">Question 02 · Real-World Application</div>
+      <h3>Which of the following scenarios is <em>most naturally</em> modeled by a stack?</h3>
+      <div class="options" id="q2-options">
+        <button class="option" data-correct="false"><span class="letter">A</span>Print jobs waiting at a shared office printer</button>
+        <button class="option" data-correct="true"><span class="letter">B</span>An "undo" feature in a text editor</button>
+        <button class="option" data-correct="false"><span class="letter">C</span>Customers entering a checkout line at a store</button>
+        <button class="option" data-correct="false"><span class="letter">D</span>Broadcasting a message to all subscribers in order</button>
+      </div>
+      <div class="feedback" id="q2-feedback"></div>
+    </div>
+
+    <div class="callout tip">
+      <span class="icon">🎓</span>
+      <div class="body">
+        <p><strong>You made it.</strong> You now understand what a stack is, how LIFO works, its O(1) operations, and where it shows up in real systems. Next up: try implementing a stack from scratch in your language of choice, then use it to check for balanced parentheses in a string.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>Built with care · <span class="grad">Data Structures Fundamentals</span></p>
+  <p style="margin-top:8px; opacity:0.6;">A stack is a promise: the last thing you put in is the first thing you get back.</p>
+</footer>
+
+<script>
+  // ---------- Progress bar ----------
+  const progressBar = document.getElementById('progressBar');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    const scrolled = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+    progressBar.style.width = scrolled + '%';
+  });
+
+  // ---------- Stack Visualizer ----------
+  const stack = [];
+  const stackView = document.getElementById('stackView');
+  const stackEmpty = document.getElementById('stackEmpty');
+  const valueInput = document.getElementById('valueInput');
+  const pushBtn = document.getElementById('pushBtn');
+  const popBtn = document.getElementById('popBtn');
+  const peekBtn = document.getElementById('peekBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const statusEl = document.getElementById('status');
+
+  function renderStack(highlightTop = true) {
+    // Remove existing items (keep empty marker)
+    Array.from(stackView.querySelectorAll('.stack-item')).forEach(el => el.remove());
+
+    if (stack.length === 0) {
+      stackEmpty.style.display = 'flex';
+    } else {
+      stackEmpty.style.display = 'none';
+    }
+
+    // Render bottom-to-top (flex column-reverse handles visual order)
+    stack.forEach((val, i) => {
+      const el = document.createElement('div');
+      el.className = 'stack-item';
+      if (highlightTop && i === stack.length - 1) el.classList.add('top-item');
+      el.textContent = String(val);
+      stackView.appendChild(el);
+    });
+  }
+
+  function setStatus(html) {
+    statusEl.innerHTML = html;
+  }
+
+  function doPush() {
+    const raw = valueInput.value.trim();
+    if (raw === '') {
+      setStatus('<span style="color:var(--warn)">Enter a value first.</span>');
+      valueInput.focus();
+      return;
+    }
+    stack.push(raw);
+    valueInput.value = '';
+    valueInput.focus();
+    renderStack();
+    setStatus(`Pushed <span class="hl">${escapeHtml(raw)}</span> · size = ${stack.length}`);
+  }
+
+  function doPop() {
+    if (stack.length === 0) {
+      setStatus('<span style="color:var(--danger)">Stack underflow — nothing to pop.</span>');
+      return;
+    }
+    const topEl = stackView.querySelector('.stack-item.top-item');
+    const val = stack.pop();
+    if (topEl) {
+      topEl.classList.add('leaving');
+      setTimeout(() => {
+        renderStack();
+      }, 200);
+    } else {
+      renderStack();
+    }
+    setStatus(`Popped <span class="hl">${escapeHtml(val)}</span> · size = ${stack.length}`);
+  }
+
+  function doPeek() {
+    if (stack.length === 0) {
+      setStatus('<span style="color:var(--danger)">Stack is empty — nothing to peek.</span>');
+      return;
+    }
+    const val = stack[stack.length - 1];
+    setStatus(`Top element = <span class="hl">${escapeHtml(val)}</span> (not removed)`);
+  }
+
+  function doClear() {
+    if (stack.length === 0) {
+      setStatus('Stack is already empty.');
+      return;
+    }
+    stack.length = 0;
+    renderStack();
+    setStatus('Stack cleared.');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  pushBtn.addEventListener('click', doPush);
+  popBtn.addEventListener('click', doPop);
+  peekBtn.addEventListener('click', doPeek);
+  clearBtn.addEventListener('click', doClear);
+  valueInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doPush();
+  });
+
+  renderStack();
+
+  // ---------- Quizzes ----------
+  function setupQuiz(optionsId, feedbackId, correctMsg, incorrectMsg) {
+    const optionsEl = document.getElementById(optionsId);
+    const feedbackEl = document.getElementById(feedbackId);
+    const buttons = optionsEl.querySelectorAll('.option');
+    let answered = false;
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (answered) return;
+        answered = true;
+        const isCorrect = btn.dataset.correct === 'true';
+
+        buttons.forEach(b => {
+          b.classList.add('locked');
+          if (b.dataset.correct === 'true') b.classList.add('correct');
+        });
+        if (!isCorrect) btn.classList.add('incorrect');
+
+        feedbackEl.classList.add('show');
+        if (isCorrect) {
+          feedbackEl.classList.add('ok');
+          feedbackEl.innerHTML = '<strong>Correct. </strong>' + correctMsg;
+        } else {
+          feedbackEl.classList.add('no');
+          feedbackEl.innerHTML = '<strong>Not quite. </strong>' + incorrectMsg;
+        }
+      });
+    });
+  }
+
+  setupQuiz(
+    'q1-options',
+    'q1-feedback',
+    'Pushing 1, 2, 3 puts 3 on top. The first <code>pop()</code> removes 3; the second removes 2. LIFO in action.',
+    'Remember LIFO. After pushing 1, 2, 3 the stack looks like [1, 2, 3] with 3 on top. First pop returns 3, second returns 2.'
+  );
+
+  setupQuiz(
+    'q2-options',
+    'q2-feedback',
+    'Undo is the classic stack use case — each action is pushed, and undo pops the most recent one. The other options are FIFO (queue) scenarios.',
+    'Think LIFO. Which of these reverses the most recent action first? That is the stack. The others are first-come-first-served (queues).'
+  );
+</script>
+
+</body>
+</html>

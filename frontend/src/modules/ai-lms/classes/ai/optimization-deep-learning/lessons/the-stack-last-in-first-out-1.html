@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Stack — A Production-Grade Interactive Lesson</title>
+<style>
+  :root{
+    --bg:#0b1020;
+    --panel:#111a33;
+    --panel-2:#0e1730;
+    --ink:#e8eeff;
+    --muted:#9db0d8;
+    --accent:#5eead4;
+    --accent-2:#a78bfa;
+    --accent-3:#f472b6;
+    --warn:#fbbf24;
+    --good:#34d399;
+    --bad:#f87171;
+    --line:#22315a;
+    --code-bg:#0a1226;
+    --shadow:0 20px 60px rgba(0,0,0,.45);
+    --radius:16px;
+    --mono:'JetBrains Mono','Fira Code',Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6}
+  body{
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(94,234,212,.12), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, rgba(167,139,250,.14), transparent 60%),
+      radial-gradient(900px 500px at 50% 120%, rgba(244,114,182,.10), transparent 60%),
+      var(--bg);
+    min-height:100vh;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 24px 96px}
+  header.hero{
+    position:relative;
+    padding:36px 32px;
+    border:1px solid var(--line);
+    border-radius:24px;
+    background:linear-gradient(180deg, rgba(94,234,212,.06), rgba(167,139,250,.06)), var(--panel);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  header.hero::before{
+    content:"";
+    position:absolute;inset:-2px;
+    background:conic-gradient(from 120deg, rgba(94,234,212,.0), rgba(94,234,212,.35), rgba(167,139,250,.35), rgba(244,114,182,.35), rgba(94,234,212,0));
+    filter:blur(60px);
+    opacity:.5;
+    z-index:0;
+    pointer-events:none;
+  }
+  header.hero > *{position:relative;z-index:1}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;
+    padding:6px 12px;border:1px solid rgba(94,234,212,.35);border-radius:999px;
+    background:rgba(94,234,212,.08);
+  }
+  h1{font-size:clamp(30px,4.2vw,46px);line-height:1.1;margin:16px 0 8px;letter-spacing:-.02em}
+  h1 .grad{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2),var(--accent-3));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .sub{color:var(--muted);font-size:17px;max-width:70ch;margin:8px 0 0}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .chip{
+    font-size:12px;padding:6px 12px;border-radius:999px;
+    border:1px solid var(--line);color:var(--muted);background:var(--panel-2);
+  }
+  .chip b{color:var(--ink)}
+
+  section{margin-top:36px}
+  h2{
+    font-size:24px;letter-spacing:-.01em;margin:0 0 6px;
+    display:flex;align-items:center;gap:12px;
+  }
+  h2 .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:32px;height:32px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    color:#0b1020;font-weight:800;font-size:14px;
+    box-shadow:0 8px 24px rgba(94,234,212,.25);
+  }
+  h3{font-size:16px;margin:20px 0 8px;color:var(--ink)}
+  p{color:#cbd6f2}
+  .card{
+    background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)) , var(--panel);
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 24px;box-shadow:var(--shadow);
+  }
+  .grid{display:grid;gap:18px}
+  @media(min-width:820px){ .grid.two{grid-template-columns:1.1fr .9fr} }
+  .note{
+    border-left:3px solid var(--accent);
+    background:rgba(94,234,212,.06);
+    padding:12px 16px;border-radius:10px;color:#d7e3ff;font-size:14.5px;
+  }
+  .warn{border-left-color:var(--warn);background:rgba(251,191,36,.07)}
+  .good{border-left-color:var(--good);background:rgba(52,211,153,.07)}
+
+  /* Code blocks */
+  pre{
+    background:var(--code-bg);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+    overflow:auto;
+    font-family:var(--mono);
+    font-size:13.5px;
+    line-height:1.65;
+    margin:10px 0 0;
+    position:relative;
+  }
+  pre .tag{position:absolute;top:8px;right:12px;font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+  .kw{color:#c792ea}
+  .fn{color:#82aaff}
+  .str{color:#c3e88d}
+  .num{color:#f78c6c}
+  .com{color:#6a7ba8;font-style:italic}
+  .op{color:#89ddff}
+  .cls{color:#ffcb6b}
+
+  /* Stack visualizer */
+  .viz{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+    align-items:start;
+  }
+  @media(max-width:760px){ .viz{grid-template-columns:1fr} }
+  .stack-frame{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px;
+    min-height:340px;
+    display:flex;flex-direction:column;
+    justify-content:flex-end;
+    position:relative;
+  }
+  .stack-frame::before{
+    content:"TOP";
+    position:absolute;top:10px;left:14px;
+    font-size:11px;letter-spacing:.2em;color:var(--accent);
+    font-weight:700;
+  }
+  .stack-frame::after{
+    content:"BOTTOM";
+    position:absolute;bottom:10px;left:14px;
+    font-size:11px;letter-spacing:.2em;color:var(--muted);
+    font-weight:700;
+  }
+  .cell{
+    margin:6px 0;
+    padding:12px 16px;
+    border-radius:10px;
+    font-family:var(--mono);font-weight:700;
+    display:flex;align-items:center;justify-content:space-between;
+    background:linear-gradient(135deg, rgba(94,234,212,.18), rgba(167,139,250,.18));
+    border:1px solid rgba(94,234,212,.35);
+    color:#eafffb;
+    transform-origin:center;
+    animation:pop .28s ease-out;
+  }
+  .cell .idx{font-size:11px;color:var(--muted);font-weight:500}
+  @keyframes pop{
+    0%{transform:translateY(-14px) scale(.96);opacity:0}
+    100%{transform:translateY(0) scale(1);opacity:1}
+  }
+  .cell.leaving{animation:leave .28s ease-in forwards}
+  @keyframes leave{
+    0%{transform:translateY(0) scale(1);opacity:1}
+    100%{transform:translateY(-14px) scale(.96);opacity:0}
+  }
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  button{
+    font-family:var(--sans);font-weight:600;font-size:14px;
+    padding:10px 16px;border-radius:10px;cursor:pointer;
+    border:1px solid var(--line);
+    background:var(--panel-2);color:var(--ink);
+    transition:transform .08s ease, background .15s ease, border-color .15s ease;
+  }
+  button:hover{background:#16224a;border-color:#31457a}
+  button:active{transform:translateY(1px)}
+  button.primary{
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    color:#0b1020;border:none;
+    box-shadow:0 10px 30px rgba(94,234,212,.25);
+  }
+  button.danger{background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.4);color:#ffd9d9}
+  button.ghost{background:transparent}
+  input[type=text]{
+    font-family:var(--mono);font-size:14px;
+    padding:10px 14px;border-radius:10px;
+    border:1px solid var(--line);background:var(--code-bg);color:var(--ink);
+    outline:none;min-width:180px;
+  }
+  input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94,234,212,.15)}
+  .status{
+    font-family:var(--mono);font-size:13px;
+    color:var(--muted);margin-top:12px;min-height:20px;
+  }
+  .status .ok{color:var(--good)}
+  .status .err{color:var(--bad)}
+  .status .info{color:var(--accent)}
+
+  /* Quiz */
+  .quiz .q{font-weight:600;color:var(--ink);margin-bottom:10px}
+  .opts{display:grid;gap:8px}
+  .opt{
+    text-align:left;padding:12px 14px;border-radius:10px;
+    border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+    font-weight:500;font-family:var(--sans);font-size:14.5px;cursor:pointer;
+    transition:all .15s ease;
+  }
+  .opt:hover:not(:disabled){border-color:var(--accent);background:#16224a}
+  .opt.correct{background:rgba(52,211,153,.15);border-color:var(--good);color:#d3ffe9}
+  .opt.wrong{background:rgba(248,113,113,.15);border-color:var(--bad);color:#ffd9d9}
+  .opt:disabled{cursor:default;opacity:.85}
+  .feedback{margin-top:12px;font-size:14px;color:var(--muted);min-height:22px}
+  .feedback.ok{color:var(--good)}
+  .feedback.err{color:var(--bad)}
+
+  /* SVG diagram */
+  .diagram{
+    background:var(--panel-2);border:1px solid var(--line);
+    border-radius:14px;padding:16px;display:flex;justify-content:center;
+  }
+  svg{max-width:100%;height:auto}
+
+  footer{margin-top:56px;color:var(--muted);font-size:13px;text-align:center}
+  .kbd{
+    font-family:var(--mono);font-size:12px;
+    background:var(--code-bg);border:1px solid var(--line);
+    padding:2px 6px;border-radius:6px;color:var(--ink);
+  }
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .toc a{
+    font-size:13px;color:var(--muted);text-decoration:none;
+    padding:6px 12px;border:1px solid var(--line);border-radius:999px;
+    background:var(--panel-2);transition:all .15s ease;
+  }
+  .toc a:hover{color:var(--accent);border-color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">● Data Structures · Foundations</span>
+    <h1>The <span class="grad">Stack</span>: Last In, First Out</h1>
+    <p class="sub">
+      A stack is the simplest, most disciplined data structure in computer science.
+      You only ever touch one end — the <b>top</b>. Push to add, pop to remove, peek to look.
+      That single rule gives us function call frames, undo history, expression parsing, and the
+      backtracking that powers everything from compilers to DFS.
+    </p>
+    <div class="meta">
+      <span class="chip">⏱ <b>~12 min</b> lesson</span>
+      <span class="chip">🎯 <b>LIFO</b> discipline</span>
+      <span class="chip">🧪 <b>Interactive</b> visualizer + quiz</span>
+      <span class="chip">📦 O(1) push / pop / peek</span>
+    </div>
+    <nav class="toc">
+      <a href="#intuition">Intuition</a>
+      <a href="#anatomy">Anatomy</a>
+      <a href="#ops">Operations</a>
+      <a href="#viz">Live visualizer</a>
+      <a href="#code">Code</a>
+      <a href="#quiz">Quiz</a>
+    </nav>
+  </header>
+
+  <!-- INTUITION -->
+  <section id="intuition">
+    <h2><span class="num">1</span> Intuition — the plate stack</h2>
+    <div class="grid two">
+      <div class="card">
+        <p>
+          Picture a stack of plates in a cafeteria. You add a plate to the <b>top</b>.
+          You take a plate from the <b>top</b>. You never pull a plate from the middle —
+          that would collapse the pile.
+        </p>
+        <p>
+          That single constraint is the whole data structure. The last plate you put down
+          is the first one you pick up. Hence the acronym: <b>LIFO</b> — Last In, First Out.
+        </p>
+        <div class="note">
+          <b>Key insight:</b> A stack is not a bag you rummage through. It's a
+          <i>discipline</i> that forces order onto your operations. That discipline is
+          exactly what makes recursion, undo, and parsing work.
+        </div>
+      </div>
+      <div class="diagram">
+        <svg viewBox="0 0 320 260" role="img" aria-label="Stack of plates diagram">
+          <defs>
+            <linearGradient id="plateG" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#5eead4"/>
+              <stop offset="100%" stop-color="#a78bfa"/>
+            </linearGradient>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill="#f472b6"/>
+            </marker>
+          </defs>
+          <!-- container -->
+          <rect x="60" y="40" width="200" height="180" rx="12" fill="#0e1730" stroke="#22315a"/>
+          <!-- plates -->
+          <rect x="80" y="180" width="160" height="24" rx="6" fill="url(#plateG)" opacity="0.55"/>
+          <rect x="80" y="150" width="160" height="24" rx="6" fill="url(#plateG)" opacity="0.7"/>
+          <rect x="80" y="120" width="160" height="24" rx="6" fill="url(#plateG)" opacity="0.85"/>
+          <rect x="80" y="90"  width="160" height="24" rx="6" fill="url(#plateG)"/>
+          <text x="160" y="107" text-anchor="middle" fill="#0b1020" font-family="monospace" font-weight="700" font-size="12">TOP</text>
+          <text x="160" y="197" text-anchor="middle" fill="#0b1020" font-family="monospace" font-weight="700" font-size="12">BOTTOM</text>
+          <!-- push arrow -->
+          <line x1="30" y1="70" x2="72" y2="90" stroke="#f472b6" stroke-width="2" marker-end="url(#arrow)"/>
+          <text x="20" y="62" fill="#f472b6" font-family="monospace" font-size="12">push</text>
+          <!-- pop arrow -->
+          <line x1="290" y1="110" x2="248" y2="90" stroke="#f472b6" stroke-width="2" marker-end="url(#arrow)"/>
+          <text x="270" y="128" fill="#f472b6" font-family="monospace" font-size="12">pop</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ANATOMY -->
+  <section id="anatomy">
+    <h2><span class="num">2</span> Anatomy of a stack</h2>
+    <div class="card">
+      <p>A stack has exactly three moving parts, no matter how it's implemented:</p>
+      <div class="grid two" style="margin-top:10px">
+        <div>
+          <h3>1. Storage</h3>
+          <p>Where the elements live. Usually an array (fast, cache-friendly) or a linked list (unbounded, no resize cost).</p>
+          <h3>2. Top pointer</h3>
+          <p>An index or reference that tracks the current top. Everything happens relative to it.</p>
+        </div>
+        <div>
+          <h3>3. The LIFO contract</h3>
+          <p>Only three legal operations: <code>push</code>, <code>pop</code>, <code>peek</code>. No random access. No insertion in the middle.</p>
+        </div>
+      </div>
+      <div class="note warn" style="margin-top:14px">
+        <b>Overflow & underflow:</b> pushing onto a full fixed-size stack → <i>overflow</i>.
+        popping from an empty stack → <i>underflow</i>. Real implementations either
+        grow dynamically or raise an error.
+      </div>
+    </div>
+  </section>
+
+  <!-- OPERATIONS -->
+  <section id="ops">
+    <h2><span class="num">3</span> The core operations</h2>
+    <div class="card">
+      <table style="width:100%;border-collapse:collapse;font-size:14.5px">
+        <thead>
+          <tr style="text-align:left;color:var(--muted);font-size:12px;letter-spacing:.1em;text-transform:uppercase">
+            <th style="padding:10px 8px;border-bottom:1px solid var(--line)">Operation</th>
+            <th style="padding:10px 8px;border-bottom:1px solid var(--line)">What it does</th>
+            <th style="padding:10px 8px;border-bottom:1px solid var(--line)">Time</th>
+            <th style="padding:10px 8px;border-bottom:1px solid var(--line)">Space</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)"><code>push(x)</code></td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)">Add <code>x</code> to the top</td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line);color:var(--good)">O(1) amortized</td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)">O(1)</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)"><code>pop()</code></td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)">Remove & return the top</td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line);color:var(--good)">O(1)</td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)">O(1)</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)"><code>peek()</code></td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)">Return top without removing</td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line);color:var(--good)">O(1)</td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)">O(1)</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)"><code>isEmpty()</code></td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)">Check if stack has elements</td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line);color:var(--good)">O(1)</td>
+            <td style="padding:10px 8px;border-bottom:1px solid var(--line)">O(1)</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note good" style="margin-top:14px">
+        <b>Why O(1) matters:</b> Because every operation touches only the top, stacks are
+        the fastest possible container for LIFO workloads. This is why the call stack of
+        your program is a stack — millions of pushes and pops per second with no overhead.
+      </div>
+    </div>
+  </section>
+
+  <!-- VISUALIZER -->
+  <section id="viz">
+    <h2><span class="num">4</span> Live visualizer</h2>
+    <div class="card">
+      <p style="margin-top:0">Push values, pop them off, and watch LIFO in action. Notice the order: whatever goes in last comes out first.</p>
+      <div class="viz">
+        <div>
+          <div class="stack-frame" id="stackFrame"></div>
+          <div class="controls">
+            <input type="text" id="pushInput" placeholder="value (e.g. 42)" maxlength="12" />
+            <button class="primary" id="btnPush">push ↑</button>
+            <button class="danger" id="btnPop">pop ↓</button>
+            <button id="btnPeek">peek 👁</button>
+            <button class="ghost" id="btnClear">clear</button>
+          </div>
+          <div class="status" id="status"><span class="info">Stack is empty. Try pushing a value.</span></div>
+        </div>
+        <div>
+          <h3 style="margin-top:0">State inspector</h3>
+          <pre id="stateView" style="min-height:220px"><span class="com">// stack contents (top → bottom)</span>
+[]</pre>
+          <div class="note" style="margin-top:10px">
+            <b>Tip:</b> Push <code>A</code>, <code>B</code>, <code>C</code> in order, then pop twice.
+            You'll get <code>C</code> then <code>B</code> — never <code>A</code> first.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CODE -->
+  <section id="code">
+    <h2><span class="num">5</span> Implementation</h2>
+    <div class="grid two">
+      <div class="card">
+        <h3 style="margin-top:0">Array-backed stack (Python)</h3>
+        <pre><span class="tag">python</span><span class="kw">class</span> <span class="cls">Stack</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self._data = []          <span class="com"># storage</span>
+
+    <span class="kw">def</span> <span class="fn">push</span>(self, x):
+        self._data.append(x)     <span class="com"># O(1) amortized</span>
+
+    <span class="kw">def</span> <span class="fn">pop</span>(self):
+        <span class="kw">if</span> <span class="kw">not</span> self._data:
+            <span class="kw">raise</span> <span class="cls">IndexError</span>(<span class="str">"pop from empty stack"</span>)
+        <span class="kw">return</span> self._data.pop()  <span class="com"># O(1)</span>
+
+    <span class="kw">def</span> <span class="fn">peek</span>(self):
+        <span class="kw">if</span> <span class="kw">not</span> self._data:
+            <span class="kw">raise</span> <span class="cls">IndexError</span>(<span class="str">"peek from empty stack"</span>)
+        <span class="kw">return</span> self._data[-<span class="num">1</span>]
+
+    <span class="kw">def</span> <span class="fn">is_empty</span>(self):
+        <span class="kw">return</span> <span class="kw">not</span> self._data
+
+    <span class="kw">def</span> <span class="fn">__len__</span>(self):
+        <span class="kw">return</span> <span class="fn">len</span>(self._data)</pre>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Usage — balanced parentheses</h3>
+        <pre><span class="tag">python</span><span class="kw">def</span> <span class="fn">is_balanced</span>(s: <span class="cls">str</span>) -> <span class="cls">bool</span>:
+    pairs = {<span class="str">')'</span>: <span class="str">'('</span>, <span class="str">']'</span>: <span class="str">'['</span>, <span class="str">'}'</span>: <span class="str">'{'</span>}
+    stack = <span class="cls">Stack</span>()
+    <span class="kw">for</span> ch <span class="kw">in</span> s:
+        <span class="kw">if</span> ch <span class="kw">in</span> <span class="str">"([{"</span>:
+            stack.push(ch)
+        <span class="kw">elif</span> ch <span class="kw">in</span> pairs:
+            <span class="kw">if</span> stack.is_empty() <span class="kw">or</span> stack.pop() != pairs[ch]:
+                <span class="kw">return</span> <span class="kw">False</span>
+    <span class="kw">return</span> stack.is_empty()
+
+<span class="com"># is_balanced("({[]})") → True</span>
+<span class="com"># is_balanced("([)]")   → False</span></pre>
+        <div class="note" style="margin-top:12px">
+          The stack remembers <i>what opened</i> so we can match it when it closes.
+          This is the same pattern compilers use to parse your code.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUIZ -->
+  <section id="quiz">
+    <h2><span class="num">6</span> Check your understanding</h2>
+    <div class="grid two">
+      <div class="card quiz" data-quiz="1">
+        <div class="q">Q1. You push <code>1</code>, then <code>2</code>, then <code>3</code>. You pop twice. What does the second pop return?</div>
+        <div class="opts">
+          <button class="opt" data-correct="false">1</button>
+          <button class="opt" data-correct="true">2</button>
+          <button class="opt" data-correct="false">3</button>
+          <button class="opt" data-correct="false">It raises an error</button>
+        </div>
+        <div class="feedback" aria-live="polite"></div>
+      </div>
+
+      <div class="card quiz" data-quiz="2">
+        <div class="q">Q2. Which of these is <b>not</b> a valid stack operation?</div>
+        <div class="opts">
+          <button class="opt" data-correct="false">push(x)</button>
+          <button class="opt" data-correct="false">pop()</button>
+          <button class="opt" data-correct="true">get(index)</button>
+          <button class="opt" data-correct="false">peek()</button>
+        </div>
+        <div class="feedback" aria-live="polite"></div>
+      </div>
+
+      <div class="card quiz" data-quiz="3">
+        <div class="q">Q3. A stack follows which ordering discipline?</div>
+        <div class="opts">
+          <button class="opt" data-correct="false">FIFO — First In, First Out</button>
+          <button class="opt" data-correct="true">LIFO — Last In, First Out</button>
+          <button class="opt" data-correct="false">Random access</button>
+          <button class="opt" data-correct="false">Sorted by priority</button>
+        </div>
+        <div class="feedback" aria-live="polite"></div>
+      </div>
+
+      <div class="card quiz" data-quiz="4">
+        <div class="q">Q4. Why is <code>pop()</code> O(1) on an array-backed stack?</div>
+        <div class="opts">
+          <button class="opt" data-correct="false">Because it searches the array for the top element</button>
+          <button class="opt" data-correct="true">Because the top is always the last index — no shifting required</button>
+          <button class="opt" data-correct="false">Because it sorts the array first</button>
+          <button class="opt" data-correct="false">Because it uses binary search</button>
+        </div>
+        <div class="feedback" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Built as a production-grade interactive lesson · Stack Data Structure · LIFO forever.
+  </footer>
+</div>
+
+<script>
+/* ---------- Stack visualizer ---------- */
+(function(){
+  const frame = document.getElementById('stackFrame');
+  const stateView = document.getElementById('stateView');
+  const status = document.getElementById('status');
+  const input = document.getElementById('pushInput');
+
+  /** @type {Array<any>} */
+  let stack = [];
+
+  function render(animateTop) {
+    // Clear & rebuild (simple, deterministic)
+    frame.innerHTML = '';
+    if (stack.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:var(--muted);font-family:var(--mono);font-size:13px;text-align:center;padding:20px 0;';
+      empty.textContent = '— empty —';
+      frame.appendChild(empty);
+    } else {
+      // Render top first (visually at the top of the container)
+      for (let i = stack.length - 1; i >= 0; i--) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if (animateTop && i === stack.length - 1) {
+          // already animated via .cell keyframes
+        }
+        cell.innerHTML = `<span>${escapeHtml(String(stack[i]))}</span><span class="idx">idx ${i}</span>`;
+        frame.appendChild(cell);
+      }
+    }
+    // State inspector
+    const topToBottom = stack.slice().reverse();
+    const lines = topToBottom.map((v, i) =>
+      `  ${i === 0 ? 'top →' : '      '} ${JSON.stringify(v)}`
+    );
+    stateView.innerHTML =
+      '<span class="com">// stack contents (top → bottom)</span>\n' +
+      '[\n' + (lines.length ? lines.join(',\n') : '') + (lines.length ? '\n' : '') + ']' +
+      `\n<span class="com">// size = ${stack.length}</span>`;
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function setStatus(msg, cls){
+    status.innerHTML = `<span class="${cls||'info'}">${msg}</span>`;
+  }
+
+  document.getElementById('btnPush').addEventListener('click', () => {
+    const raw = input.value.trim();
+    if (raw === '') {
+      setStatus('Enter a value to push.', 'err');
+      input.focus();
+      return;
+    }
+    // Try to coerce numeric strings to numbers for nicer display
+    const val = /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw;
+    stack.push(val);
+    render(true);
+    setStatus(`Pushed <b>${escapeHtml(String(val))}</b> onto the top. Size = ${stack.length}.`, 'ok');
+    input.value = '';
+    input.focus();
+  });
+
+  document.getElementById('btnPop').addEventListener('click', () => {
+    if (stack.length === 0) {
+      setStatus('Underflow! Cannot pop from an empty stack.', 'err');
+      return;
+    }
+    const v = stack.pop();
+    render(false);
+    setStatus(`Popped <b>${escapeHtml(String(v))}</b> from the top. Size = ${stack.length}.`, 'ok');
+  });
+
+  document.getElementById('btnPeek').addEventListener('click', () => {
+    if (stack.length === 0) {
+      setStatus('Stack is empty — nothing to peek at.', 'err');
+      return;
+    }
+    setStatus(`Top element is <b>${escapeHtml(String(stack[stack.length-1]))}</b> (not removed).`, 'info');
+  });
+
+  document.getElementById('btnClear').addEventListener('click', () => {
+    stack = [];
+    render(false);
+    setStatus('Stack cleared.', 'info');
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('btnPush').click();
+  });
+
+  render(false);
+})();
+
+/* ---------- Quiz ---------- */
+(function(){
+  document.querySelectorAll('.quiz').forEach(quiz => {
+    const opts = quiz.querySelectorAll('.opt');
+    const fb = quiz.querySelector('.feedback');
+    let answered = false;
+
+    opts.forEach(opt => {
+      opt.addEventListener('click', () => {
+        if (answered) return;
+        answered = true;
+        const correct = opt.dataset.correct === 'true';
+        opts.forEach(o => {
+          o.disabled = true;
+          if (o.dataset.correct === 'true') o.classList.add('correct');
+        });
+        if (!correct) opt.classList.add('wrong');
+        fb.classList.remove('ok','err');
+        if (correct) {
+          fb.classList.add('ok');
+          fb.textContent = '✓ Correct!';
+        } else {
+          fb.classList.add('err');
+          fb.textContent = '✗ Not quite — the highlighted answer is correct.';
+        }
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

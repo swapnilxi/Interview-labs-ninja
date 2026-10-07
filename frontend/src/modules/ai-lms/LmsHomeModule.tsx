@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 import { lmsService } from './services/lmsService';
 import type { ContinueLearningItem, LmsClass } from './types';
 import SearchBar from './components/SearchBar';
@@ -13,6 +14,7 @@ import EditClassModal from './components/EditClassModal';
 import ConfirmDialog from './components/ConfirmDialog';
 
 export default function LmsHomeModule() {
+  const { canEdit } = useAuth();
   const [classes, setClasses] = useState<LmsClass[]>([]);
   const [continueItem, setContinueItem] = useState<ContinueLearningItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -108,6 +110,7 @@ export default function LmsHomeModule() {
 
         {/* Global Action CTAs */}
         <div className="flex items-center gap-3 flex-shrink-0">
+          {canEdit && (
           <button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
@@ -116,14 +119,17 @@ export default function LmsHomeModule() {
             <Icon name="PlusIcon" size={15} />
             <span>New Class</span>
           </button>
+          )}
 
+          {canEdit && (
           <Link
             href="/ai-lms/generate"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 transition-all hover:scale-[1.02]"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 transition-all"
           >
             <Icon name="SparklesIcon" size={16} />
             <span>Generate Lesson</span>
           </Link>
+          )}
         </div>
       </div>
 
@@ -161,7 +167,7 @@ export default function LmsHomeModule() {
               <span>{totalLessons} lessons</span>
             </div>
 
-            {classes.length > 1 && (
+            {canEdit && classes.length > 1 && (
               <button
                 type="button"
                 onClick={() => setIsOrganizeMode(!isOrganizeMode)}
@@ -194,8 +200,8 @@ export default function LmsHomeModule() {
               <ClassCard
                 key={cls.id}
                 lmsClass={cls}
-                onEdit={(c) => setClassToEdit(c)}
-                onDelete={(c) => setClassToDelete(c)}
+                onEdit={canEdit ? (c) => setClassToEdit(c) : undefined}
+                onDelete={canEdit ? (c) => setClassToDelete(c) : undefined}
                 isOrganizeMode={isOrganizeMode}
                 orderIndex={idx}
                 canMoveLeft={idx > 0}

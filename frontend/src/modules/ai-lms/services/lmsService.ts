@@ -1,4 +1,4 @@
-import { apiFetch, apiJson } from '@/lib/http/apiClient';
+import { apiFetch, apiJson, parseApiError } from '@/lib/http/apiClient';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
 import type {
   BreakdownResult,
@@ -7,8 +7,14 @@ import type {
   EasyReadResult,
   GenerateLessonRequest,
   LmsClass,
+  LmsContentStatus,
+  LmsLanding,
+  LmsLandingAiResult,
+  LmsLandingSaved,
+  LmsLandingSection,
   LmsLesson,
   LmsNavigation,
+  LmsPathTarget,
   LmsSearchResult,
   LmsSubject,
   VisualExplanationResult,
@@ -22,6 +28,9 @@ export interface PlacementSuggestion {
   focus: string;
   suggestions: { label: string; module_index: number | null; position: number; reason: string }[];
 }
+
+/** The lesson changed since the editor loaded it (e.g. its .html file was saved in the IDE). */
+export class LmsConflictError extends Error {}
 
 export interface ProjectGenerateResult {
   lesson: LmsLesson;
@@ -148,8 +157,118 @@ export const lmsService = {
     return apiJson<LmsLesson[]>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/lessons`);
   },
 
-  async getLesson(lessonId: string): Promise<LmsLesson> {
-    return apiJson<LmsLesson>(`/api/lms/lessons/${encodeURIComponent(lessonId)}`);
+  /** Pass the class (and subject) a slug came from: lesson slugs are only unique per class. */
+  async getLesson(
+    lessonId: string,
+    scope?: { classSlug?: string; subjectSlug?: string }
+  ): Promise<LmsLesson> {
+    const params = new URLSearchParams();
+    if (scope?.classSlug) params.set('class', scope.classSlug);
+    if (scope?.subjectSlug) params.set('subject', scope.subjectSlug);
+    const query = params.toString();
+    return apiJson<LmsLesson>(
+      `/api/lms/lessons/${encodeURIComponent(lessonId)}${query ? `?${query}` : ''}`
+    );
+  },
+
+  /** Cheap change check (no view recorded); pulls in an IDE edit of the lesson file. */
+  async getLessonStatus(lessonId: string): Promise<LmsContentStatus> {
+    return apiJson<LmsContentStatus>(`/api/lms/lessons/${encodeURIComponent(lessonId)}/status`, {
+      cache: 'no-store',
+    });
+  },
+
+  // ── Class folders (classes/<class>/landingpage.html and lesson files) ───
+  async getLanding(classIdOrSlug: string): Promise<LmsLanding> {
+    return apiJson<LmsLanding>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/landing`, {
+      cache: 'no-store',
+    });
+  },
+
+  async listLandingSections(classIdOrSlug: string): Promise<{ hash: string; sections: LmsLandingSection[] }> {
+    return apiJson(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/landing/sections`, {
+      cache: 'no-store',
+    });
+  },
+
+  /** Replace the whole landing page (editor+). base_hash guards against overwriting a newer version. */
+  async saveLanding(classIdOrSlug: string, html: string, baseHash?: string): Promise<LmsLandingSaved> {
+    return apiJson<LmsLandingSaved>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/landing`, {
+      method: 'PUT',
+      body: JSON.stringify({ html, base_hash: baseHash }),
+    });
+  },
+
+  async addLandingSection(
+    classIdOrSlug: string,
+    section: { title: string; body_html: string; after_section_id?: string; position?: 'start' | 'end' }
+  ): Promise<LmsLandingSaved> {
+    return apiJson<LmsLandingSaved>(
+      `/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/landing/sections`,
+      { method: 'POST', body: JSON.stringify(section) }
+    );
+  },
+
+  /** Edit a section's HTML in place and/or move it one step up/down the page. */
+  async updateLandingSection(
+    classIdOrSlug: string,
+    sectionId: string,
+    change: { html?: string; move?: 'up' | 'down' }
+  ): Promise<LmsLandingSaved> {
+    return apiJson<LmsLandingSaved>(
+      `/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/landing/sections/${encodeURIComponent(sectionId)}`,
+      { method: 'PATCH', body: JSON.stringify(change) }
+    );
+  },
+
+  async deleteLandingSection(classIdOrSlug: string, sectionId: string): Promise<LmsLandingSaved> {
+    return apiJson<LmsLandingSaved>(
+      `/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/landing/sections/${encodeURIComponent(sectionId)}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  /** AI reprompt of the landing page. Returns a PREVIEW; apply it with saveLanding(). */
+  async landingAi(
+    classIdOrSlug: string,
+    instruction: string,
+    mode: 'generate' | 'edit' | 'section',
+    placement?: { after_section_id?: string; position?: 'start' | 'end' }
+  ): Promise<LmsLandingAiResult> {
+    return apiJson<LmsLandingAiResult>(
+      `/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/landing/ai`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ ...defaultAIRequestFields(), instruction, mode, ...placement }),
+      }
+    );
+  },
+
+  async getLandingStatus(classIdOrSlug: string): Promise<LmsContentStatus> {
+    return apiJson<LmsContentStatus>(
+      `/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/landing/status`,
+      { cache: 'no-store' }
+    );
+  },
+
+  /** Download the class as <slug>.zip: the static site (landingpage.html, index.html, every
+   * lesson/module page, class.json) plus vercel.json and a Dockerfile for Cloud Run. */
+  async exportClass(classIdOrSlug: string): Promise<void> {
+    const res = await apiFetch(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/export`);
+    if (!res.ok) throw new Error(await parseApiError(res));
+    const blobUrl = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `${classIdOrSlug}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  },
+
+  /** Map a classes-folder path (a relative link clicked inside a page) to what it shows. */
+  async resolvePath(path: string): Promise<LmsPathTarget> {
+    return apiJson<LmsPathTarget>(`/api/lms/resolve-path?path=${encodeURIComponent(path)}`);
   },
 
   async createLesson(payload: {
@@ -174,12 +293,17 @@ export const lmsService = {
       summary?: string;
       order_index?: number;
       read_time_minutes?: number;
+      /** content_hash the edit started from; the server answers 409 if the lesson changed since. */
+      base_hash?: string;
     }
   ): Promise<LmsLesson> {
-    return apiJson<LmsLesson>(`/api/lms/lessons/${encodeURIComponent(lessonId)}`, {
+    const res = await apiFetch(`/api/lms/lessons/${encodeURIComponent(lessonId)}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
+    if (res.status === 409) throw new LmsConflictError(await parseApiError(res));
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return (await res.json()) as LmsLesson;
   },
 
   async deleteLesson(lessonId: string): Promise<void> {

@@ -1,0 +1,4 @@
+Dockerfile
+.dockerignore
+nginx.conf.template
+README.md

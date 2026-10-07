@@ -31,9 +31,8 @@ export default function ContinueLearningBanner({ item, loading }: ContinueLearni
     item.total_lessons > 0 ? Math.round((item.current_index / item.total_lessons) * 100) : 0;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-card via-card to-primary/5 p-6 shadow-md transition-all duration-300 hover:border-primary/40">
+    <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-card p-6 shadow-md transition-all duration-300 hover:border-primary/40">
       {/* Decorative background glow */}
-      <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
@@ -81,7 +80,7 @@ export default function ContinueLearningBanner({ item, loading }: ContinueLearni
         <div className="flex items-center gap-3">
           <Link
             href={targetHref}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-medium text-sm shadow-md shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] flex-shrink-0"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-medium text-sm shadow-sm hover:bg-primary/90 transition-all flex-shrink-0"
           >
             <span>Continue Lesson</span>
             <Icon name="ArrowRightIcon" size={16} />

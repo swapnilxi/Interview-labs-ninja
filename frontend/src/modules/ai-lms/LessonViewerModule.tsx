@@ -29,8 +29,12 @@ export default function LessonViewerModule({
       setLoading(true);
       setError(null);
       try {
-        // Fetch lesson detail (which records view automatically)
-        const lessonData = await lmsService.getLesson(lessonSlug);
+        // Fetch lesson detail (which records view automatically). Scoped to the class and
+        // subject in the URL: lesson slugs are only unique within a class.
+        const lessonData = await lmsService.getLesson(lessonSlug, {
+          classSlug,
+          subjectSlug: subjectSlug && subjectSlug !== 'lesson' ? subjectSlug : undefined,
+        });
         setLesson(lessonData);
 
         // Fetch navigation (prev/next)

@@ -280,3 +280,51 @@ started.
 - [ ] **Theme audit** — new components (gradient hero, preview card, status
   chip, category pills) have been checked in light mode during this
   session; a deliberate dark-mode pass would catch any contrast issues.
+## AI-LMS
+
+*Audit of 2026-10-03 (Playwright in Chrome: `scratchpad/lms.e2e.js`, 55 checks).*
+
+### Found missing → implemented
+
+- [x] **Roles beyond user/admin** — added `editor` and `superadmin` (ladder: user < editor < admin < superadmin).
+  `modules/auth/dependencies.py` (`get_current_editor`, `can_edit`), `admin_router.py` (role dropdown; only a superadmin can
+  grant/revoke/touch admin-level roles), first superadmin via `LABNINJA_SUPERADMIN_EMAILS`.
+- [x] **LMS writes were open to any logged-in user** — every non-GET `/api/lms/*` now needs editor/admin/superadmin
+  (`_require_editor_for_writes` in `ai_lms/router.py`). Per-user progress (`/view`), voice chat, upload parsing and the
+  preview-only AI tools stay open. UI hides create/edit/delete/generate controls for plain users (`canEdit` in `AuthContext`).
+- [x] **No way to edit a landing page from the app** (it was file-only) — `PUT /classes/{c}/landing`, manual sections
+  (`POST/DELETE .../landing/sections`), and an AI reprompt (`POST .../landing/ai`: edit page / add AI section / redesign) that
+  returns a preview to Apply or Discard. Sections are wrapped in `<!-- lms:section:ID source=manual|ai -->` markers and can be
+  inserted after any existing section. Saves back up the previous HTML, refuse edits that drop `lms:auto` markers (422) or are
+  based on a stale page (409), and sync to `landingpage.html`. UI: `LandingEditorPanel.tsx`.
+- [x] **Bug: short manual lessons were thrown away** — `POST /lessons` replaced any HTML under 500 chars with generic filler text.
+  Now a document is kept as written and a bare fragment is wrapped in a document.
+
+### Follow-up pass (2026-10-03) → implemented
+
+- [x] **`fe-apis/` (nextjs-api mode) parity** — editor gate (`requireUserId` in `fe-apis/lms/index.ts`, same allowlist as the
+  FastAPI router), landing save/sections/AI endpoints (`fe-apis/lms/landingEdit.ts`, `saveLanding` in `classFolders.ts`,
+  routes under `src/app/api/lms/classes/[classSlug]/landing/**`), `role` type in `authHelper.ts`. (The manual-lesson filler bug
+  was FastAPI-only; the Next.js handler never had it.) No admin portal exists in this mode, so roles there are set in the DB.
+- [x] **Project/module controls hidden for plain users** — `ProjectDetailModule` (generate, regenerate, break down, add step,
+  outline, quick-add) is gated by `canEdit`; verified in the browser and by 403s from the API.
+- [x] **Project plans + AI generation exercised end to end** — against a local OpenAI-compatible mock wired through the real
+  "custom" provider path in both backends: plan → generate module → break down → generate sub-lesson → add/reorder steps →
+  AI lesson generate → revise twice (preview, then apply). Real model quality is still unverified.
+- [x] **Landing editor: move sections up/down and edit one in place** (`PATCH .../landing/sections/{id}`, both backends).
+- [x] **Tests committed** — `tests/e2e/ai-lms/` (Playwright in Chrome: roles + landing editor 61 checks FastAPI / 53 Next.js,
+  projects 26 checks in both modes; README has the run recipe) and `backend/tests/lms_roles_test.py` (role matrix, TestClient on a
+  DB copy).
+
+### Still open
+
+- [ ] **Real-provider run** — everything above used a mock LLM. Run plan/generate/revise/landing AI once with a real key to check
+  output quality and token budgets (the landing prompts send the whole page, capped at 200k chars).
+- [ ] **Landing editor: undo UI** — previous versions are saved in `lms_html_backups` (entity `landing`) but cannot be restored
+  from the app; drag-and-drop reordering would be nicer than the ↑/↓ buttons.
+- [ ] **Sandboxed-iframe `localStorage` error** — appears on every landing/lesson page in dev, from a script that is not in this
+  repo's LMS code (probably the dev-only `data-component-*` instrumentation). Not reproduced in a production build; unconfirmed.
+- [ ] **Admin portal in nextjs-api mode** — `/admin` only exists in FastAPI, so editors/admins can't be managed there.
+- [ ] **Auth DB vs LMS DB in nextjs-api dev** — auth reads `/tmp/lab_ninja.sqlite3` while LMS reads `LABNINJA_DB_DIR`/`backend/data`;
+  fine on Vercel (one file) but surprising locally and when testing.
+- [ ] **ESLint config** — `npm run lint` fails ("couldn't find eslint.config.*"); only type-check ran.

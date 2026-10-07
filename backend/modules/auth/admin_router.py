@@ -19,7 +19,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 class RoleUpdateRequest(BaseModel):
-    role: str = Field(pattern="^(user|admin)$")
+    role: str = Field(pattern="^(user|editor|admin|superadmin)$")
 
 
 class PasswordResetRequest(BaseModel):
@@ -48,9 +48,19 @@ async def update_user_role(
     target = auth_db.get_user_by_id(user_id)
     if target is None:
         raise HTTPException(status_code=404, detail="User not found")
-    # Guard against an admin demoting the last remaining admin (including
+    # Only a superadmin may grant, revoke or touch admin-level roles; plain admins manage
+    # user/editor accounts only.
+    if admin["role"] != "superadmin" and (
+        payload.role in ("admin", "superadmin") or target["role"] in ("admin", "superadmin")
+    ):
+        raise HTTPException(status_code=403, detail="Only a superadmin can change admin-level roles")
+    # Guard against demoting the last remaining admin/superadmin (including
     # themselves), which would lock everyone out of the portal.
-    if payload.role != "admin" and target["role"] == "admin" and auth_db.count_admins() <= 1:
+    if (
+        payload.role not in ("admin", "superadmin")
+        and target["role"] in ("admin", "superadmin")
+        and auth_db.count_admins() <= 1
+    ):
         raise HTTPException(status_code=400, detail="Cannot demote the last remaining admin")
     updated = auth_db.set_user_role(user_id, payload.role)
     return {
@@ -65,10 +75,13 @@ async def update_user_role(
 async def reset_user_password(
     user_id: int,
     payload: PasswordResetRequest,
-    _admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ) -> dict:
-    if auth_db.get_user_by_id(user_id) is None:
+    target = auth_db.get_user_by_id(user_id)
+    if target is None:
         raise HTTPException(status_code=404, detail="User not found")
+    if target["role"] in ("admin", "superadmin") and admin["role"] != "superadmin" and target["id"] != admin["id"]:
+        raise HTTPException(status_code=403, detail="Only a superadmin can reset an admin-level password")
     auth_db.set_user_password(user_id, hash_password(payload.password))
     return {"ok": True}
 
@@ -83,7 +96,9 @@ async def delete_user(
     target = auth_db.get_user_by_id(user_id)
     if target is None:
         raise HTTPException(status_code=404, detail="User not found")
-    if target["role"] == "admin" and auth_db.count_admins() <= 1:
+    if target["role"] in ("admin", "superadmin") and admin["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="Only a superadmin can delete an admin-level account")
+    if target["role"] in ("admin", "superadmin") and auth_db.count_admins() <= 1:
         raise HTTPException(status_code=400, detail="Cannot delete the last remaining admin")
     auth_db.delete_user(user_id)
     return {"ok": True}

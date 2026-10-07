@@ -6,6 +6,9 @@ import Icon from '@/components/ui/AppIcon';
 export interface LessonHtmlEditorHandle {
   /** The full edited HTML document (editor-only styles stripped). */
   getHtml: () => string;
+  /** Whether the body was edited. getHtml() re-serializes the whole document, so saving it
+   * unedited would still rewrite the lesson's .html file in the browser's own formatting. */
+  isDirty: () => boolean;
 }
 
 interface LessonHtmlEditorProps {
@@ -50,6 +53,7 @@ const TOOLBAR: ToolbarAction[] = [
 const LessonHtmlEditor = forwardRef<LessonHtmlEditorHandle, LessonHtmlEditorProps>(
   function LessonHtmlEditor({ html }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
+    const baselineRef = useRef<string | null>(null);
 
     // Computed once per mount so typing never reloads the iframe.
     const srcDoc = useMemo(() => {
@@ -60,13 +64,19 @@ const LessonHtmlEditor = forwardRef<LessonHtmlEditorHandle, LessonHtmlEditorProp
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    const serialize = (): string | null => {
+      const doc = iframeRef.current?.contentDocument;
+      if (!doc) return null;
+      const clone = doc.documentElement.cloneNode(true) as HTMLElement;
+      clone.querySelector(`#${EDIT_STYLE_ID}`)?.remove();
+      return `<!DOCTYPE html>\n${clone.outerHTML}`;
+    };
+
     useImperativeHandle(ref, () => ({
-      getHtml: () => {
-        const doc = iframeRef.current?.contentDocument;
-        if (!doc) return html;
-        const clone = doc.documentElement.cloneNode(true) as HTMLElement;
-        clone.querySelector(`#${EDIT_STYLE_ID}`)?.remove();
-        return `<!DOCTYPE html>\n${clone.outerHTML}`;
+      getHtml: () => serialize() ?? html,
+      isDirty: () => {
+        const current = serialize();
+        return current !== null && baselineRef.current !== null && current !== baselineRef.current;
       },
     }));
 
@@ -115,6 +125,7 @@ const LessonHtmlEditor = forwardRef<LessonHtmlEditorHandle, LessonHtmlEditorProp
           onLoad={() => {
             const doc = iframeRef.current?.contentDocument;
             if (doc) doc.designMode = 'on';
+            baselineRef.current = serialize();
           }}
           className="w-full flex-1 border-0"
         />

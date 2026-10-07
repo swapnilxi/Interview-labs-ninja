@@ -1,21 +1,34 @@
 from __future__ import annotations
 
+import html
 import io
 import os
 import re
+import zipfile
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
 
-from modules.auth.dependencies import get_current_user_id
+from modules.auth.dependencies import can_edit, get_current_user, get_current_user_id
 from modules.common.ai import AISettings, NoEmbeddingProviderError, call_ai_text, extract_json_object
 from modules.common.rag import clear_index as rag_clear_index
 from modules.common.rag import index_document as rag_index_document
 from modules.common.rag import index_status as rag_index_status
 from modules.common.rag import retrieve as rag_retrieve
+from . import landing_edit
+from .class_folders import (
+    LandingConflict,
+    export_class,
+    file_sync_enabled,
+    get_landing,
+    reconcile_all,
+    reconcile_class,
+    resolve_path,
+    save_landing,
+)
 from .visual_engine import (
     generate_native_visual,
     build_structured_lesson_html,
@@ -49,7 +62,61 @@ from .db import (
     update_subject,
 )
 
-router = APIRouter(prefix="/api/lms", tags=["AI LMS"], dependencies=[Depends(get_current_user_id)])
+# POSTs that only compute a preview or touch data the class folders don't show, so they
+# don't need a folder sync. Anything not listed here syncs: a missed read-only endpoint
+# costs one extra reconcile, a missed write would leave stale files.
+_NO_SYNC_POST = re.compile(
+    r"^/api/lms/(?:"
+    r"lessons/[^/]+/(?:view|visualize|easy-read|deeper|breakdown|revise)"
+    r"|projects/[^/]+/suggest-placement"
+    r"|subjects/[^/]+/(?:rag/index|summarize-context)"
+    r"|voice-chat|upload-source"
+    r")/?$"
+)
+
+
+# Writes that only touch the caller's own state or return AI output without saving anything;
+# every other POST/PUT/PATCH/DELETE changes shared LMS content and needs an editor role.
+_NON_EDIT_WRITES = re.compile(
+    r"^/api/lms/(?:lessons/[^/]+/view|voice-chat|upload-source"
+    r"|lessons/[^/]+/(?:revise|easy-read|deeper|visualize|breakdown)"
+    r"|classes/[^/]+/landing/ai)/?$"
+)
+
+
+def _require_editor_for_writes(request: Request, user: dict = Depends(get_current_user)) -> None:
+    """Viewing is open to every signed-in user; changing content is editor/admin/superadmin only."""
+    if request.method in ("POST", "PUT", "PATCH", "DELETE") and not can_edit(user):
+        if not _NON_EDIT_WRITES.match(request.url.path):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor, admin or superadmin role required to edit")
+
+
+async def _sync_class_folders_after_write(request: Request):
+    """Mirror LMS writes into the per-class folders (see class_folders.py).
+
+    Registered with scope="function", so this runs after the endpoint but before the
+    response goes out (a client refetching right away sees current files), and also when
+    the endpoint raised: several endpoints commit part of their work before failing."""
+    mutating = request.method in ("POST", "PUT", "PATCH", "DELETE") and not _NO_SYNC_POST.match(request.url.path)
+    try:
+        yield
+    finally:
+        if mutating:
+            try:
+                reconcile_all()
+            except Exception as exc:  # never fail a request over the folder mirror
+                print(f"[ai_lms] class folder sync failed: {exc}")
+
+
+router = APIRouter(
+    prefix="/api/lms",
+    tags=["AI LMS"],
+    dependencies=[
+        Depends(get_current_user_id),
+        Depends(_require_editor_for_writes),
+        Depends(_sync_class_folders_after_write, scope="function"),
+    ],
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -120,6 +187,10 @@ class UpdateLessonRequest(BaseModel):
     summary: Optional[str] = Field(default=None)
     order_index: Optional[int] = Field(default=None)
     read_time_minutes: Optional[int] = Field(default=None, ge=1, le=240)
+    # content_hash of the HTML the editor started from. When it no longer matches (the
+    # lesson's file was edited in the IDE meanwhile), the update is refused with 409
+    # instead of silently overwriting that edit.
+    base_hash: Optional[str] = Field(default=None)
 
 
 class ReorderClassesRequest(BaseModel):
@@ -233,6 +304,11 @@ async def handle_create_class(payload: CreateClassRequest) -> Dict[str, Any]:
 @router.get("/classes/{class_id_or_slug}")
 async def get_class_detail(class_id_or_slug: str) -> Dict[str, Any]:
     """Get class metadata with subjects and direct lessons."""
+    try:
+        # Opening a class pulls in IDE edits to its lesson files, even unopened ones.
+        reconcile_class(class_id_or_slug)
+    except Exception as exc:
+        print(f"[ai_lms] class folder sync failed: {exc}")
     cls = get_class_by_id_or_slug(class_id_or_slug)
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found.")
@@ -260,6 +336,213 @@ async def handle_delete_class(class_id_or_slug: str) -> Dict[str, Any]:
 # ─────────────────────────────────────────────────────────────────────────────
 # Subjects Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/classes/{class_id_or_slug}/landing")
+async def get_class_landing(class_id_or_slug: str) -> Dict[str, Any]:
+    """The class landing page HTML (classes/<class>/landingpage.html), with any IDE edit
+    pulled in and its lms:auto blocks current."""
+    landing = get_landing(class_id_or_slug)
+    if not landing:
+        raise HTTPException(status_code=404, detail="Class not found.")
+    return landing
+
+
+# ── Landing page editing (manual + AI). AI calls return a PREVIEW; PUT saves it. ──────────
+
+class SaveLandingRequest(BaseModel):
+    html: str = Field(..., min_length=20, max_length=landing_edit.PAGE_HTML_MAX)
+    base_hash: Optional[str] = None
+
+
+class AddLandingSectionRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    body_html: str = Field(..., min_length=1, max_length=landing_edit.SECTION_HTML_MAX)
+    after_section_id: Optional[str] = None
+    position: Literal["start", "end"] = "end"
+    base_hash: Optional[str] = None
+
+
+class UpdateLandingSectionRequest(BaseModel):
+    """Edit a section's HTML in place and/or move it one step up/down the page."""
+    html: Optional[str] = Field(default=None, min_length=1, max_length=landing_edit.SECTION_HTML_MAX)
+    move: Optional[Literal["up", "down"]] = None
+    base_hash: Optional[str] = None
+
+
+class LandingAiRequest(AISettings):
+    instruction: str = Field(..., min_length=3, max_length=4000)
+    mode: Literal["generate", "edit", "section"] = "edit"
+    after_section_id: Optional[str] = None
+    position: Literal["start", "end"] = "end"
+
+
+def _landing_or_404(class_id_or_slug: str) -> Dict[str, Any]:
+    landing = get_landing(class_id_or_slug)
+    if not landing:
+        raise HTTPException(status_code=404, detail="Class not found.")
+    return landing
+
+
+def _save_landing_or_http(class_id_or_slug: str, html: str, base_hash: Optional[str]) -> Dict[str, Any]:
+    try:
+        saved = save_landing(class_id_or_slug, html, base_hash)
+    except LandingConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    if not saved:
+        raise HTTPException(status_code=404, detail="Class not found.")
+    return {**saved, "sections": landing_edit.list_sections(saved["html"])}
+
+
+@router.get("/classes/{class_id_or_slug}/landing/sections")
+async def list_landing_sections(class_id_or_slug: str) -> Dict[str, Any]:
+    landing = _landing_or_404(class_id_or_slug)
+    return {"hash": landing["hash"], "sections": landing_edit.list_sections(landing["html"])}
+
+
+@router.put("/classes/{class_id_or_slug}/landing")
+async def put_class_landing(class_id_or_slug: str, payload: SaveLandingRequest) -> Dict[str, Any]:
+    """Replace the whole landing page (editor+). Used for manual HTML edits and to apply an AI preview."""
+    lowered = payload.html.lower()
+    if "<html" not in lowered or "</html>" not in lowered:
+        raise HTTPException(status_code=422, detail="The landing page must be a complete HTML document.")
+    current = _landing_or_404(class_id_or_slug)
+    if not landing_edit.auto_markers_intact(current["html"], payload.html):
+        raise HTTPException(status_code=422, detail="The edit removed an lms:auto marker; keep those pairs so the lists stay current.")
+    return _save_landing_or_http(class_id_or_slug, payload.html, payload.base_hash)
+
+
+@router.post("/classes/{class_id_or_slug}/landing/sections", status_code=status.HTTP_201_CREATED)
+async def add_landing_section(class_id_or_slug: str, payload: AddLandingSectionRequest) -> Dict[str, Any]:
+    """Add a manual section after another section, or at the start/end of the page body."""
+    landing = _landing_or_404(class_id_or_slug)
+    block = landing_edit.wrap_section(
+        landing_edit.new_section_id(), "manual", landing_edit.manual_section_html(payload.title, payload.body_html)
+    )
+    try:
+        page = landing_edit.insert_section(landing["html"], block, payload.after_section_id, payload.position)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Section not found.")
+    return _save_landing_or_http(class_id_or_slug, page, payload.base_hash or landing["hash"])
+
+
+@router.patch("/classes/{class_id_or_slug}/landing/sections/{section_id}")
+async def update_landing_section(class_id_or_slug: str, section_id: str, payload: UpdateLandingSectionRequest) -> Dict[str, Any]:
+    """Replace a section's HTML (keeping its id and manual/ai source) and/or move it up or down."""
+    if payload.html is None and payload.move is None:
+        raise HTTPException(status_code=422, detail="Send html and/or move.")
+    landing = _landing_or_404(class_id_or_slug)
+    page = landing["html"]
+    try:
+        if payload.html is not None:
+            current = next((x for x in landing_edit.list_sections(page) if x["id"] == section_id), None)
+            if current is None:
+                raise KeyError(section_id)
+            fragment = landing_edit.strip_unsafe(payload.html)
+            if not fragment:
+                raise HTTPException(status_code=422, detail="Section HTML can't be empty.")
+            page = landing_edit.replace_section(page, section_id, landing_edit.wrap_section(section_id, current["source"], fragment))
+        if payload.move:
+            page = landing_edit.move_section(page, section_id, payload.move)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Section not found.")
+    return _save_landing_or_http(class_id_or_slug, page, payload.base_hash or landing["hash"])
+
+
+@router.delete("/classes/{class_id_or_slug}/landing/sections/{section_id}")
+async def delete_landing_section(class_id_or_slug: str, section_id: str) -> Dict[str, Any]:
+    landing = _landing_or_404(class_id_or_slug)
+    try:
+        page = landing_edit.remove_section(landing["html"], section_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Section not found.")
+    return _save_landing_or_http(class_id_or_slug, page, landing["hash"])
+
+
+@router.post("/classes/{class_id_or_slug}/landing/ai")
+async def landing_ai(class_id_or_slug: str, payload: LandingAiRequest) -> Dict[str, Any]:
+    """Reprompt the landing page. Nothing is saved: the full proposed page comes back and the
+    client applies it with PUT (whole page) (the section is already inserted in the proposed page).
+
+    mode=generate: redesign from the class data; edit: change the current page; section: write one
+    new section and insert it (after `after_section_id`, else at `position`)."""
+    landing = _landing_or_404(class_id_or_slug)
+    page = landing["html"]
+    new_section_id = None
+    try:
+        if payload.mode == "section":
+            raw = call_ai_text(landing_edit.section_prompt(payload.instruction, page), payload, max_tokens=6000)
+            fragment = landing_edit.strip_unsafe(raw)
+            if len(fragment) < 30 or "<section" not in fragment.lower() or len(fragment) > landing_edit.SECTION_HTML_MAX:
+                raise HTTPException(status_code=502, detail="The AI provider returned an invalid section. Please try again.")
+            new_section_id = landing_edit.new_section_id()
+            block = landing_edit.wrap_section(new_section_id, "ai", fragment)
+            try:
+                proposed = landing_edit.insert_section(page, block, payload.after_section_id, payload.position)
+            except KeyError:
+                raise HTTPException(status_code=404, detail="Section not found.")
+        else:
+            if len(page) > landing_edit.PAGE_HTML_MAX // 2:
+                raise HTTPException(status_code=400, detail="This landing page is too large to revise in one pass.")
+            if payload.mode == "generate":
+                cls = get_class_by_id_or_slug(landing["class_id"]) or {}
+                outline = "\n".join(
+                    f"- {s['name']}" for s in (cls.get("subjects") or [])
+                ) + "\n" + "\n".join(f"- {l['title']}" for l in (cls.get("lessons") or []))
+                prompt = landing_edit.page_generate_prompt(
+                    payload.instruction, cls.get("name", ""), cls.get("description", ""), outline.strip(), page
+                )
+            else:
+                prompt = landing_edit.page_edit_prompt(payload.instruction, page)
+            raw = call_ai_text(prompt, payload, max_tokens=16000)
+            proposed = _clean_ai_html_output(raw)
+            if not proposed or "<html" not in proposed.lower() or len(proposed) < 400:
+                raise HTTPException(status_code=502, detail="The AI provider returned an incomplete or invalid response. Please try again.")
+            if not landing_edit.auto_markers_intact(page, proposed):
+                raise HTTPException(status_code=502, detail="The AI dropped the page's auto-updating markers. Please try again.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Landing page update failed: {exc}")
+    return {"html": proposed, "base_hash": landing["hash"], "section_id": new_section_id, "mode": payload.mode}
+
+
+@router.get("/classes/{class_id_or_slug}/landing/status")
+async def get_class_landing_status(class_id_or_slug: str) -> Dict[str, Any]:
+    """Cheap change check for the landing page's dev auto-refresh."""
+    landing = get_landing(class_id_or_slug)
+    if not landing:
+        raise HTTPException(status_code=404, detail="Class not found.")
+    return {"content_hash": landing["hash"], "file_sync": landing["file_sync"]}
+
+
+@router.get("/classes/{class_id_or_slug}/export")
+async def export_class_files(class_id_or_slug: str) -> Response:
+    """The whole class as a deployable zip: the static site (landingpage.html, index.html,
+    every lesson/module page, class.json) plus vercel.json and a Cloud Run Dockerfile."""
+    exported = export_class(class_id_or_slug)
+    if not exported:
+        raise HTTPException(status_code=404, detail="Class not found.")
+    slug, files = exported
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, text in files.items():
+            archive.writestr(f"{slug}/{name}", text.encode("utf-8", errors="replace"))
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{slug}.zip"'},
+    )
+
+
+@router.get("/resolve-path")
+async def resolve_class_path(path: str = Query(..., min_length=1, max_length=1000)) -> Dict[str, Any]:
+    """Map a classes-folder path (a relative link clicked inside a landing page or lesson)
+    to the class / subject / lesson it points at, so the app can open its own route."""
+    target = resolve_path(path)
+    if not target:
+        raise HTTPException(status_code=404, detail="Nothing in the class folders matches that path.")
+    return target
+
 
 @router.get("/classes/{class_id_or_slug}/subjects")
 async def list_subjects_for_class(class_id_or_slug: str) -> List[Dict[str, Any]]:
@@ -508,7 +791,14 @@ async def list_direct_lessons_for_class(class_id_or_slug: str) -> List[Dict[str,
 async def handle_create_lesson(payload: CreateLessonManualRequest) -> Dict[str, Any]:
     """Manually create a lesson, ensuring full structured HTML."""
     html_content = payload.generated_html or ""
-    if not html_content or len(html_content) < 500 or "<html" not in html_content.lower():
+    if html_content and "<html" not in html_content.lower():
+        # A bare fragment: keep the author's content, just give it a document around it.
+        html_content = (
+            '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+            f"<title>{html.escape(payload.title)}</title>\n</head>\n<body>\n{html_content}\n</body>\n</html>"
+        )
+    if not html_content:
         cls = get_class_by_id_or_slug(payload.class_id)
         cls_name = cls["name"] if cls else "Engineering"
         subj_name = "General"
@@ -546,10 +836,15 @@ async def handle_create_lesson(payload: CreateLessonManualRequest) -> Dict[str, 
 @router.get("/lessons/{lesson_id}")
 async def get_lesson_detail(
     lesson_id: str,
+    class_slug: Optional[str] = Query(default=None, alias="class"),
+    subject_slug: Optional[str] = Query(default=None, alias="subject"),
     user_id: int = Depends(get_current_user_id),
 ) -> Dict[str, Any]:
-    """Retrieve full lesson details including generated HTML."""
-    lesson = get_lesson_by_id(lesson_id)
+    """Retrieve full lesson details including generated HTML.
+
+    Pass ?class= (and ?subject=) when looking up by slug: lesson slugs are only unique
+    within a class."""
+    lesson = get_lesson_by_id(lesson_id, class_slug, subject_slug)
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found.")
     # Record view automatically
@@ -557,9 +852,33 @@ async def get_lesson_detail(
     return lesson
 
 
+@router.get("/lessons/{lesson_id}/status")
+async def get_lesson_status(lesson_id: str) -> Dict[str, Any]:
+    """Cheap change check for the viewer's dev auto-refresh: pulls in an IDE edit of the
+    lesson file and returns the current content hash. Records no view."""
+    lesson = get_lesson_by_id(lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+    return {
+        "id": lesson["id"],
+        "content_hash": lesson["content_hash"],
+        "updated_at": lesson["updated_at"],
+        "file_sync": file_sync_enabled(),
+    }
+
+
 @router.patch("/lessons/{lesson_id}")
 async def handle_update_lesson(lesson_id: str, payload: UpdateLessonRequest) -> Dict[str, Any]:
     """Update lesson title, HTML, summary, or order_index."""
+    if payload.base_hash:
+        current = get_lesson_by_id(lesson_id)
+        if not current:
+            raise HTTPException(status_code=404, detail="Lesson not found.")
+        if current["content_hash"] != payload.base_hash:
+            raise HTTPException(
+                status_code=409,
+                detail="This lesson changed since you opened it (its .html file was edited). Reload it, then apply your change again.",
+            )
     updated = update_lesson(
         lesson_id=lesson_id,
         title=payload.title,

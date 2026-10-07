@@ -149,7 +149,7 @@ export default function QuickLessonGenerator({
       : `Type a topic or paste notes to generate a lesson in ${classNameText}... (e.g. 'Microservices Ingress Controllers', or paste notes)`);
 
   return (
-    <div className="relative rounded-2xl border border-primary/35 bg-gradient-to-b from-card via-card to-card/95 shadow-md shadow-primary/5 p-4 sm:p-5 transition-all">
+    <div className="relative rounded-2xl border border-primary/25 bg-card shadow-sm p-4 sm:p-5 transition-all">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -252,7 +252,7 @@ export default function QuickLessonGenerator({
           type="button"
           onClick={() => handleGenerate()}
           disabled={isGenerating || (!content.trim() && !uploadedFile)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-[1.02] flex-shrink-0"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0"
         >
           {isGenerating ? (
             <>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 import { lmsService } from './services/lmsService';
 import type { LmsClass, LmsLesson, LmsSubject } from './types';
 import SubjectCard from './components/SubjectCard';
@@ -14,12 +15,14 @@ import EditSubjectModal from './components/EditSubjectModal';
 import ManualLessonModal from './components/ManualLessonModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import EmptyState from './components/EmptyState';
+import ExportClassButton from './components/ExportClassButton';
 
 interface ClassDetailModuleProps {
   classSlug: string;
 }
 
 export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps) {
+  const { canEdit } = useAuth();
   const [lmsClass, setLmsClass] = useState<LmsClass | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +180,17 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
 
           {/* Action CTAs */}
           <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
+            <Link
+              href={`/ai-lms/classes/${lmsClass.slug}/landing`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
+            >
+              <Icon name="GlobeAltIcon" size={14} />
+              <span>Landing Page</span>
+            </Link>
+
+            <ExportClassButton classSlug={lmsClass.slug} />
+
+            {canEdit && (
             <button
               type="button"
               onClick={() => setIsClassEditOpen(true)}
@@ -185,8 +199,9 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               <Icon name="PencilSquareIcon" size={14} />
               <span>Edit Class</span>
             </button>
+            )}
 
-            {!isOtherClass && (
+            {canEdit && !isOtherClass && (
               <button
                 type="button"
                 onClick={() => setIsSubjectModalOpen(true)}
@@ -197,7 +212,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               </button>
             )}
 
-            {!isOtherClass && (
+            {canEdit && !isOtherClass && (
               <button
                 type="button"
                 onClick={() => setIsProjectModalOpen(true)}
@@ -208,7 +223,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               </button>
             )}
 
-            {isOtherClass && (
+            {canEdit && isOtherClass && (
               <button
                 type="button"
                 onClick={() => {
@@ -222,13 +237,15 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               </button>
             )}
 
+            {canEdit && (
             <Link
               href={`/ai-lms/generate?class=${lmsClass.slug}`}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 transition-all hover:scale-[1.02]"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 transition-all"
             >
               <Icon name="SparklesIcon" size={15} />
               <span>Generate Lesson</span>
             </Link>
+            )}
           </div>
         </div>
 
@@ -249,6 +266,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
                 : 'No custom AI instructions set. AI will use standard defaults. Click "Edit Context" to provide domain depth, target audience, or stack requirements.'}
             </p>
           </div>
+          {canEdit && (
           <button
             type="button"
             onClick={() => setIsClassEditOpen(true)}
@@ -257,6 +275,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
             <Icon name="PencilIcon" size={12} />
             <span>{lmsClass.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
           </button>
+          )}
         </div>
       </div>
 
@@ -274,7 +293,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
             </div>
 
             <div className="flex items-center gap-3">
-              {subjects.length > 1 && (
+              {canEdit && subjects.length > 1 && (
                 <button
                   type="button"
                   onClick={() => setIsOrganizeSubjects(!isOrganizeSubjects)}
@@ -300,16 +319,16 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               icon="FolderIcon"
               title="No subjects or projects created yet"
               description={`Add a subject to teach concepts, or a project to generate a step-by-step implementation roadmap under ${lmsClass.name}.`}
-              primaryAction={{
+              primaryAction={canEdit ? {
                 label: 'Create Subject',
                 onClick: () => setIsSubjectModalOpen(true),
                 icon: 'PlusIcon',
-              }}
-              secondaryAction={{
+              } : undefined}
+              secondaryAction={canEdit ? {
                 label: 'Add Project',
                 onClick: () => setIsProjectModalOpen(true),
                 icon: 'CodeBracketSquareIcon',
-              }}
+              } : undefined}
             />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -318,8 +337,8 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
                   key={subj.id}
                   subject={subj}
                   classSlug={lmsClass.slug}
-                  onEdit={(s) => setSubjectToEdit(s)}
-                  onDelete={(s) => setSubjectToDelete(s)}
+                  onEdit={canEdit ? (s) => setSubjectToEdit(s) : undefined}
+                  onDelete={canEdit ? (s) => setSubjectToDelete(s) : undefined}
                   isOrganizeMode={isOrganizeSubjects}
                   orderIndex={idx}
                   canMoveLeft={idx > 0}
@@ -352,30 +371,30 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               icon="DocumentTextIcon"
               title="No standalone lessons yet"
               description="Generate a lesson under the Other class without needing to specify a subject."
-              primaryAction={{
+              primaryAction={canEdit ? {
                 label: 'Generate Lesson',
                 href: `/ai-lms/generate?class=${lmsClass.slug}`,
                 icon: 'SparklesIcon',
-              }}
-              secondaryAction={{
+              } : undefined}
+              secondaryAction={canEdit ? {
                 label: 'Create Manually',
                 onClick: () => {
                   setLessonToEdit(null);
                   setIsLessonModalOpen(true);
                 },
                 icon: 'PlusIcon',
-              }}
+              } : undefined}
             />
           ) : (
             <LessonList
               lessons={directLessons}
               classSlug={lmsClass.slug}
-              onEdit={(l) => {
+              onEdit={canEdit ? (l) => {
                 setLessonToEdit(l);
                 setIsLessonModalOpen(true);
-              }}
-              onDelete={(l) => setLessonToDelete(l)}
-              onReorder={handleReorderDirectLessons}
+              } : undefined}
+              onDelete={canEdit ? (l) => setLessonToDelete(l) : undefined}
+              onReorder={canEdit ? handleReorderDirectLessons : undefined}
             />
           )}
         </section>

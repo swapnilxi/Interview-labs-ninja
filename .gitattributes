@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# AI LMS class folders are compared byte-for-byte with the DB copy of their HTML: never
+# rewrite their line endings on checkout (see backend/modules/ai_lms/class_folders.py).
+frontend/src/modules/ai-lms/classes/** -text

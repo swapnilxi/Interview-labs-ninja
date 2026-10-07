@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 import { lmsService } from './services/lmsService';
 import type { LmsClass, LmsLesson, LmsSubject } from './types';
 import LessonList from './components/LessonList';
@@ -19,6 +20,7 @@ interface SubjectDetailModuleProps {
 }
 
 export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectDetailModuleProps) {
+  const { canEdit } = useAuth();
   const [subject, setSubject] = useState<LmsSubject | null>(null);
   const [lmsClass, setLmsClass] = useState<LmsClass | null>(null);
   const [lessons, setLessons] = useState<LmsLesson[]>([]);
@@ -153,7 +155,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
+            {canEdit && <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setProjectTab((t) => (t === 'edit' ? 'modules' : 'edit'))}
@@ -166,7 +168,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
                 <Icon name="PencilSquareIcon" size={14} />
                 <span>{projectTab === 'edit' ? 'Editing Project' : 'Edit Project'}</span>
               </button>
-            </div>
+            </div>}
           </div>
         </div>
 
@@ -214,6 +216,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
           </div>
 
           {/* Action CTAs */}
+          {canEdit && (
           <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
             <button
               type="button"
@@ -238,12 +241,13 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
 
             <Link
               href={`/ai-lms/generate?class=${lmsClass.slug}&subject=${subject.slug}`}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-md shadow-primary/25 hover:bg-primary/90 transition-all hover:scale-[1.02]"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 transition-all"
             >
               <Icon name="SparklesIcon" size={15} />
               <span>Generate with AI</span>
             </Link>
           </div>
+          )}
         </div>
 
         {/* Subject AI Directives Card */}
@@ -269,6 +273,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
               </div>
             )}
           </div>
+          {canEdit && (
           <button
             type="button"
             onClick={() => setIsSubjectEditOpen(true)}
@@ -277,11 +282,12 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
             <Icon name="PencilIcon" size={12} />
             <span>{subject.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
           </button>
+          )}
         </div>
       </div>
 
       {/* Quick AI Lesson Generator (One text box + One upload button) */}
-      <QuickLessonGenerator
+      {canEdit && <QuickLessonGenerator
         classId={lmsClass.id}
         classSlug={lmsClass.slug}
         classNameText={lmsClass.name}
@@ -289,7 +295,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
         subjectSlug={subject.slug}
         subjectNameText={subject.name}
         onLessonGenerated={() => loadSubject()}
-      />
+      />}
 
       {/* Lesson List */}
       <section className="space-y-4">
@@ -298,31 +304,31 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
             icon="DocumentTextIcon"
             title="No lessons in this subject yet"
             description="Generate your first interactive lesson using AI or create one manually with code/notes."
-            primaryAction={{
+            primaryAction={canEdit ? {
               label: 'Generate Lesson with AI',
               href: `/ai-lms/generate?class=${lmsClass.slug}&subject=${subject.slug}`,
               icon: 'SparklesIcon',
-            }}
-            secondaryAction={{
+            } : undefined}
+            secondaryAction={canEdit ? {
               label: 'Create Lesson Manually',
               onClick: () => {
                 setLessonToEdit(null);
                 setIsLessonModalOpen(true);
               },
               icon: 'PlusIcon',
-            }}
+            } : undefined}
           />
         ) : (
           <LessonList
             lessons={lessons}
             classSlug={lmsClass.slug}
             subjectSlug={subject.slug}
-            onEdit={(l) => {
+            onEdit={canEdit ? (l) => {
               setLessonToEdit(l);
               setIsLessonModalOpen(true);
-            }}
-            onDelete={(l) => setLessonToDelete(l)}
-            onReorder={handleReorderLessons}
+            } : undefined}
+            onDelete={canEdit ? (l) => setLessonToDelete(l) : undefined}
+            onReorder={canEdit ? handleReorderLessons : undefined}
           />
         )}
       </section>

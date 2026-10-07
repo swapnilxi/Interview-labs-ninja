@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import { lmsService } from '../services/lmsService';
+import { LmsConflictError, lmsService } from '../services/lmsService';
 import type { LmsLesson } from '../types';
 
 export interface LessonRevision {
@@ -36,6 +36,7 @@ export default function UpdateLessonPanel({
   const [loading, setLoading] = useState<'update' | 'regenerate' | null>(null);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
 
   const runRevision = async (mode: 'update' | 'regenerate') => {
     if (mode === 'update' && instruction.trim().length < 3) return;
@@ -59,19 +60,25 @@ export default function UpdateLessonPanel({
     }
   };
 
-  const handleApply = async () => {
+  /** `overwrite` re-applies after a 409 without the base hash (the replaced version stays
+   * recoverable in lms_html_backups). */
+  const handleApply = async (overwrite = false) => {
     if (!revision) return;
     setApplying(true);
     setError(null);
+    setConflict(false);
     try {
       const updated = await lmsService.updateLesson(lesson.id, {
         generated_html: revision.generated_html,
         ...(revision.summary ? { summary: revision.summary } : {}),
+        // Refused (409) if the lesson's .html file was edited since this revision was made.
+        ...(overwrite ? {} : { base_hash: lesson.content_hash }),
       });
       onRevisionChange(null);
       setInstruction('');
       onApplied(updated);
     } catch (err: unknown) {
+      setConflict(err instanceof LmsConflictError);
       setError(err instanceof Error ? err.message : 'Failed to save the updated lesson.');
     } finally {
       setApplying(false);
@@ -140,8 +147,18 @@ export default function UpdateLessonPanel({
         </div>
 
         {error && (
-          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
-            {error}
+          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex flex-wrap items-center gap-2">
+            <span>{error}</span>
+            {conflict && (
+              <button
+                type="button"
+                onClick={() => handleApply(true)}
+                disabled={applying}
+                className="px-2 py-1 rounded-md border border-destructive/40 font-semibold hover:bg-destructive/10 disabled:opacity-50"
+              >
+                Apply anyway
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -173,7 +190,7 @@ export default function UpdateLessonPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={handleApply}
+                  onClick={() => handleApply()}
                   disabled={applying}
                   className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
                 >
