@@ -11,24 +11,35 @@ interface WeeklyPlanProps {
 export default function WeeklyPlan({ model }: WeeklyPlanProps) {
   const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
+    if (loading) return;
     setLoading(true);
-    const result = await todoService.aiWeeklyPlan(model);
-    if (result && result.weekly_plan) {
-      setPlan(result.weekly_plan);
+    setError(null);
+    try {
+      const result = await todoService.aiWeeklyPlan(model);
+      if (result && result.weekly_plan) {
+        setPlan(result.weekly_plan);
+      } else {
+        setError("AI didn't return a plan. Try again.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't generate your week.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
   return (
-    <div className="flex flex-col h-full bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-6">
+    <div className="todo-glass flex flex-col h-full p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
-          <h2 className="font-heading font-semibold text-lg flex items-center gap-2">
-            📅 AI Weekly Plan
+          <h2 className="font-heading font-semibold text-lg leading-tight flex items-center gap-2">
+            <span className="todo-icon-chip h-8 w-8"><Icon name="CalendarDaysIcon" size={16} /></span>
+            AI Weekly Plan
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
             Let AI distribute your open tasks across the week, prioritizing high-leverage work.
@@ -37,18 +48,29 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
         <button
           onClick={handleGenerate}
           disabled={loading}
-          className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
+          className="todo-btn todo-btn-primary px-4 py-2"
         >
           {loading ? (
-            <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-          ) : '🤖'}
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
+          ) : (
+            <Icon name="SparklesIcon" size={14} variant="solid" />
+          )}
           Generate My Week
         </button>
       </div>
 
+      {error && (
+        <div role="alert" className="todo-alert todo-alert-error mb-4">
+          <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
+          <p className="flex-1 leading-relaxed">{error}</p>
+        </div>
+      )}
+
       {!plan && !loading && (
-        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground space-y-4 opacity-70">
-          <span className="text-5xl">🗓️</span>
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-10 text-center text-muted-foreground">
+          <span className="flex h-[3rem] w-[3rem] items-center justify-center rounded-xl bg-muted">
+            <Icon name="CalendarDaysIcon" size={24} />
+          </span>
           <p className="text-sm font-medium">Generate your plan to see your week at a glance.</p>
         </div>
       )}
@@ -85,7 +107,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
                       <div className="flex items-start gap-2">
                         <div className="flex-shrink-0 mt-0.5">
                           {task.is_top_20 ? (
-                            <span className="text-[10px]" title="Top 20% Task">⭐</span>
+                            <Icon name="StarIcon" size={12} variant="solid" className="text-amber-500" aria-label="Top 20% task" />
                           ) : (
                             <div className="w-3 h-3 rounded-full border-2 border-primary/40" />
                           )}

@@ -31,7 +31,9 @@ import {
   reorderLessons,
   getLessonNavigation,
   recordLessonView,
+  markLessonCompleted,
   getContinueLearning,
+  getRecentLessons,
   searchLms,
 } from './db';
 import { callAIText, cleanHtmlOutput, extractJsonObject, NoEmbeddingProviderError } from '../ai';
@@ -43,13 +45,16 @@ import {
   exportClass,
   fileSyncEnabled,
   getLanding,
+  getModuleLanding,
   reconcileClass,
   resolvePath,
   saveLanding,
+  saveModuleLanding,
   LandingConflict,
   withClassFolderSync,
 } from './classFolders';
 import * as landingEdit from './landingEdit';
+import { withNeonSync } from '@/lib/server/neonSync';
 import { buildZip } from './zip';
 
 const EDITOR_ROLES = new Set(['editor', 'admin', 'superadmin']);
@@ -58,7 +63,7 @@ const EDITOR_ROLES = new Set(['editor', 'admin', 'superadmin']);
 // (mirrors _NON_EDIT_WRITES in backend/modules/ai_lms/router.py). Every other
 // POST/PUT/PATCH/DELETE changes shared LMS content and needs an editor role.
 const NON_EDIT_WRITES =
-  /^\/api\/lms\/(?:lessons\/[^/]+\/view|voice-chat|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai)\/?$/;
+  /^\/api\/lms\/(?:lessons\/[^/]+\/view|voice-chat|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai)\/?$/;
 
 function requireUserId(req: Request): number | NextResponse {
   const user = getUserFromAuthHeader(req.headers.get('authorization'));
@@ -106,7 +111,8 @@ async function handleCreateClassImpl(req: Request): Promise<NextResponse> {
       body.name,
       body.description || '',
       body.icon || 'BookmarkIcon',
-      body.ai_context || ''
+      body.ai_context || '',
+      body.accent_color || ''
     );
     return NextResponse.json(created, { status: 201 });
   } catch (err: any) {
@@ -208,7 +214,8 @@ async function handleCreateSubjectImpl(classSlug: string, req: Request): Promise
       body.ai_context || '',
       body.kind === 'project' ? 'project' : 'subject',
       body.project_context || '',
-      body.context_source_name || ''
+      body.context_source_name || '',
+      body.accent_color || ''
     );
     return NextResponse.json(created, { status: 201 });
   } catch (err: any) {
@@ -269,7 +276,7 @@ async function handleDeleteSubjectImpl(subjectId: string, req: Request): Promise
  * small, fixed number of single-shot generation calls rather than open-ended
  * conversational retrieval. Mirrors backend/modules/ai_lms/router.py's summarize_context.
  */
-export async function handleSummarizeContext(subjectId: string, req: Request): Promise<NextResponse> {
+async function handleSummarizeContextImpl(subjectId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -330,7 +337,7 @@ Output ONLY the summary text. No preamble, no markdown code fences.`;
 }
 
 /** Discard the stored AI summary, reverting generation prompts to a raw-text prefix. */
-export async function handleClearContextSummary(subjectId: string, req: Request): Promise<NextResponse> {
+async function handleClearContextSummaryImpl(subjectId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -792,6 +799,248 @@ export async function handleGetClassLandingStatus(classSlug: string, req: Reques
   }
 }
 
+// ── Module-root landing page: the AI LMS home/intro page, not tied to any class ───────
+// (classes/landingpage.html). Same editing contract as a class landing page above, just
+// without a classSlug in the path; its lms:auto:stats / lms:auto:classes blocks list every
+// class instead of one class's own subjects/projects/lessons.
+//
+// Naming note: "module" here means the AI LMS module as a whole (this is its home page),
+// not a project roadmap "Module" (see the project-plan handlers elsewhere in this file).
+
+/** The AI LMS module-root landing page (classes/landingpage.html), IDE edits pulled in. */
+export async function handleGetModuleLanding(req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    return NextResponse.json(getModuleLanding());
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to get landing page' }, { status: 500 });
+  }
+}
+
+function saveModuleLandingOrError(html: string, baseHash?: string | null): NextResponse {
+  try {
+    const saved = saveModuleLanding(html, baseHash);
+    return NextResponse.json(landingSaved(saved));
+  } catch (err) {
+    if (err instanceof LandingConflict) return NextResponse.json({ detail: err.message }, { status: 409 });
+    throw err;
+  }
+}
+
+export async function handleListModuleLandingSections(req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const landing = getModuleLanding();
+    return NextResponse.json({ hash: landing.hash, sections: landingEdit.listSections(String(landing.html)) });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to list sections' }, { status: 500 });
+  }
+}
+
+async function handlePutModuleLandingImpl(req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const body = await req.json().catch(() => ({}));
+    const html = typeof body.html === 'string' ? body.html : '';
+    if (html.length < 20 || html.length > landingEdit.PAGE_HTML_MAX) {
+      return NextResponse.json({ detail: 'html must be between 20 and 400000 characters.' }, { status: 422 });
+    }
+    if (!/<html/i.test(html) || !/<\/html>/i.test(html)) {
+      return NextResponse.json({ detail: 'The landing page must be a complete HTML document.' }, { status: 422 });
+    }
+    const current = getModuleLanding();
+    if (!landingEdit.autoMarkersIntact(String(current.html), html)) {
+      return NextResponse.json(
+        { detail: 'The edit removed an lms:auto marker; keep those pairs so the lists stay current.' },
+        { status: 422 }
+      );
+    }
+    return saveModuleLandingOrError(html, body.base_hash);
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to save landing page' }, { status: 500 });
+  }
+}
+
+async function handleAddModuleLandingSectionImpl(req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const body = await req.json().catch(() => ({}));
+    const title = String(body.title || '').trim();
+    const bodyHtml = String(body.body_html || '');
+    if (!title || title.length > 200 || !bodyHtml.trim() || bodyHtml.length > landingEdit.SECTION_HTML_MAX) {
+      return NextResponse.json({ detail: 'A title (<=200 chars) and body_html are required.' }, { status: 422 });
+    }
+    const landing = getModuleLanding();
+    const block = landingEdit.wrapSection(
+      landingEdit.newSectionId(),
+      'manual',
+      landingEdit.manualSectionHtml(title, bodyHtml)
+    );
+    let page: string;
+    try {
+      page = landingEdit.insertSection(
+        String(landing.html),
+        block,
+        body.after_section_id,
+        body.position === 'start' ? 'start' : 'end'
+      );
+    } catch (err) {
+      if (err instanceof landingEdit.SectionNotFound) return NextResponse.json({ detail: 'Section not found.' }, { status: 404 });
+      throw err;
+    }
+    const res = saveModuleLandingOrError(page, body.base_hash || String(landing.hash));
+    return res.status === 200 ? NextResponse.json(await res.json(), { status: 201 }) : res;
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to add section' }, { status: 500 });
+  }
+}
+
+async function handleUpdateModuleLandingSectionImpl(sectionId: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const body = await req.json().catch(() => ({}));
+    const hasHtml = typeof body.html === 'string';
+    const move = body.move === 'up' || body.move === 'down' ? body.move : null;
+    if (!hasHtml && !move) return NextResponse.json({ detail: 'Send html and/or move.' }, { status: 422 });
+    if (hasHtml && (!body.html.length || body.html.length > landingEdit.SECTION_HTML_MAX)) {
+      return NextResponse.json({ detail: 'html must be 1-40000 characters.' }, { status: 422 });
+    }
+    const landing = getModuleLanding();
+    let page = String(landing.html);
+    try {
+      if (hasHtml) {
+        const current = landingEdit.listSections(page).find((x) => x.id === sectionId);
+        if (!current) throw new landingEdit.SectionNotFound(sectionId);
+        const fragment = landingEdit.stripUnsafe(body.html);
+        if (!fragment) return NextResponse.json({ detail: "Section HTML can't be empty." }, { status: 422 });
+        page = landingEdit.replaceSection(page, sectionId, current.source, fragment);
+      }
+      if (move) page = landingEdit.moveSection(page, sectionId, move);
+    } catch (err) {
+      if (err instanceof landingEdit.SectionNotFound) return NextResponse.json({ detail: 'Section not found.' }, { status: 404 });
+      throw err;
+    }
+    return saveModuleLandingOrError(page, body.base_hash || String(landing.hash));
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to update section' }, { status: 500 });
+  }
+}
+
+async function handleDeleteModuleLandingSectionImpl(sectionId: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const landing = getModuleLanding();
+    let page: string;
+    try {
+      page = landingEdit.removeSection(String(landing.html), sectionId);
+    } catch (err) {
+      if (err instanceof landingEdit.SectionNotFound) return NextResponse.json({ detail: 'Section not found.' }, { status: 404 });
+      throw err;
+    }
+    return saveModuleLandingOrError(page, String(landing.hash));
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to remove section' }, { status: 500 });
+  }
+}
+
+/** Mirrors Python's str.strip(" :"): trims leading/trailing spaces and colons from both ends. */
+function stripSpaceColon(s: string): string {
+  let start = 0;
+  let end = s.length;
+  const isTrim = (ch: string) => ch === ' ' || ch === ':';
+  while (start < end && isTrim(s[start])) start++;
+  while (end > start && isTrim(s[end - 1])) end--;
+  return s.slice(start, end);
+}
+
+/** Reprompt the module-root landing page (generate / edit / section). Nothing is saved: the client applies the preview with PUT. */
+export async function handleModuleLandingAi(req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const body = await req.json().catch(() => ({}));
+    const instruction = String(body.instruction || '').trim();
+    const mode = ['generate', 'edit', 'section'].includes(body.mode) ? body.mode : 'edit';
+    if (instruction.length < 3 || instruction.length > 4000) {
+      return NextResponse.json({ detail: 'Tell the AI what to do (3-4000 characters).' }, { status: 422 });
+    }
+    const landing = getModuleLanding();
+    const page = String(landing.html);
+    let proposed: string;
+    let sectionId: string | null = null;
+    try {
+      if (mode === 'section') {
+        const raw = await callAIText(landingEdit.sectionPrompt(instruction, page), body, undefined, 6000);
+        const fragment = landingEdit.stripUnsafe(raw);
+        if (fragment.length < 30 || !/<section/i.test(fragment) || fragment.length > landingEdit.SECTION_HTML_MAX) {
+          return NextResponse.json({ detail: 'The AI provider returned an invalid section. Please try again.' }, { status: 502 });
+        }
+        sectionId = landingEdit.newSectionId();
+        try {
+          proposed = landingEdit.insertSection(
+            page,
+            landingEdit.wrapSection(sectionId, 'ai', fragment),
+            body.after_section_id,
+            body.position === 'start' ? 'start' : 'end'
+          );
+        } catch (err) {
+          if (err instanceof landingEdit.SectionNotFound) return NextResponse.json({ detail: 'Section not found.' }, { status: 404 });
+          throw err;
+        }
+      } else {
+        if (page.length > landingEdit.PAGE_HTML_MAX / 2) {
+          return NextResponse.json({ detail: 'This landing page is too large to revise in one pass.' }, { status: 400 });
+        }
+        let prompt: string;
+        if (mode === 'generate') {
+          const classes = (getAllClasses() as any[]) || [];
+          const outline = classes
+            .map((c) => stripSpaceColon(`- ${c.name}: ${c.description || ''}`))
+            .join('\n');
+          prompt = landingEdit.pageGeneratePrompt(
+            instruction,
+            'AI LMS',
+            'The AI LMS home page: an AI-powered learning platform listing every class.',
+            outline,
+            page
+          );
+        } else {
+          prompt = landingEdit.pageEditPrompt(instruction, page);
+        }
+        proposed = cleanHtmlOutput(await callAIText(prompt, body, undefined, 16000));
+        if (!proposed || !/<html/i.test(proposed) || proposed.length < 400) {
+          return NextResponse.json({ detail: 'The AI provider returned an incomplete or invalid response. Please try again.' }, { status: 502 });
+        }
+        if (!landingEdit.autoMarkersIntact(page, proposed)) {
+          return NextResponse.json({ detail: "The AI dropped the page's auto-updating markers. Please try again." }, { status: 502 });
+        }
+      }
+    } catch (err) {
+      return NextResponse.json({ detail: `Landing page update failed: ${err instanceof Error ? err.message : String(err)}` }, { status: 502 });
+    }
+    return NextResponse.json({ html: proposed, base_hash: landing.hash, section_id: sectionId, mode });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Landing page update failed' }, { status: 500 });
+  }
+}
+
+export async function handleGetModuleLandingStatus(req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const landing = getModuleLanding();
+    return NextResponse.json({ content_hash: landing.hash, file_sync: landing.file_sync });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to get landing status' }, { status: 500 });
+  }
+}
+
 /** The whole class as a deployable zip: the static site plus vercel.json and a Cloud Run Dockerfile. */
 export async function handleExportClass(classSlug: string, req: Request): Promise<Response> {
   try {
@@ -961,7 +1210,7 @@ export async function handleDownloadLesson(lessonId: string, req: Request): Prom
   }
 }
 
-export async function handleRecordLessonView(lessonId: string, req: Request): Promise<NextResponse> {
+async function handleRecordLessonViewImpl(lessonId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -970,6 +1219,28 @@ export async function handleRecordLessonView(lessonId: string, req: Request): Pr
     return NextResponse.json({ message: 'View recorded' });
   } catch (err: any) {
     return NextResponse.json({ detail: err.message || 'Failed to record view' }, { status: 500 });
+  }
+}
+
+async function handleMarkLessonCompleteImpl(lessonId: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const userId = auth;
+    let completed = true;
+    try {
+      const body = await req.json();
+      if (body && typeof body.completed === 'boolean') {
+        completed = body.completed;
+      }
+    } catch {
+      // payload is optional
+    }
+    markLessonCompleted(lessonId, completed, userId);
+    const nav = getLessonNavigation(lessonId);
+    return NextResponse.json({ status: 'ok', completed, navigation: nav });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to update lesson completion' }, { status: 500 });
   }
 }
 
@@ -986,6 +1257,18 @@ export async function handleContinueLearning(req: Request): Promise<NextResponse
     return NextResponse.json({ item });
   } catch (err: any) {
     return NextResponse.json({ detail: err.message || 'Failed to get continue learning' }, { status: 500 });
+  }
+}
+
+export async function handleGetRecentLessons(req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const userId = auth;
+    const items = getRecentLessons(userId, 5);
+    return NextResponse.json({ items });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message || 'Failed to get recent lessons' }, { status: 500 });
   }
 }
 
@@ -2136,7 +2419,7 @@ Output ONLY the JSON object. No markdown code blocks before or after.`;
   }
 }
 
-export async function handleBreakdownLesson(lessonId: string, req: Request): Promise<NextResponse> {
+async function handleBreakdownLessonImpl(lessonId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -2248,27 +2531,41 @@ async function handleEmbedVisualImpl(lessonId: string, req: Request): Promise<Ne
 // backend/modules/ai_lms/router.py.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const handleCreateClass = withClassFolderSync(handleCreateClassImpl);
-export const handleUpdateClass = withClassFolderSync(handleUpdateClassImpl);
-export const handleDeleteClass = withClassFolderSync(handleDeleteClassImpl);
-export const handleReorderClasses = withClassFolderSync(handleReorderClassesImpl);
-export const handleCreateSubject = withClassFolderSync(handleCreateSubjectImpl);
-export const handleUpdateSubject = withClassFolderSync(handleUpdateSubjectImpl);
-export const handleDeleteSubject = withClassFolderSync(handleDeleteSubjectImpl);
-export const handleReorderSubjects = withClassFolderSync(handleReorderSubjectsImpl);
-export const handleCreateLesson = withClassFolderSync(handleCreateLessonImpl);
-export const handleUpdateLesson = withClassFolderSync(handleUpdateLessonImpl);
-export const handleDeleteLesson = withClassFolderSync(handleDeleteLessonImpl);
-export const handleReorderLessons = withClassFolderSync(handleReorderLessonsImpl);
-export const handleGenerateLesson = withClassFolderSync(handleGenerateLessonImpl);
-export const handlePlanProjectModules = withClassFolderSync(handlePlanProjectModulesImpl);
-export const handleGenerateProjectModule = withClassFolderSync(handleGenerateProjectModuleImpl);
-export const handleAddProjectStep = withClassFolderSync(handleAddProjectStepImpl);
-export const handleReorderProjectPlan = withClassFolderSync(handleReorderProjectPlanImpl);
-export const handleBreakDownProjectModule = withClassFolderSync(handleBreakDownProjectModuleImpl);
-export const handleGenerateProjectSublesson = withClassFolderSync(handleGenerateProjectSublessonImpl);
-export const handleEmbedVisual = withClassFolderSync(handleEmbedVisualImpl);
-export const handlePutClassLanding = withClassFolderSync(handlePutClassLandingImpl);
-export const handleAddLandingSection = withClassFolderSync(handleAddLandingSectionImpl);
-export const handleDeleteLandingSection = withClassFolderSync(handleDeleteLandingSectionImpl);
-export const handleUpdateLandingSection = withClassFolderSync(handleUpdateLandingSectionImpl);
+// withNeonSync (outermost) runs after withClassFolderSync has settled, so the Neon
+// snapshot captures any DB updates the class-folder reconcile itself made too.
+export const handleCreateClass = withNeonSync(withClassFolderSync(handleCreateClassImpl));
+export const handleUpdateClass = withNeonSync(withClassFolderSync(handleUpdateClassImpl));
+export const handleDeleteClass = withNeonSync(withClassFolderSync(handleDeleteClassImpl));
+export const handleReorderClasses = withNeonSync(withClassFolderSync(handleReorderClassesImpl));
+export const handleCreateSubject = withNeonSync(withClassFolderSync(handleCreateSubjectImpl));
+export const handleUpdateSubject = withNeonSync(withClassFolderSync(handleUpdateSubjectImpl));
+export const handleDeleteSubject = withNeonSync(withClassFolderSync(handleDeleteSubjectImpl));
+export const handleReorderSubjects = withNeonSync(withClassFolderSync(handleReorderSubjectsImpl));
+export const handleCreateLesson = withNeonSync(withClassFolderSync(handleCreateLessonImpl));
+export const handleUpdateLesson = withNeonSync(withClassFolderSync(handleUpdateLessonImpl));
+export const handleDeleteLesson = withNeonSync(withClassFolderSync(handleDeleteLessonImpl));
+export const handleReorderLessons = withNeonSync(withClassFolderSync(handleReorderLessonsImpl));
+export const handleGenerateLesson = withNeonSync(withClassFolderSync(handleGenerateLessonImpl));
+export const handlePlanProjectModules = withNeonSync(withClassFolderSync(handlePlanProjectModulesImpl));
+export const handleGenerateProjectModule = withNeonSync(withClassFolderSync(handleGenerateProjectModuleImpl));
+export const handleAddProjectStep = withNeonSync(withClassFolderSync(handleAddProjectStepImpl));
+export const handleReorderProjectPlan = withNeonSync(withClassFolderSync(handleReorderProjectPlanImpl));
+export const handleBreakDownProjectModule = withNeonSync(withClassFolderSync(handleBreakDownProjectModuleImpl));
+export const handleGenerateProjectSublesson = withNeonSync(withClassFolderSync(handleGenerateProjectSublessonImpl));
+export const handleEmbedVisual = withNeonSync(withClassFolderSync(handleEmbedVisualImpl));
+export const handlePutClassLanding = withNeonSync(withClassFolderSync(handlePutClassLandingImpl));
+export const handleAddLandingSection = withNeonSync(withClassFolderSync(handleAddLandingSectionImpl));
+export const handleDeleteLandingSection = withNeonSync(withClassFolderSync(handleDeleteLandingSectionImpl));
+export const handleUpdateLandingSection = withNeonSync(withClassFolderSync(handleUpdateLandingSectionImpl));
+export const handlePutModuleLanding = withNeonSync(withClassFolderSync(handlePutModuleLandingImpl));
+export const handleAddModuleLandingSection = withNeonSync(withClassFolderSync(handleAddModuleLandingSectionImpl));
+export const handleDeleteModuleLandingSection = withNeonSync(withClassFolderSync(handleDeleteModuleLandingSectionImpl));
+export const handleUpdateModuleLandingSection = withNeonSync(withClassFolderSync(handleUpdateModuleLandingSectionImpl));
+
+// These write (saveContextSummary/recordLessonView/markLessonCompleted/updateLesson) but
+// aren't part of the class-folder-synced set above, so they only need the Neon push.
+export const handleSummarizeContext = withNeonSync(handleSummarizeContextImpl);
+export const handleClearContextSummary = withNeonSync(handleClearContextSummaryImpl);
+export const handleRecordLessonView = withNeonSync(handleRecordLessonViewImpl);
+export const handleMarkLessonComplete = withNeonSync(handleMarkLessonCompleteImpl);
+export const handleBreakdownLesson = withNeonSync(handleBreakdownLessonImpl);

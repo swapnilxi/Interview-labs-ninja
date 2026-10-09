@@ -38,6 +38,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from modules.common import __version__
+from modules.common.rate_limit import RateLimitMiddleware
+from modules.common.neon_sync import NeonSyncMiddleware
 from modules.common.db import get_db_path, init_db
 
 # Config / settings module
@@ -67,6 +69,7 @@ from modules.ai_todo.import_data.router import router as import_router
 # Auth module
 from modules.auth.router import router as auth_router
 from modules.auth.admin_router import router as admin_router
+from modules.auth.access_requests_router import router as access_requests_router
 from modules.auth.db import promote_admins_from_env, promote_superadmins_from_env
 
 # Swipe PDF Reader module
@@ -129,6 +132,17 @@ _cors_origins = (
 # them too, alongside the exact prod origin(s) in LABNINJA_CORS_ORIGINS above.
 _cors_origin_regex = os.environ.get("LABNINJA_CORS_ORIGIN_REGEX")
 
+# Added BEFORE CORSMiddleware below so CORS ends up the OUTERMOST layer (Starlette wraps
+# the LAST add_middleware() call outermost) -- a 429 this middleware returns still gets
+# CORS headers, instead of showing the frontend a bare CORS failure. See
+# modules/common/rate_limit.py for what it does and why it's safe only in production.
+app.add_middleware(RateLimitMiddleware)
+
+# Pushes lab_ninja.sqlite3 to Neon after writes when DATABASE_URL is set (Vercel), so a
+# cold start / different instance picks up the latest data instead of a stale /tmp
+# reseed. No-op locally. See modules/common/neon_sync.py.
+app.add_middleware(NeonSyncMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     # Set LABNINJA_CORS_ORIGINS (comma-separated) to your deployed frontend's
@@ -144,6 +158,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(access_requests_router)
 app.include_router(config_router)
 app.include_router(session_router)
 app.include_router(session_public_router)

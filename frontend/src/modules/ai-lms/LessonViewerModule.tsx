@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { lmsService } from './services/lmsService';
+import { recordLessonActivity } from './services/learningStateManager';
 import type { LmsClass, LmsLesson, LmsNavigation, LmsSubject } from './types';
 import LessonViewer from './components/LessonViewer';
 import EmptyState from './components/EmptyState';
@@ -46,10 +47,21 @@ export default function LessonViewerModule({
         setLmsClass(clsData);
 
         // Fetch subject if present
+        let subjData = null;
         if (subjectSlug && subjectSlug !== 'lesson') {
-          const subjData = await lmsService.getSubject(classSlug, subjectSlug);
+          subjData = await lmsService.getSubject(classSlug, subjectSlug);
           setSubject(subjData);
         }
+
+        // Connect to active learning state
+        recordLessonActivity({
+          lesson: lessonData,
+          navigation: navData,
+          classSlug,
+          className: clsData?.name,
+          subjectSlug: subjectSlug && subjectSlug !== 'lesson' ? subjectSlug : undefined,
+          subjectName: subjData?.name,
+        });
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to load lesson.');
       } finally {

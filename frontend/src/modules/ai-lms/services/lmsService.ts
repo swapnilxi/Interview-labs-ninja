@@ -8,11 +8,14 @@ import type {
   GenerateLessonRequest,
   LmsClass,
   LmsContentStatus,
+  LmsInstructor,
   LmsLanding,
   LmsLandingAiResult,
   LmsLandingSaved,
   LmsLandingSection,
   LmsLesson,
+  LmsModuleLanding,
+  LmsModuleLandingSaved,
   LmsNavigation,
   LmsPathTarget,
   LmsSearchResult,
@@ -52,6 +55,7 @@ export const lmsService = {
     description?: string;
     icon?: string;
     ai_context?: string;
+    accent_color?: string;
   }): Promise<LmsClass> {
     return apiJson<LmsClass>('/api/lms/classes', {
       method: 'POST',
@@ -61,7 +65,7 @@ export const lmsService = {
 
   async updateClass(
     idOrSlug: string,
-    payload: { name?: string; description?: string; icon?: string; ai_context?: string }
+    payload: { name?: string; description?: string; icon?: string; ai_context?: string; accent_color?: string }
   ): Promise<LmsClass> {
     return apiJson<LmsClass>(`/api/lms/classes/${encodeURIComponent(idOrSlug)}`, {
       method: 'PATCH',
@@ -79,6 +83,66 @@ export const lmsService = {
     await apiJson('/api/lms/classes/reorder', {
       method: 'POST',
       body: JSON.stringify({ class_ids: classIds }),
+    });
+  },
+
+  // ── Instructors ──────────────────────────────────────────────────────────
+  async getInstructors(): Promise<LmsInstructor[]> {
+    return apiJson<LmsInstructor[]>('/api/lms/instructors');
+  },
+
+  async getInstructor(idOrSlug: string): Promise<LmsInstructor> {
+    return apiJson<LmsInstructor>(`/api/lms/instructors/${encodeURIComponent(idOrSlug)}`);
+  },
+
+  async createInstructor(payload: {
+    name: string;
+    type?: 'real' | 'ai';
+    title?: string;
+    bio?: string;
+    email?: string;
+    avatar?: string;
+    expertise?: string;
+    learning_style?: string;
+    learning_style_prompt?: string;
+    ai_persona?: string;
+    ai_chatbot_enabled?: number | boolean;
+    rating?: number;
+    class_ids?: string[];
+  }): Promise<LmsInstructor> {
+    return apiJson<LmsInstructor>('/api/lms/instructors', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateInstructor(
+    idOrSlug: string,
+    payload: {
+      name?: string;
+      type?: 'real' | 'ai';
+      title?: string;
+      bio?: string;
+      email?: string;
+      avatar?: string;
+      expertise?: string;
+      learning_style?: string;
+      learning_style_prompt?: string;
+      ai_persona?: string;
+      ai_chatbot_enabled?: number | boolean;
+      rating?: number;
+      class_ids?: string[];
+    }
+  ): Promise<LmsInstructor> {
+    return apiJson<LmsInstructor>(`/api/lms/instructors/${encodeURIComponent(idOrSlug)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteInstructor(idOrSlug: string): Promise<void> {
+    await apiJson(`/api/lms/instructors/${encodeURIComponent(idOrSlug)}`, {
+      method: 'DELETE',
     });
   },
 
@@ -102,6 +166,7 @@ export const lmsService = {
       kind?: 'subject' | 'project';
       project_context?: string;
       context_source_name?: string;
+      accent_color?: string;
     }
   ): Promise<LmsSubject> {
     return apiJson<LmsSubject>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/subjects`, {
@@ -114,7 +179,7 @@ export const lmsService = {
    * plus a README/context, so it reuses the same table, lesson schema, and viewer. */
   async createProject(
     classIdOrSlug: string,
-    payload: { name: string; description?: string; project_context?: string; context_source_name?: string }
+    payload: { name: string; description?: string; project_context?: string; context_source_name?: string; accent_color?: string }
   ): Promise<LmsSubject> {
     return this.createSubject(classIdOrSlug, { ...payload, kind: 'project' });
   },
@@ -127,6 +192,7 @@ export const lmsService = {
       ai_context?: string;
       project_context?: string;
       context_source_name?: string;
+      accent_color?: string;
     }
   ): Promise<LmsSubject> {
     return apiJson<LmsSubject>(`/api/lms/subjects/${encodeURIComponent(subjectId)}`, {
@@ -251,6 +317,66 @@ export const lmsService = {
     );
   },
 
+  // ── Module-root landing page (classes/landingpage.html): the AI LMS home/intro page,
+  // not tied to any one class. Same editing contract as a class landing page above. ───
+  async getModuleLanding(): Promise<LmsModuleLanding> {
+    return apiJson<LmsModuleLanding>('/api/lms/landing', { cache: 'no-store' });
+  },
+
+  async listModuleLandingSections(): Promise<{ hash: string; sections: LmsLandingSection[] }> {
+    return apiJson('/api/lms/landing/sections', { cache: 'no-store' });
+  },
+
+  async saveModuleLanding(html: string, baseHash?: string): Promise<LmsModuleLandingSaved> {
+    return apiJson<LmsModuleLandingSaved>('/api/lms/landing', {
+      method: 'PUT',
+      body: JSON.stringify({ html, base_hash: baseHash }),
+    });
+  },
+
+  async addModuleLandingSection(section: {
+    title: string;
+    body_html: string;
+    after_section_id?: string;
+    position?: 'start' | 'end';
+  }): Promise<LmsModuleLandingSaved> {
+    return apiJson<LmsModuleLandingSaved>('/api/lms/landing/sections', {
+      method: 'POST',
+      body: JSON.stringify(section),
+    });
+  },
+
+  async updateModuleLandingSection(
+    sectionId: string,
+    change: { html?: string; move?: 'up' | 'down' }
+  ): Promise<LmsModuleLandingSaved> {
+    return apiJson<LmsModuleLandingSaved>(`/api/lms/landing/sections/${encodeURIComponent(sectionId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(change),
+    });
+  },
+
+  async deleteModuleLandingSection(sectionId: string): Promise<LmsModuleLandingSaved> {
+    return apiJson<LmsModuleLandingSaved>(`/api/lms/landing/sections/${encodeURIComponent(sectionId)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async moduleLandingAi(
+    instruction: string,
+    mode: 'generate' | 'edit' | 'section',
+    placement?: { after_section_id?: string; position?: 'start' | 'end' }
+  ): Promise<LmsLandingAiResult> {
+    return apiJson<LmsLandingAiResult>('/api/lms/landing/ai', {
+      method: 'POST',
+      body: JSON.stringify({ ...defaultAIRequestFields(), instruction, mode, ...placement }),
+    });
+  },
+
+  async getModuleLandingStatus(): Promise<LmsContentStatus> {
+    return apiJson<LmsContentStatus>('/api/lms/landing/status', { cache: 'no-store' });
+  },
+
   /** Download the class as <slug>.zip: the static site (landingpage.html, index.html, every
    * lesson/module page, class.json) plus vercel.json and a Dockerfile for Cloud Run. */
   async exportClass(classIdOrSlug: string): Promise<void> {
@@ -336,6 +462,27 @@ export const lmsService = {
       });
     } catch {
       // Non-critical background call
+    }
+  },
+
+  async markLessonComplete(lessonId: string, completed = true): Promise<void> {
+    try {
+      await apiJson(`/api/lms/lessons/${encodeURIComponent(lessonId)}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed }),
+      });
+    } catch {
+      // Non-critical background call
+    }
+  },
+
+  async getRecentLessons(): Promise<ContinueLearningItem[]> {
+    try {
+      const res = await apiJson<{ items: ContinueLearningItem[] }>('/api/lms/recent-lessons');
+      return res.items ?? [];
+    } catch {
+      return [];
     }
   },
 

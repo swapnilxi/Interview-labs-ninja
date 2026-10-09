@@ -11,6 +11,7 @@ import {
   USE_ENV_DEFAULT_MODEL,
 } from '@/lib/services/settingsService';
 import { API_BASE_URL } from '@/lib/http/apiClient';
+import AppearanceSettingsCard from './AppearanceSettingsCard';
 
 const PROVIDERS = [
   {
@@ -920,6 +921,8 @@ export default function ConfigInteractive() {
             </p>
           )}
         </div>
+
+        <AppearanceSettingsCard />
 
         {/* Ollama Local Config */}
         {usesOllama && (

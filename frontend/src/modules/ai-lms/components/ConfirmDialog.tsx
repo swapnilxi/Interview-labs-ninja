@@ -28,7 +28,7 @@ export default function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl overflow-hidden p-6 transition-smooth">
+      <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl overflow-hidden p-[24px] transition-smooth">
         <div className="flex items-start gap-4">
           <div
             className={`p-3 rounded-xl flex-shrink-0 ${

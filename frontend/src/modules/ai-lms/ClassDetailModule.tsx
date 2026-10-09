@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLmsViewMode } from './context/LmsViewModeContext';
 import { lmsService } from './services/lmsService';
 import type { LmsClass, LmsLesson, LmsSubject } from './types';
 import SubjectCard from './components/SubjectCard';
@@ -22,7 +23,9 @@ interface ClassDetailModuleProps {
 }
 
 export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps) {
-  const { canEdit } = useAuth();
+  const { canEdit: canEditReal } = useAuth();
+  const { isPreviewingAsStudent } = useLmsViewMode();
+  const canEdit = canEditReal && !isPreviewingAsStudent;
   const [lmsClass, setLmsClass] = useState<LmsClass | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,13 +154,21 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-10">
       {/* Header & Breadcrumbs */}
       <div className="space-y-4 pb-6 border-b border-border">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
           <Link
             href="/ai-lms"
-            className="hover:text-foreground transition-colors flex items-center gap-1"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-2xs group"
+            title="Back to AI LMS"
           >
-            <Icon name="ArrowLeftIcon" size={12} />
-            <span>AI LMS</span>
+            <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
+            <span>Back</span>
+          </Link>
+          <div className="h-3.5 w-px bg-border/80" />
+          <Link
+            href="/ai-lms"
+            className="hover:text-foreground transition-colors"
+          >
+            AI LMS
           </Link>
           <span>/</span>
           <span className="font-semibold text-foreground">{lmsClass.name}</span>
@@ -166,7 +177,14 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <div
+                className="flex h-[48px] w-[48px] items-center justify-center rounded-xl border transition-colors shadow-sm"
+                style={{
+                  backgroundColor: `color-mix(in srgb, ${lmsClass.accent_color || '#6366f1'} 14%, transparent)`,
+                  borderColor: `color-mix(in srgb, ${lmsClass.accent_color || '#6366f1'} 30%, transparent)`,
+                  color: lmsClass.accent_color || '#6366f1',
+                }}
+              >
                 <Icon name={lmsClass.icon || 'BookmarkIcon'} size={22} />
               </div>
               <h1 className="font-heading text-2xl md:text-4xl font-extrabold text-foreground">
@@ -250,32 +268,38 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
         </div>
 
         {/* AI Guidance Context Card */}
-        <div className="mt-4 rounded-xl border border-primary/25 bg-primary/5 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/20 text-primary">
-                <Icon name="SparklesIcon" size={12} />
-              </span>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
-                AI Generation Guidance Context
-              </h3>
+        <div
+          className="glow-card-wrap relative mt-4"
+          style={{ '--card-accent': '#8b5cf6' } as React.CSSProperties}
+        >
+          <div className="glow-card relative rounded-xl border border-primary/25 bg-primary/5 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 shadow-xs">
+            <span className="glow-card-rim" aria-hidden="true" />
+            <div className="space-y-1 relative z-[2]">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/20 text-primary">
+                  <Icon name="SparklesIcon" size={12} />
+                </span>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
+                  AI Generation Guidance Context
+                </h3>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed pl-7">
+                {lmsClass.ai_context
+                  ? lmsClass.ai_context
+                  : 'No custom AI instructions set. AI will use standard defaults. Click "Edit Context" to provide domain depth, target audience, or stack requirements.'}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed pl-7">
-              {lmsClass.ai_context
-                ? lmsClass.ai_context
-                : 'No custom AI instructions set. AI will use standard defaults. Click "Edit Context" to provide domain depth, target audience, or stack requirements.'}
-            </p>
+            {canEdit && (
+            <button
+              type="button"
+              onClick={() => setIsClassEditOpen(true)}
+              className="relative z-[2] flex-shrink-0 self-start sm:self-auto ml-7 sm:ml-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
+            >
+              <Icon name="PencilIcon" size={12} />
+              <span>{lmsClass.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
+            </button>
+            )}
           </div>
-          {canEdit && (
-          <button
-            type="button"
-            onClick={() => setIsClassEditOpen(true)}
-            className="flex-shrink-0 self-start sm:self-auto ml-7 sm:ml-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors"
-          >
-            <Icon name="PencilIcon" size={12} />
-            <span>{lmsClass.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
-          </button>
-          )}
         </div>
       </div>
 

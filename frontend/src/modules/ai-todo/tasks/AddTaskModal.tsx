@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import {
   type Task,
@@ -10,12 +10,14 @@ import {
 } from '@/lib/services/todoService';
 
 interface AddTaskModalProps {
+  /** Pre-fills the title, e.g. when expanding the inline quick-add row. */
+  initialTitle?: string;
   onClose: () => void;
   onCreated: (task: Task) => void;
 }
 
-export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) {
-  const [title, setTitle] = useState('');
+export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: AddTaskModalProps) {
+  const [title, setTitle] = useState(initialTitle);
   const [priority, setPriority] = useState<TaskPriority>('p3');
   const [timeEstimate, setTimeEstimate] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -23,6 +25,8 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
   const [attachments, setAttachments] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const savingRef = useRef(false);
 
   const [intention, setIntention] = useState('');
   const [definitionOfDone, setDefinitionOfDone] = useState('');
@@ -33,6 +37,12 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceInterval, setRecurrenceInterval] = useState('daily');
   const [recurrenceCustomDays, setRecurrenceCustomDays] = useState('');
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !savingRef.current) onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const handleSuggestIntention = async () => {
     if (!title.trim()) return;
@@ -78,10 +88,14 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    // The ref blocks a double-click/Enter landing before the disabled state renders.
+    if (!title.trim() || savingRef.current) return;
 
+    savingRef.current = true;
     setSaving(true);
-    const task = await todoService.createTask({
+    setSaveError(null);
+    try {
+      const task = await todoService.createTaskStrict({
       title: title.trim(),
       priority,
       time_estimate: timeEstimate.trim() || null,
@@ -93,11 +107,14 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
       is_recurring: isRecurring ? 1 : 0,
       recurrence_interval: isRecurring ? recurrenceInterval : null,
       recurrence_custom_days: isRecurring && recurrenceInterval === 'custom_days' ? recurrenceCustomDays.trim() || null : null,
-    });
-    setSaving(false);
-
-    if (task) {
+      });
       onCreated(task);
+    } catch (err) {
+      // Form stays open with everything the user entered, so they can retry.
+      setSaveError(err instanceof Error ? err.message : "Couldn't create the task.");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -107,22 +124,29 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg mx-4 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="todo-add-task-title"
+        className="relative w-full max-w-lg mx-4 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="font-heading text-base font-semibold text-foreground">Add New Task</h3>
-          <button onClick={onClose} className="theme-toggle w-8 h-8">
+          <h3 id="todo-add-task-title" className="font-heading text-base font-semibold text-foreground">Add New Task</h3>
+          <button type="button" onClick={onClose} className="theme-toggle w-8 h-8" aria-label="Close">
             <Icon name="XMarkIcon" size={16} />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
           {/* Title */}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Task Title *</label>
+            <label htmlFor="todo-add-title" className="block text-xs font-medium text-muted-foreground mb-1.5">Task Title *</label>
             <input
+              id="todo-add-title"
               type="text"
+              required
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="What do you need to do?"
@@ -188,21 +212,21 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
               className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
             >
               <Icon name={showIntentionFields ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={14} />
-              🎯 Intention & Definition of Done (Optional)
+              Intention & Definition of Done (Optional)
             </button>
 
             {showIntentionFields && (
               <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border animate-fade-in">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-medium text-muted-foreground">🎯 Why does this matter? (Intention)</label>
+                    <label className="block text-xs font-medium text-muted-foreground">Why does this matter? (Intention)</label>
                     <button
                       type="button"
                       onClick={handleSuggestIntention}
                       disabled={suggesting || !title.trim()}
                       className="text-[10px] text-primary hover:underline font-semibold disabled:opacity-50"
                     >
-                      {suggesting ? 'Suggesting...' : '✨ Suggest'}
+                      <span className="inline-flex items-center gap-1"><Icon name="SparklesIcon" size={11} variant="solid" />{suggesting ? 'Suggesting...' : 'Suggest'}</span>
                     </button>
                   </div>
                   {suggestError && (
@@ -218,7 +242,7 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">✅ What does done look like? (Definition of Done)</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">What does done look like? (Definition of Done)</label>
                   <input
                     type="text"
                     value={definitionOfDone}
@@ -240,7 +264,8 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
                 onChange={e => setIsRecurring(e.target.checked)}
                 className="h-4 w-4 rounded border-border text-primary focus-ring cursor-pointer"
               />
-              <span>🔁 Make this task recurring</span>
+              <Icon name="ArrowPathIcon" size={14} className="text-muted-foreground" />
+              <span>Make this task recurring</span>
             </label>
 
             {isRecurring && (
@@ -310,6 +335,13 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
             )}
           </div>
 
+          {saveError && (
+            <div role="alert" className="todo-alert todo-alert-error">
+              <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
+              <p className="flex-1 leading-relaxed">{saveError}</p>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
             <button
@@ -322,7 +354,7 @@ export default function AddTaskModal({ onClose, onCreated }: AddTaskModalProps) 
             <button
               type="submit"
               disabled={!title.trim() || saving}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
+              className="todo-btn todo-btn-primary px-4 py-2 text-sm"
             >
               {saving ? (
                 <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />

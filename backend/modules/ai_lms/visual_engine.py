@@ -43,8 +43,34 @@ PREMIUM_DESIGN_TOKENS_CSS = """:root {
       --shadow: 0 1px 2px rgba(36, 32, 27, 0.05), 0 12px 28px -14px rgba(36, 32, 27, 0.2);
       --radius: 14px;
     }
+    :root[data-theme="light"], html.light, body.light {
+      color-scheme: light;
+      --bg: #f7f3ec;
+      --surface: #fffaf2;
+      --surface-2: #efe7d9;
+      --text: #24201b;
+      --text-muted: #71695f;
+      --border: rgba(64, 55, 45, 0.14);
+      --border-strong: rgba(64, 55, 45, 0.22);
+      --primary: #5b5bd6;
+      --primary-soft: rgba(91, 91, 214, 0.1);
+      --secondary: #127c7a;
+      --secondary-soft: rgba(18, 124, 122, 0.1);
+      --accent: #b36b17;
+      --accent-soft: rgba(179, 107, 23, 0.12);
+      --success: #14845f;
+      --success-soft: rgba(20, 132, 95, 0.12);
+      --danger: #c24151;
+      --danger-soft: rgba(194, 65, 81, 0.12);
+      --code-bg: #1c1a17;
+      --code-text: #f2ede2;
+      --code-border: rgba(255, 255, 255, 0.08);
+      --shadow: 0 1px 2px rgba(36, 32, 27, 0.05), 0 12px 28px -14px rgba(36, 32, 27, 0.2);
+      --radius: 14px;
+    }
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
         --bg: #17140f;
         --surface: #201c16;
         --surface-2: #2a251d;
@@ -67,6 +93,31 @@ PREMIUM_DESIGN_TOKENS_CSS = """:root {
         --code-border: rgba(255, 255, 255, 0.07);
         --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
       }
+    }
+    :root[data-theme="dark"], html.dark, body.dark {
+      color-scheme: dark;
+      --bg: #17140f;
+      --surface: #201c16;
+      --surface-2: #2a251d;
+      --text: #f4efe7;
+      --text-muted: #b3a696;
+      --border: rgba(255, 246, 235, 0.1);
+      --border-strong: rgba(255, 246, 235, 0.16);
+      --primary: #9694f5;
+      --primary-soft: rgba(150, 148, 245, 0.14);
+      --secondary: #5fc6bd;
+      --secondary-soft: rgba(95, 198, 189, 0.12);
+      --accent: #f1ad55;
+      --accent-soft: rgba(241, 173, 85, 0.14);
+      --success: #54c79a;
+      --success-soft: rgba(84, 199, 154, 0.14);
+      --danger: #fb7185;
+      --danger-soft: rgba(251, 113, 133, 0.14);
+      --code-bg: #14110d;
+      --code-text: #f2ede2;
+      --code-border: rgba(255, 255, 255, 0.07);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
+      --radius: 14px;
     }"""
 
 
@@ -1856,6 +1907,50 @@ def build_structured_lesson_html(
       align-items: center;
       justify-content: center;
     }}
+    .lms-theme-toggle {{
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 99999;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    }}
+    :root[data-theme="dark"] .lms-theme-toggle, html.dark .lms-theme-toggle, body.dark .lms-theme-toggle {{
+      background: rgba(32, 28, 22, 0.88);
+      color: #f4efe7;
+      border: 1px solid rgba(255, 246, 235, 0.2);
+    }}
+    :root[data-theme="light"] .lms-theme-toggle, html.light .lms-theme-toggle, body.light .lms-theme-toggle {{
+      background: rgba(255, 250, 242, 0.92);
+      color: #24201b;
+      border: 1px solid rgba(64, 55, 45, 0.2);
+    }}
+    .lms-theme-toggle:hover {{
+      transform: translateY(-1px) scale(1.03);
+    }}
+    .lms-theme-toggle:active {{
+      transform: translateY(0) scale(0.98);
+    }}
+    :root[data-theme="dark"] .lms-theme-icon-moon, html.dark .lms-theme-icon-moon {{ display: none; }}
+    :root[data-theme="dark"] .lms-theme-icon-sun, html.dark .lms-theme-icon-sun {{ display: inline-block; }}
+    :root[data-theme="light"] .lms-theme-icon-sun, html.light .lms-theme-icon-sun {{ display: none; }}
+    :root[data-theme="light"] .lms-theme-icon-moon, html.light .lms-theme-icon-moon {{ display: inline-block; }}
+    @media print {{
+      .lms-theme-toggle {{ display: none !important; }}
+    }}
     @media (max-width: 640px) {{
       body {{ padding: 2rem 1.1rem 4rem; }}
       h1 {{ font-size: 1.6rem; }}
@@ -1863,6 +1958,11 @@ def build_structured_lesson_html(
   </style>
 </head>
 <body>
+  <button id="lms-theme-toggle" class="lms-theme-toggle" type="button" aria-label="Toggle theme">
+    <svg class="lms-theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+    <svg class="lms-theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    <span class="lms-theme-label">Theme</span>
+  </button>
   <header>
     <div class="badges">
       <span class="badge badge-class">{cls_name}</span>
@@ -1948,6 +2048,53 @@ def build_structured_lesson_html(
   </div>
 
   <script>
+    function getActiveTheme() {{
+      var dt = document.documentElement.getAttribute('data-theme');
+      if (dt === 'light' || dt === 'dark') return dt;
+      return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+    }}
+    function updateThemeBtn(theme) {{
+      var btn = document.getElementById('lms-theme-toggle');
+      if (!btn) return;
+      btn.setAttribute('title', theme === 'dark' ? 'Switch to Light mode' : 'Switch to Dark mode');
+      var label = btn.querySelector('.lms-theme-label');
+      if (label) label.textContent = theme === 'dark' ? 'Light' : 'Dark';
+    }}
+    function setLmsTheme(theme) {{
+      if (!theme) return;
+      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.classList.remove('light', 'dark');
+      document.documentElement.classList.add(theme);
+      if (document.body) {{
+        document.body.classList.remove('light', 'dark');
+        document.body.classList.add(theme);
+      }}
+      updateThemeBtn(theme);
+    }}
+    function toggleLmsTheme() {{
+      var next = getActiveTheme() === 'dark' ? 'light' : 'dark';
+      try {{ localStorage.setItem('lms-theme-pref', next); }} catch (e) {{}}
+      setLmsTheme(next);
+      try {{ parent.postMessage({{ __lms: 1, type: 'theme-toggle', theme: next }}, '*'); }} catch (e) {{}}
+    }}
+    var themeBtn = document.getElementById('lms-theme-toggle');
+    if (themeBtn) {{
+      themeBtn.onclick = toggleLmsTheme;
+      try {{
+        var savedTheme = localStorage.getItem('lms-theme-pref');
+        if (savedTheme === 'light' || savedTheme === 'dark') setLmsTheme(savedTheme);
+        else updateThemeBtn(getActiveTheme());
+      }} catch (e) {{
+        updateThemeBtn(getActiveTheme());
+      }}
+    }}
+    window.addEventListener('message', function (e) {{
+      var data = e.data;
+      if (data && data.__lms === 1 && (data.type === 'set-theme' || data.type === 'theme-change')) {{
+        setLmsTheme(data.theme);
+      }}
+    }});
+
     let correctCount = 0;
     const totalQ = {len(profile["quiz"])};
 

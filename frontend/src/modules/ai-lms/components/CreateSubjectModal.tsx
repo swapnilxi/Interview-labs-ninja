@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import ColorPickerInput from './ColorPickerInput';
 import { lmsService } from '../services/lmsService';
 import { extractMultipleFiles, mergeSourceNames } from '../utils/contextFiles';
 import type { LmsClass, LmsSubject } from '../types';
@@ -23,6 +24,7 @@ export default function CreateSubjectModal({
   const [description, setDescription] = useState('');
   const [aiContext, setAiContext] = useState('');
   const [sourceName, setSourceName] = useState('');
+  const [accentColor, setAccentColor] = useState('#38bdf8');
   const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,11 +67,13 @@ export default function CreateSubjectModal({
         description: description.trim(),
         ai_context: aiContext.trim(),
         context_source_name: sourceName,
+        accent_color: accentColor,
       });
       setName('');
       setDescription('');
       setAiContext('');
       setSourceName('');
+      setAccentColor('#38bdf8');
       onCreated(created);
       onClose();
     } catch (err: unknown) {
@@ -81,7 +85,7 @@ export default function CreateSubjectModal({
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl p-6 transition-smooth">
+      <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl p-[24px] transition-smooth max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
@@ -205,9 +209,16 @@ export default function CreateSubjectModal({
             <p className="text-[11px] text-muted-foreground mt-1">
               Type directives directly, attach one or more documents (PDF / MD / TXT / DOCX), or
               both -- everything combines into one context, passed along with class context to the
-              AI when generating lessons inside this subject module.
+              AI when generating lessons inside this subject.
             </p>
           </div>
+
+          <ColorPickerInput
+            value={accentColor}
+            onChange={setAccentColor}
+            label="Subject Accent Color"
+            description="Card border tint, icons, and highlights for this subject"
+          />
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-6">
             <button

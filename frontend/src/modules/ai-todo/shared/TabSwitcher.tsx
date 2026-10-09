@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useCallback } from 'react';
+import Icon from '@/components/ui/AppIcon';
 
 export type TodoTab = 'quick' | 'smart' | 'plan' | 'goals';
 
@@ -10,38 +11,39 @@ interface TabSwitcherProps {
   onTabChange: (tab: TodoTab) => void;
 }
 
-const TABS: { id: TodoTab; label: string; icon: string; description: string }[] = [
-  { id: 'quick', label: 'Quick Daily', icon: '⚡', description: 'Fast daily execution' },
-  { id: 'smart', label: 'Smart To-Do', icon: '🧠', description: 'Full task manager' },
-  { id: 'plan', label: 'Plan & Project', icon: '🗺️', description: 'Projects & roadmaps' },
-  { id: 'goals', label: 'Goals', icon: '🎯', description: 'Big-picture planning' },
+const TABS: { id: TodoTab; label: string; short: string; icon: string; description: string }[] = [
+  { id: 'quick', label: 'Quick Daily', short: 'Quick', icon: 'BoltIcon', description: 'Fast daily execution' },
+  { id: 'smart', label: 'Smart To-Do', short: 'Smart', icon: 'CpuChipIcon', description: 'Full task manager' },
+  { id: 'plan', label: 'Plan & Project', short: 'Plan', icon: 'MapIcon', description: 'Projects & roadmaps' },
+  { id: 'goals', label: 'Goals', short: 'Goals', icon: 'ViewfinderCircleIcon', description: 'Big-picture planning' },
 ];
 
 export default function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps) {
   return (
-    <div className="relative flex items-center bg-muted/30 rounded-xl p-1 border border-border/60 shadow-sm">
+    <nav aria-label="To-Do sections" className="todo-segmented flex w-full rounded-xl p-1">
       {TABS.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <button
             key={tab.id}
+            type="button"
             onClick={() => onTabChange(tab.id)}
-            className={`relative flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-300 ${
-              isActive
-                ? 'bg-card text-foreground shadow-md border border-border/80'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
+            aria-current={isActive ? 'page' : undefined}
+            title={tab.description}
+            className="todo-segment flex-1 justify-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold sm:px-4 sm:py-2.5 sm:text-[13px]"
           >
-            <span className="text-base leading-none">{tab.icon}</span>
-            <span className="hidden sm:inline">{tab.label}</span>
+            <Icon name={tab.icon} size={16} variant={isActive ? 'solid' : 'outline'} />
+            <span className="sm:hidden" aria-hidden="true">{tab.short}</span>
+            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">{tab.label}</span>
+            {/* Secondary description only where there's room for it without wrapping */}
             {isActive && (
-              <span className="hidden md:inline text-[10px] font-normal text-muted-foreground ml-1">
+              <span className="hidden text-[11px] font-normal text-muted-foreground xl:inline">
                 — {tab.description}
               </span>
             )}
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }

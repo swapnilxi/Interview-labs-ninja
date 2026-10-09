@@ -15,6 +15,12 @@ import { contentHash, recordBackup, refreshLesson } from './classFolders';
 // lessons/ directory (see classFolders.ts). Mirrors backend/modules/ai_lms/db.py.
 const RESERVED_SUBJECT_SLUGS = new Set(['lesson', 'landing', 'lessons']);
 
+// The one row of lms_module_landing: the AI LMS module-root landing page (see
+// classFolders.ts), which isn't tied to any single class. Not to be confused with a
+// project's roadmap "Modules" (moduleList/modules elsewhere in this file) -- this
+// "module" means the AI LMS module as a whole. Mirrors backend/modules/ai_lms/db.py.
+export const MODULE_LANDING_ID = 'home';
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -76,6 +82,14 @@ export function ensureLmsTables(): void {
       completed INTEGER DEFAULT 0,
       last_viewed_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS lms_module_landing (
+      id TEXT PRIMARY KEY,
+      html TEXT NOT NULL DEFAULT '',
+      hash TEXT NOT NULL DEFAULT '',
+      data_hash TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
   `);
 
   // Migrate columns if table already existed without ai_context
@@ -98,6 +112,9 @@ export function ensureLmsTables(): void {
     // Hash of the class data the landing page's lms:auto blocks were last rendered from.
     if (!classCols.some((c) => c.name === 'landing_data_hash')) {
       db.exec("ALTER TABLE lms_classes ADD COLUMN landing_data_hash TEXT DEFAULT ''");
+    }
+    if (!classCols.some((c) => c.name === 'accent_color')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN accent_color TEXT DEFAULT ''");
     }
     // Class-folder sync bookkeeping: where this lesson's .html file was last written
     // (relative to the classes folder) and the hash the DB and the file last agreed on.
@@ -145,9 +162,19 @@ export function ensureLmsTables(): void {
     if (!subjCols.some((c) => c.name === 'context_summary')) {
       db.exec("ALTER TABLE lms_subjects ADD COLUMN context_summary TEXT DEFAULT ''");
     }
+    if (!subjCols.some((c) => c.name === 'accent_color')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN accent_color TEXT DEFAULT ''");
+    }
   } catch (migErr) {
     console.warn('[fe-apis/lms/db] Migration notice:', migErr);
   }
+
+  // Seed the module-root landing page's singleton row.
+  const nowLanding = new Date().toISOString();
+  db.prepare(
+    "INSERT INTO lms_module_landing (id, html, hash, data_hash, updated_at) " +
+      "SELECT ?, '', '', '', ? WHERE NOT EXISTS (SELECT 1 FROM lms_module_landing WHERE id = ?)"
+  ).run(MODULE_LANDING_ID, nowLanding, MODULE_LANDING_ID);
 
   // Seed default 8 classes if empty
   const countRow = db.prepare('SELECT count(*) as count FROM lms_classes').get() as { count: number };
@@ -190,7 +217,7 @@ export function getAllClasses(): Record<string, unknown>[] {
 
   const rows = db.prepare(`
     SELECT 
-      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.created_at, c.updated_at,
+      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.created_at, c.updated_at,
       COUNT(DISTINCT s.id) AS subject_count,
       COUNT(DISTINCT l.id) AS lesson_count
     FROM lms_classes c
@@ -214,7 +241,7 @@ export function getClassByIdOrSlug(idOrSlug: string): Record<string, unknown> | 
 
   const cls = db.prepare(`
     SELECT 
-      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.created_at, c.updated_at,
+      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.created_at, c.updated_at,
       COUNT(DISTINCT s.id) AS subject_count,
       COUNT(DISTINCT l.id) AS lesson_count
     FROM lms_classes c
@@ -229,7 +256,7 @@ export function getClassByIdOrSlug(idOrSlug: string): Record<string, unknown> | 
   // Subjects with their lesson counts
   const subjects = db.prepare(`
     SELECT
-      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name,
+      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name, s.accent_color,
       s.order_index, s.created_at, s.updated_at,
       COUNT(l.id) AS lesson_count
     FROM lms_subjects s
@@ -255,7 +282,13 @@ export function getClassByIdOrSlug(idOrSlug: string): Record<string, unknown> | 
   };
 }
 
-export function createClass(name: string, description: string = '', icon: string = 'BookmarkIcon', aiContext: string = ''): Record<string, unknown> {
+export function createClass(
+  name: string,
+  description: string = '',
+  icon: string = 'BookmarkIcon',
+  aiContext: string = '',
+  accentColor: string = ''
+): Record<string, unknown> {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
   if (!res) throw new Error('Database unavailable');
@@ -274,14 +307,17 @@ export function createClass(name: string, description: string = '', icon: string
   const nowIso = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(classId, name.trim(), slug, description.trim(), aiContext.trim(), icon, nowIso, nowIso);
+    INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, accent_color, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(classId, name.trim(), slug, description.trim(), aiContext.trim(), icon, accentColor.trim(), nowIso, nowIso);
 
   return getClassByIdOrSlug(classId)!;
 }
 
-export function updateClass(idOrSlug: string, updates: { name?: string; description?: string; icon?: string; ai_context?: string }): Record<string, unknown> | null {
+export function updateClass(
+  idOrSlug: string,
+  updates: { name?: string; description?: string; icon?: string; ai_context?: string; accent_color?: string }
+): Record<string, unknown> | null {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
   if (!res) return null;
@@ -294,13 +330,14 @@ export function updateClass(idOrSlug: string, updates: { name?: string; descript
   const newDesc = updates.description !== undefined ? updates.description.trim() : (current.description as string);
   const newIcon = updates.icon !== undefined ? updates.icon : (current.icon as string);
   const newAiCtx = updates.ai_context !== undefined ? updates.ai_context.trim() : ((current.ai_context as string) || '');
+  const newAccent = updates.accent_color !== undefined ? updates.accent_color.trim() : ((current.accent_color as string) || '');
   const nowIso = new Date().toISOString();
 
   db.prepare(`
     UPDATE lms_classes
-    SET name = ?, description = ?, icon = ?, ai_context = ?, updated_at = ?
+    SET name = ?, description = ?, icon = ?, ai_context = ?, accent_color = ?, updated_at = ?
     WHERE id = ?
-  `).run(newName, newDesc, newIcon, newAiCtx, nowIso, current.id);
+  `).run(newName, newDesc, newIcon, newAiCtx, newAccent, nowIso, current.id);
 
   return getClassByIdOrSlug(current.id as string);
 }
@@ -335,7 +372,7 @@ export function getSubjectsByClass(classIdOrSlug: string): Record<string, unknow
 
   return db.prepare(`
     SELECT
-      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name,
+      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name, s.accent_color,
       s.order_index, s.created_at, s.updated_at,
       COUNT(l.id) AS lesson_count
     FROM lms_subjects s
@@ -449,7 +486,8 @@ export function createSubject(
   aiContext: string = '',
   kind: 'subject' | 'project' = 'subject',
   projectContext: string = '',
-  contextSourceName: string = ''
+  contextSourceName: string = '',
+  accentColor: string = ''
 ): Record<string, unknown> {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
@@ -479,9 +517,9 @@ export function createSubject(
   db.prepare(`
     INSERT INTO lms_subjects (
       id, class_id, name, slug, description, ai_context, kind,
-      project_context, context_source_name, order_index, created_at, updated_at
+      project_context, context_source_name, accent_color, order_index, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     subjectId,
     cls.id,
@@ -492,6 +530,7 @@ export function createSubject(
     kind === 'project' ? 'project' : 'subject',
     projectContext.trim(),
     contextSourceName.trim(),
+    accentColor.trim(),
     orderIndex,
     nowIso,
     nowIso
@@ -502,7 +541,14 @@ export function createSubject(
 
 export function updateSubject(
   subjectId: string,
-  updates: { name?: string; description?: string; ai_context?: string; project_context?: string; context_source_name?: string }
+  updates: {
+    name?: string;
+    description?: string;
+    ai_context?: string;
+    project_context?: string;
+    context_source_name?: string;
+    accent_color?: string;
+  }
 ): Record<string, unknown> | null {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
@@ -517,13 +563,14 @@ export function updateSubject(
   const newAiCtx = updates.ai_context !== undefined ? updates.ai_context.trim() : ((current.ai_context as string) || '');
   const newProjectCtx = updates.project_context !== undefined ? updates.project_context : ((current.project_context as string) || '');
   const newSourceName = updates.context_source_name !== undefined ? updates.context_source_name.trim() : ((current.context_source_name as string) || '');
+  const newAccent = updates.accent_color !== undefined ? updates.accent_color.trim() : ((current.accent_color as string) || '');
   const nowIso = new Date().toISOString();
 
   db.prepare(`
     UPDATE lms_subjects
-    SET name = ?, description = ?, ai_context = ?, project_context = ?, context_source_name = ?, updated_at = ?
+    SET name = ?, description = ?, ai_context = ?, project_context = ?, context_source_name = ?, accent_color = ?, updated_at = ?
     WHERE id = ?
-  `).run(newName, newDesc, newAiCtx, newProjectCtx, newSourceName, nowIso, subjectId);
+  `).run(newName, newDesc, newAiCtx, newProjectCtx, newSourceName, newAccent, nowIso, subjectId);
 
   return getSubjectByIdOrSlug(current.class_id as string, subjectId);
 }
@@ -853,12 +900,41 @@ export function recordLessonView(lessonId: string, userId?: number | null): void
   const { db } = res;
 
   const nowIso = new Date().toISOString();
-  const progressId = `prog-${crypto.randomBytes(4).toString('hex')}`;
+  const existing = (userId
+    ? db.prepare('SELECT id FROM lms_user_progress WHERE user_id = ? AND lesson_id = ?').get(userId, lessonId)
+    : db.prepare('SELECT id FROM lms_user_progress WHERE user_id IS NULL AND lesson_id = ?').get(lessonId)) as any;
 
-  db.prepare(`
-    INSERT INTO lms_user_progress (id, user_id, lesson_id, completed, last_viewed_at)
-    VALUES (?, ?, ?, 1, ?)
-  `).run(progressId, userId || null, lessonId, nowIso);
+  if (existing) {
+    db.prepare('UPDATE lms_user_progress SET last_viewed_at = ? WHERE id = ?').run(nowIso, existing.id);
+  } else {
+    const progressId = `prog-${crypto.randomBytes(4).toString('hex')}`;
+    db.prepare(`
+      INSERT INTO lms_user_progress (id, user_id, lesson_id, completed, last_viewed_at)
+      VALUES (?, ?, ?, 0, ?)
+    `).run(progressId, userId || null, lessonId, nowIso);
+  }
+}
+
+export function markLessonCompleted(lessonId: string, completed: boolean = true, userId?: number | null): void {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return;
+  const { db } = res;
+
+  const nowIso = new Date().toISOString();
+  const existing = (userId
+    ? db.prepare('SELECT id FROM lms_user_progress WHERE user_id = ? AND lesson_id = ?').get(userId, lessonId)
+    : db.prepare('SELECT id FROM lms_user_progress WHERE user_id IS NULL AND lesson_id = ?').get(lessonId)) as any;
+
+  if (existing) {
+    db.prepare('UPDATE lms_user_progress SET completed = ?, last_viewed_at = ? WHERE id = ?').run(completed ? 1 : 0, nowIso, existing.id);
+  } else {
+    const progressId = `prog-${crypto.randomBytes(4).toString('hex')}`;
+    db.prepare(`
+      INSERT INTO lms_user_progress (id, user_id, lesson_id, completed, last_viewed_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(progressId, userId || null, lessonId, completed ? 1 : 0, nowIso);
+  }
 }
 
 export function getContinueLearning(userId?: number | null): Record<string, unknown> | null {
@@ -867,12 +943,12 @@ export function getContinueLearning(userId?: number | null): Record<string, unkn
   if (!res) return null;
   const { db } = res;
 
-  let lastProg: { lesson_id: string } | undefined;
+  let lastProg: { lesson_id: string; completed?: number; last_viewed_at?: string } | undefined;
   if (userId) {
-    lastProg = db.prepare('SELECT lesson_id FROM lms_user_progress WHERE user_id = ? ORDER BY last_viewed_at DESC LIMIT 1').get(userId) as any;
+    lastProg = db.prepare('SELECT lesson_id, completed, last_viewed_at FROM lms_user_progress WHERE user_id = ? ORDER BY last_viewed_at DESC LIMIT 1').get(userId) as any;
   }
   if (!lastProg) {
-    lastProg = db.prepare('SELECT lesson_id FROM lms_user_progress ORDER BY last_viewed_at DESC LIMIT 1').get() as any;
+    lastProg = db.prepare('SELECT lesson_id, completed, last_viewed_at FROM lms_user_progress ORDER BY last_viewed_at DESC LIMIT 1').get() as any;
   }
   if (!lastProg) {
     const firstLesson = db.prepare('SELECT id as lesson_id FROM lms_lessons ORDER BY created_at DESC LIMIT 1').get() as any;
@@ -884,6 +960,11 @@ export function getContinueLearning(userId?: number | null): Record<string, unkn
   if (!lesson) return null;
 
   const nav = getLessonNavigation(lesson.id as string) as any;
+  const nextInfo = nav?.next ? {
+    id: nav.next.id,
+    title: nav.next.title,
+    slug: nav.next.slug,
+  } : null;
 
   return {
     lesson_id: lesson.id,
@@ -895,9 +976,59 @@ export function getContinueLearning(userId?: number | null): Record<string, unkn
     subject_id: lesson.subject_id,
     subject_name: lesson.subject_name,
     subject_slug: lesson.subject_slug,
-    current_index: nav.current_index,
-    total_lessons: nav.total_lessons,
+    current_index: nav?.current_index ?? 1,
+    total_lessons: nav?.total_lessons ?? 1,
+    completed: Boolean(lastProg && lastProg.completed),
+    next_lesson: nextInfo,
+    read_time_minutes: lesson.read_time_minutes || 5,
+    last_viewed_at: lastProg?.last_viewed_at || null,
   };
+}
+
+export function getRecentLessons(userId?: number | null, limit = 5): any[] {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return [];
+  const { db } = res;
+
+  const rows = (userId
+    ? db.prepare('SELECT lesson_id, completed, last_viewed_at FROM lms_user_progress WHERE user_id = ? ORDER BY last_viewed_at DESC LIMIT ?').all(userId, limit)
+    : db.prepare('SELECT lesson_id, completed, last_viewed_at FROM lms_user_progress ORDER BY last_viewed_at DESC LIMIT ?').all(limit)) as any[];
+
+  const results: any[] = [];
+  const seenIds = new Set<string>();
+
+  for (const r of rows) {
+    if (seenIds.has(r.lesson_id)) continue;
+    seenIds.add(r.lesson_id);
+    const lesson = getLessonById(r.lesson_id);
+    if (!lesson) continue;
+    const nav = getLessonNavigation(lesson.id as string) as any;
+    const nextInfo = nav?.next ? {
+      id: nav.next.id,
+      title: nav.next.title,
+      slug: nav.next.slug,
+    } : null;
+    results.push({
+      lesson_id: lesson.id,
+      lesson_title: lesson.title,
+      lesson_slug: lesson.slug,
+      class_id: lesson.class_id,
+      class_name: lesson.class_name,
+      class_slug: lesson.class_slug,
+      subject_id: lesson.subject_id,
+      subject_name: lesson.subject_name,
+      subject_slug: lesson.subject_slug,
+      current_index: nav?.current_index ?? 1,
+      total_lessons: nav?.total_lessons ?? 1,
+      completed: Boolean(r.completed),
+      next_lesson: nextInfo,
+      read_time_minutes: lesson.read_time_minutes || 5,
+      last_viewed_at: r.last_viewed_at,
+    });
+  }
+
+  return results;
 }
 
 export function searchLms(query: string): Record<string, unknown> {

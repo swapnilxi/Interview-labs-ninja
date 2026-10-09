@@ -43,6 +43,13 @@ export interface Task {
   eisenhower_quadrant?: string | null;
 }
 
+export interface TodoStats {
+  completed_today: number;
+  streak: number;
+  last_7_days: number[];
+  last_7_dates: string[];
+}
+
 export type TaskStatus = 'backlog' | 'in_progress' | 'delayed' | 'done' | 'not_done';
 export type TaskPriority = 'p1' | 'p2' | 'p3' | 'p4';
 export type GenerationType = 'manual' | 'dive_deeper' | 'chunk';
@@ -158,15 +165,49 @@ export function parseTimeEstimateMinutes(est: string | null): number | null {
   return total > 0 ? total : null;
 }
 
+// ── Error helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Turn a failed /todo/* response into a message the user can act on. A 404 that
+ * isn't FastAPI's JSON means the route doesn't exist on this server at all — what
+ * the nextjs-api deployment returns, since ai_todo has no fe-apis equivalent.
+ */
+async function todoApiError(res: Response): Promise<string> {
+  const contentType = res.headers.get('content-type') || '';
+  if (res.status === 404 && !contentType.includes('application/json')) {
+    return "This server doesn't include the To-Do backend (HTTP 404), so tasks can't be loaded or saved for your account here.";
+  }
+  return parseApiError(res);
+}
+
+/** apiFetch, but a network failure becomes a readable Error instead of "Failed to fetch". */
+async function todoFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  try {
+    return await apiFetch(path, options);
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  }
+}
+
+/** Server messages don't always end in punctuation; this lets UI copy follow them cleanly. */
+export function withPeriod(message: string): string {
+  return /[.!?]$/.test(message.trim()) ? message.trim() : `${message.trim()}.`;
+}
+
 // ── API Service ──────────────────────────────────────────────────────────────
 
 export const todoService = {
-  async fetchTaskTree(): Promise<Task[]> {
+  /** Like fetchTaskTree, but throws an actionable Error instead of returning []. */
+  async fetchTaskTreeStrict(): Promise<Task[]> {
     if (!isLoggedIn()) return localTodoAdapter.fetchTaskTree();
+    const res = await todoFetch('/todo/tasks/tree');
+    if (!res.ok) throw new Error(await todoApiError(res));
+    return await res.json();
+  },
+
+  async fetchTaskTree(): Promise<Task[]> {
     try {
-      const res = await apiFetch('/todo/tasks/tree');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
+      return await this.fetchTaskTreeStrict();
     } catch (error) {
       console.error('Failed to fetch task tree:', error);
       return [];
@@ -198,17 +239,26 @@ export const todoService = {
     return flat;
   },
 
-  async createTask(data: TaskCreatePayload): Promise<Task | null> {
-    if (!isLoggedIn()) return localTodoAdapter.createTask(data);
-    try {
-      const res = await apiFetch('/todo/tasks', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const task = await res.json();
-      task.children = [];
+  /** Like createTask, but throws an actionable Error instead of returning null. */
+  async createTaskStrict(data: TaskCreatePayload): Promise<Task> {
+    if (!isLoggedIn()) {
+      const task = await localTodoAdapter.createTask(data);
+      if (!task) throw new Error("Couldn't save the task in this browser's storage.");
       return task;
+    }
+    const res = await todoFetch('/todo/tasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await todoApiError(res));
+    const task = await res.json();
+    task.children = [];
+    return task;
+  },
+
+  async createTask(data: TaskCreatePayload): Promise<Task | null> {
+    try {
+      return await this.createTaskStrict(data);
     } catch (error) {
       console.error('Failed to create task:', error);
       return null;
@@ -471,15 +521,20 @@ export const todoService = {
     return await res.json();
   },
 
-  async bulkSaveTasks(tasks: any[]): Promise<any> {
+  /** Like bulkSaveTasks, but throws an actionable Error instead of returning null. */
+  async bulkSaveTasksStrict(tasks: any[]): Promise<any> {
     if (!isLoggedIn()) return localTodoAdapter.bulkSaveTasks(tasks);
+    const res = await todoFetch('/todo/tasks/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ tasks }),
+    });
+    if (!res.ok) throw new Error(await todoApiError(res));
+    return await res.json();
+  },
+
+  async bulkSaveTasks(tasks: any[]): Promise<any> {
     try {
-      const res = await apiFetch('/todo/tasks/bulk', {
-        method: 'POST',
-        body: JSON.stringify({ tasks }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
+      return await this.bulkSaveTasksStrict(tasks);
     } catch (error) {
       console.error('Failed to bulk save tasks:', error);
       return null;
@@ -525,7 +580,8 @@ export const todoService = {
     }
   },
 
-  async getStats(): Promise<{ completed_today: number; streak: number; last_7_days: number[]; last_7_dates: string[] }> {
+  /** Returns null when stats can't be loaded — callers must not render zeros as if they were real. */
+  async getStats(): Promise<TodoStats | null> {
     if (!isLoggedIn()) return localTodoAdapter.getStats();
     try {
       const res = await apiFetch('/todo/stats');
@@ -533,7 +589,7 @@ export const todoService = {
       return await res.json();
     } catch (error) {
       console.error('Failed to get stats:', error);
-      return { completed_today: 0, streak: 0, last_7_days: [0, 0, 0, 0, 0, 0, 0], last_7_dates: [] };
+      return null;
     }
   },
 

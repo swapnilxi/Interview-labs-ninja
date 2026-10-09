@@ -19,7 +19,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { getSQLiteDatabase } from '../_shared/db';
-import { ensureLmsTables } from './db';
+import { ensureLmsTables, MODULE_LANDING_ID } from './db';
 
 type Row = Record<string, any>;
 type Db = NonNullable<ReturnType<typeof getSQLiteDatabase>>['db'];
@@ -857,6 +857,7 @@ export function reconcileAll(): void {
       .all() as Row[];
     for (const cls of classes) if (safeRel(str(cls.slug))) reconcileOne(db, root, canWrite, cls);
     if (canWrite) removeDeletedClasses(db, root, new Set(classes.map((c) => c.slug as string)));
+    syncModuleLanding(db, root, canWrite);
   });
 }
 
@@ -1111,4 +1112,215 @@ export function saveLanding(classIdOrSlug: string, html: string, baseHash?: stri
   });
   reconcileClass(current.class_id);
   return getLanding(current.class_id);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Module-root landing page: the AI LMS home/intro page, not tied to any one class.
+// Lives at classes/landingpage.html (a loose file alongside the per-class folders) and
+// backend/modules/ai_lms/class_folders.py has a byte-identical twin. Its lms:auto:classes
+// and lms:auto:stats blocks list every class; everything else on the page is free to edit,
+// same as a class landing page's own non-auto content.
+//
+// Naming note: "module" here means the AI LMS module as a whole (this is its home page),
+// NOT a project roadmap "Module" (see planNodes/layout above, which are unrelated).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MODULE_FALLBACK_TEMPLATE =
+  '<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n' +
+  '  <meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+  '  <title>AI LMS</title>\n</head>\n<body>\n' +
+  '  <h1>AI LMS</h1>\n' +
+  '  <p><!-- lms:auto:stats --><!-- /lms:auto:stats --></p>\n' +
+  '  <main id="classes">\n' +
+  '    <!-- lms:auto:classes --><!-- /lms:auto:classes -->\n' +
+  '  </main>\n</body>\n</html>\n';
+
+function moduleTemplate(): string {
+  const dir = templatesDir();
+  return (dir ? readQuiet(path.join(dir, 'module-landingpage.html')) : null) || MODULE_FALLBACK_TEMPLATE;
+}
+
+function moduleClassCard(cls: Row): string[] {
+  const name = esc(unent(cls.name));
+  const href = `${esc(cls.slug)}/`;
+  const subjectCount = Number(cls.subject_count) || 0;
+  const lessonCount = Number(cls.lesson_count) || 0;
+  const out = [
+    '    <article class="lms-card">',
+    '      <span class="lms-tag">Class</span>',
+    `      <h3><a href="${href}">${name}</a></h3>`,
+  ];
+  if (cls.description) out.push(`      <p>${esc(cls.description)}</p>`);
+  out.push(
+    `      <p class="lms-muted">${stat(subjectCount, 'subject', 'subjects')} ` +
+      `&middot; ${stat(lessonCount, 'lesson', 'lessons')}</p>`
+  );
+  out.push(`      <a class="lms-card-link" href="${href}">Enter class &rarr;</a>`);
+  return out;
+}
+
+function moduleAutoBlocks(classes: Row[]): Record<string, string> {
+  let classesHtml: string;
+  if (classes.length) {
+    const body = ['  <div class="lms-grid">'];
+    for (const cls of classes) body.push(...moduleClassCard(cls), '    </article>');
+    classesHtml = section('classes', 'Available Classes', [...body, '  </div>']);
+  } else {
+    classesHtml = section('classes', 'Available Classes', [
+      '  <p class="lms-muted">No classes yet. Create one from the AI LMS dashboard.</p>',
+    ]);
+  }
+  return {
+    stats: [
+      stat(classes.length, 'class', 'classes'),
+      stat(
+        classes.reduce((sum, c) => sum + (Number(c.subject_count) || 0), 0),
+        'subject',
+        'subjects'
+      ),
+      stat(
+        classes.reduce((sum, c) => sum + (Number(c.lesson_count) || 0), 0),
+        'lesson',
+        'lessons'
+      ),
+    ].join(' '),
+    classes: classesHtml,
+  };
+}
+
+/** Rewrite the lms:auto:stats / lms:auto:classes marker pairs; leave everything else alone. */
+export function applyModuleAutoBlocks(html: string, classes: Row[]): string {
+  const blocks = moduleAutoBlocks(classes);
+  return html.replace(
+    AUTO_BLOCK,
+    (all, start: string, name: string, _inner: string, end: string) =>
+      Object.prototype.hasOwnProperty.call(blocks, name) ? start + blocks[name] + end : all
+  );
+}
+
+function allClassesForModuleLanding(db: Db): Row[] {
+  return db
+    .prepare(
+      `SELECT c.id, c.slug, c.name, c.description,
+        (SELECT COUNT(*) FROM lms_subjects s WHERE s.class_id = c.id) AS subject_count,
+        (SELECT COUNT(*) FROM lms_lessons l WHERE l.class_id = c.id) AS lesson_count
+      FROM lms_classes c
+      ORDER BY c.order_index ASC, CASE WHEN c.slug = 'other' THEN 1 ELSE 0 END ASC, c.name ASC`
+    )
+    .all() as Row[];
+}
+
+/**
+ * Mirrors Python's json.dumps(classes, ensure_ascii=False, sort_keys=True): object keys
+ * sorted alphabetically. Used only to build the module landing's data_hash cache key (never
+ * written to the shared HTML file), so it doesn't need to match the Python twin byte for
+ * byte -- a mismatch only costs one redundant re-render of the auto blocks.
+ */
+function stableClassesJson(classes: Row[]): string {
+  return JSON.stringify(
+    classes.map((c) => {
+      const sorted: Row = {};
+      for (const key of Object.keys(c).sort()) sorted[key] = c[key];
+      return sorted;
+    })
+  );
+}
+
+/**
+ * Three-way sync of classes/landingpage.html, mirroring syncLanding but for the
+ * module-root page: its lms:auto blocks list every class instead of one class's contents.
+ */
+function syncModuleLanding(db: Db, root: string | null, canWrite: boolean): [string, string] {
+  const row = db
+    .prepare('SELECT html, hash, data_hash FROM lms_module_landing WHERE id = ?')
+    .get(MODULE_LANDING_ID) as Row | undefined;
+  const dbHtml = str(row?.html);
+  const base = str(row?.hash);
+  const priorDataHash = str(row?.data_hash);
+  const filePath = root !== null ? path.join(root, LANDING_FILE) : null;
+  let fileText: string | null;
+  try {
+    fileText = filePath !== null ? readText(filePath) : null;
+  } catch (err) {
+    console.warn(`[ai_lms] skipping module ${LANDING_FILE}: ${(err as Error).message}`);
+    return [dbHtml, contentHash(dbHtml)];
+  }
+  let created = false;
+  let current: string;
+  if (fileText === null) {
+    current = dbHtml;
+    if (!current) {
+      current = moduleTemplate();
+      created = true;
+    }
+  } else if (!dbHtml) {
+    current = fileText; // e.g. the file was created before this table existed
+  } else {
+    current = merge(db, 'module_landing', MODULE_LANDING_ID, LANDING_FILE, dbHtml, base, fileText);
+  }
+  const classes = allClassesForModuleLanding(db);
+  const dataHash = contentHash(stableClassesJson(classes));
+  const final =
+    created || dataHash !== priorDataHash ? applyModuleAutoBlocks(current, classes) : current;
+  const finalHash = contentHash(final);
+  let fileOk = fileText === final;
+  if (filePath !== null && canWrite && !fileOk) fileOk = writeText(filePath, final);
+  const newBase = fileOk ? finalHash : base;
+  if (!row) {
+    db.prepare(
+      'INSERT INTO lms_module_landing (id, html, hash, data_hash, updated_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(MODULE_LANDING_ID, final, newBase, dataHash, nowIso());
+  } else if (final !== dbHtml || newBase !== base || dataHash !== priorDataHash) {
+    db.prepare(
+      'UPDATE lms_module_landing SET html = ?, hash = ?, data_hash = ?, updated_at = ? WHERE id = ?'
+    ).run(final, newBase, dataHash, nowIso(), MODULE_LANDING_ID);
+  }
+  return [final, finalHash];
+}
+
+/** Sync classes/landingpage.html on its own, e.g. right after it's edited. */
+export function reconcileModuleLanding(): void {
+  lockedSync((db, root, canWrite) => {
+    syncModuleLanding(db, root, canWrite);
+  });
+}
+
+/**
+ * The AI LMS module-root landing page, IDE edits pulled in and auto blocks current. Works
+ * without a classes folder too: then it lives in the DB only (twin of get_module_landing in
+ * class_folders.py).
+ */
+export function getModuleLanding(): Row {
+  ensureLmsTables();
+  const root = classesRoot();
+  const canWrite = writable(root);
+  const result = withDb((db) => {
+    const [html, digest] = syncModuleLanding(db, root, canWrite);
+    return {
+      html,
+      hash: digest,
+      file_path: LANDING_FILE,
+      file_sync: root !== null,
+    };
+  });
+  if (result) return result;
+  // No SQLite database available at all (should not normally happen): fall back to an
+  // unsaved copy of the template so callers always get a usable page.
+  const html = moduleTemplate();
+  return { html, hash: contentHash(html), file_path: LANDING_FILE, file_sync: false };
+}
+
+/** Replace the module-root landing page with HTML edited in the app (manual or AI). */
+export function saveModuleLanding(html: string, baseHash?: string | null): Row {
+  const current = getModuleLanding(); // pulls in IDE edits, so baseHash compares to the disk
+  if (baseHash && baseHash !== current.hash) {
+    throw new LandingConflict('The landing page changed since you opened it. Reload and re-apply your edit.');
+  }
+  if (html === current.html) return current;
+  withDb((db) => {
+    backup(db, 'module_landing', MODULE_LANDING_ID, current.file_path, current.html, 'replaced by an app edit');
+    db.prepare('UPDATE lms_module_landing SET html = ? WHERE id = ?').run(html, MODULE_LANDING_ID);
+  });
+  reconcileModuleLanding();
+  return getModuleLanding();
 }

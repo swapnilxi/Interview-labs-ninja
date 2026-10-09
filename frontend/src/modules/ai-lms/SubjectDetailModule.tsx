@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLmsViewMode } from './context/LmsViewModeContext';
 import { lmsService } from './services/lmsService';
 import type { LmsClass, LmsLesson, LmsSubject } from './types';
 import LessonList from './components/LessonList';
@@ -20,7 +21,9 @@ interface SubjectDetailModuleProps {
 }
 
 export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectDetailModuleProps) {
-  const { canEdit } = useAuth();
+  const { canEdit: canEditReal } = useAuth();
+  const { isPreviewingAsStudent } = useLmsViewMode();
+  const canEdit = canEditReal && !isPreviewingAsStudent;
   const [subject, setSubject] = useState<LmsSubject | null>(null);
   const [lmsClass, setLmsClass] = useState<LmsClass | null>(null);
   const [lessons, setLessons] = useState<LmsLesson[]>([]);
@@ -103,7 +106,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
         <EmptyState
           icon="ExclamationTriangleIcon"
           title="Subject Not Found"
-          description={error || "The subject module you're looking for doesn't exist."}
+          description={error || "The subject you're looking for doesn't exist."}
           primaryAction={{
             label: 'Return to LMS Home',
             href: '/ai-lms',
@@ -115,13 +118,23 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
   }
 
   const isProject = subject.kind === 'project';
+  const subjectAccent = subject.accent_color || (isProject ? '#8b5cf6' : '#38bdf8');
 
   if (isProject) {
     return (
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 space-y-8">
         {/* Breadcrumbs & Header */}
         <div className="space-y-4 pb-6 border-b border-border">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
+            <Link
+              href={`/ai-lms/classes/${lmsClass.slug}`}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-2xs group"
+              title={`Back to ${lmsClass.name}`}
+            >
+              <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
+              <span>Back</span>
+            </Link>
+            <div className="h-3.5 w-px bg-border/80" />
             <Link href="/ai-lms" className="hover:text-foreground transition-colors">
               AI LMS
             </Link>
@@ -139,8 +152,15 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
-                  <Icon name="CodeBracketSquareIcon" size={18} />
+                <div
+                  className="flex h-[40px] w-[40px] items-center justify-center rounded-lg font-semibold text-xs border"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, ${subjectAccent} 14%, transparent)`,
+                    borderColor: `color-mix(in srgb, ${subjectAccent} 30%, transparent)`,
+                    color: subjectAccent,
+                  }}
+                >
+                  <Icon name="CodeBracketSquareIcon" size={20} />
                 </div>
                 <h1 className="font-heading text-2xl md:text-4xl font-extrabold text-foreground">
                   {subject.name}
@@ -149,7 +169,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
               <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
                 {subject.description || 'AI-generated implementation modules for this project.'}
               </p>
-              <div className="text-xs font-semibold text-indigo-500 pt-1">
+              <div className="text-xs font-semibold pt-1" style={{ color: subjectAccent }}>
                 {(subject.project_plan || []).length}{' '}
                 {(subject.project_plan || []).length === 1 ? 'module' : 'modules'} planned
               </div>
@@ -187,7 +207,16 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
     <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 space-y-8">
       {/* Breadcrumbs & Header */}
       <div className="space-y-4 pb-6 border-b border-border">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
+          <Link
+            href={`/ai-lms/classes/${lmsClass.slug}`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-2xs group"
+            title={`Back to ${lmsClass.name}`}
+          >
+            <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
+            <span>Back</span>
+          </Link>
+          <div className="h-3.5 w-px bg-border/80" />
           <Link href="/ai-lms" className="hover:text-foreground transition-colors">
             AI LMS
           </Link>
@@ -204,14 +233,26 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1.5">
-            <h1 className="font-heading text-2xl md:text-4xl font-extrabold text-foreground">
-              {subject.name}
-            </h1>
+            <div className="flex items-center gap-2.5">
+              <div
+                className="flex h-[40px] w-[40px] items-center justify-center rounded-lg font-semibold text-xs border"
+                style={{
+                  backgroundColor: `color-mix(in srgb, ${subjectAccent} 14%, transparent)`,
+                  borderColor: `color-mix(in srgb, ${subjectAccent} 30%, transparent)`,
+                  color: subjectAccent,
+                }}
+              >
+                <Icon name="FolderIcon" size={20} />
+              </div>
+              <h1 className="font-heading text-2xl md:text-4xl font-extrabold text-foreground">
+                {subject.name}
+              </h1>
+            </div>
             <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
               {subject.description || 'Structured sequence of curriculum lessons.'}
             </p>
-            <div className="text-xs font-semibold text-primary pt-1">
-              {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'} in this module
+            <div className="text-xs font-semibold pt-1" style={{ color: subjectAccent }}>
+              {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'} in this subject
             </div>
           </div>
 
@@ -251,38 +292,44 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
         </div>
 
         {/* Subject AI Directives Card */}
-        <div className="mt-4 rounded-xl border border-secondary/25 bg-secondary/5 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-secondary/20 text-secondary">
-                <Icon name="SparklesIcon" size={12} />
-              </span>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-secondary">
-                Subject AI Directives & Context
-              </h3>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed pl-7">
-              {subject.ai_context
-                ? subject.ai_context
-                : 'No specific subject AI directives configured. Lesson generation will inherit class context. Click "Edit AI Context" to specify custom focus areas, frameworks, or depth.'}
-            </p>
-            {lmsClass.ai_context && (
-              <div className="pl-7 pt-1 text-[11px] text-muted-foreground/80 flex items-center gap-1.5">
-                <span className="font-semibold text-primary">Inherits Class Guidance:</span>
-                <span className="truncate max-w-md">{lmsClass.ai_context}</span>
+        <div
+          className="glow-card-wrap relative mt-4"
+          style={{ '--card-accent': subjectAccent || '#38bdf8' } as React.CSSProperties}
+        >
+          <div className="glow-card relative rounded-xl border border-secondary/25 bg-secondary/5 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 shadow-xs">
+            <span className="glow-card-rim" aria-hidden="true" />
+            <div className="space-y-1 relative z-[2]">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-secondary/20 text-secondary">
+                  <Icon name="SparklesIcon" size={12} />
+                </span>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-secondary">
+                  Subject AI Directives & Context
+                </h3>
               </div>
+              <p className="text-xs text-muted-foreground leading-relaxed pl-7">
+                {subject.ai_context
+                  ? subject.ai_context
+                  : 'No specific subject AI directives configured. Lesson generation will inherit class context. Click "Edit AI Context" to specify custom focus areas, frameworks, or depth.'}
+              </p>
+              {lmsClass.ai_context && (
+                <div className="pl-7 pt-1 text-[11px] text-muted-foreground/80 flex items-center gap-1.5">
+                  <span className="font-semibold text-primary">Inherits Class Guidance:</span>
+                  <span className="truncate max-w-md">{lmsClass.ai_context}</span>
+                </div>
+              )}
+            </div>
+            {canEdit && (
+            <button
+              type="button"
+              onClick={() => setIsSubjectEditOpen(true)}
+              className="relative z-[2] flex-shrink-0 self-start sm:self-auto ml-7 sm:ml-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-secondary/30 bg-secondary/10 text-secondary text-xs font-semibold hover:bg-secondary/20 transition-colors"
+            >
+              <Icon name="PencilIcon" size={12} />
+              <span>{subject.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
+            </button>
             )}
           </div>
-          {canEdit && (
-          <button
-            type="button"
-            onClick={() => setIsSubjectEditOpen(true)}
-            className="flex-shrink-0 self-start sm:self-auto ml-7 sm:ml-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-secondary/30 bg-secondary/10 text-secondary text-xs font-semibold hover:bg-secondary/15 transition-colors"
-          >
-            <Icon name="PencilIcon" size={12} />
-            <span>{subject.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
-          </button>
-          )}
         </div>
       </div>
 

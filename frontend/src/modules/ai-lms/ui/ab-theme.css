@@ -1,0 +1,700 @@
+/*
+ * ai-bootcamp's editorial theme — ported from AI-Bootcamp-reference's
+ * tokens.css/cards.css/animations.css/pills.css/reduced-motion.css, adapted:
+ *
+ * - Every selector is scoped under `.ab-theme` (applied once, by the bootcamp
+ *   layout) so none of this leaks into the rest of the app. Variable names
+ *   are `--ab-*` prefixed for the same reason.
+ * - Dark only. The reference supports a light-mode token swap; this section
+ *   keeps its own fixed editorial-dark identity regardless of the app's
+ *   global light/dark toggle, matching the reference's own default look.
+ * - The reference's `[data-accent="..."]` global theme-switcher is not
+ *   ported — ai-lms already has a simpler, per-entity `accent_color` system
+ *   (color-mix() on cards) for letting many differently-colored things
+ *   coexist, which is a different and already-solved problem.
+ * - Plain class names (`.editorial-card`, `.glow-tl`, `.reveal`, `.pill`, ...)
+ *   are kept exactly as the reference names them — confirmed unused anywhere
+ *   else in this app before porting.
+ */
+
+.ab-theme {
+  /* Motion tokens */
+  --ab-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ab-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ab-ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --ab-dur-fast: 250ms;
+  --ab-dur-base: 500ms;
+  --ab-dur-slow: 900ms;
+  --ab-dur-reveal: 1100ms;
+
+  /* Ground */
+  --ab-black-rgb-ch: 12 11 10;
+  --ab-black-raised-rgb-ch: 21 19 17;
+  --ab-black-card-rgb-ch: 22 20 18;
+  --ab-black-line: rgba(245, 237, 224, 0.12);
+  /* `.card-premium`'s glass fill: a two-stop near-black gradient */
+  --ab-card-glass-top-rgb-ch: 31 29 27;
+  --ab-card-glass-bottom-rgb-ch: 16 15 14;
+
+  /* Gold accent */
+  --ab-gold-bright: #FB923C;
+  --ab-gold-pale: #FDBA74;
+  --ab-gold-deep: #EA580C;
+  --ab-gold-rgb: 249, 115, 22;
+  --ab-gold-rgb-ch: 249 115 22;
+
+  /* Cream (headings, copy, hairlines, glass highlights) */
+  --ab-cream-rgb-ch: 250 246 240;
+  --ab-cream-dim: #E0D4BE;
+
+  /* Text */
+  --ab-text-rgb: 250, 246, 240;
+  --ab-text-rgb-ch: 250 246 240;
+  --ab-text-muted-rgb-ch: 216 203 180;
+
+  /* Radii */
+  --ab-radius-pill: 9999px;
+  --ab-radius-card: 1.15rem;
+  --ab-radius-panel: 1.5rem;
+
+  background-color: rgb(var(--ab-black-rgb-ch));
+  color: rgb(var(--ab-text-rgb-ch));
+}
+
+/* ================================================================== */
+/* Corner glow (see cards.css in the reference for the full rationale) */
+/* ================================================================== */
+@property --glow-edge {
+  syntax: "<number>";
+  initial-value: 0.45;
+  inherits: true;
+}
+@property --glow-rim {
+  syntax: "<number>";
+  initial-value: 0.26;
+  inherits: true;
+}
+@property --glow-lit {
+  syntax: "<number>";
+  initial-value: 0;
+  inherits: true;
+}
+@property --cursor-lit {
+  syntax: "<number>";
+  initial-value: 0;
+  inherits: true;
+}
+
+.ab-theme .editorial-card,
+.ab-theme .card-premium {
+  --glow-x: 0%;
+  --glow-y: 0%;
+  --glow-ox: -14px;
+  --glow-oy: -14px;
+  --glow-edge: 0.45;
+  --glow-rim: 0.26;
+  --glow-lit: 0;
+  --cursor-lit: 0;
+  --hot: calc(var(--glow-edge) + 0.24 * var(--glow-lit));
+  --ring: calc(var(--glow-rim) + 0.12 * var(--glow-lit));
+  --bloom: calc(0.24 + 0.26 * var(--glow-lit));
+}
+
+.ab-theme .editorial-card::after,
+.ab-theme .card-premium::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: 38% 100%, auto, auto, auto, auto;
+  background-position: -70% 0, 0 0, 0 0, 0 0, 0 0;
+  background-image:
+    linear-gradient(
+      100deg,
+      rgba(255, 246, 240, 0) 18%,
+      rgba(255, 246, 240, 0.7) 50%,
+      rgba(255, 246, 240, 0) 82%
+    ),
+    radial-gradient(
+      220px circle at var(--mx, 50%) var(--my, 0%),
+      rgba(254, 215, 170, calc(0.5 * var(--cursor-lit))),
+      rgba(254, 215, 170, 0) 65%
+    ),
+    radial-gradient(
+      60% 125% at var(--glow-x) var(--glow-y),
+      rgba(255, 237, 225, var(--hot)),
+      rgba(250, 171, 129, calc(var(--hot) * 0.42)) 34%,
+      rgba(var(--ab-gold-rgb), 0) 78%
+    ),
+    radial-gradient(
+      160% 190% at var(--glow-x) var(--glow-y),
+      rgba(246, 177, 139, calc(var(--ring) * 1.2)),
+      rgba(234, 169, 132, var(--ring)) 52%,
+      rgba(220, 155, 123, calc(var(--ring) * 0.62)) 100%
+    ),
+    linear-gradient(rgba(227, 162, 128, calc(var(--ring) * 0.5)) 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+@keyframes ab-rimGlint {
+  from { background-position: -70% 0, 0 0, 0 0, 0 0, 0 0; }
+  to { background-position: 170% 0, 0 0, 0 0, 0 0, 0 0; }
+}
+.ab-theme .editorial-card:hover::after,
+.ab-theme .card-premium:hover::after,
+.ab-theme .editorial-card.is-lit::after,
+.ab-theme .card-premium.is-lit::after,
+.ab-theme .editorial-card.is-visible::after {
+  animation: ab-rimGlint 1.6s var(--ab-ease-soft);
+}
+
+.ab-theme .editorial-card {
+  position: relative;
+  background-color: rgb(var(--ab-black-raised-rgb-ch));
+  border: 1px solid rgba(var(--ab-gold-rgb), 0.08);
+  border-radius: var(--ab-radius-card);
+  box-shadow:
+    0 14px 30px -26px rgba(0, 0, 0, 0.9),
+    var(--glow-ox) var(--glow-oy) 64px -32px rgba(var(--ab-gold-rgb), var(--bloom));
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    --glow-edge var(--ab-dur-fast) cubic-bezier(0.16, 1, 0.3, 1),
+    --glow-rim var(--ab-dur-fast) cubic-bezier(0.16, 1, 0.3, 1),
+    --cursor-lit var(--ab-dur-base) var(--ab-ease-soft);
+}
+
+.ab-theme .editorial-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    radial-gradient(
+      56% 44% at var(--glow-x) var(--glow-y),
+      rgba(254, 215, 170, calc(0.085 + 0.055 * var(--glow-lit))),
+      rgba(var(--ab-gold-rgb), 0) 72%
+    ),
+    radial-gradient(
+      130% 110% at var(--glow-x) var(--glow-y),
+      rgba(var(--ab-gold-rgb), calc(0.03 + 0.025 * var(--glow-lit))),
+      rgba(var(--ab-gold-rgb), 0) 62%
+    );
+}
+
+.ab-theme .editorial-card > :not(.absolute) {
+  position: relative;
+}
+
+.ab-theme .editorial-card:hover {
+  --glow-edge: 0.75;
+  --glow-rim: 0.55;
+  --cursor-lit: 1;
+  transform: translateY(-4px);
+  border-color: rgba(var(--ab-gold-rgb), 0.55);
+  box-shadow:
+    0 16px 36px -12px rgba(0, 0, 0, 0.85),
+    0 0 1px 1px rgba(251, 146, 60, 0.45),
+    0 0 22px 2px rgba(var(--ab-gold-rgb), 0.38),
+    0 0 45px 6px rgba(var(--ab-gold-rgb), 0.2);
+}
+
+.ab-theme .editorial-card:active {
+  --glow-edge: 0.8;
+  --glow-rim: 0.52;
+  --cursor-lit: 1;
+  transform: translateY(-1px) scale(0.99);
+  box-shadow:
+    0 10px 24px -12px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(var(--ab-gold-rgb), 0.45),
+    0 0 18px 2px rgba(var(--ab-gold-rgb), 0.32);
+  transition-duration: 0.12s;
+}
+
+/* Premium glass card: cursor spotlight (--mx/--my) + micro 3D tilt (--rx/--ry).
+   Both custom properties are written by pointer-effect hooks ported later
+   (Phase 5); with neither wired up yet, a card-premium simply sits still. */
+.ab-theme .card-premium {
+  position: relative;
+  border: 1px solid rgba(var(--ab-gold-rgb), 0.1);
+  border-radius: var(--ab-radius-panel);
+  background-clip: padding-box;
+  background-image:
+    radial-gradient(
+      360px circle at var(--mx, 50%) var(--my, 0%),
+      rgba(var(--ab-gold-rgb), calc(0.085 * var(--cursor-lit))),
+      rgba(var(--ab-gold-rgb), 0) 55%
+    ),
+    radial-gradient(
+      56% 46% at var(--glow-x) var(--glow-y),
+      rgba(254, 215, 170, calc(0.1 + 0.06 * var(--glow-lit))),
+      rgba(var(--ab-gold-rgb), 0) 72%
+    ),
+    radial-gradient(
+      130% 110% at var(--glow-x) var(--glow-y),
+      rgba(var(--ab-gold-rgb), calc(0.032 + 0.028 * var(--glow-lit))),
+      rgba(var(--ab-gold-rgb), 0) 62%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--ab-card-glass-top-rgb-ch) / 0.74),
+      rgb(var(--ab-card-glass-bottom-rgb-ch) / 0.74)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(250, 246, 240, 0.03),
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 16px 36px -28px rgba(0, 0, 0, 0.9),
+    var(--glow-ox) var(--glow-oy) 74px -32px rgba(var(--ab-gold-rgb), var(--bloom));
+  transform: perspective(1200px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))
+    translateY(var(--lift, 0px));
+  transition:
+    transform var(--ab-dur-slow) var(--ab-ease-out),
+    border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    --glow-edge var(--ab-dur-fast) var(--ab-ease-soft),
+    --glow-rim var(--ab-dur-fast) var(--ab-ease-soft),
+    --cursor-lit var(--ab-dur-base) var(--ab-ease-soft);
+  --mx: 50%;
+  --my: 0%;
+}
+.ab-theme .card-premium:hover {
+  --lift: -5px;
+  --glow-edge: 0.75;
+  --glow-rim: 0.55;
+  --cursor-lit: 1;
+  border-color: rgba(var(--ab-gold-rgb), 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(250, 246, 240, 0.05),
+    0 20px 44px -18px rgba(0, 0, 0, 0.85),
+    0 0 1px 1px rgba(251, 146, 60, 0.45),
+    0 0 24px 2px rgba(var(--ab-gold-rgb), 0.38),
+    0 0 48px 6px rgba(var(--ab-gold-rgb), 0.2);
+}
+.ab-theme .card-premium:active {
+  --lift: -2px;
+  --glow-edge: 0.82;
+  --glow-rim: 0.54;
+  --cursor-lit: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(250, 246, 240, 0.05),
+    0 12px 28px -14px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(var(--ab-gold-rgb), 0.45),
+    0 0 20px -2px rgba(var(--ab-gold-rgb), 0.32);
+  transition-duration: 0.12s;
+}
+.ab-theme .card-premium > :not(.absolute) {
+  position: relative;
+}
+
+/* Icon medallion inside cards */
+.ab-theme .card-icon {
+  position: relative;
+  z-index: 20;
+  border-color: rgba(var(--ab-gold-rgb), calc(0.3 + 0.4 * var(--glow-lit)));
+  background-color: #0d0d10;
+  box-shadow: 0 0 calc(10px + 14px * var(--glow-lit)) -4px
+    rgba(var(--ab-gold-rgb), calc(0.05 + 0.3 * var(--glow-lit)));
+  transition:
+    transform var(--ab-dur-slow) var(--ab-ease-out),
+    border-color var(--ab-dur-fast) var(--ab-ease-soft),
+    background-color var(--ab-dur-fast) var(--ab-ease-soft),
+    box-shadow var(--ab-dur-fast) var(--ab-ease-out);
+}
+.ab-theme .group:hover .card-icon {
+  transform: translateY(-2px) rotate(-6deg);
+  border-color: rgba(var(--ab-gold-rgb), 0.5);
+  background-color: rgba(var(--ab-gold-rgb), 0.08);
+  box-shadow: 0 0 18px -4px rgba(var(--ab-gold-rgb), 0.35);
+}
+
+/* Featured card: slow rotating gold border + breathing ambient glow */
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.ab-theme .card-featured {
+  --glow-edge: 0.12;
+  --glow-rim: 0.05;
+  border-color: transparent;
+  background:
+    radial-gradient(
+        56% 46% at var(--glow-x) var(--glow-y),
+        rgba(254, 215, 170, calc(0.09 + 0.05 * var(--glow-lit))),
+        rgba(var(--ab-gold-rgb), 0) 72%
+      )
+      padding-box,
+    linear-gradient(
+        180deg,
+        rgb(var(--ab-card-glass-top-rgb-ch) / 0.95),
+        rgb(var(--ab-card-glass-bottom-rgb-ch) / 0.95)
+      )
+      padding-box,
+    conic-gradient(
+        from var(--angle),
+        rgba(var(--ab-gold-rgb), 0.18),
+        rgba(254, 215, 170, 0.75) 8%,
+        rgba(var(--ab-gold-rgb), 0.18) 20%,
+        rgba(var(--ab-gold-rgb), 0.18) 55%,
+        rgba(254, 215, 170, 0.45) 65%,
+        rgba(var(--ab-gold-rgb), 0.18) 78%
+      )
+      border-box;
+  animation:
+    ab-rotateBorder 12s linear infinite,
+    ab-breatheGlow 5s var(--ab-ease-in-out) infinite;
+}
+.ab-theme .card-featured:hover {
+  --glow-edge: 0.2;
+  border-color: transparent;
+  box-shadow:
+    inset 0 1px 0 rgba(250, 246, 240, 0.06),
+    0 0 32px -4px rgba(var(--ab-gold-rgb), 0.35),
+    0 0 60px -8px rgba(var(--ab-gold-rgb), 0.2);
+}
+@keyframes ab-rotateBorder {
+  to { --angle: 360deg; }
+}
+@keyframes ab-breatheGlow {
+  0%, 100% {
+    box-shadow:
+      inset 0 1px 0 rgba(250, 246, 240, 0.04),
+      var(--glow-ox) var(--glow-oy) 74px -32px rgba(var(--ab-gold-rgb), var(--bloom)),
+      0 0 32px -14px rgba(var(--ab-gold-rgb), 0.18);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(250, 246, 240, 0.06),
+      var(--glow-ox) var(--glow-oy) 88px -28px rgba(var(--ab-gold-rgb), calc(var(--bloom) + 0.1)),
+      0 0 56px -12px rgba(var(--ab-gold-rgb), 0.3);
+  }
+}
+
+.ab-theme .badge-sheen {
+  overflow: hidden;
+  isolation: isolate;
+}
+.ab-theme .badge-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(250, 246, 240, 0.6) 50%, transparent 65%);
+  transform: translateX(-130%);
+  animation: ab-autoSheen 5s var(--ab-ease-in-out) 1.5s infinite;
+}
+@keyframes ab-autoSheen {
+  0%, 92%, 100% { transform: translateX(-130%); }
+  96% { transform: translateX(130%); }
+}
+
+.ab-theme .btn-sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ab-theme .btn-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.5) 50%, transparent 60%);
+  transform: translateX(-150%);
+  transition: transform 0.6s var(--ab-ease-soft);
+}
+.ab-theme .btn-sheen:hover::after {
+  transform: translateX(150%);
+}
+
+/* Scroll-walked cards (ProcessScene, Phase 4+): resting state sits well below
+   the default rim so an unlit card reads as genuinely waiting. */
+.ab-theme .glow-walk {
+  --glow-edge: 0.14;
+  --glow-rim: 0.09;
+  --hot: calc(var(--glow-edge) + 0.62 * var(--glow-lit));
+  --ring: calc(var(--glow-rim) + 0.3 * var(--glow-lit));
+  --bloom: calc(0.04 + 0.4 * var(--glow-lit));
+}
+
+.ab-theme .glow-tl { --glow-x: 0%; --glow-y: 0%; --glow-ox: -14px; --glow-oy: -14px; }
+.ab-theme .glow-tr { --glow-x: 100%; --glow-y: 0%; --glow-ox: 14px; --glow-oy: -14px; }
+.ab-theme .glow-bl { --glow-x: 0%; --glow-y: 100%; --glow-ox: -14px; --glow-oy: 14px; }
+.ab-theme .glow-br { --glow-x: 100%; --glow-y: 100%; --glow-ox: 14px; --glow-oy: 14px; }
+.ab-theme .glow-l { --glow-x: -5%; --glow-y: 50%; --glow-ox: -16px; --glow-oy: 0px; }
+.ab-theme .glow-r { --glow-x: 105%; --glow-y: 50%; --glow-ox: 16px; --glow-oy: 0px; }
+
+@media (hover: none) {
+  .ab-theme .card-premium:hover {
+    --lift: 0px;
+    --cursor-lit: 0;
+  }
+  .ab-theme .editorial-card:hover {
+    --cursor-lit: 0;
+    transform: none;
+  }
+  .ab-theme .editorial-card:hover::after,
+  .ab-theme .card-premium:hover::after {
+    animation: none;
+  }
+}
+
+/* ================================================================== */
+/* Entrance animations                                                 */
+/* ================================================================== */
+.ab-theme .reveal {
+  opacity: 0;
+  translate: 0 24px;
+  filter: blur(4px);
+}
+.ab-theme .reveal.is-visible {
+  opacity: 1;
+  translate: 0 0;
+  filter: blur(0);
+  transition:
+    opacity var(--ab-dur-reveal) var(--ab-ease-out),
+    translate var(--ab-dur-reveal) var(--ab-ease-out),
+    filter var(--ab-dur-slow) var(--ab-ease-out);
+  transition-delay: var(--d, 0ms);
+}
+.ab-theme .reveal.card-premium.is-visible {
+  transition:
+    opacity var(--ab-dur-reveal) var(--ab-ease-out) var(--d, 0ms),
+    translate var(--ab-dur-reveal) var(--ab-ease-out) var(--d, 0ms),
+    filter var(--ab-dur-slow) var(--ab-ease-out) var(--d, 0ms),
+    transform var(--ab-dur-slow) var(--ab-ease-out),
+    border-color var(--ab-dur-base) var(--ab-ease-soft),
+    box-shadow var(--ab-dur-slow) var(--ab-ease-out);
+}
+.ab-theme .reveal.reveal-done {
+  filter: none;
+  translate: none;
+}
+
+.ab-theme .reveal .eyebrow-line {
+  transform: scaleX(0);
+  transition: transform var(--ab-dur-reveal) var(--ab-ease-out) calc(var(--d, 0ms) + 250ms);
+}
+.ab-theme .reveal .eyebrow-line.from-right { transform-origin: right; }
+.ab-theme .reveal .eyebrow-line.from-left { transform-origin: left; }
+.ab-theme .reveal.is-visible .eyebrow-line { transform: scaleX(1); }
+
+.ab-theme .page-enter {
+  animation: ab-pageEnter 0.9s var(--ab-ease-out) both;
+}
+@keyframes ab-pageEnter {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.ab-theme .intro {
+  opacity: 0;
+  animation: ab-introUp var(--ab-dur-reveal) var(--ab-ease-out) forwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes ab-introUp {
+  from { opacity: 0; transform: translateY(18px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+.ab-theme .word-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-bottom: 0.1em;
+  margin-bottom: -0.1em;
+}
+.ab-theme .word-mask > span {
+  display: inline-block;
+  transform: translateY(105%) rotate(2deg);
+  transform-origin: left bottom;
+  animation: ab-wordRise var(--ab-dur-reveal) var(--ab-ease-out) forwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes ab-wordRise {
+  to { transform: translateY(0) rotate(0); }
+}
+
+.ab-theme .draw-on path,
+.ab-theme .draw-on circle,
+.ab-theme .draw-on line,
+.ab-theme .draw-on polygon {
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  transition: stroke-dashoffset 2.2s var(--ab-ease-in-out);
+}
+.ab-theme .draw-on.is-visible path,
+.ab-theme .draw-on.is-visible circle,
+.ab-theme .draw-on.is-visible line,
+.ab-theme .draw-on.is-visible polygon {
+  stroke-dashoffset: 0;
+}
+.ab-theme .draw-on .pulse-dot {
+  animation: ab-pulseDot 3.2s var(--ab-ease-in-out) infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes ab-pulseDot {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.35); }
+}
+
+.ab-theme .spin-slow {
+  animation: ab-spinSlow 80s linear infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes ab-spinSlow {
+  to { transform: rotate(360deg); }
+}
+
+.ab-theme .accordion-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--ab-dur-base) var(--ab-ease-out),
+    opacity var(--ab-dur-base) var(--ab-ease-soft);
+}
+.ab-theme .accordion-panel[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.ab-theme .accordion-panel > div {
+  overflow: hidden;
+}
+
+/* ================================================================== */
+/* Pills, form controls, nav                                           */
+/* ================================================================== */
+.ab-theme .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--ab-radius-pill);
+  border: 1px solid rgba(var(--ab-text-rgb), 0.1);
+  background-color: rgba(var(--ab-text-rgb), 0.04);
+  padding: 0.3rem 0.85rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.ab-theme .pill-accent {
+  border-color: rgba(var(--ab-gold-rgb), 0.35);
+  background-color: rgba(var(--ab-gold-rgb), 0.1);
+  color: rgb(var(--ab-gold-rgb-ch));
+}
+.ab-theme .pill-cream {
+  border-color: rgba(var(--ab-text-rgb), 0.22);
+  background-color: rgba(var(--ab-text-rgb), 0.08);
+  color: rgb(var(--ab-text-rgb-ch));
+  backdrop-filter: blur(8px);
+}
+.ab-theme .pill-ai {
+  border-color: rgba(var(--ab-gold-rgb), 0.3);
+  background-color: rgba(var(--ab-gold-rgb), 0.08);
+  color: rgb(var(--ab-gold-rgb-ch));
+  box-shadow: 0 0 14px -3px rgba(249, 115, 22, 0.25);
+}
+.ab-theme .pill-solid {
+  border-color: rgba(var(--ab-gold-rgb), 0.6);
+  background: linear-gradient(180deg, var(--ab-gold-bright) 0%, rgb(var(--ab-gold-rgb-ch)) 55%, var(--ab-gold-deep) 100%);
+  color: rgb(var(--ab-black-rgb-ch));
+}
+
+.ab-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+.ab-theme select {
+  border-radius: var(--ab-radius-pill);
+  padding-inline: 1.05rem;
+}
+.ab-theme textarea {
+  border-radius: var(--ab-radius-card);
+}
+.ab-theme input:focus-visible,
+.ab-theme select:focus-visible,
+.ab-theme textarea:focus-visible {
+  outline-offset: 3px;
+}
+
+.ab-theme .nav-link {
+  border-radius: var(--ab-radius-pill);
+  padding-inline: 0.85rem;
+  transition: background-color var(--ab-dur-base) var(--ab-ease-soft);
+}
+.ab-theme .nav-link:hover {
+  background-color: rgba(var(--ab-gold-rgb), 0.08);
+}
+
+.ab-theme .scene-card,
+.ab-theme .scene-step {
+  border-radius: var(--ab-radius-panel);
+}
+
+/* Loading shimmer (Skeleton.tsx) */
+.ab-theme .skeleton-sweep {
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(var(--ab-text-rgb), 0.06), transparent);
+  animation: ab-skeletonSweep 1.8s var(--ab-ease-in-out) infinite;
+}
+@keyframes ab-skeletonSweep {
+  to { transform: translateX(100%); }
+}
+
+/* `.text-gold-metal` / `.text-shimmer`: the "light source" glow recipe used
+   on hero accent words (ported minimally; full marquee/shimmer treatment is
+   a Phase 5 item). */
+.ab-theme .text-gold-metal,
+.ab-theme .text-shimmer {
+  color: rgb(var(--ab-gold-rgb-ch));
+  text-shadow: 0 2px 10px rgba(var(--ab-gold-rgb), 0.28);
+}
+
+/* ================================================================== */
+/* Reduced motion: everything renders static and visible               */
+/* ================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .ab-theme .reveal,
+  .ab-theme .intro,
+  .ab-theme .page-enter,
+  .ab-theme .word-mask > span {
+    opacity: 1 !important;
+    translate: none !important;
+    transform: none !important;
+    filter: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  .ab-theme .reveal .eyebrow-line {
+    transform: none !important;
+  }
+  .ab-theme .text-shimmer,
+  .ab-theme .group:hover .text-gold-metal,
+  .ab-theme .btn-sheen::after,
+  .ab-theme .badge-sheen::after,
+  .ab-theme .card-featured,
+  .ab-theme .spin-slow,
+  .ab-theme .skeleton-sweep,
+  .ab-theme .draw-on .pulse-dot {
+    animation: none !important;
+  }
+  .ab-theme .card-premium {
+    transform: none !important;
+  }
+  .ab-theme .draw-on * {
+    stroke-dashoffset: 0 !important;
+    transition: none !important;
+  }
+  .ab-theme .editorial-card::after,
+  .ab-theme .card-premium::after {
+    animation: none !important;
+  }
+  .ab-theme .glow-walk {
+    --glow-lit: 0.55;
+  }
+}

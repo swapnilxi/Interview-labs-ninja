@@ -8,7 +8,7 @@ from typing import Optional
 
 from modules.common.db import get_db_path
 
-_USER_COLS = "id, email, password_hash, display_name, role, created_at, updated_at"
+_USER_COLS = "id, email, password_hash, display_name, role, created_at, updated_at, status"
 
 
 def _row_to_user(row) -> dict:
@@ -20,16 +20,19 @@ def _row_to_user(row) -> dict:
         "role": row[4],
         "created_at": row[5],
         "updated_at": row[6],
+        "status": row[7],
     }
 
 
 def create_user(email: str, password_hash: str, display_name: Optional[str] = None) -> dict:
-    """Create a user + an empty profile row. Raises sqlite3.IntegrityError if the email exists."""
+    """Create a user + an empty profile row, pending admin approval (see
+    modules/auth/dependencies.py: get_current_active_user). Raises sqlite3.IntegrityError
+    if the email exists."""
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)",
+            "INSERT INTO users (email, password_hash, display_name, status) VALUES (?, ?, ?, 'pending')",
             (email, password_hash, display_name),
         )
         user_id = cursor.lastrowid
@@ -158,7 +161,7 @@ def promote_admins_from_env() -> list[str]:
         promoted = []
         for email in emails:
             cursor.execute(
-                "UPDATE users SET role = 'admin', updated_at = datetime('now') "
+                "UPDATE users SET role = 'admin', status = 'approved', updated_at = datetime('now') "
                 "WHERE email = ? AND role NOT IN ('admin', 'superadmin')",
                 (email,),
             )
@@ -183,7 +186,7 @@ def promote_superadmins_from_env() -> list[str]:
         promoted = []
         for email in emails:
             cursor.execute(
-                "UPDATE users SET role = 'superadmin', updated_at = datetime('now') "
+                "UPDATE users SET role = 'superadmin', status = 'approved', updated_at = datetime('now') "
                 "WHERE email = ? AND role != 'superadmin'",
                 (email,),
             )
@@ -218,7 +221,7 @@ def list_users(search: Optional[str] = None) -> list[dict]:
             like = f"%{search}%"
             params = [like, like]
         cursor.execute(
-            f"SELECT id, email, display_name, role, created_at, updated_at FROM users {where} "
+            f"SELECT id, email, display_name, role, created_at, updated_at, status FROM users {where} "
             "ORDER BY created_at DESC, id DESC",
             params,
         )
@@ -234,6 +237,8 @@ def list_users(search: Optional[str] = None) -> list[dict]:
             for uid, n in cursor.fetchall():
                 totals[uid] = totals.get(uid, 0) + n
 
+        overrides = _list_permission_overrides(cursor)
+
         return [
             {
                 "id": r[0],
@@ -243,6 +248,8 @@ def list_users(search: Optional[str] = None) -> list[dict]:
                 "created_at": r[4],
                 "updated_at": r[5],
                 "resource_count": totals.get(r[0], 0),
+                "permission_overrides": overrides.get(r[0], {}),
+                "status": r[6],
             }
             for r in rows
         ]
@@ -255,9 +262,15 @@ def system_stats() -> dict:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*), SUM(CASE WHEN role IN ('admin', 'superadmin') THEN 1 ELSE 0 END) FROM users")
-        total_users, admin_users = cursor.fetchone()
+        cursor.execute(
+            "SELECT COUNT(*), "
+            "SUM(CASE WHEN role IN ('admin', 'superadmin') THEN 1 ELSE 0 END), "
+            "SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) "
+            "FROM users"
+        )
+        total_users, admin_users, pending_users = cursor.fetchone()
         admin_users = admin_users or 0
+        pending_users = pending_users or 0
 
         cursor.execute("SELECT COUNT(*) FROM users WHERE created_at >= datetime('now', '-7 days')")
         new_users_7d = cursor.fetchone()[0]
@@ -276,6 +289,7 @@ def system_stats() -> dict:
         return {
             "total_users": total_users,
             "admin_users": admin_users,
+            "pending_users": pending_users,
             "new_users_7d": new_users_7d,
             "total_resources": total_resources,
             "resources_by_table": dict(sorted(resources.items(), key=lambda kv: kv[1], reverse=True)),
@@ -285,12 +299,39 @@ def system_stats() -> dict:
 
 
 def set_user_role(user_id: int, role: str) -> Optional[dict]:
+    """Granting any role above 'user' is itself a trust signal, so it also approves the
+    account (matching promote_admins_from_env/promote_superadmins_from_env below) --
+    otherwise an admin promoting a still-pending signup to editor/admin would leave them
+    blocked by their own pending status until a separate approve call. Demoting to 'user'
+    leaves status untouched (not a rejection)."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        if role == "user":
+            cursor.execute(
+                "UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?",
+                (role, user_id),
+            )
+        else:
+            cursor.execute(
+                "UPDATE users SET role = ?, status = 'approved', updated_at = datetime('now') WHERE id = ?",
+                (role, user_id),
+            )
+        conn.commit()
+        if cursor.rowcount == 0:
+            return None
+    finally:
+        conn.close()
+    return get_user_by_id(user_id)
+
+
+def set_user_status(user_id: int, status: str) -> Optional[dict]:
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?",
-            (role, user_id),
+            "UPDATE users SET status = ?, updated_at = datetime('now') WHERE id = ?",
+            (status, user_id),
         )
         conn.commit()
         if cursor.rowcount == 0:
@@ -335,3 +376,183 @@ def delete_user(user_id: int) -> bool:
         return True
     finally:
         conn.close()
+
+
+# ── Per-user permission overrides (see modules/auth/dependencies.py: DEFAULT_PERMISSIONS) ──
+
+
+def _list_permission_overrides(cursor) -> dict[int, dict[str, bool]]:
+    """All overrides, grouped by user_id. One query, used to batch-annotate list_users()."""
+    cursor.execute("SELECT user_id, permission, allowed FROM user_permissions")
+    out: dict[int, dict[str, bool]] = {}
+    for user_id, permission, allowed in cursor.fetchall():
+        out.setdefault(user_id, {})[permission] = bool(allowed)
+    return out
+
+
+def get_permission_overrides(user_id: int) -> dict[str, bool]:
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT permission, allowed FROM user_permissions WHERE user_id = ?",
+            (user_id,),
+        )
+        return {permission: bool(allowed) for permission, allowed in cursor.fetchall()}
+    finally:
+        conn.close()
+
+
+def set_permission_override(user_id: int, permission: str, allowed: bool, granted_by: Optional[int]) -> None:
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO user_permissions (user_id, permission, allowed, granted_by)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, permission)
+            DO UPDATE SET allowed = excluded.allowed, granted_by = excluded.granted_by
+            """,
+            (user_id, permission, int(allowed), granted_by),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def clear_permission_override(user_id: int, permission: str) -> bool:
+    """Remove an override so the permission falls back to the role default."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM user_permissions WHERE user_id = ? AND permission = ?",
+            (user_id, permission),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+# ── Access requests ──────────────────────────────────────────────────────────
+
+
+def _row_to_access_request(row) -> dict:
+    return {
+        "id": row[0],
+        "user_id": row[1],
+        "requested_role": row[2],
+        "permission": row[3],
+        "message": row[4],
+        "status": row[5],
+        "reviewed_by": row[6],
+        "review_note": row[7],
+        "created_at": row[8],
+        "decided_at": row[9],
+    }
+
+
+_ACCESS_REQUEST_COLS = (
+    "id, user_id, requested_role, permission, message, status, reviewed_by, review_note, "
+    "created_at, decided_at"
+)
+
+
+def has_pending_duplicate(user_id: int, requested_role: Optional[str], permission: Optional[str]) -> bool:
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT 1 FROM access_requests
+            WHERE user_id = ? AND status = 'pending'
+              AND IFNULL(requested_role, '') = IFNULL(?, '')
+              AND IFNULL(permission, '') = IFNULL(?, '')
+            """,
+            (user_id, requested_role, permission),
+        )
+        return cursor.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def create_access_request(
+    user_id: int, requested_role: Optional[str], permission: Optional[str], message: str
+) -> dict:
+    """Raises sqlite3.IntegrityError if an identical pending request already exists."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO access_requests (user_id, requested_role, permission, message) VALUES (?, ?, ?, ?)",
+            (user_id, requested_role, permission, message),
+        )
+        request_id = cursor.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    return get_access_request_by_id(request_id)
+
+
+def get_access_request_by_id(request_id: int) -> Optional[dict]:
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT {_ACCESS_REQUEST_COLS} FROM access_requests WHERE id = ?", (request_id,))
+        row = cursor.fetchone()
+        return _row_to_access_request(row) if row else None
+    finally:
+        conn.close()
+
+
+def list_access_requests(status: Optional[str] = None) -> list[dict]:
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        where, params = "", []
+        if status:
+            where, params = "WHERE status = ?", [status]
+        cursor.execute(
+            f"SELECT {_ACCESS_REQUEST_COLS} FROM access_requests {where} ORDER BY created_at DESC, id DESC",
+            params,
+        )
+        return [_row_to_access_request(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def list_access_requests_for_user(user_id: int) -> list[dict]:
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT {_ACCESS_REQUEST_COLS} FROM access_requests WHERE user_id = ? ORDER BY created_at DESC, id DESC",
+            (user_id,),
+        )
+        return [_row_to_access_request(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def decide_access_request(request_id: int, status: str, reviewed_by: int, review_note: str) -> Optional[dict]:
+    """Marks a PENDING request approved/rejected. Returns None if it was already decided
+    (or doesn't exist) so the caller can 404/409 instead of silently no-op'ing a race."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE access_requests
+            SET status = ?, reviewed_by = ?, review_note = ?, decided_at = datetime('now')
+            WHERE id = ? AND status = 'pending'
+            """,
+            (status, reviewed_by, review_note, request_id),
+        )
+        conn.commit()
+        if cursor.rowcount == 0:
+            return None
+    finally:
+        conn.close()
+    return get_access_request_by_id(request_id)

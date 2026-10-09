@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLmsViewMode } from './context/LmsViewModeContext';
 import { lmsService } from './services/lmsService';
-import type { LmsLanding } from './types';
+import type { LandingEditorApi, LmsLanding } from './types';
 import EmptyState from './components/EmptyState';
 import ExportClassButton from './components/ExportClassButton';
 import LmsHtmlFrame from './components/LmsHtmlFrame';
@@ -22,7 +23,9 @@ interface ClassLandingModuleProps {
  * lms:auto regions keep the subject / project / lesson lists current.
  */
 export default function ClassLandingModule({ classSlug }: ClassLandingModuleProps) {
-  const { canEdit } = useAuth();
+  const { canEdit: canEditReal } = useAuth();
+  const { isPreviewingAsStudent } = useLmsViewMode();
+  const canEdit = canEditReal && !isPreviewingAsStudent;
   const [landing, setLanding] = useState<LmsLanding | null>(null);
   const [editing, setEditing] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
@@ -48,6 +51,18 @@ export default function ClassLandingModule({ classSlug }: ClassLandingModuleProp
     check: () => lmsService.getLandingStatus(classSlug),
     onChange: load,
   });
+
+  const editorApi: LandingEditorApi<LmsLanding> = useMemo(
+    () => ({
+      listSections: () => lmsService.listLandingSections(classSlug),
+      saveLanding: (html, baseHash) => lmsService.saveLanding(classSlug, html, baseHash),
+      addSection: (payload) => lmsService.addLandingSection(classSlug, payload),
+      updateSection: (id, payload) => lmsService.updateLandingSection(classSlug, id, payload),
+      deleteSection: (id) => lmsService.deleteLandingSection(classSlug, id),
+      landingAi: (instruction, mode, placement) => lmsService.landingAi(classSlug, instruction, mode, placement),
+    }),
+    [classSlug]
+  );
 
   if (error) {
     return (
@@ -115,8 +130,8 @@ export default function ClassLandingModule({ classSlug }: ClassLandingModuleProp
         />
         {canEdit && editing && (
           <LandingEditorPanel
-            classSlug={classSlug}
             landing={landing}
+            api={editorApi}
             onSaved={(saved) => setLanding(saved)}
             onPreview={setPreviewHtml}
           />

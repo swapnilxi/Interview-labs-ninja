@@ -51,7 +51,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from .db import _get_conn, content_hash
+from .db import MODULE_LANDING_ID, _get_conn, content_hash
 
 LANDING_FILE = "landingpage.html"
 MANIFEST_FILE = "class.json"
@@ -693,6 +693,7 @@ def reconcile_all() -> None:
                 _reconcile_class(conn, root, writable, cls)
         if writable:
             _remove_deleted_classes(conn, root, {c["slug"] for c in classes})
+        _sync_module_landing(conn, root, writable)
 
     _locked_sync(work)
 
@@ -927,3 +928,182 @@ def save_landing(class_identifier: str, html: str, base_hash: Optional[str] = No
             conn.close()
     reconcile_class(current["class_id"])
     return get_landing(current["class_id"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Module-root landing page: the AI LMS home/intro page, not tied to any one class.
+# Lives at classes/landingpage.html (a loose file alongside the per-class folders) and
+# frontend/fe-apis/lms/classFolders.ts has a byte-identical twin. Its lms:auto:classes and
+# lms:auto:stats blocks list every class; everything else on the page is free to edit,
+# same as a class landing page's own non-auto content.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_MODULE_FALLBACK_TEMPLATE = (
+    "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n"
+    "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+    "  <title>AI LMS</title>\n</head>\n<body>\n"
+    "  <h1>AI LMS</h1>\n"
+    "  <p><!-- lms:auto:stats --><!-- /lms:auto:stats --></p>\n"
+    "  <main id=\"classes\">\n"
+    "    <!-- lms:auto:classes --><!-- /lms:auto:classes -->\n"
+    "  </main>\n</body>\n</html>\n"
+)
+
+
+def _module_template() -> str:
+    return _read_quiet(_TEMPLATES / "module-landingpage.html") or _MODULE_FALLBACK_TEMPLATE
+
+
+def _module_class_card(cls: Dict[str, Any]) -> List[str]:
+    name = _esc(_unent(cls["name"]))
+    href = f"{_esc(cls['slug'])}/"
+    subject_count, lesson_count = cls["subject_count"], cls["lesson_count"]
+    out = [
+        '    <article class="lms-card">',
+        '      <span class="lms-tag">Class</span>',
+        f'      <h3><a href="{href}">{name}</a></h3>',
+    ]
+    if cls["description"]:
+        out.append(f'      <p>{_esc(cls["description"])}</p>')
+    out.append(
+        f'      <p class="lms-muted">{_stat(subject_count, "subject", "subjects")} '
+        f'&middot; {_stat(lesson_count, "lesson", "lessons")}</p>'
+    )
+    out.append(f'      <a class="lms-card-link" href="{href}">Enter class &rarr;</a>')
+    return out
+
+
+def _module_auto_blocks(classes: List[Dict[str, Any]]) -> Dict[str, str]:
+    if classes:
+        body = ['  <div class="lms-grid">']
+        for cls in classes:
+            body += _module_class_card(cls) + ["    </article>"]
+        classes_html = _section("classes", "Available Classes", body + ["  </div>"])
+    else:
+        classes_html = _section(
+            "classes", "Available Classes", ['  <p class="lms-muted">No classes yet. Create one from the AI LMS dashboard.</p>']
+        )
+    return {
+        "stats": " ".join([
+            _stat(len(classes), "class", "classes"),
+            _stat(sum(c["subject_count"] for c in classes), "subject", "subjects"),
+            _stat(sum(c["lesson_count"] for c in classes), "lesson", "lessons"),
+        ]),
+        "classes": classes_html,
+    }
+
+
+def apply_module_auto_blocks(html: str, classes: List[Dict[str, Any]]) -> str:
+    """Rewrite the lms:auto:stats / lms:auto:classes marker pairs; leave everything else alone."""
+    blocks = _module_auto_blocks(classes)
+
+    def fill(match: "re.Match[str]") -> str:
+        name = match.group(2)
+        return match.group(1) + blocks[name] + match.group(4) if name in blocks else match.group(0)
+
+    return _AUTO_BLOCK.sub(fill, html)
+
+
+def _all_classes_for_module_landing(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
+    return [
+        dict(r)
+        for r in conn.execute(
+            "SELECT c.id, c.slug, c.name, c.description, "
+            "(SELECT COUNT(*) FROM lms_subjects s WHERE s.class_id = c.id) AS subject_count, "
+            "(SELECT COUNT(*) FROM lms_lessons l WHERE l.class_id = c.id) AS lesson_count "
+            "FROM lms_classes c ORDER BY c.order_index ASC, c.is_system DESC, c.name ASC"
+        )
+    ]
+
+
+def _sync_module_landing(conn: sqlite3.Connection, root: Optional[Path], writable: bool) -> Tuple[str, str]:
+    """Three-way sync of classes/landingpage.html, mirroring _sync_landing but for the
+    module-root page: its lms:auto blocks list every class instead of one class's contents."""
+    row = conn.execute("SELECT html, hash, data_hash FROM lms_module_landing WHERE id = ?", (MODULE_LANDING_ID,)).fetchone()
+    db_html = (row["html"] if row else "") or ""
+    base = (row["hash"] if row else "") or ""
+    prior_data_hash = (row["data_hash"] if row else "") or ""
+    path = root / LANDING_FILE if root is not None else None
+    try:
+        file_text = _read(path) if path is not None else None
+    except _Unreadable as exc:
+        print(f"[ai_lms] skipping module {LANDING_FILE}: {exc}")
+        return db_html, content_hash(db_html)
+    created = False
+    if file_text is None:
+        current = db_html
+        if not current:
+            current = _module_template()
+            created = True
+    elif not db_html:
+        current = file_text  # e.g. the file was created before this table existed
+    else:
+        current = _merge(conn, "module_landing", MODULE_LANDING_ID, LANDING_FILE, db_html, base, file_text)
+    classes = _all_classes_for_module_landing(conn)
+    data_hash = content_hash(json.dumps(classes, ensure_ascii=False, sort_keys=True))
+    final = current
+    if created or data_hash != prior_data_hash:
+        final = apply_module_auto_blocks(current, classes)
+    final_hash = content_hash(final)
+    file_ok = file_text == final
+    if path is not None and writable and not file_ok:
+        file_ok = _write(path, final)
+    new_base = final_hash if file_ok else base
+    if row is None:
+        conn.execute(
+            "INSERT INTO lms_module_landing (id, html, hash, data_hash, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (MODULE_LANDING_ID, final, new_base, data_hash, _now()),
+        )
+    elif final != db_html or new_base != base or data_hash != prior_data_hash:
+        conn.execute(
+            "UPDATE lms_module_landing SET html = ?, hash = ?, data_hash = ?, updated_at = ? WHERE id = ?",
+            (final, new_base, data_hash, _now(), MODULE_LANDING_ID),
+        )
+    return final, final_hash
+
+
+def reconcile_module_landing() -> None:
+    """Sync classes/landingpage.html on its own, e.g. right after it's edited."""
+
+    def work(conn: sqlite3.Connection, root: Path, writable: bool) -> None:
+        _sync_module_landing(conn, root, writable)
+
+    _locked_sync(work)
+
+
+def get_module_landing() -> Dict[str, Any]:
+    """The AI LMS module-root landing page, IDE edits pulled in and auto blocks current."""
+    root = classes_root()
+    writable = _writable(root)
+    with _LOCK:
+        conn = _get_conn()
+        try:
+            html_text, digest = _sync_module_landing(conn, root, writable)
+            conn.commit()
+        finally:
+            conn.close()
+    return {
+        "html": html_text,
+        "hash": digest,
+        "file_path": LANDING_FILE,
+        "file_sync": root is not None,
+    }
+
+
+def save_module_landing(html: str, base_hash: Optional[str] = None) -> Dict[str, Any]:
+    """Replace the module-root landing page with HTML edited in the app (manual or AI)."""
+    current = get_module_landing()  # pulls in IDE edits, so base_hash compares to the disk
+    if base_hash and base_hash != current["hash"]:
+        raise LandingConflict("The landing page changed since you opened it. Reload and re-apply your edit.")
+    if html == current["html"]:
+        return current
+    with _LOCK:
+        conn = _get_conn()
+        try:
+            _backup(conn, "module_landing", MODULE_LANDING_ID, current["file_path"], current["html"], "replaced by an app edit")
+            conn.execute("UPDATE lms_module_landing SET html = ? WHERE id = ?", (html, MODULE_LANDING_ID))
+            conn.commit()
+        finally:
+            conn.close()
+    reconcile_module_landing()
+    return get_module_landing()

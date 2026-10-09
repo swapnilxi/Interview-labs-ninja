@@ -125,9 +125,21 @@ export default function GoalCard({
 
       {hasExports && (
         <div className="flex items-center gap-1.5 flex-wrap mt-1.5 text-[9px] font-bold">
-          {node.exported_to_smart_todo && <span className="text-emerald-500 flex items-center gap-0.5">🧠 Smart</span>}
-          {node.exported_to_quick && <span className="text-amber-500 flex items-center gap-0.5">⚡ Quick</span>}
-          {node.exported_to_plan && <span className="text-blue-500 flex items-center gap-0.5">🗺️ Plan</span>}
+          {node.exported_to_smart_todo && (
+            <span className="text-emerald-500 flex items-center gap-0.5">
+              <Icon name="CpuChipIcon" size={10} /> Smart
+            </span>
+          )}
+          {node.exported_to_quick && (
+            <span className="text-amber-500 flex items-center gap-0.5">
+              <Icon name="BoltIcon" size={10} /> Quick
+            </span>
+          )}
+          {node.exported_to_plan && (
+            <span className="text-blue-500 flex items-center gap-0.5">
+              <Icon name="MapIcon" size={10} /> Plan
+            </span>
+          )}
         </div>
       )}
 
@@ -139,7 +151,12 @@ export default function GoalCard({
             className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
             title="AI: break into strategic sub-goals at the next level down"
           >
-            {busy === 'dive-deeper' ? <span className="w-2.5 h-2.5 border border-blue-500/40 border-t-blue-500 rounded-full animate-spin" /> : '🔍'} Breakdown
+            {busy === 'dive-deeper' ? (
+              <span className="w-2.5 h-2.5 border border-blue-500/40 border-t-blue-500 rounded-full animate-spin" />
+            ) : (
+              <Icon name="MagnifyingGlassIcon" size={10} />
+            )}{' '}
+            Breakdown
           </button>
           <button
             onClick={() => onChunk(node)}
@@ -147,7 +164,12 @@ export default function GoalCard({
             className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
             title="AI: break into small, concrete daily action steps"
           >
-            {busy === 'chunk' ? <span className="w-2.5 h-2.5 border border-purple-500/40 border-t-purple-500 rounded-full animate-spin" /> : '⚡'} Chunk
+            {busy === 'chunk' ? (
+              <span className="w-2.5 h-2.5 border border-purple-500/40 border-t-purple-500 rounded-full animate-spin" />
+            ) : (
+              <Icon name="BoltIcon" size={10} />
+            )}{' '}
+            Chunk
           </button>
           <button
             onClick={() => onEdit(node)}
@@ -184,7 +206,7 @@ export default function GoalCard({
                   }}
                   className="w-full text-left px-2.5 py-1.5 text-[10px] font-medium hover:bg-muted transition-smooth flex items-center gap-1.5"
                 >
-                  🧠 Smart To-Do
+                  <Icon name="CpuChipIcon" size={11} className="text-emerald-500" /> Smart To-Do
                 </button>
                 <button
                   onClick={() => {
@@ -193,7 +215,7 @@ export default function GoalCard({
                   }}
                   className="w-full text-left px-2.5 py-1.5 text-[10px] font-medium hover:bg-muted transition-smooth flex items-center gap-1.5"
                 >
-                  ⚡ Quick Daily
+                  <Icon name="BoltIcon" size={11} className="text-amber-500" /> Quick Daily
                 </button>
                 <button
                   onClick={() => {
@@ -202,7 +224,7 @@ export default function GoalCard({
                   }}
                   className="w-full text-left px-2.5 py-1.5 text-[10px] font-medium hover:bg-muted transition-smooth flex items-center gap-1.5"
                 >
-                  🗺️ Plan & Project
+                  <Icon name="MapIcon" size={11} className="text-blue-500" /> Plan & Project
                 </button>
               </div>
             )}

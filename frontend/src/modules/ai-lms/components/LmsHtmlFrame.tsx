@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { lmsService } from '../services/lmsService';
 import { withVisibilitySafetyNet } from '../utils/lessonVisibilitySafetyNet';
@@ -43,13 +43,46 @@ export default function LmsHtmlFrame({
   const scrollY = useRef(0);
   const shownKey = useRef(docKey);
 
+  const [hostTheme, setHostTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof document === 'undefined') return 'dark';
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    const handleThemeSync = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      const theme: 'light' | 'dark' = isDark ? 'dark' : 'light';
+      setHostTheme(theme);
+      if (iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          { __lms: 1, type: 'set-theme', theme },
+          '*'
+        );
+      }
+    };
+    handleThemeSync();
+
+    const observer = new MutationObserver(handleThemeSync);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+    const onCustomThemeChange = () => {
+      handleThemeSync();
+    };
+    window.addEventListener('interview-ninja-theme-change', onCustomThemeChange);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('interview-ninja-theme-change', onCustomThemeChange);
+    };
+  }, []);
+
   const srcDoc = useMemo(() => {
     if (shownKey.current !== docKey) {
       shownKey.current = docKey;
       scrollY.current = 0;
     }
-    return withLinkBridge(withVisibilitySafetyNet(html), scrollY.current);
-  }, [html, docKey]);
+    return withLinkBridge(withVisibilitySafetyNet(html), scrollY.current, hostTheme);
+  }, [html, docKey, hostTheme]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -58,6 +91,16 @@ export default function LmsHtmlFrame({
       if (!data || data.__lms !== 1) return;
       if (data.type === 'scroll') {
         scrollY.current = Number(data.y) || 0;
+        return;
+      }
+      if (data.type === 'theme-toggle' && (data.theme === 'light' || data.theme === 'dark')) {
+        const nextTheme = data.theme;
+        setHostTheme(nextTheme);
+        try {
+          localStorage.setItem('interview-ninja-theme', nextTheme);
+        } catch (e) {}
+        document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+        window.dispatchEvent(new CustomEvent('interview-ninja-theme-change', { detail: nextTheme }));
         return;
       }
       if (data.type === 'external') {

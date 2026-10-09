@@ -24,6 +24,11 @@ for p in (str(BACKEND_DIR), str(ROOT_DIR)):
 # Vercel mounts the git-tracked repo as read-only; /tmp is the only writable
 # directory. We seed from the bundled file on cold start (empty /tmp) and reuse
 # the writable copy on subsequent requests in the same warm instance.
+#
+# /tmp is also NOT shared across instances and NOT durable across cold starts, so
+# for db_name "lab_ninja" we seed from the latest Neon-stored snapshot (kept current
+# by backend.main's post-write middleware) rather than the stale git-committed file,
+# whenever DATABASE_URL is configured — see modules/common/neon_sync.py.
 
 import shutil  # noqa: E402
 
@@ -31,6 +36,15 @@ def _seed_db_to_tmp(db_name: str) -> str:
     """Copy the bundled sqlite DB to /tmp/<db_name>.sqlite3 if not already there."""
     tmp_path = f"/tmp/{db_name}.sqlite3"
     if not os.path.exists(tmp_path):
+        if db_name == "lab_ninja":
+            from modules.common.neon_sync import download_snapshot
+
+            snapshot = download_snapshot(db_name)
+            if snapshot:
+                with open(tmp_path, "wb") as f:
+                    f.write(snapshot)
+                return tmp_path
+
         candidates = [
             ROOT_DIR / "backend" / "data" / f"{db_name}.sqlite3",
             ROOT_DIR / "backend" / f"{db_name}.sqlite3",

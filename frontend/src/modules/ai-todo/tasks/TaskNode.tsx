@@ -37,6 +37,8 @@ interface TaskNodeProps {
   searchQuery?: string;
   onResumeTask?: (task: Task) => void;
   revealDelays?: Record<number, number>;
+  /** List/Focus layouts already show every task flat — don't also nest the subtree under each row. */
+  flat?: boolean;
 }
 
 export default function TaskNode({
@@ -50,6 +52,7 @@ export default function TaskNode({
   onUndoAvailable,
   searchQuery = '',
   onResumeTask,
+  flat = false,
 }: TaskNodeProps) {
   const [childrenExpanded, setChildrenExpanded] = useState(depth <= 2);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
@@ -62,6 +65,7 @@ export default function TaskNode({
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [showDepthWarning, setShowDepthWarning] = useState<'dive' | 'chunk' | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
   const [showNotes, setShowNotes] = useState(false);
@@ -103,32 +107,38 @@ export default function TaskNode({
     }
   };
 
-  const handleExplainTask = async () => {
-    setAiActionLoading('explain');
+  // Runs a journal AI action; a failure surfaces in the card instead of leaving the spinner stuck.
+  const runJournalAction = async (key: string, action: () => Promise<void>) => {
+    setAiActionLoading(key);
+    setAiError(null);
+    try {
+      await action();
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'AI journal action failed.');
+    } finally {
+      setAiActionLoading(null);
+    }
+  };
+
+  const handleExplainTask = () => runJournalAction('explain', async () => {
     const added = await todoService.explainTask(task.id, model);
     if (added) {
       setNotes(prev => [added, ...prev]);
       setNotesCount(prev => prev + 1);
     }
-    setAiActionLoading(null);
-  };
+  });
 
-  const handleSummarizeNotes = async () => {
-    setAiActionLoading('summarize');
-    const sum = await todoService.summarizeNotes(task.id, model);
-    setSummary(sum);
-    setAiActionLoading(null);
-  };
+  const handleSummarizeNotes = () => runJournalAction('summarize', async () => {
+    setSummary(await todoService.summarizeNotes(task.id, model));
+  });
 
-  const handleExpandNote = async (noteId: number) => {
-    setAiActionLoading(`expand-${noteId}`);
+  const handleExpandNote = (noteId: number) => runJournalAction(`expand-${noteId}`, async () => {
     const added = await todoService.expandNote(task.id, noteId, model);
     if (added) {
       setNotes(prev => [added, ...prev]);
       setNotesCount(prev => prev + 1);
     }
-    setAiActionLoading(null);
-  };
+  });
 
   const depthColor = getDepthColor(depth);
   const progress = computeProgress(task);
@@ -190,6 +200,7 @@ export default function TaskNode({
       return;
     }
     setShowDepthWarning(null);
+    setAiError(null);
     setLoading(type);
     setChildrenExpanded(true);
 
@@ -205,12 +216,14 @@ export default function TaskNode({
       }
     } catch (err) {
       console.error('AI action failed:', err);
+      setAiError(err instanceof Error ? err.message : 'AI breakdown failed.');
     } finally {
       setLoading(null);
     }
   };
 
   const handleRegenerate = async () => {
+    setAiError(null);
     setLoading('regen');
     try {
       const subtasks = await todoService.regenerate(task.id, model);
@@ -219,6 +232,7 @@ export default function TaskNode({
       }
     } catch (err) {
       console.error('Regeneration failed:', err);
+      setAiError(err instanceof Error ? err.message : 'Regeneration failed.');
     } finally {
       setLoading(null);
     }
@@ -283,17 +297,19 @@ export default function TaskNode({
       )}
 
       {/* Main task card */}
-      <div className={`relative lab-card-muted p-3 mb-2 transition-smooth hover:shadow-sm ${paretoClasses}`}
+      <div className={`todo-task-card p-3 mb-2 ${paretoClasses}`}
            style={{ borderLeftWidth: '3px', borderLeftColor: depthColor }}>
 
         {/* Row 1: checkbox + title + status + priority + details toggle — the compact, always-visible row */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-start gap-1.5">
           {/* Children chevron (separate from the details toggle) */}
-          {hasChildren ? (
+          {hasChildren && !flat ? (
             <button
               onClick={() => setChildrenExpanded(!childrenExpanded)}
-              className="text-muted-foreground hover:text-foreground transition-smooth shrink-0"
+              className="todo-focus mt-[3px] rounded text-muted-foreground hover:text-foreground transition-smooth shrink-0"
               title={childrenExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+              aria-label={`${childrenExpanded ? 'Collapse' : 'Expand'} ${task.children.length} subtask${task.children.length === 1 ? '' : 's'}`}
+              aria-expanded={childrenExpanded}
             >
               <Icon
                 name="ChevronRightIcon"
@@ -305,22 +321,28 @@ export default function TaskNode({
             <span className="w-3 shrink-0" />
           )}
 
-          {/* Checkbox */}
-          <button onClick={handleCheckbox} className="flex-shrink-0 transition-smooth hover:scale-110">
+          {/* Checkbox — padded hit area around the 16px box */}
+          <button
+            onClick={handleCheckbox}
+            role="checkbox"
+            aria-checked={task.status === 'done'}
+            aria-label={`Mark "${task.title}" ${task.status === 'done' ? 'not done' : 'done'}`}
+            className="todo-focus group/check -m-1 flex-shrink-0 rounded-md p-1 transition-smooth"
+          >
             <div className={`w-[16px] h-[16px] rounded-[4px] border-2 flex items-center justify-center transition-smooth ${
               task.status === 'done'
-                ? 'bg-emerald-500 border-emerald-500'
-                : 'border-muted-foreground/40 hover:border-primary'
+                ? 'bg-success border-success'
+                : 'border-muted-foreground group-hover/check:border-primary'
             }`}>
               {task.status === 'done' && (
-                <Icon name="CheckIcon" size={11} className="text-white" variant="solid" />
+                <Icon name="CheckIcon" size={11} className="text-success-foreground" variant="solid" />
               )}
             </div>
           </button>
 
           {/* Step number for chunk subtasks */}
           {task.generation_type === 'chunk' && chunkIndex !== undefined && (
-            <span className="flex-shrink-0 text-[10px] font-bold text-emerald-500 w-4 text-center">
+            <span className="mt-[2px] flex-shrink-0 text-[10px] font-bold text-success w-4 text-center">
               {chunkIndex + 1}.
             </span>
           )}
@@ -338,7 +360,7 @@ export default function TaskNode({
             />
           ) : (
             <button
-              className={`flex-1 min-w-0 text-left text-sm font-medium transition-smooth hover:text-primary truncate ${
+              className={`todo-focus flex-1 min-w-0 rounded text-left text-sm font-medium leading-snug transition-smooth hover:text-primary line-clamp-2 break-words ${
                 task.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'
               }`}
               onClick={() => setShowDetailModal(true)}
@@ -352,10 +374,11 @@ export default function TaskNode({
           {/* Top 20% badge */}
           {task.is_top_20 && (
             <span
-              className="flex-shrink-0 text-[10px] px-1 py-0.5 rounded border border-amber-400/50 bg-amber-400/10"
+              className="todo-chip border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400"
               title="Top 20% high-leverage task"
             >
-              ⭐
+              <Icon name="StarIcon" size={10} variant="solid" />
+              <span className="sr-only">Top 20% task</span>
             </span>
           )}
 
@@ -366,10 +389,11 @@ export default function TaskNode({
                 e.stopPropagation();
                 onResumeTask(task);
               }}
-              className="flex-shrink-0 text-[10px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5 transition-smooth animate-pulse"
+              className="todo-focus todo-chip bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-smooth"
               title="Task has been inactive for 2+ days. Rebuild context now."
             >
-              ⚡ Resume
+              <Icon name="BoltIcon" size={10} variant="solid" />
+              Resume
             </button>
           )}
 
@@ -377,15 +401,19 @@ export default function TaskNode({
           <div className="relative flex-shrink-0">
             <button
               onClick={() => { setShowStatusMenu(!showStatusMenu); setShowPriorityMenu(false); }}
-              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition-smooth hover:opacity-80 ${statusConf.bgClass}`}
+              className={`todo-focus text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap transition-smooth hover:opacity-80 ${statusConf.bgClass}`}
+              aria-haspopup="menu"
+              aria-expanded={showStatusMenu}
+              aria-label={`Status: ${statusConf.label}. Change status`}
             >
               {statusConf.label}
             </button>
             {showStatusMenu && (
-              <div className="absolute top-full right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-1 min-w-[130px]">
+              <div role="menu" className="todo-popover absolute top-full right-0 mt-1 z-50 p-1 min-w-[130px]">
                 {(Object.entries(STATUS_CONFIG) as [TaskStatus, typeof statusConf][]).map(([key, conf]) => (
                   <button
                     key={key}
+                    role="menuitem"
                     onClick={() => handleStatusChange(key)}
                     className={`w-full text-left text-[11px] px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted flex items-center gap-2 ${
                       task.status === key ? 'font-semibold' : ''
@@ -403,16 +431,21 @@ export default function TaskNode({
           <div className="relative flex-shrink-0">
             <button
               onClick={() => { setShowPriorityMenu(!showPriorityMenu); setShowStatusMenu(false); }}
-              className="transition-smooth hover:scale-125"
+              className="todo-focus todo-chip border border-border text-muted-foreground hover:text-foreground transition-smooth"
               title={priorityConf.label}
+              aria-haspopup="menu"
+              aria-expanded={showPriorityMenu}
+              aria-label={`Priority: ${priorityConf.label}. Change priority`}
             >
-              <span className={`block w-2.5 h-2.5 rounded-full ${priorityConf.dotClass}`} />
+              <span className={`block w-2 h-2 rounded-full ${priorityConf.dotClass}`} aria-hidden="true" />
+              {task.priority.toUpperCase()}
             </button>
             {showPriorityMenu && (
-              <div className="absolute top-full right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-1 min-w-[120px]">
+              <div role="menu" className="todo-popover absolute top-full right-0 mt-1 z-50 p-1 min-w-[120px]">
                 {(Object.entries(PRIORITY_CONFIG) as [TaskPriority, typeof priorityConf][]).map(([key, conf]) => (
                   <button
                     key={key}
+                    role="menuitem"
                     onClick={() => handlePriorityChange(key)}
                     className={`w-full text-left text-[11px] px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted flex items-center gap-2 ${
                       task.priority === key ? 'font-semibold' : ''
@@ -429,10 +462,12 @@ export default function TaskNode({
           {/* Details & actions toggle — reveals everything below without cluttering the default view */}
           <button
             onClick={() => setDetailsExpanded(!detailsExpanded)}
-            className={`flex-shrink-0 p-1 rounded-md transition-smooth ${
-              detailsExpanded ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            className={`todo-focus -my-0.5 flex-shrink-0 p-1 rounded-md border border-transparent transition-smooth ${
+              detailsExpanded ? 'todo-btn-active' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
             title={detailsExpanded ? 'Hide details & actions' : 'Show details & actions'}
+            aria-label={detailsExpanded ? 'Hide details and actions' : 'Show details and actions'}
+            aria-expanded={detailsExpanded}
           >
             <Icon name="EllipsisHorizontalIcon" size={14} />
           </button>
@@ -450,13 +485,15 @@ export default function TaskNode({
 
           {/* Generation type badge */}
           {task.generation_type === 'dive_deeper' && (
-            <span className="flex-shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-500">
-              🔍 Deep
+            <span className="todo-chip bg-purple-500/15 text-purple-600 dark:text-purple-400 text-[9px]">
+              <Icon name="MagnifyingGlassIcon" size={9} />
+              Deep
             </span>
           )}
           {task.generation_type === 'chunk' && (
-            <span className="flex-shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500">
-              ⚡ Chunk
+            <span className="todo-chip bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px]">
+              <Icon name="ScissorsIcon" size={9} />
+              Chunk
             </span>
           )}
 
@@ -466,7 +503,8 @@ export default function TaskNode({
               className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-0.5"
               title={`Recurring: ${task.recurrence_interval}${task.recurrence_interval === 'custom_days' ? ` (${task.recurrence_custom_days})` : ''}`}
             >
-              🔁 {task.recurrence_interval === 'custom_days' ? task.recurrence_custom_days : task.recurrence_interval}
+              <Icon name="ArrowPathIcon" size={9} />
+              {task.recurrence_interval === 'custom_days' ? task.recurrence_custom_days : task.recurrence_interval}
             </span>
           ) : null}
 
@@ -518,7 +556,7 @@ export default function TaskNode({
           {/* Progress bar (if has children) */}
           {hasChildren && (
             <div className="flex items-center gap-1.5">
-              <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className="w-[3rem] h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-300"
                   style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#22c55e' : depthColor }}
@@ -565,11 +603,11 @@ export default function TaskNode({
                   onClick={() => setShowDetailModal(true)}
                   className="text-[10px] text-muted-foreground hover:text-foreground transition-smooth text-left flex items-start gap-1 min-w-0 w-full"
                 >
-                  <span className="shrink-0">🎯</span>
+                  <Icon name="FlagIcon" size={11} className="mt-px shrink-0" />
                   <span className="truncate italic">{truncateWords(task.intention, 10)}</span>
                 </button>
-                <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block bg-gray-900 dark:bg-gray-800 text-white text-[10px] rounded p-2 whitespace-normal min-w-[220px] max-w-[320px] z-50 shadow-lg leading-normal">
-                  <p className="font-semibold text-primary mb-1">🎯 Intention</p>
+                <div className="todo-popover absolute bottom-full left-0 mb-1.5 hidden group-hover:block text-[10px] p-2 whitespace-normal min-w-[220px] max-w-[320px] z-50 leading-normal">
+                  <p className="font-semibold text-primary mb-1">Intention</p>
                   <p>{task.intention}</p>
                 </div>
               </div>
@@ -580,11 +618,11 @@ export default function TaskNode({
                   onClick={() => setShowDetailModal(true)}
                   className="text-[10px] text-muted-foreground hover:text-foreground transition-smooth text-left flex items-start gap-1 min-w-0 w-full"
                 >
-                  <span className="shrink-0">✅</span>
+                  <Icon name="CheckCircleIcon" size={11} className="mt-px shrink-0" />
                   <span className="truncate italic">{truncateWords(task.definition_of_done, 10)}</span>
                 </button>
-                <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block bg-gray-900 dark:bg-gray-800 text-white text-[10px] rounded p-2 whitespace-normal min-w-[220px] max-w-[320px] z-50 shadow-lg leading-normal">
-                  <p className="font-semibold text-emerald-400 mb-1">✅ Definition of Done</p>
+                <div className="todo-popover absolute bottom-full left-0 mb-1.5 hidden group-hover:block text-[10px] p-2 whitespace-normal min-w-[220px] max-w-[320px] z-50 leading-normal">
+                  <p className="font-semibold text-success mb-1">Definition of Done</p>
                   <p>{task.definition_of_done}</p>
                 </div>
               </div>
@@ -597,33 +635,47 @@ export default function TaskNode({
           <button
             onClick={() => handleAIAction('dive')}
             disabled={loading !== null}
-            className="text-[10px] px-2 py-1 rounded-md border border-purple-500/30 text-purple-500 hover:bg-purple-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1 font-medium"
+            className="todo-btn todo-btn-ghost px-2 py-1 text-[11px] font-medium"
             title="Break into strategic subtasks"
           >
             {loading === 'dive' ? (
-              <span className="w-3 h-3 border border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-            ) : '🔍'}
+              <span className="w-3 h-3 border border-purple-500/30 border-t-purple-500 rounded-full animate-spin" aria-hidden="true" />
+            ) : (
+              <Icon name="MagnifyingGlassIcon" size={12} className="text-purple-500" />
+            )}
             <span>Dive Deeper</span>
           </button>
           <button
             onClick={() => handleAIAction('chunk')}
             disabled={loading !== null}
-            className="text-[10px] px-2 py-1 rounded-md border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1 font-medium"
+            className="todo-btn todo-btn-ghost px-2 py-1 text-[11px] font-medium"
             title="Break into actionable steps"
           >
             {loading === 'chunk' ? (
-              <span className="w-3 h-3 border border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-            ) : '⚡'}
+              <span className="w-3 h-3 border border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" aria-hidden="true" />
+            ) : (
+              <Icon name="ScissorsIcon" size={12} className="text-emerald-500" />
+            )}
             <span>Chunk It</span>
           </button>
         </div>
 
+        {aiError && (
+          <div role="alert" className="todo-alert todo-alert-error mt-2 ml-[22px] py-1.5">
+            <Icon name="ExclamationTriangleIcon" size={13} className="mt-px shrink-0" />
+            <p className="flex-1 text-[11px] leading-relaxed">{aiError}</p>
+            <button onClick={() => setAiError(null)} className="todo-focus shrink-0 rounded opacity-70 hover:opacity-100" aria-label="Dismiss error">
+              <Icon name="XMarkIcon" size={12} />
+            </button>
+          </div>
+        )}
+
         {/* Depth warning (feedback #11) — always visible since Dive/Chunk that trigger it are always visible */}
         {showDepthWarning && (
-          <div className="mt-2 ml-[22px] p-2.5 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
-            <span className="text-xs">⚠️</span>
+          <div className="mt-2 ml-[22px] p-2.5 rounded-md bg-amber-500/10 border border-amber-500/20 flex flex-wrap items-center gap-2">
+            <Icon name="ExclamationTriangleIcon" size={14} className="shrink-0 text-amber-500" />
             <p className="text-[11px] text-amber-600 dark:text-amber-400 flex-1">
-              You're at L{depth} depth — AI subtasks may become too granular. Continue?
+              You&apos;re at L{depth} depth — AI subtasks may become too granular. Continue?
             </p>
             <button
               onClick={() => handleAIAction(showDepthWarning)}
@@ -674,25 +726,27 @@ export default function TaskNode({
               className="text-[10px] px-2 py-1 rounded-md border border-primary/30 text-primary hover:bg-primary/10 transition-smooth flex items-center gap-1 font-semibold"
               title="Open full task page for context, notes, due date & details"
             >
-              <span>📄</span>
+              <Icon name="DocumentTextIcon" size={12} />
               <span>Details</span>
             </button>
 
             {/* Pareto 80/20 Action */}
             <button
               onClick={() => setShowParetoModal(true)}
-              className={`text-[10px] px-1.5 py-1 rounded-md transition-smooth flex items-center gap-1 ${
+              className={`todo-focus text-[10px] px-1.5 py-1 rounded-md transition-smooth flex items-center gap-1 ${
                 task.is_top_20 ? 'bg-amber-400/10 text-amber-500 font-bold' : 'text-muted-foreground hover:bg-muted'
               }`}
               title="80/20 Pareto Analysis"
+              aria-label="80/20 Pareto analysis"
             >
-              ⭐
+              <Icon name="StarIcon" size={12} variant={task.is_top_20 ? 'solid' : 'outline'} />
             </button>
 
             {/* Generate DoD & Subtasks */}
             <button
               onClick={async () => {
                 setLoading('dod' as any);
+                setAiError(null);
                 try {
                   const res = await todoService.generateTaskDoD(task.id, model);
                   if (res && res.created_subtasks && res.created_subtasks.length > 0) {
@@ -703,6 +757,7 @@ export default function TaskNode({
                   }
                 } catch (e) {
                   console.error(e);
+                  setAiError(e instanceof Error ? e.message : 'Generating the Definition of Done failed.');
                 } finally {
                   setLoading(null);
                 }
@@ -713,7 +768,7 @@ export default function TaskNode({
             >
               {loading === ('dod' as any) ? (
                 <span className="w-3 h-3 border border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-              ) : '✨'}
+              ) : <Icon name="SparklesIcon" size={12} variant="solid" />}
               <span>DoD</span>
             </button>
 
@@ -724,10 +779,11 @@ export default function TaskNode({
                 disabled={loading !== null}
                 className="text-[10px] px-1.5 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-smooth disabled:opacity-40"
                 title="Regenerate subtasks"
+                aria-label="Regenerate subtasks"
               >
                 {loading === 'regen' ? (
-                  <span className="w-3 h-3 border border-border border-t-foreground rounded-full animate-spin" />
-                ) : '🔄'}
+                  <span className="block w-3 h-3 border border-border border-t-foreground rounded-full animate-spin" />
+                ) : <Icon name="ArrowPathIcon" size={12} />}
               </button>
             )}
 
@@ -743,6 +799,7 @@ export default function TaskNode({
                 }}
                 className="text-[10px] p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-smooth flex items-center gap-0.5"
                 title="Move Task"
+                aria-label="Move task"
               >
                 <Icon name="ArrowRightIcon" size={11} />
               </button>
@@ -756,13 +813,13 @@ export default function TaskNode({
                     }}
                     className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
                   >
-                    <span className="text-xs">⚡</span> Move to Quick Daily
+                    <Icon name="BoltIcon" size={12} /> Move to Quick Daily
                   </button>
                   <button
                     onClick={handleOpenMovePlan}
                     className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
                   >
-                    <span className="text-xs">🗺️</span> Move to Plan & Project
+                    <Icon name="MapIcon" size={12} /> Move to Plan & Project
                   </button>
                 </div>
               )}
@@ -795,7 +852,7 @@ export default function TaskNode({
                           onClick={() => handleMoveToProject(p.id)}
                           className="w-full text-left text-[10px] px-2.5 py-1.5 rounded-md hover:bg-muted transition-smooth flex items-center gap-2 disabled:opacity-50"
                         >
-                          <span className="text-xs">{p.icon || '📁'}</span>
+                          {p.icon ? <span className="text-xs">{p.icon}</span> : <Icon name="FolderIcon" size={12} />}
                           <span className="truncate flex-1">{p.title}</span>
                         </button>
                       ))}
@@ -825,6 +882,7 @@ export default function TaskNode({
                 onClick={() => { setShowDeleteConfirm(!showDeleteConfirm); setShowMoveMenu(false); setShowParetoModal(false); }}
                 className="text-[10px] px-1.5 py-1 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-smooth"
                 title="Delete task"
+                aria-label="Delete task"
               >
                 <Icon name="TrashIcon" size={12} />
               </button>
@@ -880,7 +938,7 @@ export default function TaskNode({
                   }}
                   className="h-3 w-3 rounded border-border text-primary cursor-pointer"
                 />
-                🔁 Recurring
+                <Icon name="ArrowPathIcon" size={11} /> Recurring
               </label>
 
               {task.is_recurring ? (
@@ -941,7 +999,7 @@ export default function TaskNode({
                 disabled={aiActionLoading !== null}
                 className="text-[10px] px-2 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 font-medium transition-smooth flex items-center gap-1 disabled:opacity-50"
               >
-                {aiActionLoading === 'explain' ? '⏳' : '✨'} Explain Task
+                {aiActionLoading === 'explain' ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : <Icon name="SparklesIcon" size={11} variant="solid" />} Explain Task
               </button>
               <button
                 type="button"
@@ -949,7 +1007,7 @@ export default function TaskNode({
                 disabled={aiActionLoading !== null || notes.length === 0}
                 className="text-[10px] px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium transition-smooth flex items-center gap-1 disabled:opacity-50"
               >
-                {aiActionLoading === 'summarize' ? '⏳' : '📋'} Summarize Journal
+                {aiActionLoading === 'summarize' ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : <Icon name="ClipboardDocumentListIcon" size={11} />} Summarize Journal
               </button>
             </div>
 
@@ -1008,7 +1066,7 @@ export default function TaskNode({
                         disabled={aiActionLoading !== null}
                         className="text-[9px] text-primary hover:underline font-semibold mt-1 self-start flex items-center gap-0.5 disabled:opacity-50"
                       >
-                        {aiActionLoading === `expand-${note.id}` ? 'Expanding...' : '⚡ Expand decision'}
+                        {aiActionLoading === `expand-${note.id}` ? 'Expanding...' : <><Icon name="ArrowsPointingOutIcon" size={10} /> Expand decision</>}
                       </button>
                     )}
                   </div>
@@ -1022,7 +1080,7 @@ export default function TaskNode({
       </div>
 
       {/* Children (recursive) */}
-      {childrenExpanded && hasChildren && (
+      {childrenExpanded && hasChildren && !flat && (
         <div className="relative">
           {task.children.map((child, index) => (
             <TaskNode
@@ -1046,7 +1104,7 @@ export default function TaskNode({
       {loading && loading !== 'regen' && (
         <div className="ml-6 space-y-2 mt-1">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-10 rounded-lg bg-muted/50 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+            <div key={i} className="h-10 rounded-lg bg-muted motion-safe:animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
           ))}
         </div>
       )}

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLmsViewMode } from './context/LmsViewModeContext';
 import { lmsService } from './services/lmsService';
 import type { ContinueLearningItem, LmsClass } from './types';
 import SearchBar from './components/SearchBar';
@@ -12,13 +13,45 @@ import ClassCard from './components/ClassCard';
 import CreateClassModal from './components/CreateClassModal';
 import EditClassModal from './components/EditClassModal';
 import ConfirmDialog from './components/ConfirmDialog';
+import InstructorManagementTab from './components/InstructorManagementTab';
+import { useLearningProgress } from './services/learningStateManager';
 
 export default function LmsHomeModule() {
-  const { canEdit } = useAuth();
+  const { canEdit: canEditReal } = useAuth();
+  const { isPreviewingAsStudent } = useLmsViewMode();
+  const canEdit = canEditReal && !isPreviewingAsStudent;
   const [classes, setClasses] = useState<LmsClass[]>([]);
-  const [continueItem, setContinueItem] = useState<ContinueLearningItem | null>(null);
   const [loading, setLoading] = useState(true);
-  const [continueLoading, setContinueLoading] = useState(true);
+
+  // Dynamic Learning State & Tracks
+  const {
+    continueItem,
+    recentItems,
+    loading: continueLoading,
+    selectActiveTrack,
+  } = useLearningProgress();
+
+  // Sub-tabs: 'classes' | 'instructors'
+  const [activeTab, setActiveTab] = useState<'classes' | 'instructors'>('classes');
+
+  // Sync tab with URL search parameter if present
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam === 'instructors' || tabParam === 'instructor') {
+        setActiveTab('instructors');
+      }
+    }
+  }, []);
+
+  const handleTabChange = (tab: 'classes' | 'instructors') => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.pushState({}, '', url.toString());
+    }
+  };
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -38,21 +71,8 @@ export default function LmsHomeModule() {
     }
   };
 
-  const loadContinueLearning = async () => {
-    setContinueLoading(true);
-    try {
-      const cont = await lmsService.getContinueLearning();
-      setContinueItem(cont);
-    } catch (err) {
-      console.error('Failed to load continue learning item', err);
-    } finally {
-      setContinueLoading(false);
-    }
-  };
-
   useEffect(() => {
     loadData();
-    loadContinueLearning();
   }, []);
 
   const handleDeleteClass = async () => {
@@ -89,130 +109,190 @@ export default function LmsHomeModule() {
   const totalSubjects = classes.reduce((sum, c) => sum + (c.subject_count || 0), 0);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-12">
-      {/* Hero Section: ByteByteGo / NeetCode modern style */}
-      <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border">
-        <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-            <Icon name="SparklesIcon" size={14} />
-            <span>AI-Powered Curriculum</span>
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Compact Glassmorphic Hero & Sub-Tabs Header */}
+      <div className="relative rounded-2xl border border-border/80 bg-card/60 backdrop-blur-md p-4 sm:p-5 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Header Info */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary flex-shrink-0 shadow-xs">
+              <Icon name="SparklesIcon" size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-heading text-xl sm:text-2xl font-extrabold tracking-tight text-foreground">
+                  AI Learning Platform
+                </h1>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                  AI LMS 2.0
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground font-body max-w-xl mt-0.5 line-clamp-1 sm:line-clamp-none">
+                Generate, organize, and consume interactive engineering lessons. Manage curriculum classes & AI faculty personas.
+              </p>
+            </div>
           </div>
 
-          <h1 className="font-heading text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">
-            AI Learning Platform
-          </h1>
+          {/* Action CTAs */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap flex-shrink-0">
+            <Link
+              href="/ai-lms/landing"
+              title="About AI LMS & all classes"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground font-semibold text-xs transition-all shadow-xs"
+            >
+              <Icon name="InformationCircleIcon" size={14} />
+              <span>About AI LMS</span>
+            </Link>
 
-          <p className="text-base text-muted-foreground font-body max-w-2xl leading-relaxed">
-            Generate, organize, and consume interactive engineering lessons. Transform complex
-            topics into standalone, structured modules.
-          </p>
+            {canEdit && activeTab === 'classes' && (
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground font-semibold text-xs transition-all shadow-xs"
+              >
+                <Icon name="PlusIcon" size={14} />
+                <span>New Class</span>
+              </button>
+            )}
+
+            {canEdit && (
+              <Link
+                href="/ai-lms/generate"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs shadow-xs hover:opacity-90 transition-all"
+              >
+                <Icon name="SparklesIcon" size={14} />
+                <span>Generate Lesson</span>
+              </Link>
+            )}
+          </div>
         </div>
 
-        {/* Global Action CTAs */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {canEdit && (
-          <button
-            type="button"
-            onClick={() => setIsCreateModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
-          >
-            <Icon name="PlusIcon" size={15} />
-            <span>New Class</span>
-          </button>
-          )}
+        {/* Sub-Tabs Bar: | Class Management | Instructor Management | */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border/60">
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-muted/60 border border-border/60 w-fit">
+            <button
+              type="button"
+              onClick={() => handleTabChange('classes')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'classes'
+                  ? 'bg-card text-foreground shadow-xs border border-border/80'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Icon name="AcademicCapIcon" size={15} />
+              <span>Class Management</span>
+            </button>
 
-          {canEdit && (
-          <Link
-            href="/ai-lms/generate"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 transition-all"
-          >
-            <Icon name="SparklesIcon" size={16} />
-            <span>Generate Lesson</span>
-          </Link>
-          )}
-        </div>
-      </div>
-
-      {/* Scannable Search Bar */}
-      <div className="flex justify-center">
-        <SearchBar />
-      </div>
-
-      {/* Continue Learning Experience */}
-      {continueItem && (
-        <section className="space-y-3">
-          <ContinueLearningBanner item={continueItem} loading={continueLoading} />
-        </section>
-      )}
-
-      {/* Classes Section */}
-      <section className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="font-heading text-xl md:text-2xl font-bold text-foreground">
-              Curriculum Classes
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Browse structured technical domains, algorithms, and system design tracks
-            </p>
+            <button
+              type="button"
+              onClick={() => handleTabChange('instructors')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'instructors'
+                  ? 'bg-card text-foreground shadow-xs border border-border/80'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Icon name="UserGroupIcon" size={15} />
+              <span>Instructor Management</span>
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Aggregate counts */}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{classes.length} classes</span>
+          {activeTab === 'classes' && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card/60 px-3 py-1.5 rounded-xl border border-border/60 w-fit shadow-2xs">
+              <span className="font-semibold text-foreground">{classes.length} classes</span>
               <span>•</span>
               <span>{totalSubjects} subjects</span>
               <span>•</span>
               <span>{totalLessons} lessons</span>
             </div>
-
-            {canEdit && classes.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setIsOrganizeMode(!isOrganizeMode)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
-                  isOrganizeMode
-                    ? 'bg-primary text-white border-primary shadow-sm'
-                    : 'bg-card text-foreground border-border hover:bg-muted'
-                }`}
-              >
-                <Icon name="ArrowsUpDownIcon" size={14} />
-                <span>{isOrganizeMode ? 'Done Organizing' : 'Organize Classes'}</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Classes Grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div
-                key={i}
-                className="h-48 rounded-2xl border border-border bg-card/60 p-6 animate-pulse"
-              />
-            ))}
+      {/* Tab 1: Class Management View */}
+      {activeTab === 'classes' && (
+        <div className="space-y-12 animate-fadeIn">
+          {/* Scannable Search Bar */}
+          <div className="flex justify-center">
+            <SearchBar />
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {classes.map((cls, idx) => (
-              <ClassCard
-                key={cls.id}
-                lmsClass={cls}
-                onEdit={canEdit ? (c) => setClassToEdit(c) : undefined}
-                onDelete={canEdit ? (c) => setClassToDelete(c) : undefined}
-                isOrganizeMode={isOrganizeMode}
-                orderIndex={idx}
-                canMoveLeft={idx > 0}
-                canMoveRight={idx < classes.length - 1}
-                onMoveLeft={() => handleMoveClass(idx, 'left')}
-                onMoveRight={() => handleMoveClass(idx, 'right')}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+
+          {/* Continue Learning Experience (Reactive & Guided) */}
+          <section className="space-y-3">
+            <ContinueLearningBanner
+              item={continueItem}
+              recentItems={recentItems}
+              onSelectTrack={selectActiveTrack}
+              loading={continueLoading}
+            />
+          </section>
+
+          {/* Classes Section */}
+          <section className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="font-heading text-xl md:text-2xl font-bold text-foreground">
+                  Curriculum Classes
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Browse structured technical domains, algorithms, and system design tracks
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {canEdit && classes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsOrganizeMode(!isOrganizeMode)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                      isOrganizeMode
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-card text-foreground border-border hover:bg-muted'
+                    }`}
+                  >
+                    <Icon name="ArrowsUpDownIcon" size={14} />
+                    <span>{isOrganizeMode ? 'Done Organizing' : 'Organize Classes'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Classes Grid */}
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div
+                    key={i}
+                    className="min-h-[220px] rounded-2xl border border-border bg-card/60 p-[24px] animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {classes.map((cls, idx) => (
+                  <ClassCard
+                    key={cls.id}
+                    lmsClass={cls}
+                    onEdit={canEdit ? (c) => setClassToEdit(c) : undefined}
+                    onDelete={canEdit ? (c) => setClassToDelete(c) : undefined}
+                    isOrganizeMode={isOrganizeMode}
+                    orderIndex={idx}
+                    canMoveLeft={idx > 0}
+                    canMoveRight={idx < classes.length - 1}
+                    onMoveLeft={() => handleMoveClass(idx, 'left')}
+                    onMoveRight={() => handleMoveClass(idx, 'right')}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* Tab 2: Instructor Management View */}
+      {activeTab === 'instructors' && (
+        <InstructorManagementTab classes={classes} />
+      )}
 
       {/* Inline Create Class Modal */}
       <CreateClassModal

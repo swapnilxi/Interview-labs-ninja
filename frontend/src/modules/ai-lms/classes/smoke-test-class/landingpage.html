@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smoke Test Class</title>
+  <!--
+    Landing page for this class. Edit anything: the app renders this file as it is.
+    Regions wrapped in lms:auto comment markers (class name, description, counts, and the
+    subject / project / lesson lists) are refreshed by the app when that data changes.
+    Delete a marker pair to freeze that region with whatever you put there.
+    Links are relative to this file, so the class folder also works as a static site.
+  -->
+  <style>
+    :root {
+      --bg: #f7f5ef;
+      --surface: #fffdf8;
+      --ink: #1d1b17;
+      --muted: #6b665c;
+      --line: #e7e1d4;
+      --accent: #5b5bd6;
+      --accent-ink: #ffffff;
+      --accent-soft: rgba(91, 91, 214, 0.12);
+    }
+    :root[data-theme="light"], html.light, body.light {
+      --bg: #f7f5ef;
+      --surface: #fffdf8;
+      --ink: #1d1b17;
+      --muted: #6b665c;
+      --line: #e7e1d4;
+      --accent: #5b5bd6;
+      --accent-ink: #ffffff;
+      --accent-soft: rgba(91, 91, 214, 0.12);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #14130f;
+        --surface: #1d1b17;
+        --ink: #f1ede4;
+        --muted: #a39d90;
+        --line: #33302a;
+        --accent: #8b8bf0;
+        --accent-ink: #14130f;
+        --accent-soft: rgba(139, 139, 240, 0.16);
+      }
+    }
+    :root[data-theme="dark"], html.dark, body.dark {
+      --bg: #14130f;
+      --surface: #1d1b17;
+      --ink: #f1ede4;
+      --muted: #a39d90;
+      --line: #33302a;
+      --accent: #8b8bf0;
+      --accent-ink: #14130f;
+      --accent-soft: rgba(139, 139, 240, 0.16);
+    }
+    .lms-theme-toggle {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 99999;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    }
+    :root[data-theme="dark"] .lms-theme-toggle, html.dark .lms-theme-toggle, body.dark .lms-theme-toggle {
+      background: rgba(29, 27, 23, 0.9);
+      color: #f1ede4;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    :root[data-theme="light"] .lms-theme-toggle, html.light .lms-theme-toggle, body.light .lms-theme-toggle {
+      background: rgba(255, 253, 248, 0.92);
+      color: #1d1b17;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+    }
+    .lms-theme-toggle:hover {
+      transform: translateY(-1px) scale(1.03);
+    }
+    .lms-theme-toggle:active {
+      transform: translateY(0) scale(0.98);
+    }
+    :root[data-theme="dark"] .lms-theme-icon-moon, html.dark .lms-theme-icon-moon { display: none; }
+    :root[data-theme="dark"] .lms-theme-icon-sun, html.dark .lms-theme-icon-sun { display: inline-block; }
+    :root[data-theme="light"] .lms-theme-icon-sun, html.light .lms-theme-icon-sun { display: none; }
+    :root[data-theme="light"] .lms-theme-icon-moon, html.light .lms-theme-icon-moon { display: inline-block; }
+    @media print {
+      .lms-theme-toggle { display: none !important; }
+    }
+    * { box-sizing: border-box; }
+    html { color-scheme: light dark; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    a { color: var(--accent); }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+    .hero {
+      padding: 88px 0 56px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 14px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .hero h1 {
+      margin: 0 0 16px;
+      font-size: clamp(2.4rem, 6vw, 4rem);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+    }
+    .lead { max-width: 640px; margin: 0 0 28px; font-size: 1.15rem; color: var(--muted); }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+    .lms-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: none;
+    }
+    .lms-cta:hover { opacity: 0.92; }
+    .stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); }
+    .lms-stat strong { color: var(--ink); }
+    main { padding: 8px 20px 72px; }
+    .lms-section { margin-top: 48px; }
+    .lms-section h2 { margin: 0 0 18px; font-size: 1.5rem; }
+    .lms-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+    .lms-card {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+    }
+    .lms-card h3 { margin: 6px 0; font-size: 1.15rem; }
+    .lms-card p { margin: 0 0 12px; font-size: 0.95rem; color: var(--muted); }
+    .lms-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .lms-list { margin: 0; padding-left: 20px; }
+    .lms-list li { margin: 4px 0; }
+    .lms-list a { text-decoration: none; }
+    .lms-list a:hover { text-decoration: underline; }
+    .lms-list .lms-list { margin-top: 4px; }
+    .lms-pending, .lms-muted { color: var(--muted); }
+    .closing {
+      margin-top: 64px;
+      padding: 40px 24px;
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+    }
+    .closing h2 { margin: 0 0 18px; }
+  </style>
+</head>
+<body>
+  <button id="lms-theme-toggle" class="lms-theme-toggle" type="button" aria-label="Toggle theme">
+    <svg class="lms-theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+    <svg class="lms-theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    <span class="lms-theme-label">Theme</span>
+  </button>
+  <header class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Class</span>
+      <h1><!-- lms:auto:name -->Smoke Test Class<!-- /lms:auto:name --></h1>
+      <p class="lead"><!-- lms:auto:description -->a class for the fe-apis smoke test<!-- /lms:auto:description --></p>
+      <div class="actions">
+        <a class="lms-cta" href="#contents" data-lms-route="class">Enter Class &rarr;</a>
+        <div class="stats"><!-- lms:auto:stats --><span class="lms-stat"><strong>0</strong> subjects</span> <span class="lms-stat"><strong>0</strong> projects</span> <span class="lms-stat"><strong>0</strong> lessons</span><!-- /lms:auto:stats --></div>
+      </div>
+    </div>
+  </header>
+  <main id="contents" class="wrap">
+    <!-- lms:auto:subjects --><!-- /lms:auto:subjects -->
+    <!-- lms:auto:projects --><!-- /lms:auto:projects -->
+    <!-- lms:auto:lessons --><!-- /lms:auto:lessons -->
+    <section class="closing">
+      <h2>Ready to start learning?</h2>
+      <a class="lms-cta" href="#contents" data-lms-route="class">Go to Class &rarr;</a>
+    </section>
+  </main>
+  <script>
+    function getActiveTheme() {
+      var dt = document.documentElement.getAttribute('data-theme');
+      if (dt === 'light' || dt === 'dark') return dt;
+      return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+    }
+    function updateThemeBtn(theme) {
+      var btn = document.getElementById('lms-theme-toggle');
+      if (!btn) return;
+      btn.setAttribute('title', theme === 'dark' ? 'Switch to Light mode' : 'Switch to Dark mode');
+      var label = btn.querySelector('.lms-theme-label');
+      if (label) label.textContent = theme === 'dark' ? 'Light' : 'Dark';
+    }
+    function setLmsTheme(theme) {
+      if (!theme) return;
+      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.classList.remove('light', 'dark');
+      document.documentElement.classList.add(theme);
+      if (document.body) {
+        document.body.classList.remove('light', 'dark');
+        document.body.classList.add(theme);
+      }
+      updateThemeBtn(theme);
+    }
+    function toggleLmsTheme() {
+      var next = getActiveTheme() === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('lms-theme-pref', next); } catch (e) {}
+      setLmsTheme(next);
+      try { parent.postMessage({ __lms: 1, type: 'theme-toggle', theme: next }, '*'); } catch (e) {}
+    }
+    var themeBtn = document.getElementById('lms-theme-toggle');
+    if (themeBtn) {
+      themeBtn.onclick = toggleLmsTheme;
+      try {
+        var savedTheme = localStorage.getItem('lms-theme-pref');
+        if (savedTheme === 'light' || savedTheme === 'dark') setLmsTheme(savedTheme);
+        else updateThemeBtn(getActiveTheme());
+      } catch (e) {
+        updateThemeBtn(getActiveTheme());
+      }
+    }
+    window.addEventListener('message', function (e) {
+      var data = e.data;
+      if (data && data.__lms === 1 && (data.type === 'set-theme' || data.type === 'theme-change')) {
+        setLmsTheme(data.theme);
+      }
+    });
+  </script>
+</body>
+</html>

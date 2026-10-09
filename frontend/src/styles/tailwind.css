@@ -206,6 +206,21 @@
     background: color-mix(in srgb, var(--color-muted) 60%, transparent);
   }
 
+  /* Sidebar rail mode: shifts main page content and header on desktop (md+) */
+  @media (min-width: 768px) {
+    html.has-sidebar-rail body,
+    body.has-sidebar-rail {
+      padding-left: 60px;
+      transition: padding-left 220ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    html.has-sidebar-rail .app-header,
+    body.has-sidebar-rail .app-header {
+      left: 60px;
+      transition: left 220ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  }
+
   .lab-shell {
     @apply h-screen overflow-hidden bg-background pt-[60px] text-foreground;
   }
@@ -316,6 +331,369 @@
     @apply w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0;
     background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 16%, transparent), color-mix(in srgb, var(--color-secondary) 10%, transparent));
   }
+
+  /*
+   * Premium interactive glow cards.
+   *
+   * Usage: a `.glow-card-wrap` carries `--card-accent` (inherited by both
+   * children below) and holds, in order: a `.glow-card-halo` sibling first
+   * (the ambient glow — painted behind the opaque card purely by DOM order,
+   * no z-index trick needed, so it can't ever wash over the card's own
+   * background or leak behind unrelated page content), then the card itself
+   * with the `.glow-card` class, containing a `.glow-card-rim` and
+   * `.glow-card-spotlight` as its first children so they sit under the real
+   * content but inside the card's own rounded, opaque surface.
+   * `--mouse-x`/`--mouse-y`/`--spotlight-opacity` are written directly to
+   * the `.glow-card` node by useGlowSpotlight.
+   */
+  .glow-card-halo {
+    @apply pointer-events-none absolute -inset-3 rounded-[inherit] opacity-50 transition-opacity duration-300;
+    background:
+      radial-gradient(60% 65% at 20% 0%, color-mix(in srgb, var(--card-accent) 22%, transparent), transparent 70%),
+      radial-gradient(55% 60% at 100% 100%, color-mix(in srgb, var(--card-accent) 14%, transparent), transparent 72%);
+    filter: blur(20px);
+  }
+
+  .glow-card-wrap:hover > .glow-card-halo,
+  .glow-card-wrap:focus-within > .glow-card-halo {
+    opacity: 0.9;
+  }
+
+  .glow-card {
+    @apply relative transition-colors;
+    border-color: color-mix(in srgb, var(--card-accent) 22%, var(--color-border));
+    transition-property: border-color, box-shadow, transform;
+    transition-duration: 300ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glow-card:hover,
+  .glow-card:focus-visible {
+    border-color: color-mix(in srgb, var(--card-accent) 65%, transparent);
+    box-shadow:
+      0 14px 30px -8px color-mix(in srgb, var(--card-accent) 30%, transparent),
+      0 4px 14px -4px color-mix(in srgb, var(--card-accent) 18%, transparent);
+  }
+
+  .glow-card-rim {
+    pointer-events: none;
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 320ms cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1;
+    padding: 1.5px;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+  }
+
+  .glow-card-rim::before {
+    content: '';
+    position: absolute;
+    width: 260%;
+    height: 260%;
+    top: -80%;
+    left: -80%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      transparent 55deg,
+      color-mix(in srgb, var(--card-accent, var(--color-primary)) 45%, transparent) 75deg,
+      color-mix(in srgb, var(--card-accent, var(--color-primary)) 95%, white 10%) 95deg,
+      #ffffff 105deg,
+      color-mix(in srgb, var(--card-accent, var(--color-primary)) 95%, white 10%) 115deg,
+      color-mix(in srgb, var(--card-accent, var(--color-primary)) 45%, transparent) 135deg,
+      transparent 155deg,
+      transparent 360deg
+    );
+    animation: rim-spin 2.6s linear infinite;
+    animation-play-state: paused;
+    will-change: transform;
+  }
+
+  .glow-card-rim::after {
+    content: '';
+    position: absolute;
+    width: 260%;
+    height: 260%;
+    top: -80%;
+    left: -80%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      transparent 70deg,
+      color-mix(in srgb, var(--card-accent, var(--color-primary)) 75%, transparent) 95deg,
+      color-mix(in srgb, var(--card-accent, var(--color-primary)) 90%, white 15%) 105deg,
+      color-mix(in srgb, var(--card-accent, var(--color-primary)) 75%, transparent) 115deg,
+      transparent 140deg,
+      transparent 360deg
+    );
+    filter: blur(4px);
+    animation: rim-spin 2.6s linear infinite;
+    animation-play-state: paused;
+    will-change: transform;
+  }
+
+  .glow-card:hover .glow-card-rim,
+  .glow-card:focus-visible .glow-card-rim,
+  .glow-card-wrap:hover .glow-card-rim,
+  .glow-card-wrap:focus-within .glow-card-rim {
+    opacity: 1;
+  }
+
+  .glow-card:hover .glow-card-rim::before,
+  .glow-card:focus-visible .glow-card-rim::before,
+  .glow-card-wrap:hover .glow-card-rim::before,
+  .glow-card-wrap:focus-within .glow-card-rim::before,
+  .glow-card:hover .glow-card-rim::after,
+  .glow-card:focus-visible .glow-card-rim::after,
+  .glow-card-wrap:hover .glow-card-rim::after,
+  .glow-card-wrap:focus-within .glow-card-rim::after {
+    animation-play-state: running;
+  }
+
+  @keyframes rim-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .glow-card-rim::before,
+    .glow-card-rim::after {
+      animation: none;
+    }
+    .glow-card {
+      transition-duration: 150ms;
+    }
+    .glow-card:hover,
+    .glow-card:focus-visible {
+      transform: none !important;
+    }
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .glow-card-spotlight {
+      display: none;
+    }
+  }
+
+  /*
+   * AI To-Do surfaces & controls.
+   *
+   * Tailwind can't apply opacity modifiers (bg-primary/10, border-border/60, ...)
+   * to this theme's var()-based colors — those classes compile to nothing — so
+   * every tint below is color-mix()ed from the tokens directly. That keeps the
+   * accent-color setting (which re-points --color-primary) working everywhere.
+   */
+  .todo-glass {
+    @apply rounded-xl border border-border;
+    background: color-mix(in srgb, var(--color-card) 84%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 5%, transparent),
+      0 1px 2px rgba(15, 12, 8, 0.05),
+      0 10px 28px -16px rgba(15, 12, 8, 0.22);
+  }
+
+  .todo-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  .todo-btn {
+    @apply todo-focus inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-smooth disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .todo-btn-primary {
+    @apply bg-primary text-primary-foreground shadow-sm;
+  }
+
+  .todo-btn-primary:not(:disabled):hover {
+    background: color-mix(in srgb, var(--color-primary) 88%, var(--color-foreground));
+    box-shadow: 0 6px 18px -6px var(--color-glow);
+  }
+
+  .todo-btn-secondary {
+    @apply border border-border text-foreground;
+    background: color-mix(in srgb, var(--color-card) 70%, transparent);
+  }
+
+  .todo-btn-secondary:not(:disabled):hover {
+    background: var(--color-muted);
+    border-color: color-mix(in srgb, var(--color-foreground) 22%, transparent);
+  }
+
+  .todo-btn-ghost {
+    @apply text-muted-foreground;
+  }
+
+  .todo-btn-ghost:not(:disabled):hover {
+    @apply text-foreground;
+    background: var(--color-muted);
+  }
+
+  .todo-btn-active {
+    @apply text-primary;
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  }
+
+  .todo-icon-chip {
+    @apply flex flex-shrink-0 items-center justify-center rounded-lg text-primary;
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  }
+
+  .todo-input {
+    @apply w-full rounded-lg border border-border bg-input text-foreground transition-smooth placeholder:text-muted-foreground focus:outline-none;
+  }
+
+  .todo-input:focus {
+    border-color: color-mix(in srgb, var(--color-ring) 70%, var(--color-border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 22%, transparent);
+  }
+
+  /* Segmented control: views, sub-views. Selected state comes from aria-pressed. */
+  .todo-segmented {
+    @apply inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border p-0.5 scrollbar-none;
+    background: color-mix(in srgb, var(--color-muted) 55%, transparent);
+  }
+
+  .todo-segment {
+    @apply todo-focus inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-smooth hover:text-foreground;
+  }
+
+  .todo-segment[aria-pressed='true'],
+  .todo-segment[aria-current='page'] {
+    @apply bg-card text-foreground shadow-sm;
+  }
+
+  .todo-segment[aria-pressed='true'] svg,
+  .todo-segment[aria-current='page'] svg {
+    @apply text-primary;
+  }
+
+  /* Fast-capture bar: the one AI entry point that should read as "type here". */
+  .todo-capture {
+    @apply flex items-center gap-2 rounded-xl border p-1.5 transition-smooth;
+    border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+    background: color-mix(in srgb, var(--color-input) 88%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 5%, transparent),
+      0 8px 24px -16px var(--color-glow);
+  }
+
+  .todo-capture:focus-within {
+    border-color: color-mix(in srgb, var(--color-primary) 65%, transparent);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--color-ring) 20%, transparent),
+      0 10px 28px -14px var(--color-glow);
+  }
+
+  .todo-task-card {
+    @apply relative rounded-lg border border-border transition-smooth;
+    background: color-mix(in srgb, var(--color-card) 78%, transparent);
+  }
+
+  .todo-task-card:hover {
+    border-color: color-mix(in srgb, var(--color-foreground) 20%, transparent);
+    box-shadow: 0 6px 18px -12px rgba(15, 12, 8, 0.35);
+  }
+
+  .todo-chip {
+    @apply inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold;
+  }
+
+  .todo-popover {
+    @apply rounded-lg border border-border bg-popover text-popover-foreground shadow-lg;
+  }
+
+  .todo-alert {
+    @apply flex items-start gap-2 rounded-lg border px-3 py-2 text-xs;
+  }
+
+  .todo-alert-error {
+    color: var(--color-error);
+    border-color: color-mix(in srgb, var(--color-error) 35%, transparent);
+    background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  }
+
+  .todo-alert-warning {
+    color: var(--color-warning);
+    border-color: color-mix(in srgb, var(--color-warning) 35%, transparent);
+    background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+  }
+
+  .todo-alert-info {
+    @apply text-foreground;
+    border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  }
+
+  /*
+   * Floating action buttons. Kept inside the main column: clear of the sidebar
+   * rail on the left and the Copilot panel on the right (.todo-shell carries
+   * data-copilot), and above the iOS home indicator via safe-area insets.
+   * z-30 so modals (z-50+) always cover them.
+   */
+  .todo-fab {
+    @apply todo-focus fixed z-30 flex h-[3rem] w-[3rem] items-center justify-center rounded-full shadow-lg transition-smooth sm:h-14 sm:w-14;
+    bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .todo-fab:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 28px -8px rgba(15, 12, 8, 0.45);
+  }
+
+  .todo-fab-left,
+  .todo-fab-popover {
+    left: calc(1rem + env(safe-area-inset-left, 0px));
+  }
+
+  .todo-fab-right {
+    right: calc(1rem + env(safe-area-inset-right, 0px));
+  }
+
+  /* Pop-up anchored above the left FAB (distraction capture). */
+  .todo-fab-popover {
+    @apply fixed z-40;
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    width: min(20rem, calc(100vw - 2rem));
+  }
+
+  @media (min-width: 768px) {
+    html.has-sidebar-rail .todo-fab-left,
+    html.has-sidebar-rail .todo-fab-popover {
+      left: calc(60px + 1.5rem);
+    }
+  }
+
+  /* The Copilot (320px open / 48px collapsed strip) only exists at lg+. */
+  @media (min-width: 1024px) {
+    .todo-shell[data-copilot='open'] .todo-fab-right {
+      right: calc(320px + 1.5rem);
+    }
+
+    .todo-shell[data-copilot='collapsed'] .todo-fab-right {
+      right: calc(48px + 1.5rem);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .todo-fab:hover {
+      transform: none;
+    }
+  }
 }
 
 @layer utilities {
@@ -350,6 +728,17 @@
     border: 3px solid transparent;
     border-radius: 999px;
     background-clip: padding-box;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
 
   .animate-fade-in {

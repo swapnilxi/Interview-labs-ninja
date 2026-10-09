@@ -5,11 +5,33 @@ export interface LmsClass {
   description: string;
   ai_context?: string;
   icon?: string;
+  accent_color?: string;
   is_system: number;
   subject_count: number;
   lesson_count: number;
   subjects?: LmsSubject[];
   direct_lessons?: LmsLesson[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LmsInstructor {
+  id: string;
+  name: string;
+  slug: string;
+  type: 'real' | 'ai';
+  title: string;
+  bio: string;
+  email?: string;
+  avatar?: string;
+  expertise: string[];
+  learning_style?: string;
+  learning_style_prompt?: string;
+  ai_persona?: string;
+  ai_chatbot_enabled?: number | boolean;
+  rating?: number;
+  assigned_class_ids?: string[];
+  assigned_classes?: { id: string; name: string; slug: string; icon?: string }[];
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +58,7 @@ export interface LmsSubject {
   /** 'subject' (default, existing Class -> Subject -> Lessons flow) or 'project' (Class ->
    * Project -> AI-planned implementation modules, reusing this same row + lesson schema). */
   kind?: 'subject' | 'project';
+  accent_color?: string;
   /** Project-only: the README/context the AI decomposes into implementation modules. */
   project_context?: string;
   /** Comma-joined names of every file the context was extracted from, if any (project's
@@ -112,6 +135,38 @@ export interface LmsLanding {
   file_sync: boolean;
 }
 
+/** The AI LMS module-root landing page (classes/landingpage.html): the home/intro page,
+ * not tied to any one class. Same shape as LmsLanding minus the class identity fields. */
+export interface LmsModuleLanding {
+  html: string;
+  hash: string;
+  file_path: string;
+  file_sync: boolean;
+}
+
+export interface LmsModuleLandingSaved extends LmsModuleLanding {
+  sections: LmsLandingSection[];
+}
+
+/** What LandingEditorPanel needs from either a class or the module-root landing page. */
+export interface LandingEditorApi<T extends { html: string; hash: string }> {
+  listSections: () => Promise<{ hash: string; sections: LmsLandingSection[] }>;
+  saveLanding: (html: string, baseHash?: string) => Promise<T>;
+  addSection: (payload: {
+    title: string;
+    body_html: string;
+    after_section_id?: string;
+    position?: 'start' | 'end';
+  }) => Promise<T>;
+  updateSection: (id: string, payload: { html?: string; move?: 'up' | 'down' }) => Promise<T>;
+  deleteSection: (id: string) => Promise<T>;
+  landingAi: (
+    instruction: string,
+    mode: 'generate' | 'edit' | 'section',
+    placement?: { after_section_id?: string } | { position: 'start' | 'end' }
+  ) => Promise<LmsLandingAiResult>;
+}
+
 /** Response of the lesson / landing status endpoints used by the dev auto-refresh. */
 export interface LmsContentStatus {
   content_hash: string;
@@ -153,6 +208,14 @@ export interface ContinueLearningItem {
   subject_slug: string | null;
   current_index: number;
   total_lessons: number;
+  completed?: boolean;
+  next_lesson?: {
+    id: string;
+    title: string;
+    slug: string;
+  } | null;
+  read_time_minutes?: number;
+  last_viewed_at?: string | null;
 }
 
 export interface GenerateLessonRequest {

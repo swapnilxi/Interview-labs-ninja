@@ -4,6 +4,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLmsViewMode } from '../context/LmsViewModeContext';
 import { lmsService, type PlacementSuggestion } from '../services/lmsService';
 import { extractMultipleFiles, mergeSourceNames } from '../utils/contextFiles';
 import type { LmsClass, LmsLesson, LmsProjectPlanItem, LmsSubject } from '../types';
@@ -338,7 +339,9 @@ export default function ProjectDetailModule({
   mode,
   onDone,
 }: ProjectDetailModuleProps) {
-  const { canEdit } = useAuth();
+  const { canEdit: canEditReal } = useAuth();
+  const { isPreviewingAsStudent } = useLmsViewMode();
+  const canEdit = canEditReal && !isPreviewingAsStudent;
   const [readme, setReadme] = useState(project.project_context || '');
   const [sourceName, setSourceName] = useState(project.context_source_name || '');
   const [readmeDirty, setReadmeDirty] = useState(false);

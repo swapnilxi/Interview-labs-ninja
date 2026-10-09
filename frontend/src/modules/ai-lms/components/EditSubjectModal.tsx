@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import ColorPickerInput from './ColorPickerInput';
 import { lmsService } from '../services/lmsService';
 import { extractMultipleFiles, mergeSourceNames } from '../utils/contextFiles';
 import ContextSummaryPanel from './ContextSummaryPanel';
@@ -21,11 +22,13 @@ export default function EditSubjectModal({
   onClose,
   onUpdated,
 }: EditSubjectModalProps) {
+  const isProject = subject?.kind === 'project';
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [aiContext, setAiContext] = useState('');
   const [sourceName, setSourceName] = useState('');
   const [contextSummary, setContextSummary] = useState('');
+  const [accentColor, setAccentColor] = useState(isProject ? '#8b5cf6' : '#38bdf8');
   const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +41,7 @@ export default function EditSubjectModal({
       setAiContext(subject.ai_context || '');
       setSourceName(subject.context_source_name || '');
       setContextSummary(subject.context_summary || '');
+      setAccentColor(subject.accent_color || (subject.kind === 'project' ? '#8b5cf6' : '#38bdf8'));
       setError(null);
     }
   }, [subject]);
@@ -79,6 +83,7 @@ export default function EditSubjectModal({
         description: description.trim(),
         ai_context: aiContext.trim(),
         context_source_name: sourceName,
+        accent_color: accentColor,
       });
       onUpdated(updated);
       onClose();
@@ -91,16 +96,26 @@ export default function EditSubjectModal({
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl p-6 transition-smooth max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl p-[24px] transition-smooth max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-              <Icon name="PencilSquareIcon" size={20} />
+            <div
+              className="p-2 rounded-lg"
+              style={{
+                backgroundColor: accentColor ? accentColor + '18' : undefined,
+                color: accentColor || '#38bdf8',
+              }}
+            >
+              <Icon name={isProject ? 'CodeBracketSquareIcon' : 'PencilSquareIcon'} size={20} />
             </div>
             <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">Edit Subject</h3>
+              <h3 className="font-heading text-lg font-semibold text-foreground">
+                {isProject ? 'Edit Project' : 'Edit Subject'}
+              </h3>
               <p className="text-xs text-muted-foreground">
-                Update subject overview and AI prompt instructions
+                {isProject
+                  ? 'Update project details, accent color, and context'
+                  : 'Update subject overview and AI prompt instructions'}
               </p>
             </div>
           </div>
@@ -212,7 +227,7 @@ export default function EditSubjectModal({
             <p className="text-[11px] text-muted-foreground mt-1">
               Type directives directly, attach one or more documents (PDF / MD / TXT / DOCX), or
               both -- everything combines into one context, passed along with class context to the
-              AI when generating lessons inside this subject module.
+              AI when generating lessons inside this subject.
             </p>
             {aiContext === (subject.ai_context || '') && (
               // Both panels act on what's saved server-side, so they only show once
@@ -233,6 +248,17 @@ export default function EditSubjectModal({
               </>
             )}
           </div>
+
+          <ColorPickerInput
+            value={accentColor}
+            onChange={setAccentColor}
+            label={isProject ? 'Project Accent Color' : 'Subject Accent Color'}
+            description={
+              isProject
+                ? 'Card border tint, icons, and badges across this project'
+                : 'Card border tint, icons, and badges across this subject'
+            }
+          />
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-6">
             <button

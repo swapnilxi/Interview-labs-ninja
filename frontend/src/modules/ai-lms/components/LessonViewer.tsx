@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLmsViewMode } from '../context/LmsViewModeContext';
 import { LmsConflictError, lmsService } from '../services/lmsService';
+import { getStoredCompletedLessonIds, toggleLessonCompletion } from '../services/learningStateManager';
 import type {
   BreakdownResult,
   DeeperExplanationResult,
@@ -80,7 +82,9 @@ export default function LessonViewer({
   subject,
 }: LessonViewerProps) {
   const router = useRouter();
-  const { canEdit } = useAuth();
+  const { canEdit: canEditReal } = useAuth();
+  const { isPreviewingAsStudent } = useLmsViewMode();
+  const canEdit = canEditReal && !isPreviewingAsStudent;
   const [currentLesson, setCurrentLesson] = useState<LmsLesson>(initialLesson);
   const [viewMode, setViewMode] = useState<ViewMode>('read');
   // Lifted out of VisualizerPanel/EasyReadPanel so the generated content survives a
@@ -104,6 +108,18 @@ export default function LessonViewer({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+
+  useEffect(() => {
+    const completedSet = getStoredCompletedLessonIds();
+    setIsCompleted(completedSet.has(currentLesson.id));
+  }, [currentLesson.id]);
+
+  const handleToggleComplete = () => {
+    const nextVal = !isCompleted;
+    setIsCompleted(nextVal);
+    toggleLessonCompletion(currentLesson.id, nextVal);
+  };
 
   useEffect(() => {
     setCurrentLesson(initialLesson);
@@ -285,7 +301,16 @@ export default function LessonViewer({
         {/* Header Card: Breadcrumbs, Title, Progress, Mode Switcher, Actions */}
         <div className="rounded-2xl border border-border bg-card shadow-sm p-4 sm:p-5 mb-4 flex-shrink-0 space-y-4">
           {/* Breadcrumbs */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground min-w-0">
+            <Link
+              href={backHref}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-muted/60 hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-2xs group flex-shrink-0"
+              title={subject ? `Back to ${subject.name}` : `Back to ${lmsClass.name}`}
+            >
+              <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
+              <span>Back</span>
+            </Link>
+            <div className="h-3.5 w-px bg-border/80 flex-shrink-0" />
             <Link
               href="/ai-lms"
               className="flex items-center gap-1 hover:text-foreground transition-colors flex-shrink-0"
@@ -329,11 +354,30 @@ export default function LessonViewer({
                   {currentLesson.title}
                 </h1>
               )}
-              {navigation && (
-                <span className="mt-0.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 flex-shrink-0">
-                  Lesson {navigation.current_index} of {navigation.total_lessons}
-                </span>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {navigation && (
+                  <span className="mt-0.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 flex-shrink-0">
+                    Lesson {navigation.current_index} of {navigation.total_lessons}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleToggleComplete}
+                  className={`mt-0.5 inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                    isCompleted
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs'
+                      : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground border border-border/70'
+                  }`}
+                  title={isCompleted ? 'Mark as In-Progress' : 'Mark as Completed'}
+                >
+                  <Icon
+                    name={isCompleted ? 'CheckCircleIcon' : 'CheckIcon'}
+                    size={13}
+                    className={isCompleted ? 'text-emerald-500' : ''}
+                  />
+                  <span>{isCompleted ? 'Completed ✓' : 'Mark Complete'}</span>
+                </button>
+              </div>
             </div>
             {isEditing && (
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-start">
@@ -588,13 +632,28 @@ export default function LessonViewer({
             <div className="hidden sm:block sm:w-24 order-1" />
           )}
 
-          <Link
-            href={backHref}
-            className="order-3 sm:order-2 w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
-          >
-            <Icon name="Squares2X2Icon" size={14} />
-            <span>{subject ? subject.name : lmsClass.name} Overview</span>
-          </Link>
+          <div className="order-3 sm:order-2 w-full sm:w-auto flex items-center justify-center gap-2">
+            <Link
+              href={backHref}
+              className="flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
+            >
+              <Icon name="Squares2X2Icon" size={14} />
+              <span>{subject ? subject.name : lmsClass.name} Overview</span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={handleToggleComplete}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                isCompleted
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                  : 'bg-muted hover:bg-muted/80 text-foreground border-border'
+              }`}
+            >
+              <Icon name={isCompleted ? 'CheckCircleIcon' : 'CheckIcon'} size={14} className={isCompleted ? 'text-emerald-500' : ''} />
+              <span>{isCompleted ? 'Completed ✓' : 'Mark Complete'}</span>
+            </button>
+          </div>
 
           {nextHref ? (
             <Link

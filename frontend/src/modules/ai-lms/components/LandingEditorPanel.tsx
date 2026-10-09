@@ -1,17 +1,18 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { lmsService } from '../services/lmsService';
-import type { LmsLanding, LmsLandingSection } from '../types';
+import type { LandingEditorApi, LmsLandingSection } from '../types';
 
 type Tab = 'ai' | 'manual' | 'source' | 'sections';
 type AiMode = 'edit' | 'section' | 'generate';
 
-interface LandingEditorPanelProps {
-  classSlug: string;
-  landing: LmsLanding;
+interface LandingEditorPanelProps<T extends { html: string; hash: string }> {
+  landing: T;
+  /** The save/section/AI calls to run -- bound to a class's landing page or to the
+   * module-root one, so this panel stays the same editor either way. */
+  api: LandingEditorApi<T>;
   /** Called with the saved page so the preview iframe re-renders. */
-  onSaved: (landing: LmsLanding) => void;
+  onSaved: (landing: T) => void;
   /** Shows an unsaved AI proposal in the page frame (null = back to the saved page). */
   onPreview: (html: string | null) => void;
 }
@@ -28,7 +29,12 @@ const primaryBtnCls =
  * Every change -- a manual section, an AI section, a prompt-driven rewrite, a source edit --
  * is saved through the same endpoints and can be repeated as often as needed.
  */
-export default function LandingEditorPanel({ classSlug, landing, onSaved, onPreview }: LandingEditorPanelProps) {
+export default function LandingEditorPanel<T extends { html: string; hash: string }>({
+  landing,
+  api,
+  onSaved,
+  onPreview,
+}: LandingEditorPanelProps<T>) {
   const [tab, setTab] = useState<Tab>('ai');
   const [sections, setSections] = useState<LmsLandingSection[]>([]);
   const [busy, setBusy] = useState(false);
@@ -47,12 +53,13 @@ export default function LandingEditorPanel({ classSlug, landing, onSaved, onPrev
   const [editHtml, setEditHtml] = useState('');
 
   useEffect(() => {
-    lmsService
-      .listLandingSections(classSlug)
+    api
+      .listSections()
       .then((r) => setSections(r.sections))
       .catch(() => setSections([]));
     setSource(landing.html);
-  }, [classSlug, landing.hash, landing.html]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [landing.hash, landing.html]);
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(true);
@@ -72,7 +79,7 @@ export default function LandingEditorPanel({ classSlug, landing, onSaved, onPrev
 
   const generate = () =>
     run('Preview ready — review it, then Apply or Discard.', async () => {
-      const r = await lmsService.landingAi(classSlug, instruction, aiMode, aiMode === 'section' ? placement() : undefined);
+      const r = await api.landingAi(instruction, aiMode, aiMode === 'section' ? placement() : undefined);
       setProposal({ html: r.html, baseHash: r.base_hash });
       onPreview(r.html);
     });
@@ -80,7 +87,7 @@ export default function LandingEditorPanel({ classSlug, landing, onSaved, onPrev
   const apply = () =>
     run('Applied.', async () => {
       if (!proposal) return;
-      const saved = await lmsService.saveLanding(classSlug, proposal.html, proposal.baseHash);
+      const saved = await api.saveLanding(proposal.html, proposal.baseHash);
       setProposal(null);
       setInstruction('');
       onPreview(null);
@@ -95,7 +102,7 @@ export default function LandingEditorPanel({ classSlug, landing, onSaved, onPrev
 
   const addManual = () =>
     run('Section added.', async () => {
-      const saved = await lmsService.addLandingSection(classSlug, {
+      const saved = await api.addSection({
         title,
         body_html: body,
         ...placement(),
@@ -107,23 +114,23 @@ export default function LandingEditorPanel({ classSlug, landing, onSaved, onPrev
 
   const saveSource = () =>
     run('Source saved.', async () => {
-      onSaved(await lmsService.saveLanding(classSlug, source, landing.hash));
+      onSaved(await api.saveLanding(source, landing.hash));
     });
 
   const moveSection = (id: string, move: 'up' | 'down') =>
     run('Section moved.', async () => {
-      onSaved(await lmsService.updateLandingSection(classSlug, id, { move }));
+      onSaved(await api.updateSection(id, { move }));
     });
 
   const saveSectionEdit = (id: string) =>
     run('Section updated.', async () => {
-      onSaved(await lmsService.updateLandingSection(classSlug, id, { html: editHtml }));
+      onSaved(await api.updateSection(id, { html: editHtml }));
       setEditingId(null);
     });
 
   const removeSection = (id: string) =>
     run('Section removed.', async () => {
-      onSaved(await lmsService.deleteLandingSection(classSlug, id));
+      onSaved(await api.deleteSection(id));
     });
 
   const placeSelect = (

@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import ColorPickerInput from './ColorPickerInput';
 import { lmsService } from '../services/lmsService';
 import { extractMultipleFiles, mergeSourceNames } from '../utils/contextFiles';
 import type { LmsClass, LmsSubject } from '../types';
@@ -23,6 +24,7 @@ export default function CreateProjectModal({
   const [description, setDescription] = useState('');
   const [projectContext, setProjectContext] = useState('');
   const [sourceName, setSourceName] = useState('');
+  const [accentColor, setAccentColor] = useState('#8b5cf6');
   const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,11 +70,13 @@ export default function CreateProjectModal({
         description: description.trim(),
         project_context: projectContext.trim(),
         context_source_name: sourceName,
+        accent_color: accentColor,
       });
       setName('');
       setDescription('');
       setProjectContext('');
       setSourceName('');
+      setAccentColor('#8b5cf6');
       onCreated(created);
       onClose();
     } catch (err: unknown) {
@@ -84,7 +88,7 @@ export default function CreateProjectModal({
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-2xl bg-card border border-border rounded-xl shadow-2xl p-6 transition-smooth max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-2xl bg-card border border-border rounded-xl shadow-2xl p-[24px] transition-smooth max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500">
@@ -204,6 +208,13 @@ export default function CreateProjectModal({
               sequence of implementation modules once the project is created.
             </p>
           </div>
+
+          <ColorPickerInput
+            value={accentColor}
+            onChange={setAccentColor}
+            label="Project Accent Color"
+            description="Card border tint, icons, and badges across this project"
+          />
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-6">
             <button

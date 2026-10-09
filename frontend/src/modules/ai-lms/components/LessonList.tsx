@@ -149,9 +149,10 @@ export default function LessonList({
               className={`group relative flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
                 isOrganizeMode
                   ? 'border-primary/40 bg-card ring-1 ring-primary/20 cursor-default'
-                  : 'border-border bg-card cursor-pointer hover:border-primary/40 hover:bg-card/80 hover:shadow-sm'
+                  : 'glow-card border-border bg-card cursor-pointer hover:border-primary/40 hover:bg-card/80 hover:shadow-sm'
               }`}
             >
+              {!isOrganizeMode && <span className="glow-card-rim" aria-hidden="true" />}
               {/* Left: Sequence Number & Info */}
               <div className="flex items-center gap-4 min-w-0 flex-1">
                 <span

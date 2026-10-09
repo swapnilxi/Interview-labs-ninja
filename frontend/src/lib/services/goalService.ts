@@ -5,9 +5,8 @@
  * Follows the same guest/logged-in dispatch pattern as projectService.ts.
  */
 
-import { parseApiError } from './todoService';
 import { aiRequestFields } from './settingsService';
-import { apiFetch } from '../http/apiClient';
+import { apiFetch, parseApiError } from '../http/apiClient';
 import { isLoggedIn } from '../auth/tokenStore';
 import { localGoalAdapter } from './local/localGoalAdapter';
 
@@ -86,45 +85,45 @@ export const goalService = {
     }
   },
 
-  async createGoal(data: GoalCreatePayload): Promise<GoalNode | null> {
-    if (!isLoggedIn()) return localGoalAdapter.createGoal(data);
-    try {
-      const res = await apiFetch('/todo/goals', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error('Failed to create goal', err);
-      return null;
+  /** Throws with a human-readable message on failure — callers must catch and surface it. */
+  async createGoal(data: GoalCreatePayload): Promise<GoalNode> {
+    if (!isLoggedIn()) {
+      const goal = await localGoalAdapter.createGoal(data);
+      if (!goal) throw new Error('Could not save the goal locally.');
+      return goal;
     }
+    const res = await apiFetch('/todo/goals', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return await res.json();
   },
 
-  async updateGoal(id: number, data: GoalUpdatePayload): Promise<GoalNode | null> {
-    if (!isLoggedIn()) return localGoalAdapter.updateGoal(id, data);
-    try {
-      const res = await apiFetch(`/todo/goals/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error(`Failed to update goal ${id}`, err);
-      return null;
+  /** Throws with a human-readable message on failure — callers must catch and surface it. */
+  async updateGoal(id: number, data: GoalUpdatePayload): Promise<GoalNode> {
+    if (!isLoggedIn()) {
+      const goal = await localGoalAdapter.updateGoal(id, data);
+      if (!goal) throw new Error('Goal not found.');
+      return goal;
     }
+    const res = await apiFetch(`/todo/goals/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return await res.json();
   },
 
-  async deleteGoal(id: number): Promise<boolean> {
-    if (!isLoggedIn()) return localGoalAdapter.deleteGoal(id);
-    try {
-      const res = await apiFetch(`/todo/goals/${id}`, { method: 'DELETE' });
-      return res.ok;
-    } catch (err) {
-      console.error(`Failed to delete goal ${id}`, err);
-      return false;
+  /** Throws with a human-readable message on failure — callers must catch and surface it. */
+  async deleteGoal(id: number): Promise<void> {
+    if (!isLoggedIn()) {
+      const ok = await localGoalAdapter.deleteGoal(id);
+      if (!ok) throw new Error('Goal not found.');
+      return;
     }
+    const res = await apiFetch(`/todo/goals/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await parseApiError(res));
   },
 
   async diveDeeper(id: number, model: string = 'gemini'): Promise<GoalNode[]> {

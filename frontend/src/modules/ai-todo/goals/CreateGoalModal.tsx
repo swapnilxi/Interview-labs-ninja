@@ -21,6 +21,7 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
   const [priority, setPriority] = useState('p3');
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [contextTab, setContextTab] = useState<'description' | 'attachments'>('description');
   const [attachments, setAttachments] = useState<string[]>([]);
@@ -54,21 +55,26 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || loading) return;
 
     setLoading(true);
-    const newGoal = await goalService.createGoal({
-      title: title.trim(),
-      level,
-      parent_id: parentId,
-      description: description.trim() || null,
-      priority,
-      due_date: dueDate || null,
-      attachments: attachments.length > 0 ? attachments : undefined,
-    });
-    setLoading(false);
-
-    if (newGoal) onSuccess(newGoal);
+    setError(null);
+    try {
+      const newGoal = await goalService.createGoal({
+        title: title.trim(),
+        level,
+        parent_id: parentId,
+        description: description.trim() || null,
+        priority,
+        due_date: dueDate || null,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
+      onSuccess(newGoal);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create goal.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -76,7 +82,7 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
       <div className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-md mx-4 animate-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between p-4 border-b border-border/50">
           <h2 className="font-heading font-semibold text-lg flex items-center gap-2 text-foreground">
-            <span className="text-xl">🎯</span> New Goal
+            <Icon name="ViewfinderCircleIcon" size={20} className="text-primary" /> New Goal
           </h2>
           <button onClick={onClose} className="p-1 rounded-md text-muted-foreground hover:bg-muted transition-smooth">
             <Icon name="XMarkIcon" size={16} />
@@ -201,10 +207,10 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
                 onChange={(e) => setPriority(e.target.value)}
                 className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
               >
-                <option value="p1">🔴 P1 (Highest)</option>
-                <option value="p2">🟠 P2 (High)</option>
-                <option value="p3">🔵 P3 (Normal)</option>
-                <option value="p4">⚪ P4 (Low)</option>
+                <option value="p1">P1 (Highest)</option>
+                <option value="p2">P2 (High)</option>
+                <option value="p3">P3 (Normal)</option>
+                <option value="p4">P4 (Low)</option>
               </select>
             </div>
           </div>
@@ -241,6 +247,13 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
               className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
             />
           </div>
+
+          {error && (
+            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20">
+              <Icon name="ExclamationTriangleIcon" size={14} className="text-red-500 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-red-600 dark:text-red-400 leading-relaxed flex-1">{error}</p>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2 mt-4 border-t border-border/50">
             <button

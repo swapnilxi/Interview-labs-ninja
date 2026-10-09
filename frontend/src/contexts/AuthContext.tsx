@@ -11,6 +11,13 @@ export interface AuthUser {
   email: string;
   display_name: string | null;
   role?: 'user' | 'editor' | 'admin' | 'superadmin';
+  /** The effective (role default + per-user overrides) permission set — see
+   * backend/modules/auth/dependencies.py: DEFAULT_PERMISSIONS/has_permission. */
+  permissions?: string[];
+  /** Account-approval state (see backend/modules/auth/dependencies.py:
+   * get_current_active_user). A pending/rejected account can still log in and see this,
+   * but every other request 403s until an admin approves it. */
+  status?: 'pending' | 'approved' | 'rejected';
 }
 
 interface AuthContextValue {
@@ -19,9 +26,16 @@ interface AuthContextValue {
   isAdmin: boolean;
   /** editor, admin or superadmin: may change LMS content (the backend enforces this too). */
   canEdit: boolean;
+  /** True if the current user holds `permission`, by role default or an explicit grant
+   * (the backend enforces this too — this is for conditional UI only). */
+  hasPermission: (permission: string) => boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>;
-  signup: (email: string, password: string, displayName?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  signup: (
+    email: string,
+    password: string,
+    displayName?: string
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   logout: () => void;
   lastMigration: MigrationResult | null;
   dismissMigrationNotice: () => void;
@@ -84,31 +98,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await pullServerSettingsIfLoggedIn();
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await apiFetch('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) return { ok: false as const, error: await extractError(res) };
-    const data = await res.json();
-    setToken(data.access_token);
-    setUser(data.user);
-    await runPostLoginSync();
-    return { ok: true as const };
-  }, [runPostLoginSync]);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) return { ok: false as const, error: await extractError(res) };
+      const data = await res.json();
+      setToken(data.access_token);
+      setUser(data.user);
+      await runPostLoginSync();
+      return { ok: true as const };
+    },
+    [runPostLoginSync]
+  );
 
-  const signup = useCallback(async (email: string, password: string, displayName?: string) => {
-    const res = await apiFetch('/auth/signup', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, display_name: displayName || null }),
-    });
-    if (!res.ok) return { ok: false as const, error: await extractError(res) };
-    const data = await res.json();
-    setToken(data.access_token);
-    setUser(data.user);
-    await runPostLoginSync();
-    return { ok: true as const };
-  }, [runPostLoginSync]);
+  const signup = useCallback(
+    async (email: string, password: string, displayName?: string) => {
+      const res = await apiFetch('/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, display_name: displayName || null }),
+      });
+      if (!res.ok) return { ok: false as const, error: await extractError(res) };
+      const data = await res.json();
+      setToken(data.access_token);
+      setUser(data.user);
+      await runPostLoginSync();
+      return { ok: true as const };
+    },
+    [runPostLoginSync]
+  );
 
   const logout = useCallback(() => {
     apiFetch('/auth/logout', { method: 'POST' }).catch(() => {});
@@ -124,6 +144,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isGuest: !user,
     isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
     canEdit: user?.role === 'editor' || user?.role === 'admin' || user?.role === 'superadmin',
+    hasPermission: (permission: string) => user?.permissions?.includes(permission) ?? false,
     loading,
     login,
     signup,

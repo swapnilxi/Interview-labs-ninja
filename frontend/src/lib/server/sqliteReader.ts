@@ -46,7 +46,7 @@ function getBundledPath(dbName: string): string | null {
  * /tmp is per-Lambda-invocation on Vercel but survives within the same warm instance,
  * so consecutive requests in the same instance share the same writable copy.
  */
-function getWritablePath(dbName: string): string {
+export function getWritablePath(dbName: string): string {
   // In local development (non-Vercel), use the project's SQLite DB directly so Next.js
   // and FastAPI share the exact same database file in real-time.
   if (!process.env.VERCEL) {

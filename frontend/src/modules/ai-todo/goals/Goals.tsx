@@ -84,10 +84,12 @@ export default function Goals({ model }: GoalsProps) {
 
   const handleDelete = async (node: GoalNode) => {
     if (!confirm(`Delete "${node.title}" and everything chunked under it?`)) return;
-    const ok = await goalService.deleteGoal(node.id);
-    if (ok) {
+    try {
+      await goalService.deleteGoal(node.id);
       if (selectedId === node.id) setSelectedId(null);
       await loadTree();
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Failed to delete goal.');
     }
   };
 
@@ -130,12 +132,12 @@ export default function Goals({ model }: GoalsProps) {
   };
 
   return (
-    <div className="flex flex-col h-full gap-3 relative">
+    <div className="flex flex-col gap-3 relative">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border/80 rounded-xl p-3 shadow-sm">
         <div>
           <h2 className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
-            <span className="text-lg">🎯</span> Goals
+            <Icon name="ViewfinderCircleIcon" size={18} className="text-primary" /> Goals
           </h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             Set a goal at any time horizon and chunk it down — no fixed flow required.
@@ -149,10 +151,10 @@ export default function Goals({ model }: GoalsProps) {
         </button>
       </div>
 
-      {/* AI action error */}
+      {/* AI/action error */}
       {aiError && (
         <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-          <span className="text-xs shrink-0">⚠️</span>
+          <Icon name="ExclamationTriangleIcon" size={14} className="text-red-500 shrink-0 mt-0.5" />
           <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
           <button onClick={() => setAiError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
             <Icon name="XMarkIcon" size={12} />
@@ -161,9 +163,9 @@ export default function Goals({ model }: GoalsProps) {
       )}
 
       {/* Board */}
-      <div className="flex-1 min-h-0">
+      <div>
         {loading ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3">
+          <div className="flex flex-col items-center justify-center text-muted-foreground py-16">
             <span className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
           </div>
         ) : (
