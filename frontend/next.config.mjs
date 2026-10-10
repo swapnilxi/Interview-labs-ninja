@@ -10,6 +10,12 @@ const nextConfig = {
     '/api/auth/login': ['../backend/data/lab_ninja.sqlite3'],
     '/api/auth/signup': ['../backend/data/lab_ninja.sqlite3'],
     '/api/auth/me': ['../backend/data/lab_ninja.sqlite3'],
+    // AI LMS class folders (lesson/landing HTML) and their templates, read by
+    // fe-apis/lms/classFolders.ts.
+    '/api/lms/**': ['./src/modules/ai-lms/classes/**/*', '../backend/modules/ai_lms/templates/**/*'],
+    // To-Do suite (fe-apis/todo): seeds /tmp/lab_ninja.sqlite3 on a cold start like the routes above.
+    '/api/todo/[...path]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/pareto/[...path]': ['../backend/data/lab_ninja.sqlite3'],
   },
   typescript: {
     ignoreBuildErrors: false,
@@ -35,6 +41,23 @@ const nextConfig = {
         destination: '/daily-session',
         permanent: false,
       },
+      {
+        source: '/lms',
+        destination: '/ai-lms',
+        permanent: false,
+      },
+      {
+        source: '/lms/:path*',
+        destination: '/ai-lms/:path*',
+        permanent: false,
+      },
+      // The To-Do page moved to /ai-todo. Exact path only (query like ?tab=smart is kept):
+      // /todo/* is the To-Do API, not a page.
+      {
+        source: '/todo',
+        destination: '/ai-todo',
+        permanent: false,
+      },
     ];
   },
   async rewrites() {
@@ -42,6 +65,12 @@ const nextConfig = {
       { source: '/health', destination: '/api/health' },
       { source: '/auth/:path*', destination: '/api/auth/:path*' },
       { source: '/admin/:path*', destination: '/api/admin/:path*' },
+      // Exact path only: '/config/:path*' would also match '/config' and hijack the Config page.
+      { source: '/config/ai-default', destination: '/api/config/ai-default' },
+      // To-Do API (fe-apis/todo). ':path+' needs at least one segment, so the bare /todo
+      // URL still reaches the redirect to the /ai-todo page above.
+      { source: '/todo/:path+', destination: '/api/todo/:path+' },
+      { source: '/pareto/:path*', destination: '/api/pareto/:path*' },
     ];
   },
   // Cross-Origin Isolation headers required by PDF.js 4.x (SharedArrayBuffer)

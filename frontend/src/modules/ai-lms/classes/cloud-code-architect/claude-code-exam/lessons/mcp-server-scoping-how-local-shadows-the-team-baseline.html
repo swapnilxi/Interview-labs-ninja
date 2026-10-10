@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Server Scoping — CCAF Exam Guide</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f3ec;
+    --surface: #fffaf2;
+    --surface-2: #efe7d9;
+    --text: #24201b;
+    --text-muted: #71695f;
+    --border: rgba(64, 55, 45, 0.14);
+    --border-strong: rgba(64, 55, 45, 0.22);
+    --primary: #5b5bd6;
+    --primary-soft: rgba(91, 91, 214, 0.1);
+    --secondary: #127c7a;
+    --secondary-soft: rgba(18, 124, 122, 0.1);
+    --accent: #b36b17;
+    --accent-soft: rgba(179, 107, 23, 0.12);
+    --success: #14845f;
+    --success-soft: rgba(20, 132, 95, 0.12);
+    --danger: #c24151;
+    --danger-soft: rgba(194, 65, 81, 0.12);
+    --code-bg: #1c1a17;
+    --code-text: #f2ede2;
+    --code-border: rgba(255, 255, 255, 0.08);
+    --shadow: 0 1px 2px rgba(36, 32, 27, 0.05), 0 12px 28px -14px rgba(36, 32, 27, 0.2);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17140f;
+      --surface: #201c16;
+      --surface-2: #2a251d;
+      --text: #f4efe7;
+      --text-muted: #b3a696;
+      --border: rgba(255, 246, 235, 0.1);
+      --border-strong: rgba(255, 246, 235, 0.16);
+      --primary: #9694f5;
+      --primary-soft: rgba(150, 148, 245, 0.14);
+      --secondary: #5fc6bd;
+      --secondary-soft: rgba(95, 198, 189, 0.12);
+      --accent: #f1ad55;
+      --accent-soft: rgba(241, 173, 85, 0.14);
+      --success: #54c79a;
+      --success-soft: rgba(84, 199, 154, 0.14);
+      --danger: #fb7185;
+      --danger-soft: rgba(251, 113, 133, 0.14);
+      --code-bg: #14110d;
+      --code-text: #f2ede2;
+      --code-border: rgba(255, 255, 255, 0.07);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 1.02rem;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 6rem;
+  }
+
+  /* ---------- Header ---------- */
+  .breadcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.32rem 0.7rem;
+    border-radius: 999px;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .badge.alt { background: var(--secondary-soft); color: var(--secondary); }
+  .badge.accent { background: var(--accent-soft); color: var(--accent); }
+
+  h1 {
+    color: var(--text);
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin: 0 0 1rem;
+  }
+  h1 .em { color: var(--primary); }
+
+  .lede {
+    color: var(--text-muted);
+    font-size: 1.08rem;
+    margin: 0 0 1.75rem;
+    max-width: 68ch;
+  }
+
+  h2 {
+    color: var(--text);
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 3rem 0 1rem;
+    padding-left: 0.85rem;
+    border-left: 4px solid var(--accent);
+    line-height: 1.3;
+  }
+
+  h3 {
+    color: var(--text);
+    font-size: 1.08rem;
+    font-weight: 700;
+    margin: 1.75rem 0 0.6rem;
+  }
+
+  p { color: var(--text); margin: 0 0 1rem; }
+  strong { color: var(--text); font-weight: 700; }
+  em { color: var(--text); }
+
+  ul, ol { color: var(--text); padding-left: 1.4rem; margin: 0 0 1.25rem; }
+  li { margin-bottom: 0.45rem; }
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+    border-bottom: 1px solid var(--primary-soft);
+  }
+  a:hover { border-bottom-color: var(--primary); }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 3rem 0;
+  }
+
+  /* ---------- Objectives ---------- */
+  .objectives {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.75rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1rem;
+  }
+  .objectives h3 {
+    margin: 0 0 0.85rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--secondary);
+  }
+  .objectives ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .objectives li {
+    position: relative;
+    padding-left: 1.7rem;
+    margin-bottom: 0.55rem;
+    color: var(--text);
+  }
+  .objectives li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 50%;
+    border: 2px solid var(--secondary);
+    background: var(--secondary-soft);
+  }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    background: var(--surface-2);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .callout .label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: 0.35rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout.tip { border-left-color: var(--secondary); }
+  .callout.tip .label { color: var(--secondary); }
+  .callout.warn { border-left-color: var(--danger); }
+  .callout.warn .label { color: var(--danger); }
+  .callout.deep { border-left-color: var(--accent); }
+  .callout.deep .label { color: var(--accent); }
+
+  /* ---------- Code blocks ---------- */
+  .code-block {
+    margin: 1.5rem 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--code-border);
+    background: var(--code-bg);
+    box-shadow: var(--shadow);
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.55rem 0.9rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--code-border);
+  }
+  .code-head .dots {
+    display: flex;
+    gap: 0.35rem;
+    margin-right: 0.75rem;
+  }
+  .code-head .dots span {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .code-head .meta {
+    display: flex;
+    align-items: center;
+    flex: 1;
+  }
+  .code-head .lang {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    color: rgba(242, 237, 226, 0.55);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .copy-btn {
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(242, 237, 226, 0.75);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    padding: 0.25rem 0.7rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .copy-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--code-text);
+  }
+  .copy-btn.copied {
+    color: var(--success);
+    border-color: var(--success);
+  }
+  pre {
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    color: var(--code-text);
+    background: var(--code-bg);
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  p code, li code {
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 0.1rem 0.38rem;
+    border-radius: 5px;
+    font-size: 0.85em;
+    border: 1px solid var(--border);
+  }
+
+  /* ---------- Diagram ---------- */
+  .figure {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin: 1.75rem 0;
+    box-shadow: var(--shadow);
+  }
+  .figure svg { display: block; width: 100%; height: auto; }
+  .figcap {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    text-align: center;
+    margin: 0.75rem 0 0;
+  }
+
+  /* ---------- Quiz ---------- */
+  .quiz {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: var(--shadow);
+  }
+  .quiz .qnum {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+  .quiz .qtext {
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 1rem;
+    line-height: 1.55;
+  }
+  .options { display: flex; flex-direction: column; gap: 0.55rem; }
+  .opt {
+    text-align: left;
+    font-family: inherit;
+    font-size: 0.94rem;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem 0.95rem;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .opt:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+  }
+  .opt:disabled { cursor: default; }
+  .opt.correct {
+    background: var(--success-soft);
+    border-color: var(--success);
+    color: var(--text);
+  }
+  .opt.wrong {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--text);
+  }
+  .opt .tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-right: 0.5rem;
+  }
+  .opt.correct .tag { color: var(--success); }
+  .opt.wrong .tag { color: var(--danger); }
+  .explain {
+    display: none;
+    margin-top: 0.9rem;
+    padding: 0.85rem 1rem;
+    background: var(--surface-2);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 10px 10px 0;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .explain.show { display: block; }
+  .explain strong { color: var(--primary); }
+
+  .score-bar {
+    position: sticky;
+    bottom: 1rem;
+    margin-top: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 0.6rem 1.1rem;
+    box-shadow: var(--shadow);
+    font-size: 0.88rem;
+    color: var(--text);
+  }
+  .score-bar .s-label {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+  }
+  .score-bar .s-val { font-weight: 800; color: var(--primary); }
+
+  /* ---------- Takeaways ---------- */
+  .takeaways {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.75rem;
+    margin: 1.5rem 0;
+    box-shadow: var(--shadow);
+  }
+  .takeaways ul { list-style: none; padding: 0; margin: 0; }
+  .takeaways li {
+    position: relative;
+    padding-left: 2rem;
+    margin-bottom: 0.85rem;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .takeaways li:last-child { margin-bottom: 0; }
+  .takeaways li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.28rem;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    background: var(--success-soft);
+    border: 2px solid var(--success);
+  }
+  .takeaways li::after {
+    content: "";
+    position: absolute;
+    left: 0.35rem;
+    top: 0.55rem;
+    width: 0.4rem;
+    height: 0.2rem;
+    border-left: 2px solid var(--success);
+    border-bottom: 2px solid var(--success);
+    transform: rotate(-45deg);
+  }
+
+  /* ---------- Table ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.25rem 0;
+    font-size: 0.9rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+  th {
+    background: var(--surface-2);
+    font-weight: 700;
+    font-size: 0.76rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  tr:last-child td { border-bottom: none; }
+
+  .pill-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0 1rem; }
+
+  @media (max-width: 600px) {
+    h1 { font-size: 1.7rem; }
+    h2 { font-size: 1.2rem; }
+    .wrap { padding: 2rem 1.1rem 4rem; }
+    .score-bar { flex-direction: column; align-items: flex-start; gap: 0.3rem; border-radius: var(--radius); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HEADER ============ -->
+  <div class="breadcrumbs">
+    <span class="badge">Cloud Code Architect</span>
+    <span class="badge alt">Tool Design &amp; MCP Integration</span>
+    <span class="badge accent">CCAF Exam Guide</span>
+  </div>
+
+  <h1>MCP Server Scoping: How <span class="em">local</span> shadows the team baseline</h1>
+  <p class="lede">
+    A structured-data extraction system depends on a shared MCP server. One engineer needs to test an
+    experimental build — without touching the repository, and without leaking the experiment into every
+    other project on their machine. This is a lesson about <strong>scope precedence</strong>, the deterministic
+    mechanism Claude Code uses to resolve exactly that problem.
+  </p>
+  <div class="pill-row">
+    <span class="badge">8 min read</span>
+    <span class="badge alt">Intermediate</span>
+  </div>
+
+  <!-- ============ OBJECTIVES ============ -->
+  <div class="objectives">
+    <h3>Learning Objectives</h3>
+    <ul>
+      <li>Explain the four MCP server scopes (local, project, user, plugin) and the audience each one serves.</li>
+      <li>Apply the precedence order <em>local &gt; project &gt; user</em> to predict which server definition wins.</li>
+      <li>Choose the correct scope to privately override a shared tool without editing version-controlled files.</li>
+      <li>Recognize why prompt-based workarounds (CLAUDE.md hints, renames) fail where scope shadowing succeeds.</li>
+    </ul>
+  </div>
+
+  <!-- ============ SCENARIO ============ -->
+  <h2>The scenario, in one paragraph</h2>
+  <p>
+    You are building a structured data extraction system with Claude. It pulls fields out of unstructured
+    documents, validates them against a JSON schema, and feeds downstream systems. The extraction logic
+    lives in a team-owned <strong>MCP server</strong> — a Model Context Protocol server that exposes tools Claude
+    can call. The team ships the baseline configuration in the repository's <code>.mcp.json</code>, checked into
+    version control.
+  </p>
+  <p>
+    Now an engineer wants to try an <strong>experimental build</strong> of that same extraction server — but only
+    in this one project, on this one machine. Teammates must keep loading the shared version. Which
+    configuration approach achieves this?
+  </p>
+
+  <div class="callout">
+    <span class="label">Key Takeaway</span>
+    <p>
+      The answer is <strong>local scope</strong>: register the experimental server under the same name at local
+      scope. Local scope is private to one user and one project, and it <em>outranks</em> project scope for a
+      same-named server — so it shadows the shared definition on this machine only.
+    </p>
+  </div>
+
+  <!-- ============ CORE CONCEPT ============ -->
+  <h2>Core concept: four scopes, four audiences</h2>
+  <p>
+    Claude Code does not merge MCP server definitions field by field. When the same server name appears at
+    multiple scopes, the highest-precedence definition is used and the rest are ignored. That single rule is
+    what makes private experimentation safe.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Scope</th>
+        <th>Where it lives</th>
+        <th>Who sees it</th>
+        <th>Precedence</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Local</strong></td>
+        <td>Current project entry in <code>~/.claude.json</code></td>
+        <td>You, this project only</td>
+        <td>Highest</td>
+      </tr>
+      <tr>
+        <td><strong>Project</strong></td>
+        <td><code>.mcp.json</code> at repo root</td>
+        <td>Whole team (version controlled)</td>
+        <td>Second</td>
+      </tr>
+      <tr>
+        <td><strong>User</strong></td>
+        <td>User-level Claude config</td>
+        <td>You, every project on this machine</td>
+        <td>Third</td>
+      </tr>
+      <tr>
+        <td><strong>Plugin / connector</strong></td>
+        <td>Installed plugin manifest</td>
+        <td>Depends on install scope</td>
+        <td>Lowest</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    The mental model is that <strong>each scope serves a different audience</strong>. Project scope is the team's
+    committed baseline. Local scope is your personal override layer — the recommended home for experimental
+    configurations. User scope is a machine-wide default that applies everywhere. Because local outranks
+    project, a personal override never has to touch the shared file.
+  </p>
+
+  <!-- ============ DIAGRAM ============ -->
+  <div class="figure">
+    <svg viewBox="0 0 760 340" role="img" aria-label="Diagram showing local scope shadowing project scope for a same-named MCP server">
+      <!-- Background panel -->
+      <rect x="1" y="1" width="758" height="338" rx="12" fill="var(--surface-2)" stroke="var(--border)"/>
+
+      <!-- Column headers -->
+      <text x="150" y="34" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="var(--text-muted)" letter-spacing="1">YOUR MACHINE</text>
+      <text x="600" y="34" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="var(--text-muted)" letter-spacing="1">TEAMMATES</text>
+
+      <!-- Divider -->
+      <line x1="380" y1="20" x2="380" y2="320" stroke="var(--border-strong)" stroke-dasharray="4 4"/>
+
+      <!-- LOCAL scope box -->
+      <rect x="40" y="55" width="220" height="70" rx="10" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="2"/>
+      <text x="60" y="82" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="var(--primary)">LOCAL SCOPE</text>
+      <text x="60" y="102" font-family="ui-monospace, monospace" font-size="11" fill="var(--text)">extraction-server</text>
+      <text x="60" y="118" font-family="ui-monospace, monospace" font-size="10" fill="var(--text-muted)">→ experimental build</text>
+
+      <!-- PROJECT scope box -->
+      <rect x="40" y="150" width="220" height="70" rx="10" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <text x="60" y="177" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="var(--text-muted)">PROJECT SCOPE</text>
+      <text x="60" y="197" font-family="ui-monospace, monospace" font-size="11" fill="var(--text)">extraction-server</text>
+      <text x="60" y="213" font-family="ui-monospace, monospace" font-size="10" fill="var(--text-muted)">→ shared .mcp.json</text>
+
+      <!-- Shadow arrow -->
+      <path d="M 265 90 Q 300 90 300 140" fill="none" stroke="var(--primary)" stroke-width="2" stroke-dasharray="5 3"/>
+      <path d="M 300 150 L 296 140 L 304 140 Z" fill="var(--primary)"/>
+      <text x="320" y="120" font-family="ui-monospace, monospace" font-size="10" font-weight="700" fill="var(--primary)">SHADOWS</text>
+
+      <!-- Winner on left -->
+      <rect x="40" y="250" width="220" height="52" rx="10" fill="var(--success-soft)" stroke="var(--success)" stroke-width="2"/>
+      <text x="60" y="272" font-family="ui-monospace, monospace" font-size="11" font-weight="700" fill="var(--success)">WINNER: LOCAL</text>
+      <text x="60" y="290" font-family="ui-monospace, monospace" font-size="10" fill="var(--text)">experimental build loads</text>
+      <line x1="150" y1="220" x2="150" y2="250" stroke="var(--success)" stroke-width="2"/>
+      <path d="M 150 250 L 146 240 L 154 240 Z" fill="var(--success)"/>
+
+      <!-- Teammate side -->
+      <rect x="420" y="55" width="300" height="70" rx="10" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <text x="440" y="82" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="var(--text-muted)">PROJECT SCOPE</text>
+      <text x="440" y="102" font-family="ui-monospace, monospace" font-size="11" fill="var(--text)">extraction-server</text>
+      <text x="440" y="118" font-family="ui-monospace, monospace" font-size="10" fill="var(--text-muted)">→ shared .mcp.json (unchanged)</text>
+
+      <rect x="420" y="150" width="300" height="52" rx="10" fill="var(--success-soft)" stroke="var(--success)" stroke-width="2"/>
+      <text x="440" y="172" font-family="ui-monospace, monospace" font-size="11" font-weight="700" fill="var(--success)">WINNER: PROJECT</text>
+      <text x="440" y="190" font-family="ui-monospace, monospace" font-size="10" fill="var(--text)">shared build loads — unaffected</text>
+      <line x1="570" y1="125" x2="570" y2="150" stroke="var(--success)" stroke-width="2"/>
+      <path d="M 570 150 L 566 140 L 574 140 Z" fill="var(--success)"/>
+
+      <!-- Footer note -->
+      <text x="380" y="325" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--text-muted)" font-style="italic">Same server name, different scope → highest-precedence definition wins. No merging.</text>
+    </svg>
+    <p class="figcap">Local scope shadows the shared project definition on your machine only. Teammates never see the override.</p>
+  </div>
+
+  <!-- ============ WHY NOT THE OTHERS ============ -->
+  <h2>Why the tempting alternatives fail</h2>
+
+  <h3>User scope — private, but wrong twice</h3>
+  <p>
+    Registering the experimental server at <strong>user scope</strong> feels private, and it is. But it fails on two
+    counts: it applies to <em>every project</em> on the machine, not just this one — so you leak the experiment
+    everywhere. And user scope sits <em>below</em> project scope in the precedence order, so the shared
+    <code>.mcp.json</code> definition still wins in this project. The experimental build would never load where you
+    actually wanted to test it.
+  </p>
+
+  <h3>Renaming inside <code>.mcp.json</code> — commits the experiment</h3>
+  <p>
+    Adding the experimental server under a new name to the shared file, then noting in <code>CLAUDE.md</code> that
+    the project should prefer the experimental tools, exposes every teammate to experimental infrastructure
+    and substitutes <em>probabilistic prompt guidance</em> for a <em>deterministic configuration mechanism</em>. Scope
+    shadowing solves the same problem without changing anything the team sees.
+  </p>
+
+  <h3>Edit-and-revert on the shared file — one commit away from disaster</h3>
+  <p>
+    Editing the version-controlled <code>.mcp.json</code> to point at the experimental build, planning to revert
+    before committing, puts experimental configuration one accidental commit away from the entire team. The
+    scoping system exists precisely so personal overrides never require touching the shared baseline.
+  </p>
+
+  <div class="callout warn">
+    <span class="label">Warning</span>
+    <p>
+      Never rely on "I'll revert it before I commit." Version control is not a scratchpad, and a forgotten
+      revert turns a private experiment into a team-wide incident.
+    </p>
+  </div>
+
+  <!-- ============ CODE ============ -->
+  <h2>What the configuration actually looks like</h2>
+  <p>
+    The team baseline lives in the repository and is checked in. The experimental override lives in your home
+    directory, keyed by the project path — private, and never part of the repo.
+  </p>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="meta">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="lang">json — .mcp.json (team baseline, committed)</span>
+      </div>
+      <button class="copy-btn" data-copy="baseline">Copy</button>
+    </div>
+    <pre id="code-baseline">{
+  "mcpServers": {
+    "extraction-server": {
+      "command": "node",
+      "args": ["./servers/extraction/dist/index.js"]
+    }
+  }
+}</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="meta">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="lang">json — ~/.claude.json (local scope, private override)</span>
+      </div>
+      <button class="copy-btn" data-copy="local">Copy</button>
+    </div>
+    <pre id="code-local">{
+  "projects": {
+    "/Users/you/code/extraction-pipeline": {
+      "mcpServers": {
+        "extraction-server": {
+          "command": "node",
+          "args": ["./servers/extraction-experimental/dist/index.js"]
+        }
+      }
+    }
+  }
+}</pre>
+  </div>
+
+  <p>
+    Note that the server <strong>name is identical</strong> — <code>extraction-server</code> — in both files. That
+    identity is what triggers shadowing. If you gave the experimental build a different name, both servers
+    would load, and Claude would have to guess which tool to call.
+  </p>
+
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>
+      When you are done testing, delete the entry from the local scope block in <code>~/.claude.json</code>. The
+      shared definition reasserts itself automatically — no revert, no commit, no coordination with the team.
+    </p>
+  </div>
+
+  <!-- ============ DEEP DIVE ============ -->
+  <h2>Deep dive: why shadowing beats merging</h2>
+  <p>
+    Some configuration systems merge definitions field by field — command from one source, args from another.
+    Claude Code deliberately does <strong>not</strong> do this for MCP servers. Merging would make it impossible to
+    reason about which binary is actually running, and it would let a stray field from a lower scope silently
+    alter a higher-scope server's behavior.
+  </p>
+  <p>
+    Instead, the rule is atomic: <em>highest-precedence definition wins, whole</em>. That atomicity is what
+    makes the local-override pattern safe. You can never end up with a Frankenstein server whose command
+    comes from local scope and whose args come from the team file.
+  </p>
+
+  <div class="callout deep">
+    <span class="label">Deep Dive</span>
+    <p>
+      The full precedence order is: <strong>local &gt; project &gt; user &gt; plugin-provided &gt; connectors</strong>. When
+      the same server name appears at multiple scopes, only the highest-precedence definition is used. See
+      the Claude Code MCP documentation for the canonical rules and scope descriptions.
+    </p>
+  </div>
+
+  <!-- ============ QUIZ ============ -->
+  <h2>Knowledge check</h2>
+  <p>Answer each question. Feedback and explanations appear immediately.</p>
+
+  <div class="quiz" data-answer="1">
+    <div class="qnum">Question 1 of 3</div>
+    <p class="qtext">
+      An engineer wants to test an experimental build of the team's extraction MCP server in one project only,
+      while teammates keep loading the shared version from the project's <code>.mcp.json</code>. Which
+      configuration approach achieves this?
+    </p>
+    <div class="options">
+      <button class="opt" data-idx="0">
+        Add the experimental server under a new name to <code>.mcp.json</code> and note in
+        <code>CLAUDE.md</code> that this project should prefer the experimental tools.
+      </button>
+      <button class="opt" data-idx="1">
+        Add the experimental server at local scope under the same name, letting it shadow the shared project
+        definition on this machine only.
+      </button>
+      <button class="opt" data-idx="2">
+        Register the experimental server at user scope under the same name, keeping it private while
+        remaining outside version control.
+      </button>
+      <button class="opt" data-idx="3">
+        Edit the project's <code>.mcp.json</code> to point at the experimental build, planning to revert the
+        file before committing any changes.
+      </button>
+    </div>
+    <div class="explain">
+      <strong>Correct: local scope under the same name.</strong> Local scope is stored under the current
+      project's entry in <code>~/.claude.json</code>, stays private, and applies only in this project. Because
+      local scope outranks project scope for a same-named server, the experimental build takes effect on
+      your machine while teammates continue loading the shared <code>.mcp.json</code> definition.
+    </div>
+  </div>
+
+  <div class="quiz" data-answer="2">
+    <div class="qnum">Question 2 of 3</div>
+    <p class="qtext">
+      Why does registering the experimental server at <strong>user scope</strong> fail to solve the problem?
+    </p>
+    <div class="options">
+      <button class="opt" data-idx="0">
+        User scope is not private, so teammates would see the experimental build.
+      </button>
+      <button class="opt" data-idx="1">
+        User scope is stored in the repository, so it gets committed on the next push.
+      </button>
+      <button class="opt" data-idx="2">
+        User scope applies to every project on the machine <em>and</em> sits below project scope, so the
+        shared <code>.mcp.json</code> definition still wins here.
+      </button>
+      <button class="opt" data-idx="3">
+        User scope only supports a single server per name, so it cannot coexist with project scope.
+      </button>
+    </div>
+    <div class="explain">
+      <strong>Correct: it fails twice.</strong> User scope is private, but it applies across all projects on the
+      machine rather than just this one. It also sits below project scope in the precedence order, so the
+      shared <code>.mcp.json</code> definition would still win in this project and the experimental build would
+      never load here.
+    </div>
+  </div>
+
+  <div class="quiz" data-answer="0">
+    <div class="qnum">Question 3 of 3</div>
+    <p class="qtext">
+      Which statement best describes how Claude Code resolves MCP server definitions when the same server
+      name appears at multiple scopes?
+    </p>
+    <div class="options">
+      <button class="opt" data-idx="0">
+        The highest-precedence definition is used in full; definitions are never merged field by field.
+      </button>
+      <button class="opt" data-idx="1">
+        Fields from all scopes are merged, with higher-precedence scopes overriding individual fields.
+      </button>
+      <button class="opt" data-idx="2">
+        All same-named servers are loaded simultaneously and Claude picks the best tool at call time.
+      </button>
+      <button class="opt" data-idx="3">
+        Project scope always wins, because it is the only scope that is version controlled.
+      </button>
+    </div>
+    <div class="explain">
+      <strong>Correct: atomic resolution, no merging.</strong> When the same server name appears at multiple
+      scopes, only the highest-precedence definition is used. The precedence order is
+      <strong>local &gt; project &gt; user</strong> (followed by plugin-provided servers and connectors). This atomicity
+      is what makes private experimentation safe and predictable.
+    </div>
+  </div>
+
+  <div class="score-bar">
+    <span class="s-label">Score</span>
+    <span><span class="s-val" id="score">0</span> / 3 correct</span>
+  </div>
+
+  <!-- ============ TAKEAWAYS ============ -->
+  <h2>Key takeaways</h2>
+  <div class="takeaways">
+    <ul>
+      <li><strong>Local scope is the recommended home for experiments.</strong> It is private to one user and one
+      project, stored under the project's entry in <code>~/.claude.json</code>.</li>
+      <li><strong>Precedence is local &gt; project &gt; user</strong> (then plugin-provided servers and connectors).
+      Same-named servers at multiple scopes resolve to the highest-precedence definition only.</li>
+      <li><strong>Definitions are never merged field by field.</strong> The winning definition is used whole, so you
+      can always reason about which binary is running.</li>
+      <li><strong>Shadowing under the same name is the deterministic fix.</strong> Renaming the server or steering
+      selection through <code>CLAUDE.md</code> substitutes prompt guidance for a configuration mechanism.</li>
+      <li><strong>Never edit the shared <code>.mcp.json</code> for personal experiments.</strong> "I'll revert it before
+      committing" is one forgotten commit away from a team-wide incident.</li>
+      <li><strong>Cleanup is trivial.</strong> Delete the local scope entry when done — the shared definition
+      reasserts itself with no coordination required.</li>
+    </ul>
+  </div>
+
+  <hr>
+
+  <p style="color: var(--text-muted); font-size: 0.88rem;">
+    For the canonical precedence rules and full scope descriptions, consult the Claude Code MCP
+    documentation. This lesson is part of the <strong>Cloud Code Architect</strong> track, module
+    <em>Tool Design &amp; MCP Integration</em>.
+  </p>
+
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    /* ---------- Copy buttons ---------- */
+    var copyMap = {
+      baseline: "code-baseline",
+      local: "code-local"
+    };
+
+    document.querySelectorAll(".copy-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var key = btn.getAttribute("data-copy");
+        var targetId = copyMap[key];
+        var el = document.getElementById(targetId);
+        if (!el) return;
+
+        var text = el.textContent;
+
+        function markCopied() {
+          var original = btn.textContent;
+          btn.textContent = "Copied";
+          btn.classList.add("copied");
+          setTimeout(function () {
+            btn.textContent = original;
+            btn.classList.remove("copied");
+          }, 1400);
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(markCopied).catch(function () {
+            fallbackCopy(text, markCopied);
+          });
+        } else {
+          fallbackCopy(text, markCopied);
+        }
+      });
+    });
+
+    function fallbackCopy(text, onDone) {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "absolute";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        onDone();
+      } catch (e) {
+        /* silent — clipboard may be blocked in sandbox */
+      }
+    }
+
+    /* ---------- Quiz ---------- */
+    var score = 0;
+    var scoreEl = document.getElementById("score");
+
+    document.querySelectorAll(".quiz").forEach(function (quiz) {
+      var answerIdx = parseInt(quiz.getAttribute("data-answer"), 10);
+      var opts = quiz.querySelectorAll(".opt");
+      var explain = quiz.querySelector(".explain");
+      var answered = false;
+
+      opts.forEach(function (opt) {
+        opt.addEventListener("click", function () {
+          if (answered) return;
+          answered = true;
+
+          var chosen = parseInt(opt.getAttribute("data-idx"), 10);
+          var isCorrect = chosen === answerIdx;
+
+          opts.forEach(function (o) {
+            o.disabled = true;
+            var idx = parseInt(o.getAttribute("data-idx"), 10);
+            if (idx === answerIdx) {
+              o.classList.add("correct");
+            } else if (idx === chosen) {
+              o.classList.add("wrong");
+            }
+          });
+
+          if (isCorrect) {
+            score += 1;
+            if (scoreEl) scoreEl.textContent = String(score);
+          }
+
+          if (explain) explain.classList.add("show");
+        });
+      });
+    });
+  })();
+</script>
+</body>
+</html>

@@ -8,6 +8,8 @@
  * fields (see aiRequestFields below) straight from here, used for that one
  * call, and nothing is persisted server-side. This is what lets one
  * deployment be shared by multiple people, each using their own keys.
+ * A model value of '' (USE_ENV_DEFAULT_MODEL) means "Use .env default": it is
+ * sent as model: '' and the server resolves it from AI_PROVIDER / AI_MODEL.
  */
 
 export interface UserSettings {
@@ -20,6 +22,10 @@ export interface UserSettings {
   groqKey: string;
   openrouterKey: string;
   openrouterUrl: string;
+  /** Generic OpenAI-compatible endpoint (Together.ai, Fireworks, a local LM Studio/vLLM server, etc.) */
+  customKey: string;
+  customBaseUrl: string;
+  customModel: string;
   ollamaUrl: string;
   ollamaModel: string;
   youtubeApiKey: string;
@@ -38,13 +44,22 @@ export interface OllamaStatus {
   error: string | null;
 }
 
+export interface AiDefaultInfo {
+  provider: string | null;
+  model: string;
+  source: 'AI_MODEL' | 'AI_PROVIDER' | 'builtin';
+  warning: string | null;
+}
+
 import { API_BASE_URL } from '@/lib/http/apiClient';
 
 const STORAGE_KEY = 'labninja.ai-settings.v1';
 
+export const USE_ENV_DEFAULT_MODEL = '';
+
 export const DEFAULT_SETTINGS: UserSettings = {
-  textGenerationModel: 'gemini-flash-latest',
-  answerModel: 'gemini-flash-latest',
+  textGenerationModel: USE_ENV_DEFAULT_MODEL,
+  answerModel: USE_ENV_DEFAULT_MODEL,
   openaiKey: '',
   geminiKey: '',
   anthropicKey: '',
@@ -52,6 +67,9 @@ export const DEFAULT_SETTINGS: UserSettings = {
   groqKey: '',
   openrouterKey: '',
   openrouterUrl: 'https://openrouter.ai/api/v1',
+  customKey: '',
+  customBaseUrl: '',
+  customModel: '',
   ollamaUrl: 'http://localhost:11434',
   ollamaModel: 'llama3.2',
   youtubeApiKey: '',
@@ -89,8 +107,11 @@ function toServerProfile(settings: Partial<UserSettings>) {
 
 function fromServerProfile(profile: any): Partial<SyncableSettings> {
   const out: Partial<SyncableSettings> = {};
-  if (profile.text_generation_model) out.textGenerationModel = profile.text_generation_model;
-  if (profile.answer_model) out.answerModel = profile.answer_model;
+  // A saved '' ("Use .env default") must still beat a stale local model; never-saved columns are null.
+  if (typeof profile.text_generation_model === 'string') {
+    out.textGenerationModel = profile.text_generation_model;
+  }
+  if (typeof profile.answer_model === 'string') out.answerModel = profile.answer_model;
   if (profile.ollama_url) out.ollamaUrl = profile.ollama_url;
   if (profile.ollama_model) out.ollamaModel = profile.ollama_model;
   if (profile.openrouter_url) out.openrouterUrl = profile.openrouter_url;
@@ -141,6 +162,13 @@ export const settingsService = {
     return await res.json();
   },
 
+  /** Public endpoint (no secrets, guest-accessible Config page), so plain fetch rather than apiFetch. */
+  async getAiDefault(): Promise<AiDefaultInfo> {
+    const res = await fetch(`${API_BASE_URL}/config/ai-default`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
   async getOllamaModels(url: string): Promise<string[]> {
     const res = await fetch(`${API_BASE_URL}/settings/ollama-models?url=${encodeURIComponent(url)}`);
     if (!res.ok) {
@@ -174,6 +202,8 @@ export const settingsService = {
 export function resolveModelId(choice: string, settings: UserSettings = readStoredSettings()): string {
   if (choice === 'ollama') return 'ollama';
   if (choice === 'gemini') {
+    // "Use .env default" stays '' so the server resolves AI_PROVIDER / AI_MODEL.
+    if (settings.textGenerationModel === USE_ENV_DEFAULT_MODEL) return USE_ENV_DEFAULT_MODEL;
     return settings.textGenerationModel?.startsWith('gemini') || settings.textGenerationModel?.startsWith('gemma')
       ? settings.textGenerationModel
       : 'gemini-flash-latest';
@@ -197,6 +227,9 @@ export function aiRequestFields(choice: string, settings: UserSettings = readSto
     groqKey: settings.groqKey,
     openrouterKey: settings.openrouterKey,
     openrouterUrl: settings.openrouterUrl,
+    customKey: settings.customKey,
+    customBaseUrl: settings.customBaseUrl,
+    customModel: settings.customModel,
     ollamaUrl: settings.ollamaUrl,
     ollamaModel: settings.ollamaModel,
   };

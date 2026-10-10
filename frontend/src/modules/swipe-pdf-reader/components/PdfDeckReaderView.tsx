@@ -567,7 +567,13 @@ export default function PdfDeckReaderView({
           </div>
         ) : (
           /* Card Stack */
-          <div className="w-full h-full max-w-sm sm:max-w-md relative flex items-center justify-center">
+          /* absolute inset-0 (not w-full/h-full): the cards inside are absolutely
+             positioned with no in-flow content of their own, so this wrapper's `h-full`
+             has nothing to resolve a percentage against once nested a few flex layers
+             deep and silently collapses to 0px. Anchoring directly to the (relatively
+             positioned, definitely-sized) "Main Deck" container via inset-0 sidesteps
+             percentage-height resolution entirely. */
+          <div className="absolute inset-0 mx-auto max-w-sm sm:max-w-md flex items-center justify-center">
             {/* Background preview card */}
             {nextChunk && (
               <div className="absolute inset-0 transform scale-95 translate-y-3 opacity-55 pointer-events-none transition-all">

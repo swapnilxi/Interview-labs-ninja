@@ -1,0 +1,115 @@
+{
+  "$comment": "Generated from the AI-LMS tables on every change; edits here are overwritten. Edit landingpage.html and the lesson .html files instead.",
+  "id": "class-ai-bootcamp",
+  "slug": "ai-bootcamp",
+  "name": "AI Bootcamp",
+  "description": "Production AI engineering from scratch — dev environments, containerization, tool interfaces, agent loops, verification gates, and capstone systems.",
+  "landing": "landingpage.html",
+  "subjects": [
+    {
+      "id": "subj-dev-env-tooling",
+      "slug": "dev-environment-tooling",
+      "name": "Dev Environment & Tooling Foundations",
+      "kind": "subject",
+      "description": "System foundations, uv Python environments, Node/pnpm, Docker for AI workloads, and GPU tensor verification.",
+      "lessons": [
+        {
+          "id": "lesson-bootcamp-01",
+          "slug": "dev-environment",
+          "title": "Dev Environment: The Four-Layer AI Stack",
+          "file": "dev-environment-tooling/lessons/dev-environment.html"
+        },
+        {
+          "id": "lesson-bootcamp-02",
+          "slug": "python-environments",
+          "title": "Python Environments: Virtualenvs, uv & Reproducibility",
+          "file": "dev-environment-tooling/lessons/python-environments.html"
+        },
+        {
+          "id": "lesson-bootcamp-03",
+          "slug": "docker-for-ai",
+          "title": "Docker for AI: GPU Passthrough & Containerized Workflows",
+          "file": "dev-environment-tooling/lessons/docker-for-ai.html"
+        }
+      ]
+    },
+    {
+      "id": "subj-tools-protocols",
+      "slug": "tools-protocols-verification",
+      "name": "Tools, Protocols & Verification Gates",
+      "kind": "subject",
+      "description": "Tool schemas, Model Context Protocol (MCP), agent verification gates, and evaluation harnesses.",
+      "lessons": [
+        {
+          "id": "lesson-bootcamp-04",
+          "slug": "the-tool-interface",
+          "title": "The Tool Interface: JSON Schema & Function Calling Contracts",
+          "file": "tools-protocols-verification/lessons/the-tool-interface.html"
+        },
+        {
+          "id": "lesson-bootcamp-05",
+          "slug": "verification-gates",
+          "title": "Verification Gates: Deterministic Testing & Agent Harnesses",
+          "file": "tools-protocols-verification/lessons/verification-gates.html"
+        }
+      ]
+    },
+    {
+      "id": "subj-terminal-agent-proj",
+      "slug": "terminal-native-coding-agent",
+      "name": "Terminal-Native Coding Agent",
+      "kind": "project",
+      "description": "Build a CLI-native autonomous coding agent: stateful plan-act-observe loop, tool sandbox, and self-healing.",
+      "modules": [],
+      "lessons": [
+        {
+          "id": "lesson-bootcamp-06",
+          "slug": "agent-architecture-loop",
+          "title": "Agent Architecture & Stateful Execution Loop",
+          "file": "terminal-native-coding-agent/lessons/agent-architecture-loop.html"
+        },
+        {
+          "id": "lesson-bootcamp-07",
+          "slug": "sandboxed-tool-execution",
+          "title": "Sandboxed Tool Runner & File System Mutator",
+          "file": "terminal-native-coding-agent/lessons/sandboxed-tool-execution.html"
+        }
+      ]
+    },
+    {
+      "id": "subj-codebase-rag-proj",
+      "slug": "rag-over-codebase",
+      "name": "RAG over Codebase: Hybrid Semantic Search",
+      "kind": "project",
+      "description": "Build an enterprise codebase search engine using Tree-sitter AST chunking, vector embeddings, and BM25 hybrid ranking.",
+      "modules": [],
+      "lessons": [
+        {
+          "id": "lesson-bootcamp-08",
+          "slug": "ast-parsing-chunking",
+          "title": "Tree-Sitter AST Parsing & Semantic Chunking",
+          "file": "rag-over-codebase/lessons/ast-parsing-chunking.html"
+        },
+        {
+          "id": "lesson-bootcamp-09",
+          "slug": "hybrid-retrieval-rrf",
+          "title": "Dense Vectors + BM25 Reciprocal Rank Fusion",
+          "file": "rag-over-codebase/lessons/hybrid-retrieval-rrf.html"
+        }
+      ]
+    }
+  ],
+  "lessons": [],
+  "files": {
+    "landingpage.html": "4a21d4654a251973b6e9993f5813b6f779564ad78f6bdc0f561772290c757da6",
+    "dev-environment-tooling/lessons/dev-environment.html": "09811a35881aea0e85665568b6f2d4448fab242542d0aaf6c4966c7a2f0fad90",
+    "dev-environment-tooling/lessons/python-environments.html": "e387cbe8ffbc73f701c951f43a03e1d025f3db00f805575eb2b13299e12ecc97",
+    "dev-environment-tooling/lessons/docker-for-ai.html": "ea03ad4e843615e8e0799620a8d7c7f62cc1d33232a49329acc8088a131e3e61",
+    "tools-protocols-verification/lessons/the-tool-interface.html": "59ee90946e122d5cecab77b97474d63532886ce97cc760477a89fafff060661c",
+    "tools-protocols-verification/lessons/verification-gates.html": "c5943f1a1fbb058a3bb0fcb15c55e5e8a486a3eb7f102b8df372ee08b671922f",
+    "terminal-native-coding-agent/lessons/agent-architecture-loop.html": "77c0c8dfde4d96607ac70245fde091454ac8066b9c7b3b8d90fd5915fa730a9a",
+    "terminal-native-coding-agent/lessons/sandboxed-tool-execution.html": "5407b75d3d8555113c5b5aca9a17a2e8ea44c6f29b165f1edfe2ece5f5ff7cd5",
+    "rag-over-codebase/lessons/ast-parsing-chunking.html": "a61e54536b38a75967ba62d6d1ae201cd4ae838dfad8b8cf5728a01d18e5e494",
+    "rag-over-codebase/lessons/hybrid-retrieval-rrf.html": "168c349dcaa46b7d3ff89fd90adf61e62e9b32be7959196b07ec2366ece200e0"
+  }
+}

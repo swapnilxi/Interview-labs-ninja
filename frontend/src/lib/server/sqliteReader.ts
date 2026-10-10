@@ -12,6 +12,11 @@ export interface SqliteDbResult {
  * Vercel mounts the git-tracked files here but the directory is immutable.
  */
 function getBundledPath(dbName: string): string | null {
+  if (process.env.LABNINJA_DB_DIR) {
+    const override = path.join(process.env.LABNINJA_DB_DIR, `${dbName}.sqlite3`);
+    if (fs.existsSync(override)) return override;
+  }
+
   const cwd = process.cwd();
   const sources = [
     path.join(cwd, 'backend', 'data', `${dbName}.sqlite3`),
@@ -19,6 +24,20 @@ function getBundledPath(dbName: string): string | null {
     path.join(cwd, 'data', `${dbName}.sqlite3`),
     path.join(cwd, `${dbName}.sqlite3`),
   ];
+
+  // Try walking up from __dirname to reliably find backend/data
+  let current = __dirname;
+  for (let i = 0; i < 10; i++) {
+    const candidate = path.join(current, 'backend', 'data', `${dbName}.sqlite3`);
+    if (fs.existsSync(candidate)) {
+      sources.push(candidate);
+      break;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
   return sources.find((p) => fs.existsSync(p)) ?? null;
 }
 
@@ -27,7 +46,24 @@ function getBundledPath(dbName: string): string | null {
  * /tmp is per-Lambda-invocation on Vercel but survives within the same warm instance,
  * so consecutive requests in the same instance share the same writable copy.
  */
-function getWritablePath(dbName: string): string {
+export function getWritablePath(dbName: string): string {
+  // In local development (non-Vercel), use the project's SQLite DB directly so Next.js
+  // and FastAPI share the exact same database file in real-time.
+  if (!process.env.VERCEL) {
+    const localSrc = getBundledPath(dbName);
+    if (localSrc) {
+      try {
+        fs.accessSync(localSrc, fs.constants.R_OK | fs.constants.W_OK);
+        return localSrc;
+      } catch (err) {
+        console.warn(`[sqliteReader] Cannot write to ${localSrc}. Falling back to /tmp. Generated data will be ephemeral!`, err);
+        // Fall back to /tmp if not writable
+      }
+    } else {
+      console.warn(`[sqliteReader] Could not find ${dbName}.sqlite3 in tree. Falling back to /tmp. Generated data will be ephemeral!`);
+    }
+  }
+
   const tmpPath = `/tmp/${dbName}.sqlite3`;
   if (!fs.existsSync(tmpPath)) {
     const src = getBundledPath(dbName);

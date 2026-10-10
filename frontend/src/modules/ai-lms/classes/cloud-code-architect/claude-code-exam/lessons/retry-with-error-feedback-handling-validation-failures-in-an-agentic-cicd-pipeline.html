@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCAF Exam Guide — Retry-with-Error-Feedback in Agentic Pipelines</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f3ec;
+    --surface: #fffaf2;
+    --surface-2: #efe7d9;
+    --text: #24201b;
+    --text-muted: #71695f;
+    --border: rgba(64, 55, 45, 0.14);
+    --border-strong: rgba(64, 55, 45, 0.22);
+    --primary: #5b5bd6;
+    --primary-soft: rgba(91, 91, 214, 0.1);
+    --secondary: #127c7a;
+    --secondary-soft: rgba(18, 124, 122, 0.1);
+    --accent: #b36b17;
+    --accent-soft: rgba(179, 107, 23, 0.12);
+    --success: #14845f;
+    --success-soft: rgba(20, 132, 95, 0.12);
+    --danger: #c24151;
+    --danger-soft: rgba(194, 65, 81, 0.12);
+    --code-bg: #1c1a17;
+    --code-text: #f2ede2;
+    --code-border: rgba(255, 255, 255, 0.08);
+    --shadow: 0 1px 2px rgba(36, 32, 27, 0.05), 0 12px 28px -14px rgba(36, 32, 27, 0.2);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17140f;
+      --surface: #201c16;
+      --surface-2: #2a251d;
+      --text: #f4efe7;
+      --text-muted: #b3a696;
+      --border: rgba(255, 246, 235, 0.1);
+      --border-strong: rgba(255, 246, 235, 0.16);
+      --primary: #9694f5;
+      --primary-soft: rgba(150, 148, 245, 0.14);
+      --secondary: #5fc6bd;
+      --secondary-soft: rgba(95, 198, 189, 0.12);
+      --accent: #f1ad55;
+      --accent-soft: rgba(241, 173, 85, 0.14);
+      --success: #54c79a;
+      --success-soft: rgba(84, 199, 154, 0.14);
+      --danger: #fb7185;
+      --danger-soft: rgba(251, 113, 133, 0.14);
+      --code-bg: #14110d;
+      --code-text: #f2ede2;
+      --code-border: rgba(255, 255, 255, 0.07);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 1.02rem;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .wrap {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 6rem;
+  }
+
+  /* ---------- Header ---------- */
+  .breadcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .pill {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    padding: 0.32rem 0.72rem;
+    border-radius: 999px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    line-height: 1.4;
+  }
+  .pill.secondary { background: var(--secondary-soft); color: var(--secondary); }
+  .pill.accent { background: var(--accent-soft); color: var(--accent); }
+  .pill.muted { background: var(--surface-2); color: var(--text-muted); }
+
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--text);
+    margin: 0 0 0.9rem;
+  }
+  h1 .em { color: var(--primary); }
+
+  .lede {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    margin: 0 0 1.6rem;
+    max-width: 62ch;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+
+  /* ---------- Sections ---------- */
+  section { margin-bottom: 3rem; }
+
+  h2 {
+    position: relative;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin: 0 0 1.1rem;
+    padding-left: 0.9rem;
+  }
+  h2::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.28em;
+    width: 4px;
+    height: 1.05em;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+
+  h3 {
+    font-size: 1.06rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 1.8rem 0 0.6rem;
+  }
+
+  p { margin: 0 0 1.05rem; color: var(--text); }
+
+  ul, ol { margin: 0 0 1.1rem; padding-left: 1.3rem; color: var(--text); }
+  li { margin-bottom: 0.45rem; }
+
+  a { color: var(--primary); text-decoration: none; border-bottom: 1px solid var(--primary-soft); }
+  a:hover { border-bottom-color: var(--primary); }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5rem 0;
+  }
+
+  /* ---------- Objectives ---------- */
+  .objectives {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.6rem;
+    box-shadow: var(--shadow);
+  }
+  .objectives h3 { margin-top: 0; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+  .objectives ul { margin: 0; padding-left: 0; list-style: none; }
+  .objectives li {
+    position: relative;
+    padding-left: 1.7rem;
+    margin-bottom: 0.6rem;
+    color: var(--text);
+  }
+  .objectives li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.42em;
+    width: 0.9rem;
+    height: 0.9rem;
+    border-radius: 50%;
+    border: 2px solid var(--secondary);
+    background: var(--secondary-soft);
+  }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    background: var(--surface-2);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 1.05rem 1.3rem;
+    margin: 1.4rem 0;
+  }
+  .callout .label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: 0.4rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout.tip { border-left-color: var(--secondary); }
+  .callout.tip .label { color: var(--secondary); }
+  .callout.warn { border-left-color: var(--danger); }
+  .callout.warn .label { color: var(--danger); }
+  .callout.deep { border-left-color: var(--accent); }
+  .callout.deep .label { color: var(--accent); }
+
+  /* ---------- Code blocks ---------- */
+  .code-block {
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin: 1.4rem 0;
+    border: 1px solid var(--code-border);
+    background: var(--code-bg);
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid var(--code-border);
+  }
+  .dots { display: flex; gap: 0.35rem; }
+  .dots span {
+    width: 0.6rem; height: 0.6rem; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .code-lang {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(242, 237, 226, 0.55);
+    font-weight: 700;
+    margin-left: 0.3rem;
+  }
+  .copy-btn {
+    margin-left: auto;
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--code-text);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    padding: 0.28rem 0.6rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .copy-btn:hover { background: rgba(255, 255, 255, 0.16); }
+  .copy-btn.copied { background: var(--success-soft); color: var(--success); border-color: transparent; }
+  pre {
+    margin: 0;
+    padding: 1.05rem 1.15rem;
+    overflow-x: auto;
+    color: var(--code-text);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.83rem;
+    line-height: 1.65;
+  }
+  pre code { font-family: inherit; }
+  .tok-key { color: #c8a8ff; }
+  .tok-str { color: #9ddcae; }
+  .tok-com { color: rgba(242, 237, 226, 0.42); font-style: italic; }
+  .tok-num { color: #f1ad55; }
+
+  /* ---------- Diagram ---------- */
+  .figure {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.4rem 1.2rem 1rem;
+    margin: 1.6rem 0;
+    box-shadow: var(--shadow);
+  }
+  .figure svg { display: block; width: 100%; height: auto; }
+  .figcap {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin: 0.9rem 0 0;
+  }
+
+  /* ---------- Table ---------- */
+  .table-scroll { overflow-x: auto; margin: 1.4rem 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  th, td {
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+  th {
+    font-size: 0.72rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    font-weight: 800;
+  }
+  tr:last-child td { border-bottom: none; }
+  td code, p code, li code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--primary-soft);
+    color: var(--primary);
+    padding: 0.12em 0.4em;
+    border-radius: 5px;
+  }
+
+  /* ---------- Quiz ---------- */
+  .quiz {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.5rem 1.3rem;
+    margin: 1.6rem 0;
+    box-shadow: var(--shadow);
+  }
+  .quiz-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+  }
+  .quiz-num {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .quiz-q {
+    font-weight: 700;
+    font-size: 1.02rem;
+    color: var(--text);
+    margin: 0 0 1rem;
+    line-height: 1.55;
+  }
+  .options { display: flex; flex-direction: column; gap: 0.6rem; }
+  .opt {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    font-size: 0.93rem;
+    line-height: 1.55;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    padding: 0.75rem 0.95rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.08s ease;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .tag {
+    display: inline-block;
+    font-weight: 800;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-right: 0.5rem;
+  }
+  .opt.correct {
+    background: var(--success-soft);
+    border-color: var(--success);
+    color: var(--text);
+  }
+  .opt.correct .tag { color: var(--success); }
+  .opt.wrong {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--text);
+  }
+  .opt.wrong .tag { color: var(--danger); }
+  .fb {
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    display: none;
+    line-height: 1.6;
+  }
+  .fb.show { display: block; }
+  .fb.ok { background: var(--success-soft); border-left: 3px solid var(--success); }
+  .fb.no { background: var(--danger-soft); border-left: 3px solid var(--danger); }
+  .fb strong { color: var(--text); }
+  .fb .verdict { font-weight: 800; }
+  .fb.ok .verdict { color: var(--success); }
+  .fb.no .verdict { color: var(--danger); }
+
+  .score-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 0.9rem 1.2rem;
+    margin: 1.6rem 0 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .score-bar .val { color: var(--primary); }
+  .reset-btn {
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 0.35rem 0.85rem;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .reset-btn:hover { color: var(--primary); border-color: var(--primary); }
+
+  /* ---------- Takeaways ---------- */
+  .takeaways {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.6rem 1.6rem 1.2rem;
+    box-shadow: var(--shadow);
+  }
+  .takeaways ul { list-style: none; padding: 0; margin: 0; }
+  .takeaways li {
+    position: relative;
+    padding-left: 2rem;
+    margin-bottom: 0.85rem;
+    color: var(--text);
+  }
+  .takeaways li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.28em;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    background: var(--success-soft);
+    border: 1.5px solid var(--success);
+  }
+  .takeaways li::after {
+    content: "";
+    position: absolute;
+    left: 0.34rem;
+    top: 0.55em;
+    width: 0.32rem;
+    height: 0.6rem;
+    border-right: 2px solid var(--success);
+    border-bottom: 2px solid var(--success);
+    transform: rotate(42deg);
+  }
+
+  .footer-note {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  @media (max-width: 560px) {
+    .wrap { padding: 2.2rem 1.1rem 4rem; }
+    h1 { font-size: 1.65rem; }
+    h2 { font-size: 1.22rem; }
+    .quiz { padding: 1.2rem 1.1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HEADER ============ -->
+  <header>
+    <div class="breadcrumbs">
+      <span class="pill">Cloud Code Architect</span>
+      <span class="pill secondary">CCAF Exam Guide</span>
+      <span class="pill accent">Prompt Engineering &amp; Structured Output</span>
+    </div>
+    <h1>Retry with <span class="em">Error Feedback</span>: Handling Validation Failures in an Agentic CI/CD Pipeline</h1>
+    <p class="lede">
+      When a review summary's arithmetic doesn't reconcile, the pipeline must decide: retry, re-prompt blindly,
+      lower the temperature, or escalate to a human. This lesson teaches the classification judgment that
+      separates a self-correctable failure from a missing-grounding failure.
+    </p>
+    <div class="meta-row">
+      <span class="pill muted">12 MIN READ</span>
+      <span class="pill muted">QUESTION 37</span>
+      <span class="pill muted">INTERMEDIATE</span>
+    </div>
+  </header>
+
+  <!-- ============ OBJECTIVES ============ -->
+  <section>
+    <div class="objectives">
+      <h3>Learning Objectives</h3>
+      <ul>
+        <li>Classify a pipeline validation failure as <strong>self-correctable</strong> versus <strong>grounding-missing</strong> before choosing a remedy.</li>
+        <li>Explain why a retry must carry both the failed output and the concrete validation error to be effective.</li>
+        <li>Distinguish what schema conformance guarantees from what semantic validation must catch.</li>
+        <li>Design a CI/CD feedback loop that pairs structural guarantees with a semantic reconciliation layer.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ CORE CONCEPTS ============ -->
+  <section>
+    <h2>The Scenario</h2>
+    <p>
+      You're integrating Claude Code into a CI/CD pipeline. On every pull request, the system runs automated code
+      reviews, generates test cases, and posts feedback. Review summaries follow a structured schema like this:
+    </p>
+
+    <div class="code-block">
+      <div class="code-head">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="code-lang">json — review summary schema</span>
+        <button class="copy-btn" data-copy="schema">Copy</button>
+      </div>
+      <pre id="code-schema"><code>{
+  <span class="tok-key">"total_findings"</span>: <span class="tok-num">7</span>,
+  <span class="tok-key">"severity_counts"</span>: {
+    <span class="tok-key">"critical"</span>: <span class="tok-num">1</span>,
+    <span class="tok-key">"high"</span>:     <span class="tok-num">2</span>,
+    <span class="tok-key">"medium"</span>:   <span class="tok-num">3</span>,
+    <span class="tok-key">"low"</span>:      <span class="tok-num">2</span>
+  },
+  <span class="tok-key">"findings"</span>: [ <span class="tok-com">/* ...7 finding objects... */</span> ]
+}</code></pre>
+    </div>
+
+    <p>
+      A validation layer flags any summary where <code>total_findings</code> does not equal the sum of the
+      per-severity counts. Here, <code>1 + 2 + 3 + 2 = 8</code>, but the stated total is <code>7</code> — a
+      reconciliation mismatch. The full diff and every finding were present in the original prompt.
+    </p>
+
+    <div class="callout">
+      <span class="label">The Exam Question</span>
+      <p>
+        How should the pipeline handle these failures? The correct answer is to
+        <strong>retry automatically, sending back the failed summary and the specific count discrepancy</strong>,
+        because everything needed to correct it is already in the input.
+      </p>
+    </div>
+
+    <h3>The Core Judgment: Classify Before You Remedy</h3>
+    <p>
+      The mistake most engineers make is jumping straight to a remedy — retry, re-prompt, lower temperature,
+      escalate — without first asking <em>what kind of failure is this?</em> The classification determines the
+      remedy. There are two failure classes, and they demand opposite responses:
+    </p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Failure class</th>
+            <th>What it looks like</th>
+            <th>Is the fix derivable from the input?</th>
+            <th>Correct remedy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Self-correctable</strong></td>
+            <td>Format mismatch, structural error, arithmetic inconsistency</td>
+            <td>Yes — all source material is present</td>
+            <td>Retry with error feedback</td>
+          </tr>
+          <tr>
+            <td><strong>Grounding-missing</strong></td>
+            <td>Fabricated fact, hallucinated API, invented file path</td>
+            <td>No — the needed source was never provided</td>
+            <td>Supply or retrieve the source, then re-run</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      An arithmetic inconsistency is squarely in the first class. The model already has every piece of information
+      it needs to re-check its own counts. The discrepancy is a <em>reconciliation</em> error, not a
+      <em>knowledge</em> error.
+    </p>
+
+    <div class="callout tip">
+      <span class="label">Key Insight</span>
+      <p>
+        Retry-with-error-feedback is an <strong>application-level validation pattern</strong>. It succeeds
+        precisely when the model already possesses everything it needs to produce a corrected answer. The retry
+        isn't a "second chance" — it's a <strong>targeted correction task</strong>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ DIAGRAM ============ -->
+  <section>
+    <h2>The Feedback Loop, Visualized</h2>
+    <p>
+      The mental model is a closed loop: generate → validate → if invalid, feed the failure back → regenerate.
+      The loop only converges when the error signal is passed through. Strip the error signal, and the loop
+      becomes a coin flip.
+    </p>
+
+    <div class="figure">
+      <svg viewBox="0 0 720 340" role="img" aria-label="Diagram of the retry-with-error-feedback loop in a CI/CD pipeline">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-muted)"/>
+          </marker>
+          <marker id="arrowOk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--success)"/>
+          </marker>
+          <marker id="arrowErr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--danger)"/>
+          </marker>
+        </defs>
+
+        <!-- Prompt / diff -->
+        <rect x="20" y="130" width="140" height="72" rx="10" fill="var(--surface-2)" stroke="var(--border-strong)"/>
+        <text x="90" y="160" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text)">Diff + Findings</text>
+        <text x="90" y="180" text-anchor="middle" font-size="11" fill="var(--text-muted)">(source grounding)</text>
+
+        <!-- Model -->
+        <rect x="220" y="130" width="130" height="72" rx="10" fill="var(--primary-soft)" stroke="var(--primary)"/>
+        <text x="285" y="160" text-anchor="middle" font-size="13" font-weight="700" fill="var(--primary)">Claude Code</text>
+        <text x="285" y="180" text-anchor="middle" font-size="11" fill="var(--text-muted)">generates summary</text>
+
+        <!-- Validator -->
+        <rect x="410" y="120" width="150" height="92" rx="10" fill="var(--surface)" stroke="var(--border-strong)"/>
+        <text x="485" y="148" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text)">Validator</text>
+        <text x="485" y="168" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">schema conformance</text>
+        <text x="485" y="184" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">+ semantic reconcile</text>
+        <text x="485" y="200" text-anchor="middle" font-size="10.5" fill="var(--accent)">total = Σ severity?</text>
+
+        <!-- Output -->
+        <rect x="610" y="130" width="90" height="72" rx="10" fill="var(--success-soft)" stroke="var(--success)"/>
+        <text x="655" y="162" text-anchor="middle" font-size="12" font-weight="700" fill="var(--success)">Post to PR</text>
+        <text x="655" y="180" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">valid ✓</text>
+
+        <!-- Arrows forward -->
+        <line x1="160" y1="166" x2="216" y2="166" stroke="var(--text-muted)" stroke-width="1.6" marker-end="url(#arrow)"/>
+        <line x1="350" y1="166" x2="406" y2="166" stroke="var(--text-muted)" stroke-width="1.6" marker-end="url(#arrow)"/>
+        <line x1="560" y1="166" x2="606" y2="166" stroke="var(--success)" stroke-width="1.8" marker-end="url(#arrowOk)"/>
+
+        <!-- Retry loop back -->
+        <path d="M 485 212 L 485 268 L 285 268 L 285 206" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arrowErr)"/>
+        <rect x="330" y="252" width="120" height="34" rx="8" fill="var(--danger-soft)"/>
+        <text x="390" y="274" text-anchor="middle" font-size="11" font-weight="700" fill="var(--danger)">retry + error feedback</text>
+
+        <!-- Labels -->
+        <text x="485" y="232" text-anchor="middle" font-size="10.5" fill="var(--danger)" font-weight="700">INVALID ✗</text>
+      </svg>
+      <p class="figcap">
+        The dashed red path is the correction loop. It carries the failed output <em>and</em> the specific
+        discrepancy back to the model — that payload is what makes the retry a targeted fix.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ WHY OTHERS FAIL ============ -->
+  <section>
+    <h2>Why the Other Options Break the Mechanism</h2>
+
+    <h3>✗ Fresh prompt without the failed summary or error</h3>
+    <p>
+      Withholding the failed output and the error removes exactly what makes retries effective. Without seeing
+      what it produced and what was wrong with it, the model is just as likely to repeat the inconsistency.
+      <strong>Error feedback is what turns a retry into a targeted correction.</strong> Strip it, and the retry
+      becomes a coin flip.
+    </p>
+
+    <h3>✗ Rerun unchanged at a lower temperature</h3>
+    <p>
+      Lowering temperature changes token sampling — it does not change the model's arithmetic reconciliation.
+      An unchanged request with no error feedback gives the model no signal about what to fix, so the same
+      inconsistency can recur even at temperature zero.
+    </p>
+
+    <h3>✗ Route straight to human review without retrying</h3>
+    <p>
+      This misclassifies the failure. Retries are ineffective when the needed information is <em>absent</em> from
+      the provided input. But here the diff and all findings are in the prompt; the model can recount and
+      reconcile the totals. Automatic retry is appropriate <em>before</em> any human involvement — escalating
+      immediately burns human time on failures automation handles well.
+    </p>
+
+    <div class="callout warn">
+      <span class="label">The Boundary</span>
+      <p>
+        When grounding truly is missing, the right move is providing the source material rather than retrying.
+        Retry only helps when the correction is derivable from what the model already has.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ SCHEMA VS SEMANTIC ============ -->
+  <section>
+    <h2>Schema Conformance ≠ Correctness</h2>
+    <p>
+      This scenario exposes the boundary of what schema enforcement guarantees. A schema-conformant summary can
+      still be <strong>semantically wrong</strong>. <code>total_findings</code> being present and correctly typed
+      says nothing about whether it reconciles with the per-severity counts.
+    </p>
+
+    <div class="figure">
+      <svg viewBox="0 0 720 210" role="img" aria-label="Two-layer validation: structural schema layer and semantic reconciliation layer">
+        <!-- Layer 1 -->
+        <rect x="40" y="30" width="640" height="62" rx="10" fill="var(--primary-soft)" stroke="var(--primary)"/>
+        <text x="70" y="56" font-size="13" font-weight="800" fill="var(--primary)">Layer 1 — Structural (schema)</text>
+        <text x="70" y="76" font-size="11.5" fill="var(--text)">Field present? Correct type? Valid enum? Guaranteed by structured outputs.</text>
+
+        <!-- Layer 2 -->
+        <rect x="40" y="118" width="640" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <text x="70" y="144" font-size="13" font-weight="800" fill="var(--accent)">Layer 2 — Semantic (reconciliation)</text>
+        <text x="70" y="164" font-size="11.5" fill="var(--text)">Does total_findings = Σ severity_counts? Machine-detectable discrepancy check.</text>
+
+        <!-- connector -->
+        <line x1="360" y1="92" x2="360" y2="116" stroke="var(--text-muted)" stroke-width="1.6" marker-end="url(#arrow)"/>
+      </svg>
+      <p class="figcap">
+        Pipelines pair structural guarantees with a semantic validation layer. Extracting both a
+        <em>stated</em> and a <em>calculated</em> value makes discrepancies machine-detectable, so they can feed
+        the retry loop.
+      </p>
+    </div>
+
+    <p>
+      This is why patterns like extracting both a stated and a calculated value exist. The validator computes
+      <code>Σ severity_counts</code> independently and compares it to the model's <code>total_findings</code>.
+      When they diverge, that divergence becomes the error signal the retry carries.
+    </p>
+  </section>
+
+  <!-- ============ CODE ============ -->
+  <section>
+    <h2>Implementing the Pattern</h2>
+    <p>
+      Here's a minimal pipeline handler that classifies the failure, builds a targeted retry payload, and only
+      escalates to humans when the correction genuinely isn't derivable from the input.
+    </p>
+
+    <div class="code-block">
+      <div class="code-head">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="code-lang">python — pipeline handler</span>
+        <button class="copy-btn" data-copy="handler">Copy</button>
+      </div>
+      <pre id="code-handler"><code><span class="tok-key">def</span> validate_and_retry(summary, original_prompt, max_retries=<span class="tok-num">2</span>):
+    <span class="tok-com"># Layer 1: structural check already enforced by schema.</span>
+    <span class="tok-com"># Layer 2: semantic reconciliation.</span>
+    stated = summary[<span class="tok-str">"total_findings"</span>]
+    calculated = sum(summary[<span class="tok-str">"severity_counts"</span>].values())
+
+    <span class="tok-key">if</span> stated == calculated:
+        <span class="tok-key">return</span> summary  <span class="tok-com"># valid — post to PR</span>
+
+    discrepancy = (
+        <span class="tok-str">f"total_findings is {stated}, but the per-severity counts "</span>
+        <span class="tok-str">f"sum to {calculated}. Reconcile the total with the findings."</span>
+    )
+
+    <span class="tok-key">for</span> attempt <span class="tok-key">in</span> range(max_retries):
+        <span class="tok-com"># Retry WITH the failed output AND the concrete error.</span>
+        <span class="tok-com"># Both are required — this is what makes it a targeted fix.</span>
+        retry_prompt = build_retry_prompt(
+            original_prompt=original_prompt,
+            failed_output=summary,
+            validation_error=discrepancy,
+        )
+        summary = call_model(retry_prompt)
+
+        stated = summary[<span class="tok-str">"total_findings"</span>]
+        calculated = sum(summary[<span class="tok-str">"severity_counts"</span>].values())
+        <span class="tok-key">if</span> stated == calculated:
+            <span class="tok-key">return</span> summary
+
+    <span class="tok-com"># Only escalate when correction is NOT derivable from input.</span>
+    <span class="tok-com"># For arithmetic inconsistencies, this path should be rare.</span>
+    <span class="tok-key">raise</span> NeedsHumanReview(summary, discrepancy)</code></pre>
+    </div>
+
+    <div class="callout deep">
+      <span class="label">Deep Dive</span>
+      <p>
+        Notice the retry payload includes <code>failed_output</code> <em>and</em> <code>validation_error</code>.
+        This mirrors the iterative-refinement principle behind Anthropic's general prompting guidance: give the
+        model a concrete, targeted task — "here is what you produced, here is exactly what's wrong" — rather than
+        a blind second attempt.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ QUIZ ============ -->
+  <section>
+    <h2>Knowledge Check</h2>
+    <p>Answer each question. Feedback appears immediately, and the score counter tracks your progress.</p>
+
+    <div class="quiz" data-quiz="1">
+      <div class="quiz-top">
+        <span class="quiz-num">Question 1 of 3</span>
+      </div>
+      <p class="quiz-q">
+        A review summary states <code>total_findings: 7</code>, but its severity counts sum to 8. The full diff and
+        all findings were in the original prompt. What is the correct pipeline action?
+      </p>
+      <div class="options">
+        <button class="opt" data-correct="false"><span class="tag">A</span>Retry with a fresh prompt that omits the failed summary and the validation error so the model isn't anchored to its mistake.</button>
+        <button class="opt" data-correct="false"><span class="tag">B</span>Rerun the request unchanged at a lower sampling temperature, since numeric inconsistencies come from randomness.</button>
+        <button class="opt" data-correct="true"><span class="tag">C</span>Retry automatically, sending back the failed summary and the specific count discrepancy, since everything needed to correct it is already in the input.</button>
+        <button class="opt" data-correct="false"><span class="tag">D</span>Route straight to human review without retrying, since arithmetic inconsistencies signal missing source information.</button>
+      </div>
+      <div class="fb"></div>
+    </div>
+
+    <div class="quiz" data-quiz="2">
+      <div class="quiz-top">
+        <span class="quiz-num">Question 2 of 3</span>
+      </div>
+      <p class="quiz-q">
+        A pipeline validates a summary against a strict JSON schema. The summary passes schema validation, yet its
+        stated total does not match the sum of its per-severity counts. What does this reveal?
+      </p>
+      <div class="options">
+        <button class="opt" data-correct="false"><span class="tag">A</span>The schema was misconfigured and should have caught the mismatch.</button>
+        <button class="opt" data-correct="true"><span class="tag">B</span>Schema conformance guarantees structure and typing, not semantic correctness — a separate reconciliation layer is required.</button>
+        <button class="opt" data-correct="false"><span class="tag">C</span>The model lacked the source material needed to compute the total.</button>
+        <button class="opt" data-correct="false"><span class="tag">D</span>Lowering the temperature would have prevented the mismatch.</button>
+      </div>
+      <div class="fb"></div>
+    </div>
+
+    <div class="quiz" data-quiz="3">
+      <div class="quiz-top">
+        <span class="quiz-num">Question 3 of 3</span>
+      </div>
+      <p class="quiz-q">
+        When is a retry the <em>wrong</em> remedy, and what should replace it?
+      </p>
+      <div class="options">
+        <button class="opt" data-correct="false"><span class="tag">A</span>Never — retrying with error feedback always works regardless of the failure type.</button>
+        <button class="opt" data-correct="false"><span class="tag">B</span>When the failure is arithmetic, because arithmetic errors cannot be corrected by re-prompting.</button>
+        <button class="opt" data-correct="true"><span class="tag">C</span>When the missing ingredient is information that was never provided — then supply or retrieve the source material rather than re-prompting.</button>
+        <button class="opt" data-correct="false"><span class="tag">D</span>When the schema validation fails, because structured outputs make retries unnecessary.</button>
+      </div>
+      <div class="fb"></div>
+    </div>
+
+    <div class="score-bar">
+      <span>Score: <span class="val" id="score-val">0</span> / 3</span>
+      <button class="reset-btn" id="reset-btn">Reset Quiz</button>
+    </div>
+  </section>
+
+  <!-- ============ TAKEAWAYS ============ -->
+  <section>
+    <h2>Key Takeaways</h2>
+    <div class="takeaways">
+      <ul>
+        <li><strong>Classify before you remedy.</strong> Ask whether the correction is derivable from the provided input before choosing retry, re-prompt, or escalation.</li>
+        <li><strong>Self-correctable failures</strong> — format mismatches, structural errors, arithmetic inconsistencies — are fixed by retry-with-error-feedback because the model already has everything it needs.</li>
+        <li><strong>Grounding-missing failures</strong> are fixed by supplying or retrieving the source, not by re-prompting.</li>
+        <li><strong>The retry payload must include both the failed output and the concrete validation error.</strong> Strip either one and the retry becomes a coin flip.</li>
+        <li><strong>Lowering temperature is not a fix</strong> for reconciliation errors — it changes sampling, not arithmetic.</li>
+        <li><strong>Schema conformance ≠ semantic correctness.</strong> Pair structural guarantees with a reconciliation layer that computes a value independently and compares it.</li>
+        <li><strong>Escalation is a last resort</strong> for self-correctable failures — it burns human time on work automation handles well.</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="footer-note">
+    CCAF Exam Guide · Prompt Engineering &amp; Structured Output · Question 37
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Copy buttons ---------- */
+  var copyMap = {
+    schema: "code-schema",
+    handler: "code-handler"
+  };
+
+  document.querySelectorAll(".copy-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var targetId = copyMap[btn.getAttribute("data-copy")];
+      var el = document.getElementById(targetId);
+      if (!el) return;
+      var text = el.innerText;
+
+      function done() {
+        var prev = btn.textContent;
+        btn.textContent = "Copied";
+        btn.classList.add("copied");
+        setTimeout(function () {
+          btn.textContent = prev;
+          btn.classList.remove("copied");
+        }, 1400);
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {
+          fallbackCopy(text, done);
+        });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+
+  function fallbackCopy(text, cb) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      cb();
+    } catch (e) {
+      /* silent */
+    }
+  }
+
+  /* ---------- Quiz ---------- */
+  var totalQuestions = 3;
+  var answered = 0;
+  var correct = 0;
+  var scoreVal = document.getElementById("score-val");
+
+  var feedbackText = {
+    "1": {
+      ok: "<span class='verdict'>Correct.</span> Arithmetic inconsistencies are correctable because the model already has every piece of information it needs to re-check its own counts. A retry that includes the failed output and the concrete discrepancy gives the model a targeted correction task rather than a blind second attempt.",
+      no: "<span class='verdict'>Not quite.</span> The correct answer is C. Withholding the failed output and error removes exactly what makes retries effective. Lowering temperature changes sampling, not reconciliation. And escalating misclassifies a self-correctable failure as if the data were absent."
+    },
+    "2": {
+      ok: "<span class='verdict'>Correct.</span> A schema-conformant summary can still be semantically wrong. <code>total_findings</code> being present and correctly typed says nothing about whether it reconciles with the per-severity counts — that's what a semantic validation layer is for.",
+      no: "<span class='verdict'>Not quite.</span> The correct answer is B. Schema validation guarantees structure and typing, not correctness. The grounding was present all along, and temperature doesn't affect arithmetic reconciliation."
+    },
+    "3": {
+      ok: "<span class='verdict'>Correct.</span> Retries fail only when the missing ingredient is information that was never provided. Then the fix is to supply or retrieve the source, not to re-prompt. For self-correctable failures like arithmetic mismatches, retry-with-error-feedback is the right move.",
+      no: "<span class='verdict'>Not quite.</span> The correct answer is C. Retries aren't universally effective — they fail when grounding is missing. Arithmetic errors are correctable by re-prompting with feedback, and schema validation doesn't eliminate the need for retries."
+    }
+  };
+
+  document.querySelectorAll(".quiz").forEach(function (quiz) {
+    var qid = quiz.getAttribute("data-quiz");
+    var opts = quiz.querySelectorAll(".opt");
+    var fb = quiz.querySelector(".fb");
+    var locked = false;
+
+    opts.forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        if (locked) return;
+        locked = true;
+        answered += 1;
+
+        var isCorrect = opt.getAttribute("data-correct") === "true";
+        if (isCorrect) correct += 1;
+
+        opts.forEach(function (o) {
+          o.disabled = true;
+          if (o.getAttribute("data-correct") === "true") {
+            o.classList.add("correct");
+          }
+        });
+
+        if (!isCorrect) {
+          opt.classList.add("wrong");
+        }
+
+        fb.classList.add("show", isCorrect ? "ok" : "no");
+        fb.innerHTML = isCorrect ? feedbackText[qid].ok : feedbackText[qid].no;
+
+        scoreVal.textContent = String(correct);
+      });
+    });
+  });
+
+  /* ---------- Reset ---------- */
+  var resetBtn = document.getElementById("reset-btn");
+  resetBtn.addEventListener("click", function () {
+    answered = 0;
+    correct = 0;
+    scoreVal.textContent = "0";
+
+    document.querySelectorAll(".quiz").forEach(function (quiz) {
+      quiz.querySelectorAll(".opt").forEach(function (o) {
+        o.disabled = false;
+        o.classList.remove("correct", "wrong");
+      });
+      var fb = quiz.querySelector(".fb");
+      fb.classList.remove("show", "ok", "no");
+      fb.innerHTML = "";
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1075 @@
+/**
+ * fe-apis/lms/db.ts
+ *
+ * Full SQLite database operations for the AI LMS module in the Next.js frontend API layer.
+ * Reuses the existing `lab_ninja.sqlite3` database via `getSQLiteDatabase('lab_ninja')`.
+ */
+
+import crypto from 'crypto';
+import { getSQLiteDatabase } from '../_shared/db';
+import { seedInitialLmsContent } from './seed';
+import { contentHash, recordBackup, refreshLesson } from './classFolders';
+
+// Subject slugs that would collide with a static route segment
+// (/classes/[c]/lesson/[l], /classes/[c]/landing) or with the class folder's own
+// lessons/ directory (see classFolders.ts). Mirrors backend/modules/ai_lms/db.py.
+const RESERVED_SUBJECT_SLUGS = new Set(['lesson', 'landing', 'lessons']);
+
+// The one row of lms_module_landing: the AI LMS module-root landing page (see
+// classFolders.ts), which isn't tied to any single class. Not to be confused with a
+// project's roadmap "Modules" (moduleList/modules elsewhere in this file) -- this
+// "module" means the AI LMS module as a whole. Mirrors backend/modules/ai_lms/db.py.
+export const MODULE_LANDING_ID = 'home';
+
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export function ensureLmsTables(): void {
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return;
+  const { db } = res;
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lms_classes (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      description TEXT DEFAULT '',
+      ai_context TEXT DEFAULT '',
+      icon TEXT DEFAULT 'BookmarkIcon',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS lms_subjects (
+      id TEXT PRIMARY KEY,
+      class_id TEXT NOT NULL REFERENCES lms_classes(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      ai_context TEXT DEFAULT '',
+      order_index INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS lms_lessons (
+      id TEXT PRIMARY KEY,
+      class_id TEXT NOT NULL REFERENCES lms_classes(id) ON DELETE CASCADE,
+      subject_id TEXT REFERENCES lms_subjects(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      source_type TEXT DEFAULT 'topic',
+      source_content TEXT DEFAULT '',
+      generated_html TEXT NOT NULL,
+      summary TEXT DEFAULT '',
+      read_time_minutes INTEGER DEFAULT 5,
+      order_index INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS lms_user_progress (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER,
+      lesson_id TEXT NOT NULL REFERENCES lms_lessons(id) ON DELETE CASCADE,
+      completed INTEGER DEFAULT 0,
+      last_viewed_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS lms_module_landing (
+      id TEXT PRIMARY KEY,
+      html TEXT NOT NULL DEFAULT '',
+      hash TEXT NOT NULL DEFAULT '',
+      data_hash TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
+  `);
+
+  // Migrate columns if table already existed without ai_context
+  try {
+    const classCols = db.prepare('PRAGMA table_info(lms_classes)').all() as { name: string }[];
+    if (!classCols.some((c) => c.name === 'ai_context')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN ai_context TEXT DEFAULT ''");
+    }
+    if (!classCols.some((c) => c.name === 'order_index')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN order_index INTEGER DEFAULT 0");
+    }
+    // Class landing page: the HTML of classes/<class>/landingpage.html plus the hash the DB
+    // and the file last agreed on (see classFolders.ts). Mirrors backend/modules/ai_lms/db.py.
+    if (!classCols.some((c) => c.name === 'landing_html')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN landing_html TEXT DEFAULT ''");
+    }
+    if (!classCols.some((c) => c.name === 'landing_hash')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN landing_hash TEXT DEFAULT ''");
+    }
+    // Hash of the class data the landing page's lms:auto blocks were last rendered from.
+    if (!classCols.some((c) => c.name === 'landing_data_hash')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN landing_data_hash TEXT DEFAULT ''");
+    }
+    if (!classCols.some((c) => c.name === 'accent_color')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN accent_color TEXT DEFAULT ''");
+    }
+    // Class-folder sync bookkeeping: where this lesson's .html file was last written
+    // (relative to the classes folder) and the hash the DB and the file last agreed on.
+    const lessonCols = db.prepare('PRAGMA table_info(lms_lessons)').all() as { name: string }[];
+    if (!lessonCols.some((c) => c.name === 'file_path')) {
+      db.exec("ALTER TABLE lms_lessons ADD COLUMN file_path TEXT DEFAULT ''");
+    }
+    if (!lessonCols.some((c) => c.name === 'file_hash')) {
+      db.exec("ALTER TABLE lms_lessons ADD COLUMN file_hash TEXT DEFAULT ''");
+    }
+    // Earlier versions of lesson/landing HTML that an import or app edit replaced.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS lms_html_backups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        rel_path TEXT DEFAULT '',
+        html TEXT NOT NULL,
+        reason TEXT DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lms_html_backups_entity ON lms_html_backups(entity_type, entity_id);
+    `);
+    const subjCols = db.prepare('PRAGMA table_info(lms_subjects)').all() as { name: string }[];
+    if (!subjCols.some((c) => c.name === 'ai_context')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN ai_context TEXT DEFAULT ''");
+    }
+    // Project track: a "project" is a subject row with kind='project' plus a README /
+    // context doc and an AI-planned module outline, so it reuses lessons, routing,
+    // navigation and the lesson viewer unchanged. Mirrors backend/modules/ai_lms/db.py.
+    if (!subjCols.some((c) => c.name === 'kind')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN kind TEXT NOT NULL DEFAULT 'subject'");
+    }
+    if (!subjCols.some((c) => c.name === 'project_context')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN project_context TEXT DEFAULT ''");
+    }
+    if (!subjCols.some((c) => c.name === 'context_source_name')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN context_source_name TEXT DEFAULT ''");
+    }
+    if (!subjCols.some((c) => c.name === 'project_plan')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN project_plan TEXT DEFAULT ''");
+    }
+    // AI-generated condensed version of this row's long-form context (project_context
+    // for a project, ai_context for a subject) -- mirrors backend/modules/ai_lms/db.py.
+    if (!subjCols.some((c) => c.name === 'context_summary')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN context_summary TEXT DEFAULT ''");
+    }
+    if (!subjCols.some((c) => c.name === 'accent_color')) {
+      db.exec("ALTER TABLE lms_subjects ADD COLUMN accent_color TEXT DEFAULT ''");
+    }
+  } catch (migErr) {
+    console.warn('[fe-apis/lms/db] Migration notice:', migErr);
+  }
+
+  // Seed the module-root landing page's singleton row.
+  const nowLanding = new Date().toISOString();
+  db.prepare(
+    "INSERT INTO lms_module_landing (id, html, hash, data_hash, updated_at) " +
+      "SELECT ?, '', '', '', ? WHERE NOT EXISTS (SELECT 1 FROM lms_module_landing WHERE id = ?)"
+  ).run(MODULE_LANDING_ID, nowLanding, MODULE_LANDING_ID);
+
+  // Seed default 8 classes if empty
+  const countRow = db.prepare('SELECT count(*) as count FROM lms_classes').get() as { count: number };
+  if (countRow.count === 0) {
+    const initialClasses = [
+      { name: 'Computer Vision', slug: 'computer-vision', description: 'Deep learning, object detection, segmentation, and vision foundation models.', ai_context: 'Focus on deep learning vision architectures (YOLO, ViTs, SAM, ResNet), visual feature extraction, real-time inference latency, and PyTorch/OpenCV examples.', icon: 'CameraIcon' },
+      { name: 'DSA Preparation', slug: 'dsa-preparation', description: 'Data structures, algorithmic patterns, LeetCode style problems, and complexity analysis.', ai_context: 'Target LeetCode medium/hard patterns, time/space complexity derivations, edge cases, visual pointer diagrams, and idiomatic Python/TypeScript implementations.', icon: 'CodeBracketIcon' },
+      { name: 'System Design', slug: 'system-design', description: 'Scalable distributed systems, databases, caching, message queues, and high-availability architecture.', ai_context: 'Design for high-scale distributed systems (10M+ DAU, 99.99% SLA), CAP theorem trade-offs, consistency models, caching tiers, failure recovery, and architectural diagrams.', icon: 'ServerStackIcon' },
+      { name: 'Cloud Code Architect', slug: 'cloud-code-architect', description: 'Modern cloud infrastructure, AWS/GCP services, microservices, and DevOps patterns.', ai_context: 'Focus on cloud-native patterns, Kubernetes, Terraform/IaC, serverless vs containers, microservices communication, observability, and resilient cloud architecture.', icon: 'CloudIcon' },
+      { name: 'AI', slug: 'ai', description: 'Generative AI, Large Language Models, prompt engineering, RAG pipelines, and agent architectures.', ai_context: 'Cover modern LLM stacks, multi-agent frameworks (LangGraph, CrewAI), RAG vector search, prompting techniques, hallucination mitigation, and model evaluation.', icon: 'CpuChipIcon' },
+      { name: 'Leadership', slug: 'leadership', description: 'Engineering management, technical strategy, communication, team scaling, and stakeholder alignment.', ai_context: 'Emphasize engineering leadership, architectural decision records (ADRs), stakeholder negotiation, technical debt management, and team velocity.', icon: 'UserGroupIcon' },
+      { name: 'Interview Preparation', slug: 'interview-preparation', description: 'Behavioral answers, coding rounds, mock scenarios, and hiring bar criteria.', ai_context: 'Structure lessons around FAANG/top-tier tech interview standards, STAR behavioral framework, whiteboard communication, and common interview traps.', icon: 'AcademicCapIcon' },
+      { name: 'Other', slug: 'other', description: 'Miscellaneous topics, exploratory tutorials, and standalone technical guides.', ai_context: 'Provide clear, foundational explanations with intuitive analogies and hands-on examples.', icon: 'FolderIcon' },
+    ];
+
+    const nowIso = new Date().toISOString();
+    const insert = db.prepare(`
+      INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const c of initialClasses) {
+      insert.run(`class-${c.slug}`, c.name, c.slug, c.description, c.ai_context, c.icon, nowIso, nowIso);
+    }
+  }
+
+  // Seed initial subjects & rich interactive lessons if lessons table is empty
+  seedInitialLmsContent(db);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Classes
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function getAllClasses(): Record<string, unknown>[] {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return [];
+  const { db } = res;
+
+  const rows = db.prepare(`
+    SELECT 
+      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.created_at, c.updated_at,
+      COUNT(DISTINCT s.id) AS subject_count,
+      COUNT(DISTINCT l.id) AS lesson_count
+    FROM lms_classes c
+    LEFT JOIN lms_subjects s ON s.class_id = c.id
+    LEFT JOIN lms_lessons l ON l.class_id = c.id
+    GROUP BY c.id
+    ORDER BY 
+      c.order_index ASC,
+      CASE WHEN c.slug = 'other' THEN 1 ELSE 0 END ASC,
+      c.name ASC
+  `).all() as Record<string, unknown>[];
+
+  return rows;
+}
+
+export function getClassByIdOrSlug(idOrSlug: string): Record<string, unknown> | null {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return null;
+  const { db } = res;
+
+  const cls = db.prepare(`
+    SELECT 
+      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.created_at, c.updated_at,
+      COUNT(DISTINCT s.id) AS subject_count,
+      COUNT(DISTINCT l.id) AS lesson_count
+    FROM lms_classes c
+    LEFT JOIN lms_subjects s ON s.class_id = c.id
+    LEFT JOIN lms_lessons l ON l.class_id = c.id
+    WHERE c.id = ? OR c.slug = ?
+    GROUP BY c.id
+  `).get(idOrSlug, idOrSlug) as Record<string, unknown> | undefined;
+
+  if (!cls) return null;
+
+  // Subjects with their lesson counts
+  const subjects = db.prepare(`
+    SELECT
+      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name, s.accent_color,
+      s.order_index, s.created_at, s.updated_at,
+      COUNT(l.id) AS lesson_count
+    FROM lms_subjects s
+    LEFT JOIN lms_lessons l ON l.subject_id = s.id
+    WHERE s.class_id = ?
+    GROUP BY s.id
+    ORDER BY s.order_index ASC, s.name ASC
+  `).all(cls.id) as Record<string, unknown>[];
+
+  // Direct lessons (lessons with subject_id IS NULL)
+  const directLessons = db.prepare(`
+    SELECT 
+      id, class_id, subject_id, title, slug, summary, read_time_minutes, order_index, created_at, updated_at
+    FROM lms_lessons
+    WHERE class_id = ? AND (subject_id IS NULL OR subject_id = '')
+    ORDER BY order_index ASC, created_at ASC
+  `).all(cls.id) as Record<string, unknown>[];
+
+  return {
+    ...cls,
+    subjects,
+    direct_lessons: directLessons,
+  };
+}
+
+export function createClass(
+  name: string,
+  description: string = '',
+  icon: string = 'BookmarkIcon',
+  aiContext: string = '',
+  accentColor: string = ''
+): Record<string, unknown> {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) throw new Error('Database unavailable');
+  const { db } = res;
+
+  const baseSlug = slugify(name) || 'class';
+  let slug = baseSlug;
+  let counter = 1;
+
+  while (db.prepare('SELECT id FROM lms_classes WHERE slug = ?').get(slug)) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  const classId = `class-${crypto.randomBytes(4).toString('hex')}`;
+  const nowIso = new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, accent_color, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(classId, name.trim(), slug, description.trim(), aiContext.trim(), icon, accentColor.trim(), nowIso, nowIso);
+
+  return getClassByIdOrSlug(classId)!;
+}
+
+export function updateClass(
+  idOrSlug: string,
+  updates: { name?: string; description?: string; icon?: string; ai_context?: string; accent_color?: string }
+): Record<string, unknown> | null {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return null;
+  const { db } = res;
+
+  const current = db.prepare('SELECT * FROM lms_classes WHERE id = ? OR slug = ?').get(idOrSlug, idOrSlug) as Record<string, unknown> | undefined;
+  if (!current) return null;
+
+  const newName = updates.name !== undefined ? updates.name.trim() : (current.name as string);
+  const newDesc = updates.description !== undefined ? updates.description.trim() : (current.description as string);
+  const newIcon = updates.icon !== undefined ? updates.icon : (current.icon as string);
+  const newAiCtx = updates.ai_context !== undefined ? updates.ai_context.trim() : ((current.ai_context as string) || '');
+  const newAccent = updates.accent_color !== undefined ? updates.accent_color.trim() : ((current.accent_color as string) || '');
+  const nowIso = new Date().toISOString();
+
+  db.prepare(`
+    UPDATE lms_classes
+    SET name = ?, description = ?, icon = ?, ai_context = ?, accent_color = ?, updated_at = ?
+    WHERE id = ?
+  `).run(newName, newDesc, newIcon, newAiCtx, newAccent, nowIso, current.id);
+
+  return getClassByIdOrSlug(current.id as string);
+}
+
+export function deleteClass(idOrSlug: string): boolean {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return false;
+  const { db } = res;
+
+  const current = db.prepare('SELECT id FROM lms_classes WHERE id = ? OR slug = ?').get(idOrSlug, idOrSlug) as { id: string } | undefined;
+  if (!current) return false;
+
+  db.prepare('DELETE FROM lms_lessons WHERE class_id = ?').run(current.id);
+  db.prepare('DELETE FROM lms_subjects WHERE class_id = ?').run(current.id);
+  db.prepare('DELETE FROM lms_classes WHERE id = ?').run(current.id);
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subjects
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function getSubjectsByClass(classIdOrSlug: string): Record<string, unknown>[] {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return [];
+  const { db } = res;
+
+  const cls = db.prepare('SELECT id FROM lms_classes WHERE id = ? OR slug = ?').get(classIdOrSlug, classIdOrSlug) as { id: string } | undefined;
+  if (!cls) return [];
+
+  return db.prepare(`
+    SELECT
+      s.id, s.class_id, s.name, s.slug, s.description, s.ai_context, s.kind, s.context_source_name, s.accent_color,
+      s.order_index, s.created_at, s.updated_at,
+      COUNT(l.id) AS lesson_count
+    FROM lms_subjects s
+    LEFT JOIN lms_lessons l ON l.subject_id = s.id
+    WHERE s.class_id = ?
+    GROUP BY s.id
+    ORDER BY s.order_index ASC, s.name ASC
+  `).all(cls.id) as Record<string, unknown>[];
+}
+
+/** Decode the stored module outline, dropping links to lessons that no longer exist
+ * (e.g. a module lesson the user deleted) so the UI shows that module as not generated.
+ * Mirrors backend/modules/ai_lms/db.py's _parse_project_plan. */
+/** Normalize one module or sublesson entry: {title, focus, lesson_id, sublessons}. Recurses,
+ * so a module's sublessons (populated on demand by the "Break Down" action) round-trip too.
+ * Mirrors backend/modules/ai_lms/db.py's _parse_plan_item. */
+function parsePlanItem(item: unknown, lessonIds: Set<string>): Record<string, unknown> | null {
+  if (!item || typeof item !== 'object') return null;
+  const rec = item as Record<string, unknown>;
+  const title = String(rec.title || '').trim();
+  if (!title) return null;
+  const lessonId = rec.lesson_id;
+  const rawSubs = rec.sublessons;
+  const sublessons: Record<string, unknown>[] = [];
+  if (Array.isArray(rawSubs)) {
+    for (const sub of rawSubs) {
+      const parsedSub = parsePlanItem(sub, lessonIds);
+      if (parsedSub) sublessons.push(parsedSub);
+    }
+  }
+  return {
+    title,
+    focus: String(rec.focus || '').trim(),
+    context: String(rec.context || '').trim(),
+    lesson_id: typeof lessonId === 'string' && lessonIds.has(lessonId) ? lessonId : null,
+    sublessons,
+  };
+}
+
+function parseProjectPlan(raw: unknown, lessons: Record<string, unknown>[]): Record<string, unknown>[] {
+  if (!raw || typeof raw !== 'string') return [];
+  let items: unknown;
+  try {
+    items = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(items)) return [];
+  const lessonIds = new Set(lessons.map((l) => l.id as string));
+  const plan: Record<string, unknown>[] = [];
+  for (const item of items) {
+    const parsed = parsePlanItem(item, lessonIds);
+    if (parsed) plan.push(parsed);
+  }
+  return plan;
+}
+
+export function getSubjectByIdOrSlug(classIdOrSlug: string, subjectIdOrSlug: string): Record<string, unknown> | null {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return null;
+  const { db } = res;
+
+  const cls = db.prepare('SELECT * FROM lms_classes WHERE id = ? OR slug = ? COLLATE NOCASE').get(classIdOrSlug, classIdOrSlug) as Record<string, unknown> | undefined;
+  if (!cls) return null;
+
+  const subj = db.prepare(`
+    SELECT * FROM lms_subjects
+    WHERE class_id = ? AND (id = ? OR slug = ? COLLATE NOCASE)
+  `).get(cls.id, subjectIdOrSlug, subjectIdOrSlug) as Record<string, unknown> | undefined;
+
+  if (!subj) return null;
+
+  const lessons = db.prepare(`
+    SELECT 
+      id, class_id, subject_id, title, slug, summary, read_time_minutes, order_index, created_at, updated_at
+    FROM lms_lessons
+    WHERE subject_id = ?
+    ORDER BY order_index ASC, created_at ASC
+  `).all(subj.id) as Record<string, unknown>[];
+
+  return {
+    ...subj,
+    class: cls,
+    class_name: cls.name,
+    class_slug: cls.slug,
+    class_ai_context: cls.ai_context || '',
+    lessons,
+    lesson_count: lessons.length,
+    project_plan: parseProjectPlan(subj.project_plan, lessons),
+  };
+}
+
+/** Resolve a subject/project by id alone, scanning classes -- used by the /projects/[id]
+ * routes, which (like the backend's) address a project by id without a class in the URL. */
+export function getSubjectByIdAnyClass(subjectId: string): Record<string, unknown> | null {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return null;
+  const { db } = res;
+
+  const row = db.prepare('SELECT class_id FROM lms_subjects WHERE id = ?').get(subjectId) as { class_id: string } | undefined;
+  if (!row) return null;
+  return getSubjectByIdOrSlug(row.class_id, subjectId);
+}
+
+export function createSubject(
+  classIdOrSlug: string,
+  name: string,
+  description: string = '',
+  aiContext: string = '',
+  kind: 'subject' | 'project' = 'subject',
+  projectContext: string = '',
+  contextSourceName: string = '',
+  accentColor: string = ''
+): Record<string, unknown> {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) throw new Error('Database unavailable');
+  const { db } = res;
+
+  const cls = db.prepare('SELECT id FROM lms_classes WHERE id = ? OR slug = ?').get(classIdOrSlug, classIdOrSlug) as { id: string } | undefined;
+  if (!cls) throw new Error('Class not found');
+
+  let baseSlug = slugify(name) || 'subject';
+  // Next.js resolves the static lesson/ and landing/ segments before a subject's own
+  // [subjectSlug] route, and lessons/ is the class folder's direct-lessons directory.
+  if (RESERVED_SUBJECT_SLUGS.has(baseSlug)) baseSlug = `${baseSlug}-subject`;
+  let slug = baseSlug;
+  let counter = 1;
+
+  while (db.prepare('SELECT id FROM lms_subjects WHERE class_id = ? AND slug = ?').get(cls.id, slug)) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  const countRow = db.prepare('SELECT count(*) as count FROM lms_subjects WHERE class_id = ?').get(cls.id) as { count: number };
+  const orderIndex = countRow.count;
+  const subjectId = `subj-${crypto.randomBytes(4).toString('hex')}`;
+  const nowIso = new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO lms_subjects (
+      id, class_id, name, slug, description, ai_context, kind,
+      project_context, context_source_name, accent_color, order_index, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    subjectId,
+    cls.id,
+    name.trim(),
+    slug,
+    description.trim(),
+    aiContext.trim(),
+    kind === 'project' ? 'project' : 'subject',
+    projectContext.trim(),
+    contextSourceName.trim(),
+    accentColor.trim(),
+    orderIndex,
+    nowIso,
+    nowIso
+  );
+
+  return getSubjectByIdOrSlug(cls.id, subjectId)!;
+}
+
+export function updateSubject(
+  subjectId: string,
+  updates: {
+    name?: string;
+    description?: string;
+    ai_context?: string;
+    project_context?: string;
+    context_source_name?: string;
+    accent_color?: string;
+  }
+): Record<string, unknown> | null {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return null;
+  const { db } = res;
+
+  const current = db.prepare('SELECT * FROM lms_subjects WHERE id = ?').get(subjectId) as Record<string, unknown> | undefined;
+  if (!current) return null;
+
+  const newName = updates.name !== undefined ? updates.name.trim() : (current.name as string);
+  const newDesc = updates.description !== undefined ? updates.description.trim() : (current.description as string);
+  const newAiCtx = updates.ai_context !== undefined ? updates.ai_context.trim() : ((current.ai_context as string) || '');
+  const newProjectCtx = updates.project_context !== undefined ? updates.project_context : ((current.project_context as string) || '');
+  const newSourceName = updates.context_source_name !== undefined ? updates.context_source_name.trim() : ((current.context_source_name as string) || '');
+  const newAccent = updates.accent_color !== undefined ? updates.accent_color.trim() : ((current.accent_color as string) || '');
+  const nowIso = new Date().toISOString();
+
+  db.prepare(`
+    UPDATE lms_subjects
+    SET name = ?, description = ?, ai_context = ?, project_context = ?, context_source_name = ?, accent_color = ?, updated_at = ?
+    WHERE id = ?
+  `).run(newName, newDesc, newAiCtx, newProjectCtx, newSourceName, newAccent, nowIso, subjectId);
+
+  return getSubjectByIdOrSlug(current.class_id as string, subjectId);
+}
+
+/** Persist a project's implementation-module outline (list of {title, focus, lesson_id}). */
+export function saveProjectPlan(subjectId: string, plan: Record<string, unknown>[]): void {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return;
+  const { db } = res;
+  const nowIso = new Date().toISOString();
+  db.prepare('UPDATE lms_subjects SET project_plan = ?, updated_at = ? WHERE id = ?').run(
+    JSON.stringify(plan),
+    nowIso,
+    subjectId
+  );
+}
+
+/** Persist an AI-condensed version of this row's long-form context. An empty string
+ * reverts generation prompts to the raw-text-prefix behavior. */
+export function saveContextSummary(subjectId: string, summary: string): void {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return;
+  const { db } = res;
+  const nowIso = new Date().toISOString();
+  db.prepare('UPDATE lms_subjects SET context_summary = ?, updated_at = ? WHERE id = ?').run(
+    summary,
+    nowIso,
+    subjectId
+  );
+}
+
+export function deleteSubject(subjectId: string): boolean {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return false;
+  const { db } = res;
+
+  const current = db.prepare('SELECT id FROM lms_subjects WHERE id = ?').get(subjectId);
+  if (!current) return false;
+
+  db.prepare('DELETE FROM lms_lessons WHERE subject_id = ?').run(subjectId);
+  db.prepare('DELETE FROM lms_subjects WHERE id = ?').run(subjectId);
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lessons
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function getLessonsBySubject(subjectId: string): Record<string, unknown>[] {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return [];
+  const { db } = res;
+
+  return db.prepare(`
+    SELECT 
+      l.id, l.class_id, l.subject_id, l.title, l.slug, l.source_type, l.summary,
+      l.read_time_minutes, l.order_index, l.created_at, l.updated_at,
+      c.name AS class_name, c.slug AS class_slug,
+      s.name AS subject_name, s.slug AS subject_slug
+    FROM lms_lessons l
+    JOIN lms_classes c ON c.id = l.class_id
+    LEFT JOIN lms_subjects s ON s.id = l.subject_id
+    WHERE l.subject_id = ?
+    ORDER BY l.order_index ASC, l.created_at ASC
+  `).all(subjectId) as Record<string, unknown>[];
+}
+
+export function getDirectLessonsByClass(classIdOrSlug: string): Record<string, unknown>[] {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return [];
+  const { db } = res;
+
+  const cls = db.prepare('SELECT id FROM lms_classes WHERE id = ? OR slug = ?').get(classIdOrSlug, classIdOrSlug) as { id: string } | undefined;
+  if (!cls) return [];
+
+  return db.prepare(`
+    SELECT 
+      l.id, l.class_id, l.subject_id, l.title, l.slug, l.source_type, l.summary,
+      l.read_time_minutes, l.order_index, l.created_at, l.updated_at,
+      c.name AS class_name, c.slug AS class_slug
+    FROM lms_lessons l
+    JOIN lms_classes c ON c.id = l.class_id
+    WHERE l.class_id = ? AND (l.subject_id IS NULL OR l.subject_id = '')
+    ORDER BY l.order_index ASC, l.created_at ASC
+  `).all(cls.id) as Record<string, unknown>[];
+}
+
+/**
+ * Lesson slugs are only unique per class here, so a lookup by slug should pass the class
+ * (and subject) it came from; an exact id match always wins. Before returning, any IDE
+ * edit of the lesson's .html file is pulled into the DB (refreshLesson), so every caller
+ * works on what's on disk. Mirrors get_lesson_by_id in backend/modules/ai_lms/db.py.
+ */
+export function getLessonById(
+  lessonId: string,
+  classIdOrSlug?: string | null,
+  subjectIdOrSlug?: string | null
+): Record<string, unknown> | null {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return null;
+  const { db } = res;
+  const c = classIdOrSlug || '';
+  const s = subjectIdOrSlug || '';
+
+  const lesson = db.prepare(`
+    SELECT 
+      l.*,
+      c.name AS class_name, c.slug AS class_slug,
+      s.name AS subject_name, s.slug AS subject_slug, s.kind AS subject_kind
+    FROM lms_lessons l
+    JOIN lms_classes c ON c.id = l.class_id
+    LEFT JOIN lms_subjects s ON s.id = l.subject_id
+    WHERE (l.id = ? OR l.slug = ?)
+      AND (? = '' OR c.id = ? OR c.slug = ?)
+      AND (? = '' OR s.id = ? OR s.slug = ?)
+    ORDER BY CASE WHEN l.id = ? THEN 0 ELSE 1 END, l.created_at ASC
+    LIMIT 1
+  `).get(lessonId, lessonId, c, c, c, s, s, s, lessonId) as Record<string, unknown> | undefined;
+
+  if (!lesson) return null;
+  const fresh = refreshLesson({ ...lesson });
+  return { ...fresh, content_hash: contentHash(fresh.generated_html as string) };
+}
+
+export function createLesson(data: {
+  class_id: string;
+  subject_id?: string | null;
+  title: string;
+  source_type?: string;
+  source_content?: string;
+  generated_html: string;
+  summary?: string;
+  read_time_minutes?: number;
+}): Record<string, unknown> {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) throw new Error('Database unavailable');
+  const { db } = res;
+
+  const baseSlug = slugify(data.title) || 'lesson';
+  let slug = baseSlug;
+  let counter = 1;
+
+  while (db.prepare('SELECT id FROM lms_lessons WHERE class_id = ? AND slug = ?').get(data.class_id, slug)) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  // Compute order index
+  let orderIndex = 0;
+  if (data.subject_id) {
+    const row = db.prepare('SELECT count(*) as count FROM lms_lessons WHERE subject_id = ?').get(data.subject_id) as { count: number };
+    orderIndex = row.count;
+  } else {
+    const row = db.prepare("SELECT count(*) as count FROM lms_lessons WHERE class_id = ? AND (subject_id IS NULL OR subject_id = '')").get(data.class_id) as { count: number };
+    orderIndex = row.count;
+  }
+
+  const lessonId = `lesson-${crypto.randomBytes(4).toString('hex')}`;
+  const nowIso = new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO lms_lessons (
+      id, class_id, subject_id, title, slug, source_type, source_content,
+      generated_html, summary, read_time_minutes, order_index, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    lessonId,
+    data.class_id,
+    data.subject_id || null,
+    data.title.trim(),
+    slug,
+    data.source_type || 'topic',
+    data.source_content || '',
+    data.generated_html,
+    data.summary || '',
+    data.read_time_minutes || 5,
+    orderIndex,
+    nowIso,
+    nowIso
+  );
+
+  return getLessonById(lessonId)!;
+}
+
+export function updateLesson(
+  lessonId: string,
+  updates: {
+    title?: string;
+    generated_html?: string;
+    summary?: string;
+    order_index?: number;
+    read_time_minutes?: number;
+  }
+): Record<string, unknown> | null {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return null;
+  const { db } = res;
+
+  const row = db.prepare('SELECT * FROM lms_lessons WHERE id = ?').get(lessonId) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  // Work on what's on disk: an unsynced IDE edit of the lesson file lands in the DB first.
+  const current = refreshLesson({ ...row });
+
+  const newTitle = updates.title !== undefined ? updates.title.trim() : (current.title as string);
+  const newHtml = updates.generated_html !== undefined ? updates.generated_html : (current.generated_html as string);
+  const newSummary = updates.summary !== undefined ? updates.summary : (current.summary as string);
+  const newOrder = updates.order_index !== undefined ? updates.order_index : (current.order_index as number);
+  const newReadTime =
+    typeof updates.read_time_minutes === 'number' && updates.read_time_minutes >= 1
+      ? Math.min(240, Math.round(updates.read_time_minutes))
+      : (current.read_time_minutes as number);
+  const nowIso = new Date().toISOString();
+  if (newHtml !== current.generated_html) {
+    // The last few versions stay recoverable, whichever side (app or IDE) replaced them.
+    recordBackup('lesson', current.id as string, (current.file_path as string) || '', current.generated_html as string, 'replaced by an app edit');
+  }
+
+  db.prepare(`
+    UPDATE lms_lessons
+    SET title = ?, generated_html = ?, summary = ?, order_index = ?, read_time_minutes = ?, updated_at = ?
+    WHERE id = ?
+  `).run(newTitle, newHtml, newSummary, newOrder, newReadTime, nowIso, current.id);
+
+  return getLessonById(current.id as string);
+}
+
+export function deleteLesson(lessonId: string): boolean {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return false;
+  const { db } = res;
+
+  const current = db.prepare('SELECT id FROM lms_lessons WHERE id = ?').get(lessonId);
+  if (!current) return false;
+
+  db.prepare('DELETE FROM lms_user_progress WHERE lesson_id = ?').run(lessonId);
+  db.prepare('DELETE FROM lms_lessons WHERE id = ?').run(lessonId);
+  return true;
+}
+
+export function reorderClasses(classIds: string[]): boolean {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return false;
+  const { db } = res;
+
+  const nowIso = new Date().toISOString();
+  const update = db.prepare('UPDATE lms_classes SET order_index = ?, updated_at = ? WHERE id = ? OR slug = ?');
+
+  for (let i = 0; i < classIds.length; i++) {
+    update.run(i, nowIso, classIds[i], classIds[i]);
+  }
+  return true;
+}
+
+export function reorderSubjects(subjectIds: string[]): boolean {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return false;
+  const { db } = res;
+
+  const nowIso = new Date().toISOString();
+  const update = db.prepare('UPDATE lms_subjects SET order_index = ?, updated_at = ? WHERE id = ? OR slug = ?');
+
+  for (let i = 0; i < subjectIds.length; i++) {
+    update.run(i, nowIso, subjectIds[i], subjectIds[i]);
+  }
+  return true;
+}
+
+export function reorderLessons(lessonIds: string[]): boolean {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return false;
+  const { db } = res;
+
+  const nowIso = new Date().toISOString();
+  const update = db.prepare('UPDATE lms_lessons SET order_index = ?, updated_at = ? WHERE id = ?');
+
+  for (let i = 0; i < lessonIds.length; i++) {
+    update.run(i, nowIso, lessonIds[i]);
+  }
+  return true;
+}
+
+export function getLessonNavigation(lessonId: string): Record<string, unknown> {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return { current_index: 0, total_lessons: 0, previous: null, next: null };
+  const { db } = res;
+
+  const lesson = db.prepare('SELECT id, class_id, subject_id, order_index FROM lms_lessons WHERE id = ?').get(lessonId) as { id: string; class_id: string; subject_id: string | null; order_index: number } | undefined;
+  if (!lesson) return { current_index: 0, total_lessons: 0, previous: null, next: null };
+
+  let siblings: { id: string; title: string; slug: string; order_index: number }[];
+  if (lesson.subject_id) {
+    siblings = db.prepare('SELECT id, title, slug, order_index FROM lms_lessons WHERE subject_id = ? ORDER BY order_index ASC, created_at ASC').all(lesson.subject_id) as any;
+  } else {
+    siblings = db.prepare("SELECT id, title, slug, order_index FROM lms_lessons WHERE class_id = ? AND (subject_id IS NULL OR subject_id = '') ORDER BY order_index ASC, created_at ASC").all(lesson.class_id) as any;
+  }
+
+  const idx = siblings.findIndex((s) => s.id === lesson.id);
+  const previous = idx > 0 ? siblings[idx - 1] : null;
+  const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+
+  return {
+    current_index: idx + 1,
+    total_lessons: siblings.length,
+    previous: previous ? { id: previous.id, title: previous.title, slug: previous.slug } : null,
+    next: next ? { id: next.id, title: next.title, slug: next.slug } : null,
+  };
+}
+
+export function recordLessonView(lessonId: string, userId?: number | null): void {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return;
+  const { db } = res;
+
+  const nowIso = new Date().toISOString();
+  const existing = (userId
+    ? db.prepare('SELECT id FROM lms_user_progress WHERE user_id = ? AND lesson_id = ?').get(userId, lessonId)
+    : db.prepare('SELECT id FROM lms_user_progress WHERE user_id IS NULL AND lesson_id = ?').get(lessonId)) as any;
+
+  if (existing) {
+    db.prepare('UPDATE lms_user_progress SET last_viewed_at = ? WHERE id = ?').run(nowIso, existing.id);
+  } else {
+    const progressId = `prog-${crypto.randomBytes(4).toString('hex')}`;
+    db.prepare(`
+      INSERT INTO lms_user_progress (id, user_id, lesson_id, completed, last_viewed_at)
+      VALUES (?, ?, ?, 0, ?)
+    `).run(progressId, userId || null, lessonId, nowIso);
+  }
+}
+
+export function markLessonCompleted(lessonId: string, completed: boolean = true, userId?: number | null): void {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return;
+  const { db } = res;
+
+  const nowIso = new Date().toISOString();
+  const existing = (userId
+    ? db.prepare('SELECT id FROM lms_user_progress WHERE user_id = ? AND lesson_id = ?').get(userId, lessonId)
+    : db.prepare('SELECT id FROM lms_user_progress WHERE user_id IS NULL AND lesson_id = ?').get(lessonId)) as any;
+
+  if (existing) {
+    db.prepare('UPDATE lms_user_progress SET completed = ?, last_viewed_at = ? WHERE id = ?').run(completed ? 1 : 0, nowIso, existing.id);
+  } else {
+    const progressId = `prog-${crypto.randomBytes(4).toString('hex')}`;
+    db.prepare(`
+      INSERT INTO lms_user_progress (id, user_id, lesson_id, completed, last_viewed_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(progressId, userId || null, lessonId, completed ? 1 : 0, nowIso);
+  }
+}
+
+export function getContinueLearning(userId?: number | null): Record<string, unknown> | null {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return null;
+  const { db } = res;
+
+  let lastProg: { lesson_id: string; completed?: number; last_viewed_at?: string } | undefined;
+  if (userId) {
+    lastProg = db.prepare('SELECT lesson_id, completed, last_viewed_at FROM lms_user_progress WHERE user_id = ? ORDER BY last_viewed_at DESC LIMIT 1').get(userId) as any;
+  }
+  if (!lastProg) {
+    lastProg = db.prepare('SELECT lesson_id, completed, last_viewed_at FROM lms_user_progress ORDER BY last_viewed_at DESC LIMIT 1').get() as any;
+  }
+  if (!lastProg) {
+    const firstLesson = db.prepare('SELECT id as lesson_id FROM lms_lessons ORDER BY created_at DESC LIMIT 1').get() as any;
+    if (!firstLesson) return null;
+    lastProg = firstLesson;
+  }
+
+  const lesson = getLessonById(lastProg!.lesson_id);
+  if (!lesson) return null;
+
+  const nav = getLessonNavigation(lesson.id as string) as any;
+  const nextInfo = nav?.next ? {
+    id: nav.next.id,
+    title: nav.next.title,
+    slug: nav.next.slug,
+  } : null;
+
+  return {
+    lesson_id: lesson.id,
+    lesson_title: lesson.title,
+    lesson_slug: lesson.slug,
+    class_id: lesson.class_id,
+    class_name: lesson.class_name,
+    class_slug: lesson.class_slug,
+    subject_id: lesson.subject_id,
+    subject_name: lesson.subject_name,
+    subject_slug: lesson.subject_slug,
+    current_index: nav?.current_index ?? 1,
+    total_lessons: nav?.total_lessons ?? 1,
+    completed: Boolean(lastProg && lastProg.completed),
+    next_lesson: nextInfo,
+    read_time_minutes: lesson.read_time_minutes || 5,
+    last_viewed_at: lastProg?.last_viewed_at || null,
+  };
+}
+
+export function getRecentLessons(userId?: number | null, limit = 5): any[] {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return [];
+  const { db } = res;
+
+  const rows = (userId
+    ? db.prepare('SELECT lesson_id, completed, last_viewed_at FROM lms_user_progress WHERE user_id = ? ORDER BY last_viewed_at DESC LIMIT ?').all(userId, limit)
+    : db.prepare('SELECT lesson_id, completed, last_viewed_at FROM lms_user_progress ORDER BY last_viewed_at DESC LIMIT ?').all(limit)) as any[];
+
+  const results: any[] = [];
+  const seenIds = new Set<string>();
+
+  for (const r of rows) {
+    if (seenIds.has(r.lesson_id)) continue;
+    seenIds.add(r.lesson_id);
+    const lesson = getLessonById(r.lesson_id);
+    if (!lesson) continue;
+    const nav = getLessonNavigation(lesson.id as string) as any;
+    const nextInfo = nav?.next ? {
+      id: nav.next.id,
+      title: nav.next.title,
+      slug: nav.next.slug,
+    } : null;
+    results.push({
+      lesson_id: lesson.id,
+      lesson_title: lesson.title,
+      lesson_slug: lesson.slug,
+      class_id: lesson.class_id,
+      class_name: lesson.class_name,
+      class_slug: lesson.class_slug,
+      subject_id: lesson.subject_id,
+      subject_name: lesson.subject_name,
+      subject_slug: lesson.subject_slug,
+      current_index: nav?.current_index ?? 1,
+      total_lessons: nav?.total_lessons ?? 1,
+      completed: Boolean(r.completed),
+      next_lesson: nextInfo,
+      read_time_minutes: lesson.read_time_minutes || 5,
+      last_viewed_at: r.last_viewed_at,
+    });
+  }
+
+  return results;
+}
+
+export function searchLms(query: string): Record<string, unknown> {
+  ensureLmsTables();
+  const res = getSQLiteDatabase('lab_ninja');
+  if (!res) return { query, classes: [], subjects: [], lessons: [] };
+  const { db } = res;
+
+  const q = `%${query.trim()}%`;
+
+  const classes = db.prepare(`
+    SELECT c.*, COUNT(DISTINCT s.id) as subject_count, COUNT(DISTINCT l.id) as lesson_count
+    FROM lms_classes c
+    LEFT JOIN lms_subjects s ON s.class_id = c.id
+    LEFT JOIN lms_lessons l ON l.class_id = c.id
+    WHERE c.name LIKE ? OR c.description LIKE ?
+    GROUP BY c.id
+    LIMIT 5
+  `).all(q, q) as Record<string, unknown>[];
+
+  const subjects = db.prepare(`
+    SELECT s.*, c.name as class_name, c.slug as class_slug, COUNT(l.id) as lesson_count
+    FROM lms_subjects s
+    JOIN lms_classes c ON c.id = s.class_id
+    LEFT JOIN lms_lessons l ON l.subject_id = s.id
+    WHERE s.name LIKE ? OR s.description LIKE ?
+    GROUP BY s.id
+    LIMIT 8
+  `).all(q, q) as Record<string, unknown>[];
+
+  const lessons = db.prepare(`
+    SELECT 
+      l.id, l.class_id, l.subject_id, l.title, l.slug, l.summary, l.read_time_minutes,
+      c.name as class_name, c.slug as class_slug,
+      s.name as subject_name, s.slug as subject_slug
+    FROM lms_lessons l
+    JOIN lms_classes c ON c.id = l.class_id
+    LEFT JOIN lms_subjects s ON s.id = l.subject_id
+    WHERE l.title LIKE ? OR l.summary LIKE ?
+    LIMIT 10
+  `).all(q, q) as Record<string, unknown>[];
+
+  return { query, classes, subjects, lessons };
+}

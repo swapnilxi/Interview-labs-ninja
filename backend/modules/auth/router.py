@@ -8,8 +8,8 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from modules.auth.db import create_user, get_profile, get_user_by_email, upsert_profile
-from modules.auth.dependencies import get_current_user
+from modules.auth.db import create_user, get_permission_overrides, get_profile, get_user_by_email, upsert_profile
+from modules.auth.dependencies import effective_permissions, get_current_active_user, get_current_user
 from modules.auth.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -37,12 +37,19 @@ class ProfileUpdateRequest(BaseModel):
 
 
 def _public_user(user: dict) -> dict:
+    # get_current_user() attaches permission_overrides already; signup/login's raw DB dict
+    # doesn't, so fetch it fresh there (a brand-new signup just gets the empty default).
+    overrides = user.get("permission_overrides")
+    if overrides is None:
+        overrides = get_permission_overrides(user["id"])
     return {
         "id": user["id"],
         "email": user["email"],
         "display_name": user["display_name"],
         "role": user.get("role", "user"),
+        "status": user.get("status", "approved"),
         "created_at": user["created_at"],
+        "permissions": effective_permissions({**user, "permission_overrides": overrides}),
     }
 
 
@@ -85,10 +92,10 @@ async def me(user: dict = Depends(get_current_user)) -> dict:
 
 
 @router.get("/profile")
-async def read_profile(user: dict = Depends(get_current_user)) -> dict:
+async def read_profile(user: dict = Depends(get_current_active_user)) -> dict:
     return get_profile(user["id"]) or {"user_id": user["id"]}
 
 
 @router.put("/profile")
-async def update_profile(payload: ProfileUpdateRequest, user: dict = Depends(get_current_user)) -> dict:
+async def update_profile(payload: ProfileUpdateRequest, user: dict = Depends(get_current_active_user)) -> dict:
     return upsert_profile(user["id"], **payload.model_dump())

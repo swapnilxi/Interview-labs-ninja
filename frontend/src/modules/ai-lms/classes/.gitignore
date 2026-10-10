@@ -1,0 +1,15 @@
+# Class / subject / project folders are named by slug. Re-include slugs that the repo's
+# parent .gitignore files would otherwise drop (a subject called "Build" -> build/).
+!build/
+!dist/
+!out/
+!env/
+!ENV/
+!venv/
+!htmlcov/
+!logs/
+!coverage/
+!turbo/
+# Atomic-write temp files (.<name>.<pid>.tmp) and editor noise.
+.*.tmp
+.DS_Store

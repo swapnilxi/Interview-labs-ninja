@@ -47,7 +47,8 @@
     "node_modules/",
     ".next/",
     "out/",
-    "public/"
+    "public/",
+    "src/modules/ai-lms/classes/*/AI-Bootcamp-reference/"
   ],
   "env": {
     "browser": true,

@@ -10,7 +10,7 @@ export interface UserRecord {
   email: string;
   password_hash: string;
   display_name: string | null;
-  role: 'user' | 'admin';
+  role: 'user' | 'editor' | 'admin' | 'superadmin';
   created_at: string;
   updated_at: string;
 }

@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en" data-ab-filters-channel="ddcfe1c3-789f-4e02-b4b8-f40a05835f4a"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Module 3 — Claude Haiku 4.5 via Vertex AI &amp; Model Garden</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f3ec;
+    --surface: #fffaf2;
+    --surface-2: #efe7d9;
+    --text: #24201b;
+    --text-muted: #71695f;
+    --border: rgba(64, 55, 45, 0.14);
+    --border-strong: rgba(64, 55, 45, 0.22);
+    --primary: #5b5bd6;
+    --primary-soft: rgba(91, 91, 214, 0.1);
+    --secondary: #127c7a;
+    --secondary-soft: rgba(18, 124, 122, 0.1);
+    --accent: #b36b17;
+    --accent-soft: rgba(179, 107, 23, 0.12);
+    --success: #14845f;
+    --success-soft: rgba(20, 132, 95, 0.12);
+    --danger: #c24151;
+    --danger-soft: rgba(194, 65, 81, 0.12);
+    --code-bg: #1c1a17;
+    --code-text: #f2ede2;
+    --code-border: rgba(255, 255, 255, 0.08);
+    --shadow: 0 1px 2px rgba(36, 32, 27, 0.05), 0 12px 28px -14px rgba(36, 32, 27, 0.2);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17140f;
+      --surface: #201c16;
+      --surface-2: #2a251d;
+      --text: #f4efe7;
+      --text-muted: #b3a696;
+      --border: rgba(255, 246, 235, 0.1);
+      --border-strong: rgba(255, 246, 235, 0.16);
+      --primary: #9694f5;
+      --primary-soft: rgba(150, 148, 245, 0.14);
+      --secondary: #5fc6bd;
+      --secondary-soft: rgba(95, 198, 189, 0.12);
+      --accent: #f1ad55;
+      --accent-soft: rgba(241, 173, 85, 0.14);
+      --success: #54c79a;
+      --success-soft: rgba(84, 199, 154, 0.14);
+      --danger: #fb7185;
+      --danger-soft: rgba(251, 113, 133, 0.14);
+      --code-bg: #14110d;
+      --code-text: #f2ede2;
+      --code-border: rgba(255, 255, 255, 0.07);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.02rem;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  /* ---------- Header ---------- */
+  .breadcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .pill {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .pill.secondary { background: var(--secondary-soft); color: var(--secondary); }
+  .pill.accent { background: var(--accent-soft); color: var(--accent); }
+  .pill.muted { background: var(--surface-2); color: var(--text-muted); }
+
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--text);
+    margin: 0 0 0.9rem;
+  }
+  h1 .accent-word { color: var(--primary); }
+
+  .lede {
+    font-size: 1.08rem;
+    color: var(--text-muted);
+    margin: 0 0 2.5rem;
+    max-width: 64ch;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin: 3rem 0 1rem;
+    padding-left: 0.85rem;
+    border-left: 4px solid var(--accent);
+    line-height: 1.3;
+  }
+
+  h3 {
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 1.9rem 0 0.6rem;
+  }
+
+  p, li { color: var(--text); }
+  p { margin: 0 0 1rem; }
+
+  ul, ol { padding-left: 1.35rem; margin: 0 0 1rem; }
+  li { margin-bottom: 0.45rem; }
+
+  a { color: var(--primary); text-decoration: none; border-bottom: 1px solid var(--primary-soft); }
+  a:hover { border-bottom-color: var(--primary); }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.87em;
+    background: var(--surface-2);
+    padding: 0.14em 0.4em;
+    border-radius: 5px;
+    color: var(--text);
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5rem 0;
+  }
+
+  /* ---------- Code blocks ---------- */
+  .code-block {
+    margin: 1.1rem 0 1.4rem;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--code-border);
+    background: var(--code-bg);
+    box-shadow: var(--shadow);
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.85rem;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid var(--code-border);
+  }
+  .dots { display: flex; gap: 0.35rem; }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .dot.r { background: #e06c75; }
+  .dot.y { background: #e5c07b; }
+  .dot.g { background: #98c379; }
+  .code-lang {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(242, 237, 226, 0.55);
+    margin-left: 0.3rem;
+  }
+  .copy-btn {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: rgba(242, 237, 226, 0.75);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 0.28rem 0.65rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .copy-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--code-text); }
+  .copy-btn.copied { color: #98c379; border-color: rgba(152, 195, 121, 0.5); }
+  pre {
+    margin: 0;
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    color: var(--code-text);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.83rem;
+    line-height: 1.65;
+    background: transparent;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    background: var(--surface-2);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 1rem 1.15rem;
+    margin: 1.4rem 0;
+  }
+  .callout .label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: 0.4rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout.tip { border-left-color: var(--secondary); }
+  .callout.tip .label { color: var(--secondary); }
+  .callout.warn { border-left-color: var(--danger); }
+  .callout.warn .label { color: var(--danger); }
+  .callout.deep { border-left-color: var(--accent); }
+  .callout.deep .label { color: var(--accent); }
+
+  /* ---------- Diagram ---------- */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.4rem 1rem 0.9rem;
+    margin: 1.5rem 0;
+    box-shadow: var(--shadow);
+  }
+  .diagram svg { display: block; width: 100%; height: auto; }
+  .diagram-caption {
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-top: 0.6rem;
+  }
+
+  /* ---------- Table ---------- */
+  .table-wrap { overflow-x: auto; margin: 1.2rem 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  th {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    background: var(--surface-2);
+  }
+
+  /* ---------- Quiz ---------- */
+  .quiz {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.3rem 1.3rem 1.1rem;
+    margin: 1.4rem 0;
+    box-shadow: var(--shadow);
+  }
+  .quiz-q {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 0.9rem;
+    color: var(--text);
+  }
+  .quiz-options { display: flex; flex-direction: column; gap: 0.5rem; }
+  .quiz-opt {
+    text-align: left;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.7rem 0.9rem;
+    border-radius: 10px;
+    font-size: 0.92rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    line-height: 1.5;
+  }
+  .quiz-opt:hover:not(:disabled) { border-color: var(--primary); }
+  .quiz-opt:disabled { cursor: default; }
+  .quiz-opt.correct {
+    background: var(--success-soft);
+    border-color: var(--success);
+    color: var(--success);
+    font-weight: 600;
+  }
+  .quiz-opt.wrong {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+  .quiz-feedback {
+    margin-top: 0.85rem;
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    min-height: 1.2em;
+  }
+  .quiz-feedback.ok { color: var(--success); }
+  .quiz-feedback.no { color: var(--danger); }
+
+  .score-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 0.85rem 1.1rem;
+    margin: 1.5rem 0;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .score-bar strong { color: var(--secondary); font-size: 1.05rem; }
+
+  /* ---------- Checklist ---------- */
+  .checklist { list-style: none; padding: 0; margin: 1rem 0; }
+  .checklist li {
+    position: relative;
+    padding-left: 2rem;
+    margin-bottom: 0.7rem;
+    color: var(--text);
+  }
+  .checklist li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.3em;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    border: 2px solid var(--secondary);
+    background: var(--secondary-soft);
+  }
+  .checklist li::after {
+    content: "";
+    position: absolute;
+    left: 0.36rem;
+    top: 0.55em;
+    width: 0.36rem;
+    height: 0.6rem;
+    border: solid var(--secondary);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  /* ---------- Steps ---------- */
+  .step {
+    border-left: 2px solid var(--border);
+    padding-left: 1.2rem;
+    margin: 1.6rem 0;
+    position: relative;
+  }
+  .step::before {
+    content: attr(data-step);
+    position: absolute;
+    left: -1.05rem;
+    top: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .step h3 { margin-top: 0.2rem; }
+
+  .objectives {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.2rem 1.4rem;
+    margin: 0 0 2rem;
+  }
+  .objectives h3 {
+    margin: 0 0 0.7rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .objectives ul { margin: 0; }
+
+  footer {
+    margin-top: 3.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body data-new-gr-c-s-check-loaded="14.1153.0" data-gr-ext-installed="">
+<div class="wrap">
+
+  <!-- ================= HEADER ================= -->
+  <div class="breadcrumbs">
+    <span class="pill">Cloud Code Architect</span>
+    <span class="pill secondary">Module 3 / 20</span>
+    <span class="pill accent">Implementation</span>
+    <span class="pill muted">~2 hr session</span>
+  </div>
+
+  <h1>Claude Haiku 4.5 via Vertex AI &amp; Model Garden — <span class="accent-word">Key Generation &amp; Wiring</span></h1>
+
+  <p class="lede">
+    You already have <code>LLMConfig</code> and provider detection. Today you add the missing piece
+    that lets Claude Haiku 4.5 answer through Google Cloud: a service-account key, the right environment
+    variables, and a thin <code>vertex_ai</code> provider branch that your existing abstraction can dispatch to.
+  </p>
+
+  <div class="objectives">
+    <h3>Learning Objectives</h3>
+    <ul>
+      <li>Generate a Google Cloud service-account JSON key and enable the Vertex AI API on a project.</li>
+      <li>Understand how Anthropic Claude Haiku 4.5 is reached via Vertex AI Model Garden (not the Anthropic API).</li>
+      <li>Extend <code>LLMConfig.from_env()</code> to detect <code>vertex_ai</code> and load credentials safely.</li>
+      <li>Implement a working <code>_generate_vertex_ai()</code> call against <code>claude-haiku-4-5</code> and verify it end-to-end.</li>
+    </ul>
+  </div>
+
+  <!-- ================= CONCEPT ================= -->
+  <h2>Why Vertex AI for Claude Haiku 4.5?</h2>
+
+  <p>
+    In the LCB project, every provider is a <em>route</em> to the same abstract capability: send a prompt,
+    get grounded text back. The Anthropic API is one route. Vertex AI is another — same Claude models,
+    different front door, different auth, different billing, and often different regional latency.
+  </p>
+
+  <p>
+    Think of it like shipping a package. The <strong>contents</strong> (Claude Haiku 4.5) are identical, but you
+    can hand it to the <em>Anthropic courier</em> (API key in a header) or the <em>Google Cloud courier</em>
+    (service-account credentials, project ID, region). Your <code>LLMClient</code> just needs to know which
+    courier to call.
+  </p>
+
+  <div class="callout">
+    <span class="label">Key Takeaway</span>
+    <p>
+      Vertex AI is <strong>not</strong> the Anthropic API. It uses Google IAM, a GCP project ID, and a region
+      (e.g. <code>us-east5</code>). You cannot reuse your <code>ANTHROPIC_API_KEY</code> here — you need a
+      service-account JSON.
+    </p>
+  </div>
+
+  <!-- ================= DIAGRAM ================= -->
+  <div class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-label="Diagram showing two routes to Claude Haiku 4.5: Anthropic API and Vertex AI">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--text-muted)"></path>
+        </marker>
+      </defs>
+
+      <!-- Left: LLMClient -->
+      <rect x="20" y="110" width="150" height="80" rx="12" fill="var(--surface-2)" stroke="var(--border-strong)"></rect>
+      <text x="95" y="145" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">LLMClient</text>
+      <text x="95" y="165" text-anchor="middle" font-size="11" fill="var(--text-muted)">.generate(prompt)</text>
+
+      <!-- Middle: Anthropic route -->
+      <rect x="270" y="30" width="180" height="70" rx="12" fill="var(--primary-soft)" stroke="var(--primary)"></rect>
+      <text x="360" y="60" text-anchor="middle" font-size="13" font-weight="700" fill="var(--primary)">Anthropic API</text>
+      <text x="360" y="80" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">x-api-key header</text>
+
+      <!-- Middle: Vertex route -->
+      <rect x="270" y="200" width="180" height="70" rx="12" fill="var(--secondary-soft)" stroke="var(--secondary)"></rect>
+      <text x="360" y="230" text-anchor="middle" font-size="13" font-weight="700" fill="var(--secondary)">Vertex AI (Model Garden)</text>
+      <text x="360" y="250" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">service-account JSON</text>
+
+      <!-- Right: Claude Haiku -->
+      <rect x="540" y="110" width="160" height="80" rx="12" fill="var(--accent-soft)" stroke="var(--accent)"></rect>
+      <text x="620" y="145" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">Claude Haiku 4.5</text>
+      <text x="620" y="165" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">claude-haiku-4-5</text>
+
+      <!-- Arrows -->
+      <path d="M170 140 C 220 140, 220 65, 270 65" stroke="var(--text-muted)" stroke-width="1.4" fill="none" marker-end="url(#arrow)"></path>
+      <path d="M170 160 C 220 160, 220 235, 270 235" stroke="var(--text-muted)" stroke-width="1.4" fill="none" marker-end="url(#arrow)"></path>
+      <path d="M450 65 C 500 65, 500 140, 540 140" stroke="var(--text-muted)" stroke-width="1.4" fill="none" marker-end="url(#arrow)"></path>
+      <path d="M450 235 C 500 235, 500 160, 540 160" stroke="var(--text-muted)" stroke-width="1.4" fill="none" marker-end="url(#arrow)"></path>
+
+      <text x="360" y="15" text-anchor="middle" font-size="10.5" fill="var(--text-muted)" font-weight="600">Route A — direct</text>
+      <text x="360" y="292" text-anchor="middle" font-size="10.5" fill="var(--text-muted)" font-weight="600">Route B — via Google Cloud (this module)</text>
+    </svg>
+    <div class="diagram-caption">Two interchangeable routes to the same Claude Haiku 4.5 model — the abstraction hides the difference.</div>
+  </div>
+
+  <!-- ================= PREREQUISITES ================= -->
+  <h2>Prerequisites</h2>
+  <ul>
+    <li>Module 1 done — project scaffold, <code>.env</code> loading via <code>python-dotenv</code>, <code>llm_config.json</code> present.</li>
+    <li>Module 2 done — <code>LLMConfig</code> frozen dataclass exists in <code>backend_fastapi/app/chatbot/llm_client.py</code>, with <code>from_env()</code> classmethod.</li>
+    <li>A Google Cloud project with billing enabled (Vertex AI charges per token).</li>
+    <li><code>gcloud</code> CLI installed and authenticated (<code>gcloud auth login</code>).</li>
+    <li><code>google-cloud-aiplatform</code> and <code>anthropic[vertex]</code> Python packages.</li>
+  </ul>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">bash</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code>pip install "anthropic[vertex]" google-cloud-aiplatform python-dotenv</code></pre>
+  </div>
+
+  <!-- ================= STEP 1 ================= -->
+  <h2>Implementation</h2>
+
+  <div class="step" data-step="1">
+    <h3>Enable the Vertex AI API &amp; pick a region</h3>
+    <p>Claude models on Vertex live in specific regions. <code>us-east5</code> is the safest default for Haiku 4.5.</p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">bash</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code># Replace with your real project id
+export GCP_PROJECT_ID="lcb-rag-prod"
+
+gcloud config set project "$GCP_PROJECT_ID"
+gcloud services enable aiplatform.googleapis.com
+
+# Confirm Claude Haiku 4.5 is available in your region
+gcloud ai models list --region=us-east5 --filter="displayName:claude-haiku-4-5"</code></pre>
+  </div>
+
+  <!-- ================= STEP 2 ================= -->
+  <div class="step" data-step="2">
+    <h3>Create a service account &amp; download the JSON key</h3>
+    <p>
+      The service account is the identity your backend will use. It needs the
+      <code>roles/aiplatform.user</code> role — nothing more.
+    </p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">bash</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code>SA_NAME="lcb-rag-vertex"
+SA_EMAIL="${SA_NAME}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+
+gcloud iam service-accounts create "$SA_NAME" \
+  --display-name="LCB RAG Vertex AI caller"
+
+gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/aiplatform.user"
+
+# Download the JSON key -- treat this file as a secret
+gcloud iam service-accounts keys create ./secrets/vertex-sa.json \
+  --iam-account="$SA_EMAIL"</code></pre>
+  </div>
+
+  <div class="callout warn">
+    <span class="label">Warning</span>
+    <p>
+      <code>vertex-sa.json</code> is a long-lived credential. Never commit it. Add
+      <code>secrets/</code> and <code>*.json</code> (under <code>secrets/</code>) to <code>.gitignore</code>,
+      and in production inject the JSON via your secret manager (GCP Secret Manager, AWS Secrets Manager,
+      or a mounted Kubernetes secret) — not a checked-in file.
+    </p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">.gitignore</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code>.env
+.env.*
+*.key
+*.secret
+secrets/
+vertex-sa.json</code></pre>
+  </div>
+
+  <!-- ================= STEP 3 ================= -->
+  <div class="step" data-step="3">
+    <h3>Add the Vertex env vars to <code>.env</code></h3>
+    <p>
+      The credential path is a <em>path</em>, not the JSON itself. This keeps the process env small and
+      lets you swap credentials per environment.
+    </p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">.env</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code># --- Vertex AI / Claude Haiku 4.5 on Model Garden ---
+LLM_PROVIDER=vertex_ai
+VERTEX_PROJECT_ID=lcb-rag-prod
+VERTEX_LOCATION=us-east5
+VERTEX_MODEL=claude-haiku-4-5@20251001
+GOOGLE_APPLICATION_CREDENTIALS=./secrets/vertex-sa.json
+
+# Keep the Anthropic fallback intact
+ANTHROPIC_API_KEY=sk-ant-...
+FALLBACK_LLM_PROVIDER=ollama
+FALLBACK_OLLAMA_MODEL=llama3.2:3b</code></pre>
+  </div>
+
+  <!-- ================= STEP 4 ================= -->
+  <div class="step" data-step="4">
+    <h3>Teach <code>LLMConfig.from_env()</code> about <code>vertex_ai</code></h3>
+    <p>
+      Add a detection branch alongside your existing <code>anthropic</code> / <code>claude_code</code>
+      branches. Note that we reuse the <code>base_url</code> field to carry the <em>region</em> — it's
+      the closest semantic fit without changing the frozen dataclass shape.
+    </p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">python</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code># backend_fastapi/app/chatbot/llm_client.py
+import os
+import json
+from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    provider: str
+    model: str
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    timeout: int = 120
+    temperature: float = 0.2
+    max_tokens: int = 1024
+
+    @classmethod
+    def from_env(cls) -&gt; "LLMConfig":
+        provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+
+        # --- existing branches (Modules 2-3) ---
+        if provider in ("anthropic", "claude"):
+            return cls(
+                provider="anthropic",
+                model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),
+                base_url=os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
+                api_key=os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY"),
+                timeout=int(os.getenv("LLM_TIMEOUT", "120")),
+                temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
+                max_tokens=int(os.getenv("LLM_MAX_TOKENS", "1024")),
+            )
+
+        if provider in ("claude_code", "claude-code", "claudecode"):
+            return cls(
+                provider="claude_code",
+                model=os.getenv("CLAUDE_CODE_MODEL", "claude-haiku-4-5"),
+                base_url=os.getenv("CLAUDE_CODE_WORKSPACE", "."),
+                api_key=os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY"),
+                timeout=int(os.getenv("LLM_TIMEOUT", "120")),
+                temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
+                max_tokens=int(os.getenv("LLM_MAX_TOKENS", "1024")),
+            )
+
+        # --- NEW: Vertex AI / Model Garden ---
+        if provider in ("vertex_ai", "vertex", "google_vertex"):
+            project = os.getenv("VERTEX_PROJECT_ID")
+            location = os.getenv("VERTEX_LOCATION", "us-east5")
+            creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
+            if not project:
+                raise ValueError(
+                    "LLM_PROVIDER=vertex_ai requires VERTEX_PROJECT_ID in the environment."
+                )
+            if not creds_path or not os.path.isfile(creds_path):
+                raise ValueError(
+                    "LLM_PROVIDER=vertex_ai requires GOOGLE_APPLICATION_CREDENTIALS "
+                    "to point at an existing service-account JSON file."
+                )
+
+            return cls(
+                provider="vertex_ai",
+                model=os.getenv("VERTEX_MODEL", "claude-haiku-4-5@20251001"),
+                # We store the region here so the generator can read it uniformly.
+                base_url=location,
+                # Not a real secret -- just the path we resolved.
+                api_key=creds_path,
+                timeout=int(os.getenv("LLM_TIMEOUT", "120")),
+                temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
+                max_tokens=int(os.getenv("LLM_MAX_TOKENS", "1024")),
+            )
+
+        # --- existing ollama / gemini / deepseek / openrouter branches ---
+        return cls(
+            provider=provider,
+            model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            timeout=int(os.getenv("LLM_TIMEOUT", "120")),
+            temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
+            max_tokens=int(os.getenv("LLM_MAX_TOKENS", "1024")),
+        )</code></pre>
+  </div>
+
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>
+      We also need the <em>project id</em> at call time, but the frozen dataclass has no field for it.
+      Two options: (a) add a <code>project: Optional[str]</code> field to the dataclass, or (b) read
+      <code>VERTEX_PROJECT_ID</code> directly in the generator. We'll do (b) here to keep Module 2's
+      dataclass contract unchanged — a good example of backward compatibility.
+    </p>
+  </div>
+
+  <!-- ================= STEP 5 ================= -->
+  <div class="step" data-step="5">
+    <h3>Implement <code>_generate_vertex_ai()</code></h3>
+    <p>
+      The Anthropic Python SDK ships a first-class Vertex client. It reads the JSON key from
+      <code>GOOGLE_APPLICATION_CREDENTIALS</code> automatically, so we only need to pass the project
+      and region.
+    </p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">python</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code># backend_fastapi/app/chatbot/llm_client.py (continued)
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class LLMClient:
+    def __init__(self, config: Optional[LLMConfig] = None):
+        self.config = config or LLMConfig.from_env()
+
+    # --- public API ---
+    def generate(self, prompt: str) -&gt; str:
+        provider = self.config.provider
+        if provider == "anthropic":
+            return self._generate_anthropic(prompt)
+        if provider == "claude_code":
+            return self._generate_claude_code(prompt)
+        if provider == "vertex_ai":
+            return self._generate_vertex_ai(prompt)
+        raise NotImplementedError(f"Unsupported provider: {provider}")
+
+    # --- Vertex AI branch ---
+    def _generate_vertex_ai(self, prompt: str) -&gt; str:
+        project_id = os.getenv("VERTEX_PROJECT_ID")
+        region = self.config.base_url or "us-east5"
+        model = self.config.model
+
+        if not project_id:
+            raise ValueError("VERTEX_PROJECT_ID is not set.")
+
+        try:
+            from anthropic import AnthropicVertex
+        except ImportError as exc:
+            raise RuntimeError(
+                "anthropic[vertex] is not installed. Run: "
+                "pip install \"anthropic[vertex]\" google-cloud-aiplatform"
+            ) from exc
+
+        # AnthropicVertex picks up GOOGLE_APPLICATION_CREDENTIALS automatically.
+        client = AnthropicVertex(project_id=project_id, region=region)
+
+        logger.info(
+            "vertex_ai call | project=%s region=%s model=%s",
+            project_id, region, model,
+        )
+
+        message = client.messages.create(
+            model=model,
+            max_tokens=self.config.max_tokens,
+            temperature=self.config.temperature,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        # Same response shape as the direct Anthropic API.
+        return message.content[0].text.strip()</code></pre>
+  </div>
+
+  <div class="callout deep">
+    <span class="label">Deep Dive</span>
+    <p>
+      The <code>@20251001</code> suffix on the model name is a <em>Vertex version pin</em>. Unlike the
+      Anthropic API where the date is baked into the model id itself, Vertex exposes Claude Haiku 4.5 under
+      versioned aliases. If you get a 404 on <code>claude-haiku-4-5@20251001</code>, list the models
+      available in your region with:
+      <code>gcloud ai models list --region=us-east5</code> and pick the newest Haiku 4.5 alias you see.
+    </p>
+  </div>
+
+  <!-- ================= VALIDATION ================= -->
+  <h2>Validation</h2>
+
+  <p>Run the smoke test from the project README, adapted for Vertex:</p>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">bash</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code>cd backend_fastapi/app/chatbot
+
+LLM_PROVIDER=vertex_ai \
+VERTEX_PROJECT_ID=lcb-rag-prod \
+VERTEX_LOCATION=us-east5 \
+VERTEX_MODEL=claude-haiku-4-5@20251001 \
+GOOGLE_APPLICATION_CREDENTIALS=./secrets/vertex-sa.json \
+python -c "
+from llm_client import LLMClient
+c = LLMClient()
+print(c.config)
+print(c.generate('Reply with exactly: VERTEX-OK'))
+"</code></pre>
+  </div>
+
+  <p><strong>Expected output:</strong></p>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">text</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code>LLMConfig(provider='vertex_ai', model='claude-haiku-4-5@20251001',
+          base_url='us-east5', api_key='./secrets/vertex-sa.json',
+          timeout=120, temperature=0.2, max_tokens=1024)
+VERTEX-OK</code></pre>
+  </div>
+
+  <h3>Failure-mode checks</h3>
+  <ul>
+    <li>Unset <code>VERTEX_PROJECT_ID</code> → expect <code>ValueError: ... requires VERTEX_PROJECT_ID</code>.</li>
+    <li>Point <code>GOOGLE_APPLICATION_CREDENTIALS</code> at a missing file → expect <code>ValueError</code> from <code>from_env()</code>.</li>
+    <li>Wrong region (e.g. <code>us-central1</code> for Haiku 4.5) → expect a 404 from the SDK; the log line shows the region you sent.</li>
+    <li>Delete the key file after loading → SDK raises a credentials error; confirms we're not caching secrets in memory.</li>
+  </ul>
+
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>
+      Add a tiny assertion to your Module 7 test suite now — it will pay off later:
+    </p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="code-lang">python</span>
+      <button class="copy-btn" data-copy="">Copy</button>
+    </div>
+    <pre><code># backend_fastapi/app/chatbot/tests/test_llm_client.py
+import os, pytest
+from llm_client import LLMConfig
+
+
+def test_vertex_config_requires_project(monkeypatch, tmp_path):
+    monkeypatch.setenv("LLM_PROVIDER", "vertex_ai")
+    monkeypatch.delenv("VERTEX_PROJECT_ID", raising=False)
+    with pytest.raises(ValueError, match="VERTEX_PROJECT_ID"):
+        LLMConfig.from_env()
+
+
+def test_vertex_config_requires_credentials_file(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "vertex_ai")
+    monkeypatch.setenv("VERTEX_PROJECT_ID", "lcb-rag-prod")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/nope/missing.json")
+    with pytest.raises(ValueError, match="GOOGLE_APPLICATION_CREDENTIALS"):
+        LLMConfig.from_env()</code></pre>
+  </div>
+
+  <!-- ================= QUIZ ================= -->
+  <h2>Knowledge Check</h2>
+
+  <div class="score-bar">
+    <span>Score</span>
+    <strong><span id="score">0</span> / 3</strong>
+  </div>
+
+  <div class="quiz" data-quiz="q1">
+    <div class="quiz-q">1. You set <code>LLM_PROVIDER=vertex_ai</code> but keep only your <code>ANTHROPIC_API_KEY</code> in <code>.env</code>. What happens?</div>
+    <div class="quiz-options">
+      <button class="quiz-opt" data-correct="false">It works — Vertex AI accepts the Anthropic key as a bearer token.</button>
+      <button class="quiz-opt" data-correct="true">It raises a <code>ValueError</code> because <code>VERTEX_PROJECT_ID</code> and a valid credentials file are required.</button>
+      <button class="quiz-opt" data-correct="false">It silently falls back to the direct Anthropic API.</button>
+      <button class="quiz-opt" data-correct="false">It works, but only in the <code>us-central1</code> region.</button>
+    </div>
+    <div class="quiz-feedback"></div>
+  </div>
+
+  <div class="quiz" data-quiz="q2">
+    <div class="quiz-q">2. Which credential does the <code>AnthropicVertex</code> client actually use?</div>
+    <div class="quiz-options">
+      <button class="quiz-opt" data-correct="false">The <code>ANTHROPIC_API_KEY</code> header.</button>
+      <button class="quiz-opt" data-correct="false">A signed JWT generated from <code>CLAUDE_API_KEY</code>.</button>
+      <button class="quiz-opt" data-correct="true">A Google Cloud service-account JSON, discovered via <code>GOOGLE_APPLICATION_CREDENTIALS</code>.</button>
+      <button class="quiz-opt" data-correct="false">An OAuth token from <code>gcloud auth login</code> only.</button>
+    </div>
+    <div class="quiz-feedback"></div>
+  </div>
+
+  <div class="quiz" data-quiz="q3">
+    <div class="quiz-q">3. Why does the module reuse <code>LLMConfig.base_url</code> to store the region?</div>
+    <div class="quiz-options">
+      <button class="quiz-opt" data-correct="false">Because Vertex AI has no concept of a region.</button>
+      <button class="quiz-opt" data-correct="true">To avoid changing the frozen dataclass shape and keep backward compatibility with existing providers.</button>
+      <button class="quiz-opt" data-correct="false">Because <code>base_url</code> is a reserved keyword for Google Cloud.</button>
+      <button class="quiz-opt" data-correct="false">Because the region is a secret and must be hidden.</button>
+    </div>
+    <div class="quiz-feedback"></div>
+  </div>
+
+  <!-- ================= TAKEAWAYS ================= -->
+  <h2>Key Takeaways</h2>
+  <ul class="checklist">
+    <li>Vertex AI is a distinct provider from the Anthropic API — different auth, project, and region.</li>
+    <li>You need a service-account JSON with <code>roles/aiplatform.user</code>; the API key from Anthropic will not work.</li>
+    <li><code>LLMConfig.from_env()</code> now has a <code>vertex_ai</code> branch that validates project + credentials file before returning.</li>
+    <li><code>_generate_vertex_ai()</code> uses <code>AnthropicVertex(project_id, region)</code> and returns the same <code>message.content[0].text</code> shape as the direct Anthropic branch.</li>
+    <li>Never commit the JSON key — use <code>.gitignore</code> locally and a secret manager in production.</li>
+    <li>Two new unit tests lock in the failure modes (missing project, missing credentials file).</li>
+  </ul>
+
+  <!-- ================= DONE WHEN ================= -->
+  <h2>Done When</h2>
+  <ul class="checklist">
+    <li><code>aiplatform.googleapis.com</code> is enabled and Claude Haiku 4.5 is visible in <code>us-east5</code>.</li>
+    <li>Service account <code>lcb-rag-vertex</code> exists with only <code>roles/aiplatform.user</code>, and its JSON key is on disk under <code>./secrets/</code> (gitignored).</li>
+    <li><code>.env</code> contains <code>LLM_PROVIDER=vertex_ai</code>, <code>VERTEX_PROJECT_ID</code>, <code>VERTEX_LOCATION</code>, <code>VERTEX_MODEL</code>, and <code>GOOGLE_APPLICATION_CREDENTIALS</code>.</li>
+    <li><code>LLMConfig.from_env()</code> returns a config with <code>provider="vertex_ai"</code> and raises clear errors when project or credentials are missing.</li>
+    <li><code>LLMClient().generate("...")</code> returns real text from <code>claude-haiku-4-5</code> through Vertex AI.</li>
+    <li>The two new unit tests in <code>test_llm_client.py</code> pass.</li>
+  </ul>
+
+  <!-- ================= NEXT ================= -->
+  <h2>What's Next</h2>
+  <p>
+    <strong>Module 4 — LLMClient Skeleton, Dispatch &amp; Anthropic Provider.</strong> You'll formalize the
+    dispatch table you sketched here, add <code>generate_json()</code> with schema validation, and build
+    out the direct Anthropic branch (SDK + REST fallback) that will become the safety net for the
+    Claude Code provider in Module 5.
+  </p>
+
+  <footer>
+    LCB Claude RAG Project · Module 3 of 20 · Cloud Code Architect
+  </footer>
+
+</div>
+
+<script>
+  // ---------- Copy buttons ----------
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var block = btn.closest('.code-block');
+      var pre = block ? block.querySelector('pre') : null;
+      if (!pre) return;
+      var text = pre.innerText;
+      var done = function () {
+        var original = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(function () {
+          btn.textContent = original;
+          btn.classList.remove('copied');
+        }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {
+          fallbackCopy(text, done);
+        });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+
+  function fallbackCopy(text, cb) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      cb();
+    } catch (e) {
+      // silent -- nothing sensible to do
+    }
+  }
+
+  // ---------- Quiz ----------
+  var score = 0;
+  var answered = 0;
+  var total = document.querySelectorAll('.quiz').length;
+  var scoreEl = document.getElementById('score');
+
+  document.querySelectorAll('.quiz').forEach(function (quiz) {
+    var opts = quiz.querySelectorAll('.quiz-opt');
+    var feedback = quiz.querySelector('.quiz-feedback');
+    var locked = false;
+
+    opts.forEach(function (opt) {
+      opt.addEventListener('click', function () {
+        if (locked) return;
+        locked = true;
+
+        var isCorrect = opt.getAttribute('data-correct') === 'true';
+
+        opts.forEach(function (o) {
+          o.disabled = true;
+          if (o === opt) {
+            o.classList.add(isCorrect ? 'correct' : 'wrong');
+          } else if (o.getAttribute('data-correct') === 'true') {
+            o.classList.add('correct');
+          }
+        });
+
+        if (isCorrect) {
+          score++;
+          feedback.textContent = 'Correct.';
+          feedback.classList.add('ok');
+        } else {
+          feedback.textContent = 'Not quite — the highlighted option is the right one.';
+          feedback.classList.add('no');
+        }
+
+        answered++;
+        scoreEl.textContent = score;
+      });
+    });
+  });
+</script>
+
+</body><grammarly-desktop-integration data-grammarly-shadow-root="true" style="visibility: visible !important;"></grammarly-desktop-integration></html>

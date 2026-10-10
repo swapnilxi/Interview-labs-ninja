@@ -22,6 +22,9 @@ const ENV_MAP = [
   { env: 'OPENROUTER_API_KEY',  setting: 'openrouterKey', label: 'OpenRouter API Key'       },
   { env: 'OPENROUTER_URL',      setting: 'openrouterUrl', label: 'OpenRouter URL'           },
   { env: 'OPENROUTER_BASE_URL', setting: 'openrouterUrl', label: 'OpenRouter Base URL'      },
+  { env: 'CUSTOM_AI_API_KEY',   setting: 'customKey',     label: 'Custom Endpoint API Key'  },
+  { env: 'CUSTOM_AI_BASE_URL',  setting: 'customBaseUrl', label: 'Custom Endpoint Base URL' },
+  { env: 'CUSTOM_AI_MODEL',     setting: 'customModel',   label: 'Custom Endpoint Model'    },
   // ── YouTube ──────────────────────────────────────────────────────
   { env: 'YOUTUBE_API_KEY',     setting: 'youtubeApiKey', label: 'YouTube Data API Key'     },
   // ── Model / URL config ────────────────────────────────────────────
@@ -29,6 +32,9 @@ const ENV_MAP = [
   { env: 'OLLAMA_MODEL',        setting: 'ollamaModel',   label: 'Ollama Model'             },
   { env: 'TEXT_GENERATION_MODEL', setting: 'textGenerationModel', label: 'Text Generation Model' },
   { env: 'ANSWER_MODEL',        setting: 'answerModel',   label: 'Answer Evaluation Model'  },
+  // 'aiDefault' is not a real setting key: the Config UI maps it to "Use .env default" ('' models).
+  { env: 'AI_PROVIDER',         setting: 'aiDefault',     label: 'Default AI Provider'      },
+  { env: 'AI_MODEL',            setting: 'aiDefault',     label: 'Default AI Model'         },
 ] as const;
 
 export const dynamic = 'force-dynamic'; // never cache — env can change at deploy time

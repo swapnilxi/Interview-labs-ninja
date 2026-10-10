@@ -3,3 +3,5 @@ build
 coverage
 node_modules
 public
+# AI LMS class folders: synced byte-for-byte with the DB (see fe-apis/lms/classFolders.ts)
+src/modules/ai-lms/classes

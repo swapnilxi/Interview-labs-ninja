@@ -224,7 +224,7 @@ export default function LabCopilot({ context, labType = 'dsa', onCollapse }: Lab
                 ))}
               </div>
               <form onSubmit={e => { e.preventDefault(); sendChat(input); }} className="flex gap-2 relative">
-                <input value={input} onChange={e => setInput(e.target.value)} disabled={chatGenerating}
+                <input value={input} onChange={e => setInput(e.target.value)} disabled={false}
                   placeholder="Ask anything..."
                   className="flex-1 bg-input border border-border rounded-full py-2 pl-3 pr-9 text-xs focus-ring placeholder:text-muted-foreground" />
                 <button type="submit" disabled={!input.trim() || chatGenerating}

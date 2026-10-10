@@ -49,10 +49,11 @@ free_port() {
 }
 
 echo "----------------------------------------"
-echo "Freeing ports (backend: $BACKEND_PORT, frontend: $FRONTEND_PORT)..."
+echo "Freeing ports (backend: $BACKEND_PORT, frontend: $FRONTEND_PORT, auxiliary: 3002)..."
 echo "----------------------------------------"
 free_port "$BACKEND_PORT"
 free_port "$FRONTEND_PORT"
+free_port "3002"
 
 # Ensure Python output is not buffered, so Uvicorn startup logs are visible immediately
 export PYTHONUNBUFFERED=1

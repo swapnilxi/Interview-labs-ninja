@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from modules.auth.dependencies import get_current_user_id
-from modules.common.ai_client import AISettings, stream_ai_text
+from modules.common.ai import AISettings, stream_ai_text
 
 from ..resume import db
 from ..portfolio import db as pdb

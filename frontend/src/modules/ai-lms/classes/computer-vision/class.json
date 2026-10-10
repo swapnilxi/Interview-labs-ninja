@@ -1,0 +1,30 @@
+{
+  "$comment": "Generated from the AI-LMS tables on every change; edits here are overwritten. Edit landingpage.html and the lesson .html files instead.",
+  "id": "class-computer-vision",
+  "slug": "computer-vision",
+  "name": "Computer Vision",
+  "description": "Computer vision, image understanding, segmentation, detection, OCR, and visual AI.",
+  "landing": "landingpage.html",
+  "subjects": [
+    {
+      "id": "subj-fb04c3f7",
+      "slug": "training-model-with-pytorch",
+      "name": "training model with pytorch",
+      "kind": "subject",
+      "description": "training model with PyTorch",
+      "lessons": [
+        {
+          "id": "lesson-188b9f8d",
+          "slug": "u-net-for-crack-detection-hugging-face-spaces",
+          "title": "U-Net for Crack Detection+ Hugging Face Spaces",
+          "file": "training-model-with-pytorch/lessons/u-net-for-crack-detection-hugging-face-spaces.html"
+        }
+      ]
+    }
+  ],
+  "lessons": [],
+  "files": {
+    "landingpage.html": "203852a6f5ac6db9b40a4fb39248eb0cb577adf53bc434953a3ef97b863309f8",
+    "training-model-with-pytorch/lessons/u-net-for-crack-detection-hugging-face-spaces.html": "45a3abfb3ec15ff37fb2cd9635bb53b5c00ed93a8b1b345fc611dea4f51a12a0"
+  }
+}

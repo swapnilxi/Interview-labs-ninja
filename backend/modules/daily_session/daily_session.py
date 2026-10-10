@@ -22,7 +22,7 @@ from modules.common.db import (
     fetch_progress_stats,
 )
 from modules.common.export_md import render_markdown_for_day
-from modules.common.ai_client import AISettings, call_ai_text, extract_json_array, extract_json_object
+from modules.common.ai import AISettings, call_ai_text, extract_json_array, extract_json_object
 from modules.common.youtube_client import extract_video_id, fetch_transcript, fetch_video_metadata
 
 

@@ -71,7 +71,7 @@ export default function AILabChat({ questionId, questionText }: AILabChatProps) 
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-18 space-y-18">
+      <div className="flex-1 min-h-0 overflow-y-auto p-18 space-y-18 scrollbar-clean">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-12 rounded-lg text-sm leading-relaxed ${
@@ -106,7 +106,7 @@ export default function AILabChat({ questionId, questionText }: AILabChatProps) 
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Ask a follow-up question..."
             className="w-full bg-card border border-border rounded-full py-9 pl-18 pr-48 text-sm focus-ring placeholder:text-muted-foreground"
-            disabled={isGenerating}
+            disabled={false}
           />
           <button
             type="submit"

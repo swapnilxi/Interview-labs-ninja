@@ -8,6 +8,13 @@ import Sidebar from '@/modules/common/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, API_BASE_URL } from '@/lib/http/apiClient';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
+import { reapplyStoredAccent } from '@/lib/services/appearanceService';
+import {
+  SidebarMode,
+  getStoredSidebarMode,
+  setStoredSidebarMode,
+  subscribeSidebarMode,
+} from '@/lib/services/sidebarService';
 
 interface NavigationItem {
   label: string;
@@ -54,16 +61,22 @@ function SystemStatus() {
       let feApiOk = false;
       let feDbAvailable = false;
 
-      // 1. Check FastAPI (API)
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const fastapiUrl = process.env.NEXT_PUBLIC_API_URL || (API_BASE_URL !== '' ? API_BASE_URL : 'http://localhost:8082');
-        const res = await fetch(`${fastapiUrl}/health`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        apiOk = res.ok;
-        setApiStatus(res.ok ? 'online' : 'offline');
-      } catch (err) {
+      // 1. Check FastAPI (API) — only probe if an explicit URL is configured or if running locally
+      const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const fastapiUrl = process.env.NEXT_PUBLIC_API_URL || (API_BASE_URL !== '' ? API_BASE_URL : (isLocalHost ? 'http://localhost:8082' : ''));
+
+      if (fastapiUrl) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const res = await fetch(`${fastapiUrl}/health`, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          apiOk = res.ok;
+          setApiStatus(res.ok ? 'online' : 'offline');
+        } catch (err) {
+          setApiStatus('offline');
+        }
+      } else {
         setApiStatus('offline');
       }
 
@@ -162,6 +175,7 @@ export default function Header() {
   const pathname = usePathname();
   const { isAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>('icon-only');
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
 
   useEffect(() => {
@@ -170,7 +184,32 @@ export default function Header() {
     const initialTheme = storedTheme ?? (prefersDark ? 'dark' : 'light');
     setTheme(initialTheme);
     document.documentElement.classList.toggle('dark', initialTheme === 'dark');
+
+    const handleThemeEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<'light' | 'dark'>;
+      const newTheme = customEvent.detail || (localStorage.getItem('interview-ninja-theme') as 'light' | 'dark' | null);
+      if (newTheme && (newTheme === 'light' || newTheme === 'dark')) {
+        setTheme(newTheme);
+      }
+    };
+    window.addEventListener('interview-ninja-theme-change', handleThemeEvent);
+
+    // Initialize and subscribe to sidebar mode
+    setSidebarMode(getStoredSidebarMode());
+    const unsub = subscribeSidebarMode((m) => setSidebarMode(m));
+    return () => {
+      unsub();
+      window.removeEventListener('interview-ninja-theme-change', handleThemeEvent);
+    };
   }, []);
+
+  const handleModeChange = (newMode: SidebarMode) => {
+    setSidebarMode(newMode);
+    setStoredSidebarMode(newMode);
+    if (newMode === 'hidden') {
+      setSidebarOpen(false);
+    }
+  };
 
   // Derive resolved theme: if state not yet hydrated, read from DOM
   const resolvedTheme: 'light' | 'dark' = theme ?? (
@@ -185,7 +224,11 @@ export default function Header() {
   };
 
   const toggleSidebar = () => {
-    setSidebarOpen((prev) => !prev);
+    if (sidebarMode === 'hidden') {
+      handleModeChange('icon-only');
+    } else {
+      setSidebarOpen((prev) => !prev);
+    }
   };
 
   const closeSidebar = () => {
@@ -197,21 +240,28 @@ export default function Header() {
     setTheme(nextTheme);
     localStorage.setItem('interview-ninja-theme', nextTheme);
     document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+    reapplyStoredAccent();
+    window.dispatchEvent(new CustomEvent('interview-ninja-theme-change', { detail: nextTheme }));
   };
 
   return (
     <>
-      <header className="app-header">
+      <header className={`app-header transition-[left] duration-200 ${sidebarMode === 'icon-only' ? 'md:left-[60px]' : 'left-0'}`}>
         <nav className="h-[60px] px-4 sm:px-6 xl:px-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={toggleSidebar}
-              className="theme-toggle"
+              className={`theme-toggle ${sidebarMode === 'icon-only' ? 'md:hidden' : ''}`}
               aria-label="Toggle navigation menu"
               aria-expanded={sidebarOpen}
+              title={sidebarMode === 'hidden' ? 'Show sidebar menu' : sidebarOpen ? 'Close menu' : 'Open navigation menu'}
             >
-              <Icon name="Bars3Icon" size={20} variant="outline" />
+              <Icon
+                name={sidebarMode === 'hidden' ? 'Bars3Icon' : sidebarOpen ? 'ChevronLeftIcon' : 'ChevronRightIcon'}
+                size={20}
+                variant="outline"
+              />
             </button>
 
             <Link
@@ -310,6 +360,9 @@ export default function Header() {
         onClose={closeSidebar}
         theme={resolvedTheme}
         onToggleTheme={toggleTheme}
+        mode={sidebarMode}
+        onModeChange={handleModeChange}
+        onOpenDrawer={() => setSidebarOpen(true)}
       />
     </>
   );

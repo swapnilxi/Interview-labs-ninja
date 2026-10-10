@@ -26,7 +26,7 @@ export default function AuthModule() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) router.replace('/todo');
+    if (user) router.replace('/ai-todo');
   }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,7 +41,7 @@ export default function AuthModule() {
       setError(result.error);
       return;
     }
-    router.push('/todo');
+    router.push('/ai-todo');
   };
 
   const switchMode = (next: Mode) => { setMode(next); setError(null); };
@@ -216,7 +216,7 @@ export default function AuthModule() {
           </div>
 
           <div className="pt-18 border-t border-border text-center">
-            <Link href="/todo" className="text-sm text-muted-foreground hover:text-foreground transition-smooth inline-flex items-center gap-6">
+            <Link href="/ai-todo" className="text-sm text-muted-foreground hover:text-foreground transition-smooth inline-flex items-center gap-6">
               Continue as guest
               <Icon name="ArrowRightIcon" size={14} />
             </Link>

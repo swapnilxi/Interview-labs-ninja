@@ -38,6 +38,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from modules.common import __version__
+from modules.common.rate_limit import RateLimitMiddleware
+from modules.common.neon_sync import NeonSyncMiddleware
 from modules.common.db import get_db_path, init_db
 
 # Config / settings module
@@ -56,22 +58,32 @@ from modules.daily_session.daily_session import public_router as session_public_
 from modules.linkedin_post_generator.templates.router import router as linkedin_templates_router
 from modules.linkedin_post_generator.generation.router import router as linkedin_generation_router
 
-# To-do module
-from modules.todo.tasks.router import router as todo_router
-from modules.todo.quick.router import router as quick_router
-from modules.todo.projects.router import router as projects_router
-from modules.todo.goals.router import router as goals_router
-from modules.todo.pareto.router import router as pareto_router
-from modules.todo.import_data.router import router as import_router
+# AI To-do module (ai_todo)
+from modules.ai_todo.tasks.router import router as todo_router
+from modules.ai_todo.quick.router import router as quick_router
+from modules.ai_todo.projects.router import router as projects_router
+from modules.ai_todo.goals.router import router as goals_router
+from modules.ai_todo.pareto.router import router as pareto_router
+from modules.ai_todo.import_data.router import router as import_router
 
 # Auth module
 from modules.auth.router import router as auth_router
 from modules.auth.admin_router import router as admin_router
-from modules.auth.db import promote_admins_from_env
+from modules.auth.admin_router import db_router as admin_db_router
+from modules.auth.access_requests_router import router as access_requests_router
+from modules.auth.db import promote_admins_from_env, promote_superadmins_from_env
 
 # Swipe PDF Reader module
 from modules.swipe_pdf_reader.db import init_pdf_db
 from modules.swipe_pdf_reader.router import router as pdf_router
+
+# AI LMS module
+from modules.ai_lms.db import init_lms_db
+from modules.ai_lms.class_folders import reconcile_all as reconcile_lms_class_folders
+from modules.ai_lms.router import router as lms_router
+
+# Generic voice module (Deepgram STT/TTS) — shared across any module that needs it
+from modules.voice.router import router as voice_router
 
 # CAREER STUDIO INTEGRATION — self-contained module with its own sqlite DB
 from modules.career_studio.shared.db import init_career_db
@@ -89,11 +101,21 @@ from modules.career_studio.cover_letter.router import router as career_cover_let
 async def _lifespan(_app: FastAPI):
     init_db()
     init_pdf_db()
+    init_lms_db()
+    try:
+        # Pick up lesson/landing HTML edited in the IDE while the server was down, and
+        # write any files that are missing (see modules/ai_lms/class_folders.py).
+        reconcile_lms_class_folders()
+    except Exception as exc:
+        print(f"[ai_lms] class folder sync at startup failed: {exc}")
     init_career_db()  # CAREER STUDIO INTEGRATION — creates career_studio.sqlite3 tables
     # Promote any LABNINJA_ADMIN_EMAILS accounts to admin (idempotent; see admin_router).
     promoted = promote_admins_from_env()
     if promoted:
         print(f"[admin] Promoted to admin from LABNINJA_ADMIN_EMAILS: {', '.join(promoted)}")
+    promoted_super = promote_superadmins_from_env()
+    if promoted_super:
+        print(f"[admin] Promoted to superadmin from LABNINJA_SUPERADMIN_EMAILS: {', '.join(promoted_super)}")
     yield
 
 
@@ -111,6 +133,17 @@ _cors_origins = (
 # them too, alongside the exact prod origin(s) in LABNINJA_CORS_ORIGINS above.
 _cors_origin_regex = os.environ.get("LABNINJA_CORS_ORIGIN_REGEX")
 
+# Added BEFORE CORSMiddleware below so CORS ends up the OUTERMOST layer (Starlette wraps
+# the LAST add_middleware() call outermost) -- a 429 this middleware returns still gets
+# CORS headers, instead of showing the frontend a bare CORS failure. See
+# modules/common/rate_limit.py for what it does and why it's safe only in production.
+app.add_middleware(RateLimitMiddleware)
+
+# Pushes lab_ninja.sqlite3 to Neon after writes when DATABASE_URL is set (Vercel), so a
+# cold start / different instance picks up the latest data instead of a stale /tmp
+# reseed. No-op locally. See modules/common/neon_sync.py.
+app.add_middleware(NeonSyncMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     # Set LABNINJA_CORS_ORIGINS (comma-separated) to your deployed frontend's
@@ -126,6 +159,8 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(admin_db_router)
+app.include_router(access_requests_router)
 app.include_router(config_router)
 app.include_router(session_router)
 app.include_router(session_public_router)
@@ -141,6 +176,8 @@ app.include_router(goals_router)
 app.include_router(pareto_router)
 app.include_router(import_router)
 app.include_router(pdf_router)
+app.include_router(lms_router)
+app.include_router(voice_router)
 
 # CAREER STUDIO INTEGRATION
 app.include_router(career_router)

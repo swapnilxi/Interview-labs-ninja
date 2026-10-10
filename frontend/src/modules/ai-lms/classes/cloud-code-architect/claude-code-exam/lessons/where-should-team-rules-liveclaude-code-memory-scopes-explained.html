@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCAF Exam Guide — Claude Code Memory Scopes</title>
+<style>
+  :root{
+    --bg:#0b1020;
+    --bg-2:#0f1730;
+    --panel:#121a33;
+    --panel-2:#0d1428;
+    --border:#233056;
+    --border-soft:#1b2544;
+    --txt:#e6ecff;
+    --muted:#9aa8cc;
+    --muted-2:#6f7ea8;
+    --accent:#7cc4ff;
+    --accent-2:#a78bfa;
+    --good:#34d399;
+    --good-bg:rgba(52,211,153,.12);
+    --bad:#f87171;
+    --bad-bg:rgba(248,113,113,.12);
+    --warn:#fbbf24;
+    --code-bg:#0a0f1f;
+    --shadow:0 10px 40px rgba(0,0,0,.45);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    font-family:var(--sans);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(124,196,255,.10), transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, rgba(167,139,250,.10), transparent 60%),
+      var(--bg);
+    color:var(--txt);
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 96px}
+
+  /* ---------- Header ---------- */
+  header.hero{
+    position:relative;
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:34px 30px;
+    background:linear-gradient(180deg, rgba(124,196,255,.07), rgba(167,139,250,.05) 40%, transparent 100%), var(--panel);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  header.hero::after{
+    content:"";
+    position:absolute; inset:-2px;
+    background:linear-gradient(120deg, transparent 30%, rgba(124,196,255,.12) 50%, transparent 70%);
+    animation:sweep 7s linear infinite;
+    pointer-events:none;
+  }
+  @keyframes sweep{
+    0%{transform:translateX(-60%)}
+    100%{transform:translateX(60%)}
+  }
+  .badge{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);
+    border:1px solid rgba(124,196,255,.35);
+    background:rgba(124,196,255,.08);
+    padding:5px 12px;border-radius:999px;font-weight:600;
+  }
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+  h1{
+    font-size:clamp(26px,4vw,40px);
+    line-height:1.15;
+    margin:16px 0 8px;
+    letter-spacing:-.02em;
+  }
+  h1 .grad{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .sub{color:var(--muted);max-width:760px;font-size:16.5px}
+  .meta-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+  .chip{
+    font-size:12.5px;color:var(--muted);
+    border:1px solid var(--border-soft);
+    background:var(--panel-2);
+    padding:5px 11px;border-radius:8px;
+  }
+  .chip b{color:var(--txt);font-weight:600}
+
+  /* ---------- Sections ---------- */
+  section{margin-top:46px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .sec-num{
+    font-family:var(--mono);font-size:13px;color:var(--accent);
+    border:1px solid rgba(124,196,255,.3);border-radius:8px;
+    padding:3px 9px;background:rgba(124,196,255,.06);font-weight:600;
+  }
+  h2{font-size:clamp(20px,2.6vw,27px);margin:0;letter-spacing:-.01em}
+  h3{font-size:17px;margin:26px 0 10px;color:var(--txt)}
+  p{color:#cbd5f0}
+  .lead{font-size:16.5px;color:var(--muted)}
+  a{color:var(--accent);text-decoration:none;border-bottom:1px dotted rgba(124,196,255,.5)}
+  a:hover{color:#a8d8ff}
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:22px 24px;
+    box-shadow:var(--shadow);
+  }
+  .card + .card{margin-top:16px}
+
+  /* ---------- Scenario ---------- */
+  .scenario{
+    border-left:3px solid var(--accent-2);
+    background:linear-gradient(90deg, rgba(167,139,250,.07), transparent 70%), var(--panel-2);
+    border-radius:0 14px 14px 0;
+    padding:18px 22px;
+  }
+  .scenario .tag{
+    font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-2);font-weight:700;
+  }
+  .scenario p{margin:8px 0 0}
+
+  /* ---------- Scope diagram ---------- */
+  .diagram{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:22px;
+    overflow-x:auto;
+  }
+  .diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}
+  .diagram-cap{text-align:center;color:var(--muted-2);font-size:13px;margin-top:12px}
+
+  /* ---------- Code ---------- */
+  pre{
+    background:var(--code-bg);
+    border:1px solid var(--border-soft);
+    border-radius:12px;
+    padding:16px 18px;
+    overflow-x:auto;
+    font-family:var(--mono);
+    font-size:13.5px;
+    line-height:1.7;
+    margin:14px 0;
+  }
+  code{font-family:var(--mono)}
+  .k{color:#c792ea}   /* keyword */
+  .s{color:#c3e88d}   /* string */
+  .c{color:#5c6b91;font-style:italic} /* comment */
+  .f{color:#82aaff}   /* function/key */
+  .n{color:#f78c6c}   /* number */
+  .p{color:#89ddff}   /* punctuation */
+  .t{color:#ffcb6b}   /* type/tag */
+  .path{color:#a78bfa}
+  .cmdinline{
+    font-family:var(--mono);font-size:13px;
+    background:var(--code-bg);border:1px solid var(--border-soft);
+    padding:1px 7px;border-radius:6px;color:#ffcb6b;
+  }
+
+  /* ---------- Decision table ---------- */
+  table{width:100%;border-collapse:collapse;font-size:14.5px;margin-top:12px}
+  th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--border-soft);vertical-align:top}
+  th{color:var(--accent);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
+  tr:last-child td{border-bottom:none}
+  td code{color:#ffcb6b;font-size:13px}
+
+  /* ---------- Callouts ---------- */
+  .callout{
+    display:flex;gap:14px;align-items:flex-start;
+    border-radius:14px;padding:16px 18px;margin:18px 0;
+    border:1px solid var(--border);
+    background:var(--panel-2);
+  }
+  .callout .ico{font-size:20px;line-height:1.4;flex:0 0 auto}
+  .callout.key{border-color:rgba(124,196,255,.4);background:linear-gradient(90deg,rgba(124,196,255,.08),transparent 60%),var(--panel-2)}
+  .callout.warn{border-color:rgba(251,191,36,.35);background:linear-gradient(90deg,rgba(251,191,36,.07),transparent 60%),var(--panel-2)}
+  .callout p{margin:0;color:#d5defa}
+  .callout strong{color:#fff}
+
+  /* ---------- Options list ---------- */
+  .opt{
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:18px 20px;
+    margin:14px 0;
+    background:var(--panel);
+    position:relative;
+    transition:border-color .2s, transform .2s;
+  }
+  .opt:hover{transform:translateY(-1px)}
+  .opt.correct{border-color:rgba(52,211,153,.55);background:linear-gradient(90deg,rgba(52,211,153,.08),transparent 55%),var(--panel)}
+  .opt.wrong{border-color:rgba(248,113,113,.4);background:linear-gradient(90deg,rgba(248,113,113,.05),transparent 55%),var(--panel)}
+  .opt-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .verdict{
+    font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    padding:4px 10px;border-radius:999px;
+  }
+  .verdict.ok{color:var(--good);background:var(--good-bg);border:1px solid rgba(52,211,153,.4)}
+  .verdict.no{color:var(--bad);background:var(--bad-bg);border:1px solid rgba(248,113,113,.35)}
+  .opt h4{margin:0;font-size:15.5px;font-weight:650;color:#fff;flex:1 1 320px}
+  .opt p{margin:10px 0 0;font-size:14.5px;color:#c3cdec}
+  .opt .why{font-size:13.5px;color:var(--muted);margin-top:10px}
+  .opt .why b{color:#dbe4ff}
+
+  /* ---------- Quiz ---------- */
+  .quiz{
+    border:1px solid var(--border);
+    border-radius:16px;
+    background:linear-gradient(180deg, rgba(124,196,255,.05), transparent 40%), var(--panel);
+    padding:22px 24px;
+    margin:18px 0;
+    box-shadow:var(--shadow);
+  }
+  .quiz .qtag{
+    font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);font-weight:800;
+  }
+  .quiz .qtext{font-size:16.5px;color:#fff;margin:8px 0 16px;font-weight:600;line-height:1.5}
+  .choices{display:flex;flex-direction:column;gap:10px}
+  .choice{
+    display:flex;gap:12px;align-items:flex-start;
+    border:1px solid var(--border-soft);
+    background:var(--panel-2);
+    border-radius:12px;
+    padding:13px 15px;
+    cursor:pointer;
+    transition:border-color .18s, background .18s, transform .12s;
+    font-size:14.5px;
+    color:#cfd8f5;
+    user-select:none;
+  }
+  .choice:hover{border-color:rgba(124,196,255,.5);transform:translateX(2px)}
+  .choice .letter{
+    flex:0 0 auto;
+    width:26px;height:26px;border-radius:8px;
+    display:grid;place-items:center;
+    font-family:var(--mono);font-size:13px;font-weight:700;
+    background:rgba(124,196,255,.12);color:var(--accent);
+    border:1px solid rgba(124,196,255,.28);
+  }
+  .choice.selected{border-color:rgba(124,196,255,.7);background:rgba(124,196,255,.08)}
+  .choice.correct{border-color:rgba(52,211,153,.7);background:var(--good-bg)}
+  .choice.correct .letter{background:rgba(52,211,153,.2);color:var(--good);border-color:rgba(52,211,153,.5)}
+  .choice.wrong{border-color:rgba(248,113,113,.6);background:var(--bad-bg)}
+  .choice.wrong .letter{background:rgba(248,113,113,.18);color:var(--bad);border-color:rgba(248,113,113,.45)}
+  .choice.locked{cursor:default;opacity:.92}
+  .choice.locked:hover{transform:none;border-color:var(--border-soft)}
+  .choice.correct.locked:hover{border-color:rgba(52,211,153,.7)}
+  .choice.wrong.locked:hover{border-color:rgba(248,113,113,.6)}
+  .quiz-actions{display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap}
+  button.btn{
+    font-family:var(--sans);
+    font-size:14px;font-weight:650;
+    padding:10px 18px;border-radius:10px;
+    border:1px solid rgba(124,196,255,.45);
+    background:linear-gradient(180deg,rgba(124,196,255,.2),rgba(124,196,255,.08));
+    color:#eaf3ff;cursor:pointer;
+    transition:transform .12s, box-shadow .2s, opacity .2s;
+  }
+  button.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,196,255,.18)}
+  button.btn:disabled{opacity:.45;cursor:not-allowed}
+  button.btn.ghost{
+    background:transparent;border-color:var(--border);
+    color:var(--muted);
+  }
+  .feedback{
+    margin-top:14px;border-radius:12px;padding:14px 16px;
+    font-size:14.5px;display:none;
+    border:1px solid var(--border);
+    animation:fade .3s ease;
+  }
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .feedback.show{display:block}
+  .feedback.ok{border-color:rgba(52,211,153,.5);background:var(--good-bg);color:#d7fbee}
+  .feedback.no{border-color:rgba(248,113,113,.45);background:var(--bad-bg);color:#ffe1e1}
+  .feedback .fb-title{font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:12px;margin-bottom:5px}
+  .feedback.ok .fb-title{color:var(--good)}
+  .feedback.no .fb-title{color:var(--bad)}
+  .feedback p{margin:4px 0 0;font-size:14px;color:#e4eaff}
+
+  /* ---------- Anti-pattern grid ---------- */
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:16px}
+  .mini{
+    border:1px solid var(--border);
+    border-radius:14px;padding:18px;
+    background:var(--panel-2);
+  }
+  .mini h4{margin:0 0 8px;font-size:15px;color:#fff;display:flex;align-items:center;gap:9px}
+  .mini h4 .x{color:var(--bad);font-weight:800}
+  .mini p{margin:0;font-size:14px;color:var(--muted)}
+
+  /* ---------- Recap ---------- */
+  .recap{
+    border:1px solid rgba(124,196,255,.35);
+    border-radius:16px;
+    background:linear-gradient(180deg,rgba(124,196,255,.07),transparent 60%),var(--panel);
+    padding:24px;
+  }
+  .recap ul{margin:12px 0 0;padding-left:0;list-style:none}
+  .recap li{
+    position:relative;padding-left:30px;margin:10px 0;font-size:15px;color:#d6def8;
+  }
+  .recap li::before{
+    content:"✓";position:absolute;left:0;top:0;
+    width:20px;height:20px;border-radius:6px;
+    display:grid;place-items:center;
+    font-size:12px;font-weight:800;
+    color:var(--good);background:var(--good-bg);border:1px solid rgba(52,211,153,.4);
+  }
+  footer{margin-top:56px;color:var(--muted-2);font-size:13px;text-align:center;line-height:1.9}
+  footer a{color:var(--muted)}
+  .kbd{
+    font-family:var(--mono);font-size:12.5px;
+    border:1px solid var(--border);border-bottom-width:2px;
+    border-radius:6px;padding:1px 6px;background:var(--panel-2);color:#dbe4ff;
+  }
+  @media (max-width:640px){
+    .wrap{padding:20px 14px 72px}
+    header.hero{padding:24px 18px}
+    .card,.quiz{padding:18px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <span class="badge"><span class="dot"></span>CCAF Exam Guide · Domain 3: Configuration &amp; Memory</span>
+    <h1>Where Should Team Rules Live?<br><span class="grad">Claude Code Memory Scopes, Explained</span></h1>
+    <p class="sub">
+      A senior developer's conventions work perfectly on their laptop — and nowhere else.
+      This lesson dissects the CCAF exam scenario, maps every memory scope in Claude Code,
+      and teaches the one principle that resolves the whole family of questions:
+      <strong>rules live at the scope where they are expected to apply.</strong>
+    </p>
+    <div class="meta-row">
+      <span class="chip">Exam focus: <b>CLAUDE.md scopes</b></span>
+      <span class="chip">Key file: <b>project <code>/CLAUDE.md</code></b></span>
+      <span class="chip">Principle: <b>Scope matching</b></span>
+      <span class="chip">Difficulty: <b>Foundational → Applied</b></span>
+    </div>
+  </header>
+
+  <!-- ================= SCENARIO ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <h2>The Scenario</h2>
+    </div>
+    <div class="scenario">
+      <span class="tag">Exam Prompt</span>
+      <p>
+        A senior developer on your team has been using Claude Code with a set of coding conventions
+        stored in their personal <code>~/.claude/CLAUDE.md</code>. The rest of the team wants the same
+        behavior across the repository. New engineers report that Claude Code behaves differently on
+        their machines. What is the <strong>correct</strong> way to make these team-wide conventions
+        consistently available to everyone?
+      </p>
+    </div>
+
+    <div class="callout key">
+      <span class="ico">🎯</span>
+      <p>
+        <strong>The failure is a scope mismatch.</strong> The rules are correct — but they live in a
+        <em>user-scoped</em> location while governing a <em>project-scoped</em> concern. The fix is
+        not a bigger context window or a cleverer command. The fix is to <strong>move the file to the
+        scope the rule governs</strong>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= SCOPE MODEL ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <h2>Claude Code Memory Scopes — The Mental Model</h2>
+    </div>
+    <p class="lead">
+      Claude Code layers memory from <strong>broadest</strong> (every project on the machine) to
+      <strong>narrowest</strong> (a single folder). More specific scopes take precedence, and
+      project-scoped files are the ones that travel with the repository.
+    </p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 720 420" role="img" aria-label="Diagram showing Claude Code memory scopes from enterprise down to directory level">
+        <defs>
+          <linearGradient id="gEnt" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#7cc4ff" stop-opacity=".35"/>
+            <stop offset="1" stop-color="#7cc4ff" stop-opacity=".08"/>
+          </linearGradient>
+          <linearGradient id="gUser" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#a78bfa" stop-opacity=".35"/>
+            <stop offset="1" stop-color="#a78bfa" stop-opacity=".08"/>
+          </linearGradient>
+          <linearGradient id="gProj" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#34d399" stop-opacity=".38"/>
+            <stop offset="1" stop-color="#34d399" stop-opacity=".08"/>
+          </linearGradient>
+          <linearGradient id="gDir" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#fbbf24" stop-opacity=".35"/>
+            <stop offset="1" stop-color="#fbbf24" stop-opacity=".08"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Enterprise -->
+        <rect x="30" y="24" width="660" height="72" rx="14" fill="url(#gEnt)" stroke="#7cc4ff" stroke-opacity=".45"/>
+        <text x="52" y="52" fill="#7cc4ff" font-family="ui-monospace,monospace" font-size="12" font-weight="700" letter-spacing="1.5">ENTERPRISE SCOPE</text>
+        <text x="52" y="76" fill="#dbe4ff" font-family="ui-monospace,monospace" font-size="13">/Library/Application Support/ClaudeCode/CLAUDE.md</text>
+        <text x="600" y="76" fill="#9aa8cc" font-size="12" text-anchor="end">managed policy</text>
+
+        <!-- User -->
+        <rect x="30" y="112" width="660" height="72" rx="14" fill="url(#gUser)" stroke="#a78bfa" stroke-opacity=".45"/>
+        <text x="52" y="140" fill="#a78bfa" font-family="ui-monospace,monospace" font-size="12" font-weight="700" letter-spacing="1.5">USER SCOPE  ·  one machine, one person</text>
+        <text x="52" y="164" fill="#dbe4ff" font-family="ui-monospace,monospace" font-size="13">~/.claude/CLAUDE.md</text>
+        <text x="600" y="164" fill="#9aa8cc" font-size="12" text-anchor="end">personal preferences</text>
+
+        <!-- Project -->
+        <rect x="30" y="200" width="660" height="72" rx="14" fill="url(#gProj)" stroke="#34d399" stroke-opacity=".6" stroke-width="1.6"/>
+        <text x="52" y="228" fill="#34d399" font-family="ui-monospace,monospace" font-size="12" font-weight="700" letter-spacing="1.5">PROJECT SCOPE  ·  committed to the repo ✅</text>
+        <text x="52" y="252" fill="#dbe4ff" font-family="ui-monospace,monospace" font-size="13">&lt;repo&gt;/CLAUDE.md   ·   &lt;repo&gt;/.claude/CLAUDE.md</text>
+        <text x="600" y="252" fill="#34d399" font-size="12" text-anchor="end">team conventions</text>
+
+        <!-- Directory -->
+        <rect x="30" y="288" width="660" height="72" rx="14" fill="url(#gDir)" stroke="#fbbf24" stroke-opacity=".45"/>
+        <text x="52" y="316" fill="#fbbf24" font-family="ui-monospace,monospace" font-size="12" font-weight="700" letter-spacing="1.5">DIRECTORY SCOPE  ·  subfolder rules</text>
+        <text x="52" y="340" fill="#dbe4ff" font-family="ui-monospace,monospace" font-size="13">&lt;repo&gt;/services/api/CLAUDE.md</text>
+        <text x="600" y="340" fill="#9aa8cc" font-size="12" text-anchor="end">local rules</text>
+
+        <!-- Precedence arrow -->
+        <line x1="700" y1="40" x2="700" y2="350" stroke="#3a4a78" stroke-width="1.5" stroke-dasharray="4 5"/>
+        <polygon points="700,356 695,344 705,344" fill="#3a4a78"/>
+        <text x="690" y="200" fill="#6f7ea8" font-size="11" font-family="ui-monospace,monospace" transform="rotate(90 690 200)" text-anchor="middle">increasing specificity →</text>
+      </svg>
+      <div class="diagram-cap">Memory scopes in Claude Code — broader on top, more specific toward the bottom. More specific scopes take precedence.</div>
+    </div>
+
+    <div class="callout warn">
+      <span class="ico">⚠️</span>
+      <p>
+        <strong>Common exam trap:</strong> learners conflate "personal file that works on my machine"
+        with "team standard." The exam tests whether you recognize that <em>user scope ≠ project scope</em>,
+        regardless of how good the rules are.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= THE ANSWER ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <h2>The Correct Answer — Deconstructed</h2>
+    </div>
+
+    <div class="opt correct">
+      <div class="opt-head">
+        <span class="verdict ok">Correct</span>
+        <h4>Move the team-wide conventions into a project-level <code>CLAUDE.md</code> in the repository.</h4>
+      </div>
+      <p>
+        Team conventions belong in a <strong>project-scoped file that is committed to version control</strong>.
+        Every developer who clones or pulls the repository receives the same baseline guidance automatically.
+      </p>
+      <p class="why">
+        <b>Why it works:</b> The rule is stored at the scope where it is expected to apply. Updates can be
+        reviewed with the code, and behavior becomes reproducible across the team. Personal preferences stay
+        in <code>~/.claude/CLAUDE.md</code>; team standards move to <code>&lt;repo&gt;/CLAUDE.md</code>.
+      </p>
+    </div>
+
+<pre><span class="c"># Repository layout — team conventions travel with the code</span>
+<span class="path">my-service/</span>
+├── <span class="f">CLAUDE.md</span>              <span class="c"># ✅ team-wide conventions, committed</span>
+├── <span class="path">.claude/</span>
+│   ├── <span class="f">CLAUDE.md</span>          <span class="c"># ✅ alternative project location</span>
+│   ├── <span class="path">commands/</span>          <span class="c"># shared slash commands</span>
+│   └── <span class="path">settings.json</span>      <span class="c"># shared tool permissions</span>
+├── <span class="path">services/</span>
+│   └── <span class="path">api/</span>
+│       └── <span class="f">CLAUDE.md</span>      <span class="c"># ✅ directory-scoped rules</span>
+└── <span class="path">src/</span>
+
+<span class="c"># ~/.claude/CLAUDE.md stays personal — individual preferences only</span></pre>
+
+    <div class="callout key">
+      <span class="ico">💡</span>
+      <p>
+        <strong>The exam heuristic:</strong> Ask <em>"who needs this rule, and where?"</em>
+        If the answer is "everyone on this repo," the file must be <strong>committed at project scope</strong>.
+        If the answer is "just me, everywhere," it belongs in user scope.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= INCORRECT OPTIONS ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <h2>Why the Other Options Fail</h2>
+    </div>
+    <p class="lead">Each distractor is plausible but breaks a specific CCAF principle. Learn the failure modes — they repeat across the exam.</p>
+
+    <div class="opt wrong">
+      <div class="opt-head">
+        <span class="verdict no">Incorrect</span>
+        <h4>Ask every developer to manually copy the senior dev's <code>~/.claude/CLAUDE.md</code> into their home directory.</h4>
+      </div>
+      <p>
+        Copying a personal file across laptops is <strong>fragile and not version-controlled</strong>.
+        New developers can miss the configuration entirely, or end up with stale copies.
+      </p>
+      <p class="why">
+        <b>Failure mode:</b> No single source of truth. It also mixes one user's personal preferences
+        with team-wide standards — future maintenance becomes guesswork.
+      </p>
+    </div>
+
+    <div class="opt wrong">
+      <div class="opt-head">
+        <span class="verdict no">Incorrect</span>
+        <h4>Create a custom slash command for every coding task so Claude doesn't need project memory.</h4>
+      </div>
+      <p>
+        Slash commands are excellent for <strong>repeatable, explicitly-invoked workflows</strong> —
+        but they do not replace <strong>always-loaded project conventions</strong>.
+      </p>
+      <p class="why">
+        <b>Failure mode:</b> A command must be invoked or selected. Project memory should guide
+        ordinary Claude Code work automatically, without the developer remembering to call anything.
+      </p>
+    </div>
+
+    <div class="opt wrong">
+      <div class="opt-head">
+        <span class="verdict no">Incorrect</span>
+        <h4>Increase the model's context window so Claude can infer the team's conventions from the codebase.</h4>
+      </div>
+      <p>
+        A larger context window <strong>does not solve configuration scope</strong>. Claude may infer
+        patterns from code, but it should not have to guess standards that can be stated explicitly.
+      </p>
+      <p class="why">
+        <b>Failure mode:</b> The issue is not capacity — it is that shared instructions live in the wrong
+        place. Inference is probabilistic; committed instructions are deterministic.
+      </p>
+    </div>
+
+    <div class="grid2">
+      <div class="mini">
+        <h4><span class="x">✕</span> Manual copy</h4>
+        <p>No version control, no review, no reproducibility. Breaks under team growth.</p>
+      </div>
+      <div class="mini">
+        <h4><span class="x">✕</span> Slash commands only</h4>
+        <p>Opt-in per invocation. Baseline conventions should be always-on, not remembered.</p>
+      </div>
+      <div class="mini">
+        <h4><span class="x">✕</span> Bigger context window</h4>
+        <p>Capacity ≠ configuration. Rules must be declared, not inferred from noise.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= QUIZ 1 ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">05</span>
+      <h2>Knowledge Check</h2>
+    </div>
+
+    <div class="quiz" id="quiz1">
+      <span class="qtag">Question 1 of 2</span>
+      <p class="qtext">
+        A platform team wants every Claude Code session in their monorepo to enforce the same commit-message
+        format, branch naming, and test-coverage rules. Individual developers also want their own preferred
+        explanation style. Where should each set of rules live?
+      </p>
+      <div class="choices">
+        <div class="choice" data-correct="false">
+          <span class="letter">A</span>
+          <span>Put both sets of rules in <code>~/.claude/CLAUDE.md</code> so everyone has them locally.</span>
+        </div>
+        <div class="choice" data-correct="true">
+          <span class="letter">B</span>
+          <span>Team rules in the repo's <code>CLAUDE.md</code>; personal preferences in <code>~/.claude/CLAUDE.md</code>.</span>
+        </div>
+        <div class="choice" data-correct="false">
+          <span class="letter">C</span>
+          <span>Team rules in a shared Slack channel pinned message; personal preferences in the repo.</span>
+        </div>
+        <div class="choice" data-correct="false">
+          <span class="letter">D</span>
+          <span>Put everything in <code>.claude/settings.json</code> as a single JSON blob.</span>
+        </div>
+      </div>
+      <div class="quiz-actions">
+        <button class="btn" data-action="submit" disabled>Submit Answer</button>
+        <button class="btn ghost" data-action="reset">Reset</button>
+      </div>
+      <div class="feedback" data-role="feedback"></div>
+    </div>
+
+    <!-- ================= QUIZ 2 ================= -->
+    <div class="quiz" id="quiz2">
+      <span class="qtag">Question 2 of 2</span>
+      <p class="qtext">
+        A new engineer joins and reports that Claude Code does not follow the team's API versioning rules,
+        even after cloning the repository. The rules currently live only in the original developer's
+        user-level memory. Which action most directly fixes the reproducibility problem?
+      </p>
+      <div class="choices">
+        <div class="choice" data-correct="false">
+          <span class="letter">A</span>
+          <span>Email the developer's <code>CLAUDE.md</code> to the new engineer.</span>
+        </div>
+        <div class="choice" data-correct="false">
+          <span class="letter">B</span>
+          <span>Ask the new engineer to describe the rules in each prompt.</span>
+        </div>
+        <div class="choice" data-correct="true">
+          <span class="letter">C</span>
+          <span>Commit the rules into a project-scoped <code>CLAUDE.md</code> at the repository root.</span>
+        </div>
+        <div class="choice" data-correct="false">
+          <span class="letter">D</span>
+          <span>Switch the team to a model with a larger context window.</span>
+        </div>
+      </div>
+      <div class="quiz-actions">
+        <button class="btn" data-action="submit" disabled>Submit Answer</button>
+        <button class="btn ghost" data-action="reset">Reset</button>
+      </div>
+      <div class="feedback" data-role="feedback"></div>
+    </div>
+  </section>
+
+  <!-- ================= DECISION TABLE ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">06</span>
+      <h2>Decision Table — Where Does a Rule Belong?</h2>
+    </div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Rule / Concern</th>
+            <th>Correct Scope</th>
+            <th>File</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Company-wide security policy</td>
+            <td>Enterprise</td>
+            <td><code>managed CLAUDE.md</code></td>
+          </tr>
+          <tr>
+            <td>"I prefer terse explanations"</td>
+            <td>User</td>
+            <td><code>~/.claude/CLAUDE.md</code></td>
+          </tr>
+          <tr>
+            <td>Team commit-message format</td>
+            <td>Project</td>
+            <td><code>&lt;repo&gt;/CLAUDE.md</code></td>
+          </tr>
+          <tr>
+            <td>Shared tool permissions</td>
+            <td>Project</td>
+            <td><code>.claude/settings.json</code></td>
+          </tr>
+          <tr>
+            <td>API service-specific conventions</td>
+            <td>Directory</td>
+            <td><code>services/api/CLAUDE.md</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= RECAP ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">07</span>
+      <h2>Exam Recap</h2>
+    </div>
+    <div class="recap">
+      <p style="margin:0;color:#dbe4ff;font-size:15.5px">
+        <strong>The single principle that resolves this question family:</strong>
+        store the rule at the scope where it is expected to apply.
+      </p>
+      <ul>
+        <li>Team conventions → <strong>project-scoped, committed</strong> <code>CLAUDE.md</code>.</li>
+        <li>Personal preferences → <strong>user-scoped</strong> <code>~/.claude/CLAUDE.md</code>.</li>
+        <li>Company policy → <strong>enterprise-scoped</strong> managed file.</li>
+        <li>Subcomponent rules → <strong>directory-scoped</strong> <code>CLAUDE.md</code>.</li>
+        <li>Slash commands and larger context windows <strong>do not substitute</strong> for shared configuration scope.</li>
+        <li>Version control is what makes team rules <strong>reviewable, reproducible, and consistent</strong>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <p>CCAF Exam Guide · Claude Code Memory Scopes · Built for the Cloud Code Architect track</p>
+    <p>
+      References:
+      <a href="https://code.claude.com/docs/en/memory" target="_blank" rel="noopener">Memory</a> ·
+      <a href="https://code.claude.com/docs/en/settings" target="_blank" rel="noopener">Settings</a> ·
+      <a href="https://code.claude.com/docs/en/best-practices" target="_blank" rel="noopener">Best Practices</a>
+    </p>
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    const quizzes = document.querySelectorAll('.quiz');
+
+    quizzes.forEach(function (quiz) {
+      const choices = quiz.querySelectorAll('.choice');
+      const submitBtn = quiz.querySelector('[data-action="submit"]');
+      const resetBtn  = quiz.querySelector('[data-action="reset"]');
+      const feedback  = quiz.querySelector('[data-role="feedback"]');
+      let selected = null;
+      let answered = false;
+
+      choices.forEach(function (choice) {
+        choice.addEventListener('click', function () {
+          if (answered) return;
+          choices.forEach(function (c) { c.classList.remove('selected'); });
+          choice.classList.add('selected');
+          selected = choice;
+          submitBtn.disabled = false;
+        });
+      });
+
+      submitBtn.addEventListener('click', function () {
+        if (!selected || answered) return;
+        answered = true;
+
+        const isCorrect = selected.dataset.correct === 'true';
+
+        choices.forEach(function (c) {
+          c.classList.add('locked');
+          if (c.dataset.correct === 'true') c.classList.add('correct');
+          if (c === selected && !isCorrect) c.classList.add('wrong');
+        });
+
+        feedback.classList.remove('ok', 'no');
+        feedback.classList.add('show', isCorrect ? 'ok' : 'no');
+        feedback.innerHTML = isCorrect
+          ? '<div class="fb-title">Correct</div><p>You matched the rule to the scope it governs. Team standards belong in a project-scoped, version-controlled <code>CLAUDE.md</code>; personal preferences stay in user scope.</p>'
+          : '<div class="fb-title">Not quite</div><p>The correct answer is highlighted in green. The principle is <strong>scope matching</strong>: team-wide conventions must live in a project-scoped, committed <code>CLAUDE.md</code> so every clone receives the same baseline behavior.</p>';
+
+        submitBtn.disabled = true;
+      });
+
+      resetBtn.addEventListener('click', function () {
+        answered = false;
+        selected = null;
+        choices.forEach(function (c) {
+          c.classList.remove('selected', 'correct', 'wrong', 'locked');
+        });
+        feedback.classList.remove('show', 'ok', 'no');
+        feedback.innerHTML = '';
+        submitBtn.disabled = true;
+      });
+    });
+  })();
+</script>
+</body>
+</html>

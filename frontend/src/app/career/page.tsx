@@ -1,3 +1,4 @@
+import React, { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import Icon from '@/components/ui/AppIcon';
@@ -33,7 +34,9 @@ export default function CareerStudioPage() {
               </div>
             </div>
           </div>
-          <CareerStudioTabs />
+          <React.Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground">Loading Career Studio...</div>}>
+            <CareerStudioTabs />
+          </React.Suspense>
         </div>
       </div>
     </>

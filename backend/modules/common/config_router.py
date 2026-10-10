@@ -3,14 +3,17 @@
 Endpoints:
   GET  /config/ollama-status         — Probe Ollama instance & return available models
   POST /config/test-key              — Make one real call to a provider to confirm a key works
+  GET  /config/ai-default            — Report the AI_PROVIDER / AI_MODEL default from the env
 
 Note: there is intentionally no settings GET/POST here. AI provider keys and
 model choices live only in the browser's localStorage (see
 frontend/src/lib/services/settingsService.ts) and are sent with each AI
 request — never persisted server-side. That's what lets one deployment be
-shared by multiple people, each using their own keys. test-key is unauthenticated
-for the same reason the Config page itself is guest-accessible — the key
-being tested is the caller's own, supplied in the request body, never stored.
+shared by multiple people, each using their own keys. ai-default is read-only
+and reports only the provider/model names derived from the env (never keys),
+used when a request's model is left empty. test-key and ai-default are
+unauthenticated for the same reason the Config page itself is guest-accessible —
+the key being tested is the caller's own, supplied in the request body, never stored.
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from modules.common.ai_client import test_provider_key
+from modules.common.ai import ai_default_info, test_provider_key
 
 router = APIRouter(prefix="/config", tags=["config"])
 
@@ -38,6 +41,11 @@ class TestKeyRequest(BaseModel):
 async def test_key(payload: TestKeyRequest) -> dict:
     ok, message = test_provider_key(payload.provider, payload.api_key, payload.base_url or "")
     return {"ok": ok, "message": message}
+
+
+@router.get("/ai-default")
+async def ai_default() -> dict:
+    return ai_default_info()
 
 
 @router.get("/ollama-status")

@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
@@ -42,6 +42,7 @@ function fmt(v?: string) {
 
 export default function CareerStudioTabs() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>('resumes');
   const [authed, setAuthed] = useState(true);
   const [profiles, setProfiles] = useState<Resume[]>([]);
@@ -54,16 +55,7 @@ export default function CareerStudioTabs() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  useEffect(() => {
-    if (!isLoggedIn()) {
-      setAuthed(false);
-      return;
-    }
-    const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
-    if (q && ['profiles', 'analyzer', 'generate', 'match', 'coverletters', 'resumes', 'portfolios', 'templates'].includes(q)) setTab(q as Tab);
-    void loadProfiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const tabParam = searchParams.get('tab');
 
   const loadProfiles = useCallback(async () => {
     try {
@@ -74,6 +66,17 @@ export default function CareerStudioTabs() {
       setProfilesLoaded(true);
     }
   }, [showToast]);
+
+  useEffect(() => {
+    if (!isLoggedIn()) {
+      setAuthed(false);
+      return;
+    }
+    if (tabParam && ['profiles', 'analyzer', 'generate', 'match', 'coverletters', 'resumes', 'portfolios', 'templates'].includes(tabParam)) {
+      setTab(tabParam as Tab);
+    }
+    void loadProfiles();
+  }, [tabParam, loadProfiles]);
 
   const createProfile = async () => {
     try {

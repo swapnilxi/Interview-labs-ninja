@@ -79,12 +79,38 @@ module.exports = {
           cv: 'var(--lab-cv)',
           system: 'var(--lab-system)',
         },
+        // ai-bootcamp's own editorial theme (scoped under .ab-theme, see
+        // frontend/src/modules/ai-lms/ui/ab-theme.css) — prefixed so it never
+        // shadows the app-wide tokens above or Tailwind's own `black`/`orange`.
+        'ab-black': {
+          DEFAULT: 'rgb(var(--ab-black-rgb-ch) / <alpha-value>)',
+          raised: 'rgb(var(--ab-black-raised-rgb-ch) / <alpha-value>)',
+          card: 'rgb(var(--ab-black-card-rgb-ch) / <alpha-value>)',
+          line: 'var(--ab-black-line)',
+        },
+        'ab-gold': {
+          DEFAULT: 'rgb(var(--ab-gold-rgb-ch) / <alpha-value>)',
+          bright: 'var(--ab-gold-bright)',
+          pale: 'var(--ab-gold-pale)',
+          deep: 'var(--ab-gold-deep)',
+        },
+        'ab-cream': {
+          DEFAULT: 'rgb(var(--ab-cream-rgb-ch) / <alpha-value>)',
+          dim: 'var(--ab-cream-dim)',
+        },
+        'ab-text': {
+          DEFAULT: 'rgb(var(--ab-text-rgb-ch) / <alpha-value>)',
+          muted: 'rgb(var(--ab-text-muted-rgb-ch) / <alpha-value>)',
+        },
       },
       borderRadius: {
         sm: ui.radius.sm,
         md: ui.radius.md,
         lg: ui.radius.lg,
         xl: ui.radius.xl,
+        'ab-pill': '9999px',
+        'ab-card': '1.15rem',
+        'ab-panel': '1.5rem',
       },
       boxShadow: {
         sm: ui.shadow.sm,
@@ -99,6 +125,10 @@ module.exports = {
         caption: ui.fonts.sans,
         code: ui.fonts.code,
         sans: ui.fonts.sans,
+        // ai-bootcamp's editorial type pairing (Cormorant Garamond + Montserrat),
+        // loaded only by the bootcamp layout — see ab-theme.css comment above.
+        'ab-serif': ['var(--font-ab-cormorant)', 'Georgia', 'serif'],
+        'ab-heading': ['var(--font-ab-montserrat)', 'ui-sans-serif', 'sans-serif'],
       },
       maxWidth: {
         readable: ui.layout.readableWidth,

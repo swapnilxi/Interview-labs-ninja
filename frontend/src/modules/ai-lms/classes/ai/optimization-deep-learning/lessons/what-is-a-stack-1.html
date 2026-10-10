@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stacks — A Micro Lesson for AI Engineers</title>
+<style>
+  :root{
+    --bg:#0b1020;
+    --bg-2:#0f1730;
+    --panel:#141d3a;
+    --panel-2:#1a2448;
+    --ink:#e8ecff;
+    --muted:#9aa6d1;
+    --accent:#6ea8ff;
+    --accent-2:#7cf0c1;
+    --warn:#ffcc66;
+    --bad:#ff7b8a;
+    --good:#5ee1a4;
+    --line:rgba(255,255,255,.09);
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #1a2a5e 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #123a3a 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px}
+  header.hero{
+    background:linear-gradient(180deg, rgba(110,168,255,.14), rgba(124,240,193,.06));
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:28px 26px;
+    box-shadow:var(--shadow);
+    position:relative;
+    overflow:hidden;
+  }
+  header.hero::after{
+    content:"";
+    position:absolute;inset:auto -40px -60px auto;
+    width:280px;height:280px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, rgba(124,240,193,.25), transparent 60%);
+    filter:blur(10px);
+  }
+  .kicker{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-2);
+    background:rgba(124,240,193,.08);
+    border:1px solid rgba(124,240,193,.25);
+    padding:6px 10px;border-radius:999px;
+  }
+  h1{margin:14px 0 6px;font-size:clamp(26px,3.4vw,40px);line-height:1.15;letter-spacing:-.02em}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--muted);max-width:70ch;margin:0}
+  .meta{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
+  .chip{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 10px;background:rgba(255,255,255,.03)}
+
+  section{
+    margin-top:26px;
+    background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0));
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:22px;
+    box-shadow:var(--shadow);
+  }
+  h2{font-size:20px;margin:0 0 6px;letter-spacing:-.01em}
+  h3{font-size:15px;margin:18px 0 8px;color:var(--accent)}
+  p{margin:8px 0}
+  .muted{color:var(--muted)}
+  code.inline{font-family:var(--mono);font-size:.9em;background:rgba(110,168,255,.12);border:1px solid rgba(110,168,255,.25);padding:1px 6px;border-radius:6px}
+
+  .grid2{display:grid;grid-template-columns:1.05fr .95fr;gap:20px}
+  @media (max-width:860px){.grid2{grid-template-columns:1fr}}
+
+  /* Stack visualizer */
+  .viz{
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:16px;
+  }
+  .stackbox{
+    display:flex;flex-direction:column-reverse;
+    gap:8px;
+    min-height:240px;
+    padding:12px;
+    border-radius:12px;
+    background:
+      linear-gradient(180deg, rgba(110,168,255,.06), rgba(0,0,0,0)),
+      repeating-linear-gradient(180deg, transparent 0 43px, rgba(255,255,255,.04) 43px 44px);
+    border:1px dashed rgba(255,255,255,.12);
+    position:relative;
+  }
+  .stackbox.empty::before{
+    content:"empty — top === -1";
+    position:absolute;inset:0;display:grid;place-items:center;
+    color:var(--muted);font-family:var(--mono);font-size:13px;
+  }
+  .item{
+    background:linear-gradient(180deg, #2a3a72, #1d2a55);
+    border:1px solid rgba(110,168,255,.35);
+    color:#eaf1ff;
+    border-radius:10px;
+    padding:10px 12px;
+    font-family:var(--mono);
+    font-size:14px;
+    display:flex;justify-content:space-between;align-items:center;
+    animation:pop .28s ease;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .item .idx{color:var(--muted);font-size:12px}
+  .item.top{border-color:var(--accent-2);box-shadow:0 0 0 1px rgba(124,240,193,.25), 0 6px 18px rgba(124,240,193,.08)}
+  @keyframes pop{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  button{
+    font-family:var(--sans);
+    background:linear-gradient(180deg,#2b3d7a,#1e2c5c);
+    color:var(--ink);
+    border:1px solid rgba(110,168,255,.35);
+    padding:9px 12px;border-radius:10px;cursor:pointer;font-size:13px;
+    transition:transform .06s ease, filter .15s ease, border-color .15s ease;
+  }
+  button:hover{filter:brightness(1.12);border-color:var(--accent)}
+  button:active{transform:translateY(1px)}
+  button.primary{background:linear-gradient(180deg,#2f8f6f,#1f6b52);border-color:rgba(124,240,193,.4)}
+  button.ghost{background:transparent}
+  input[type=text]{
+    background:#0c1430;border:1px solid var(--line);color:var(--ink);
+    padding:9px 10px;border-radius:10px;font-family:var(--mono);font-size:13px;width:120px;outline:none;
+  }
+  input[type=text]:focus{border-color:var(--accent)}
+
+  .status{
+    margin-top:10px;font-family:var(--mono);font-size:12.5px;color:var(--muted);
+    background:#0a1230;border:1px solid var(--line);border-radius:10px;padding:8px 10px;
+    min-height:34px;
+  }
+  .status b{color:var(--accent-2)}
+
+  /* Code */
+  pre{
+    background:#08102a;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px 16px;
+    overflow:auto;
+    font-family:var(--mono);
+    font-size:13px;
+    line-height:1.65;
+    margin:10px 0 0;
+  }
+  .kw{color:#ff8ec7}
+  .fn{color:#7cf0c1}
+  .str{color:#ffd479}
+  .num{color:#9ecbff}
+  .cm{color:#6b7aa8;font-style:italic}
+  .cls{color:#ffb86b}
+
+  /* SVG diagram */
+  .diagram{background:var(--bg-2);border:1px solid var(--line);border-radius:16px;padding:10px}
+
+  /* Quiz */
+  .quiz{
+    background:linear-gradient(180deg, rgba(110,168,255,.07), rgba(0,0,0,0));
+    border:1px solid rgba(110,168,255,.22);
+    border-radius:16px;padding:18px;
+  }
+  .q{margin-top:14px}
+  .q:first-child{margin-top:0}
+  .q p.stem{font-weight:600;margin:0 0 10px}
+  .opts{display:grid;gap:8px}
+  .opt{
+    display:flex;gap:10px;align-items:flex-start;
+    border:1px solid var(--line);border-radius:12px;padding:10px 12px;
+    cursor:pointer;background:rgba(255,255,255,.02);
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .opt:hover{border-color:rgba(110,168,255,.5)}
+  .opt input{margin-top:3px;accent-color:var(--accent)}
+  .opt.correct{border-color:rgba(94,225,164,.6);background:rgba(94,225,164,.10)}
+  .opt.wrong{border-color:rgba(255,123,138,.6);background:rgba(255,123,138,.10)}
+  .opt code{font-family:var(--mono);font-size:12.5px}
+  .fb{margin-top:10px;font-size:13.5px;display:none;border-radius:10px;padding:10px 12px}
+  .fb.show{display:block}
+  .fb.ok{background:rgba(94,225,164,.10);border:1px solid rgba(94,225,164,.35)}
+  .fb.no{background:rgba(255,123,138,.10);border:1px solid rgba(255,123,138,.35)}
+
+  .callout{
+    border-left:3px solid var(--accent-2);
+    background:rgba(124,240,193,.06);
+    padding:10px 14px;border-radius:0 12px 12px 0;margin:12px 0;
+    color:#d9f7ec;font-size:14px;
+  }
+  .callout.warn{border-left-color:var(--warn);background:rgba(255,204,102,.07);color:#ffefd0}
+
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--accent);font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.06em}
+  td code{font-family:var(--mono);font-size:12.5px;color:#cfe0ff}
+
+  footer{margin-top:28px;color:var(--muted);font-size:12.5px;text-align:center}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="kicker">● Micro Lesson · Data Structures</span>
+    <h1>What is a <span>Stack</span>?</h1>
+    <p class="sub">A 10-minute, hands-on tour of the LIFO data structure — the same primitive that powers call stacks, undo buffers, DFS traversal, and the token/state bookkeeping inside modern LLM agent runtimes.</p>
+    <div class="meta">
+      <span class="chip">LIFO discipline</span>
+      <span class="chip">O(1) push / pop / peek</span>
+      <span class="chip">Interactive visualizer</span>
+      <span class="chip">2 quiz questions</span>
+    </div>
+  </header>
+
+  <!-- INTUITION -->
+  <section>
+    <h2>1 · The intuition</h2>
+    <p>A <strong>stack</strong> is a linear collection with a single rule: <em>you can only add or remove items from one end</em>, called the <strong>top</strong>. That rule gives it the name <strong>LIFO</strong> — <em>Last In, First Out</em>.</p>
+    <p class="muted">Think of a stack of plates. You put a new plate on top. You take the top plate off. You never reach into the middle.</p>
+
+    <div class="callout">
+      <strong>Why it matters in AI engineering:</strong> every Python function call you make inside a LangGraph node runs on the interpreter's <em>call stack</em>. Every recursive DFS over a tool-call tree is literally a stack. And many agent runtimes keep an explicit <code class="inline">history</code> stack of turns so they can <em>pop</em> back to a previous state.
+    </div>
+  </section>
+
+  <!-- CORE OPS -->
+  <section>
+    <h2>2 · The three core operations</h2>
+    <div class="grid2">
+      <div>
+        <h3>push(x)</h3>
+        <p class="muted">Add <code class="inline">x</code> on top of the stack. The stack grows by one.</p>
+        <h3>pop()</h3>
+        <p class="muted">Remove and return the top element. Errors (or returns <code class="inline">None</code>) if empty.</p>
+        <h3>peek() / top()</h3>
+        <p class="muted">Return the top element <em>without</em> removing it.</p>
+        <h3>Supporting queries</h3>
+        <p class="muted"><code class="inline">is_empty()</code> and <code class="inline">size()</code>.</p>
+      </div>
+
+      <div class="diagram" aria-label="Diagram of a stack with top and bottom labels">
+        <svg viewBox="0 0 320 300" width="100%" height="300" role="img">
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#2a3a72"/>
+              <stop offset="1" stop-color="#1d2a55"/>
+            </linearGradient>
+          </defs>
+          <!-- container -->
+          <rect x="70" y="20" width="180" height="250" rx="14" fill="none" stroke="rgba(255,255,255,.18)" stroke-dasharray="6 6"/>
+          <!-- top item -->
+          <rect x="82" y="40" width="156" height="46" rx="10" fill="url(#g1)" stroke="#7cf0c1"/>
+          <text x="160" y="69" text-anchor="middle" fill="#eaf1ff" font-family="ui-monospace,monospace" font-size="15">"finish"</text>
+          <!-- middle -->
+          <rect x="82" y="94" width="156" height="46" rx="10" fill="url(#g1)" stroke="#6ea8ff"/>
+          <text x="160" y="123" text-anchor="middle" fill="#eaf1ff" font-family="ui-monospace,monospace" font-size="15">"review"</text>
+          <!-- bottom -->
+          <rect x="82" y="148" width="156" height="46" rx="10" fill="url(#g1)" stroke="#6ea8ff"/>
+          <text x="160" y="177" text-anchor="middle" fill="#eaf1ff" font-family="ui-monospace,monospace" font-size="15">"draft"</text>
+          <!-- labels -->
+          <line x1="255" y1="63" x2="295" y2="63" stroke="#7cf0c1" stroke-width="2"/>
+          <text x="298" y="67" fill="#7cf0c1" font-family="ui-monospace,monospace" font-size="12">top</text>
+          <line x1="255" y1="171" x2="295" y2="171" stroke="#9aa6d1" stroke-width="2"/>
+          <text x="298" y="175" fill="#9aa6d1" font-family="ui-monospace,monospace" font-size="12">bottom</text>
+          <!-- arrows -->
+          <path d="M40 63 L70 63" stroke="#7cf0c1" stroke-width="2" marker-end="url(#a)"/>
+          <text x="10" y="55" fill="#7cf0c1" font-family="ui-monospace,monospace" font-size="12">push</text>
+          <path d="M70 63 L40 63" stroke="#ff7b8a" stroke-width="2" marker-end="url(#b)"/>
+          <text x="10" y="82" fill="#ff7b8a" font-family="ui-monospace,monospace" font-size="12">pop</text>
+          <defs>
+            <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#7cf0c1"/>
+            </marker>
+            <marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#ff7b8a"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTERACTIVE -->
+  <section>
+    <h2>3 · Try it yourself</h2>
+    <p class="muted">Push values, pop them, and watch the top move. Only the top is ever touched.</p>
+
+    <div class="grid2" style="margin-top:12px">
+      <div class="viz">
+        <div id="stackbox" class="stackbox empty" aria-live="polite"></div>
+        <div class="controls">
+          <input id="val" type="text" placeholder="value" value="A" />
+          <button class="primary" id="btnPush">push</button>
+          <button id="btnPop">pop</button>
+          <button id="btnPeek">peek</button>
+          <button class="ghost" id="btnClear">clear</button>
+        </div>
+        <div class="status" id="status">Ready. top = <b>-1</b>, size = <b>0</b>.</div>
+      </div>
+
+      <div>
+        <h3>Reference implementation (Python)</h3>
+<pre><code><span class="kw">class</span> <span class="cls">Stack</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self._items = []          <span class="cm"># list = dynamic array</span>
+
+    <span class="kw">def</span> <span class="fn">push</span>(self, x):
+        self._items.append(x)     <span class="cm"># O(1) amortized</span>
+
+    <span class="kw">def</span> <span class="fn">pop</span>(self):
+        <span class="kw">if</span> <span class="kw">not</span> self._items:
+            <span class="kw">raise</span> <span class="cls">IndexError</span>(<span class="str">"pop from empty stack"</span>)
+        <span class="kw">return</span> self._items.pop()  <span class="cm"># O(1)</span>
+
+    <span class="kw">def</span> <span class="fn">peek</span>(self):
+        <span class="kw">return</span> self._items[-<span class="num">1</span>] <span class="kw">if</span> self._items <span class="kw">else</span> <span class="kw">None</span>
+
+    <span class="kw">def</span> <span class="fn">is_empty</span>(self):
+        <span class="kw">return</span> <span class="kw">not</span> self._items
+
+    <span class="kw">def</span> <span class="fn">__len__</span>(self):
+        <span class="kw">return</span> <span class="kw">len</span>(self._items)
+</code></pre>
+        <p class="muted" style="margin-top:10px">Note: <code class="inline">append</code> and <code class="inline">pop</code> on the <em>end</em> of a Python list are O(1) amortized. Popping from the <em>front</em> (<code class="inline">pop(0)</code>) is O(n) — that's a <em>queue</em> problem, not a stack problem.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHEN TO USE -->
+  <section>
+    <h2>4 · Where stacks show up</h2>
+    <table>
+      <thead>
+        <tr><th>Scenario</th><th>Why a stack</th><th>Example</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Function calls</td><td>Return to caller in reverse order</td><td><code>f() → g() → h()</code> unwinds h → g → f</td></tr>
+        <tr><td>Undo / redo</td><td>Most recent action reversed first</td><td>Editor history, agent rollback</td></tr>
+        <tr><td>Balanced brackets</td><td>Match nearest unmatched opener</td><td><code class="inline">([{}])</code> valid; <code class="inline">([)]</code> invalid</td></tr>
+        <tr><td>DFS on a graph/tree</td><td>Explore deepest branch first</td><td>Tool-call tree traversal</td></tr>
+        <tr><td>Expression evaluation</td><td>Operators bind to most recent operands</td><td>Postfix <code class="inline">3 4 +</code> → 7</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <strong>Common bug to avoid:</strong> calling <code class="inline">pop()</code> or <code class="inline">peek()</code> on an empty stack. Always guard with <code class="inline">is_empty()</code> — this is the same class of bug as indexing an empty list in your RAG pipeline.
+    </div>
+  </section>
+
+  <!-- COMPLEXITY -->
+  <section>
+    <h2>5 · Complexity at a glance</h2>
+    <div class="grid2">
+      <div>
+        <table>
+          <thead><tr><th>Operation</th><th>Time</th><th>Space</th></tr></thead>
+          <tbody>
+            <tr><td><code>push</code></td><td>O(1)*</td><td>O(1)</td></tr>
+            <tr><td><code>pop</code></td><td>O(1)</td><td>O(1)</td></tr>
+            <tr><td><code>peek</code></td><td>O(1)</td><td>O(1)</td></tr>
+            <tr><td><code>is_empty / size</code></td><td>O(1)</td><td>O(1)</td></tr>
+            <tr><td>search for value</td><td>O(n)</td><td>O(1)</td></tr>
+          </tbody>
+        </table>
+        <p class="muted" style="font-size:12.5px">* Amortized, when backed by a dynamic array that occasionally doubles.</p>
+      </div>
+      <div>
+        <h3>Two ways to build it</h3>
+        <p class="muted"><strong>Array-backed:</strong> fast, cache-friendly, amortized O(1) push. Best default choice.</p>
+        <p class="muted"><strong>Linked-list-backed:</strong> strict worst-case O(1) push/pop, but extra pointer overhead and worse cache locality.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUIZ -->
+  <section class="quiz">
+    <h2>6 · Check your understanding</h2>
+    <p class="muted">Pick an answer, then click <em>Check</em>. Feedback appears instantly.</p>
+
+    <!-- Q1 -->
+    <div class="q" id="q1">
+      <p class="stem">Q1. You push <code class="inline">1</code>, then <code class="inline">2</code>, then <code class="inline">3</code>. You call <code class="inline">pop()</code> once. What is now on top of the stack?</p>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q1" value="a"><span><code>1</code> — the first value pushed</span></label>
+        <label class="opt"><input type="radio" name="q1" value="b"><span><code>2</code> — the value pushed just before the last</span></label>
+        <label class="opt"><input type="radio" name="q1" value="c"><span><code>3</code> — the value that was on top</span></label>
+        <label class="opt"><input type="radio" name="q1" value="d"><span>The stack is empty</span></label>
+      </div>
+      <div class="controls">
+        <button class="primary" onclick="checkQ1()">Check</button>
+        <button class="ghost" onclick="resetQ('q1')">Reset</button>
+      </div>
+      <div class="fb" id="fb1"></div>
+    </div>
+
+    <!-- Q2 -->
+    <div class="q" id="q2" style="margin-top:22px">
+      <p class="stem">Q2. Which statement about stacks is <strong>true</strong>?</p>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q2" value="a"><span>Stacks are FIFO — first in, first out.</span></label>
+        <label class="opt"><input type="radio" name="q2" value="b"><span>You can insert or remove at any index in O(1).</span></label>
+        <label class="opt"><input type="radio" name="q2" value="c"><span>Both <code>push</code> and <code>pop</code> touch only the top, giving O(1) time.</span></label>
+        <label class="opt"><input type="radio" name="q2" value="d"><span>A stack must be implemented as a linked list.</span></label>
+      </div>
+      <div class="controls">
+        <button class="primary" onclick="checkQ2()">Check</button>
+        <button class="ghost" onclick="resetQ('q2')">Reset</button>
+      </div>
+      <div class="fb" id="fb2"></div>
+    </div>
+  </section>
+
+  <footer>
+    Micro lesson · Stacks · Built for AI engineers who want the fundamentals solid before building agents, RAG pipelines, and evaluation harnesses.
+  </footer>
+</div>
+
+<script>
+  /* ---------------- Stack visualizer ---------------- */
+  const stack = [];
+  const stackbox = document.getElementById('stackbox');
+  const statusEl = document.getElementById('status');
+  const valEl    = document.getElementById('val');
+
+  function render(msg){
+    stackbox.innerHTML = '';
+    stackbox.classList.toggle('empty', stack.length === 0);
+    stack.forEach((v, i) => {
+      const div = document.createElement('div');
+      div.className = 'item' + (i === stack.length - 1 ? ' top' : '');
+      const label = document.createElement('span');
+      label.textContent = v;
+      const idx = document.createElement('span');
+      idx.className = 'idx';
+      idx.textContent = 'idx ' + i + (i === stack.length - 1 ? ' · top' : '');
+      div.appendChild(label);
+      div.appendChild(idx);
+      stackbox.appendChild(div);
+    });
+    const top = stack.length - 1;
+    statusEl.innerHTML = (msg ? msg + ' ' : '') +
+      'top = <b>' + top + '</b>, size = <b>' + stack.length + '</b>.';
+  }
+
+  function push(){
+    const v = (valEl.value || '').trim();
+    if (!v) { render('⚠ nothing to push.'); return; }
+    stack.push(v);
+    render('pushed "' + v + '".');
+    // auto-increment default label if it's a single letter
+    if (/^[A-Z]$/.test(v)) {
+      valEl.value = String.fromCharCode(v.charCodeAt(0) + 1);
+    }
+  }
+  function pop(){
+    if (stack.length === 0){ render('⚠ pop on empty stack — guarded.'); return; }
+    const v = stack.pop();
+    render('popped "' + v + '".');
+  }
+  function peek(){
+    if (stack.length === 0){ render('⚠ peek on empty stack.'); return; }
+    render('peek → "' + stack[stack.length - 1] + '".');
+  }
+  function clear(){
+    stack.length = 0;
+    render('cleared.');
+  }
+
+  document.getElementById('btnPush').addEventListener('click', push);
+  document.getElementById('btnPop').addEventListener('click', pop);
+  document.getElementById('btnPeek').addEventListener('click', peek);
+  document.getElementById('btnClear').addEventListener('click', clear);
+  valEl.addEventListener('keydown', e => { if (e.key === 'Enter') push(); });
+
+  render();
+
+  /* ---------------- Quiz logic ---------------- */
+  function markOptions(qid, correctValue){
+    const opts = document.querySelectorAll('#' + qid + ' .opt');
+    opts.forEach(o => {
+      const input = o.querySelector('input');
+      o.classList.remove('correct','wrong');
+      if (input.value === correctValue) o.classList.add('correct');
+      else if (input.checked) o.classList.add('wrong');
+    });
+  }
+  function showFb(id, ok, text){
+    const el = document.getElementById(id);
+    el.className = 'fb show ' + (ok ? 'ok' : 'no');
+    el.innerHTML = text;
+  }
+  function resetQ(qid){
+    document.querySelectorAll('#' + qid + ' input').forEach(i => i.checked = false);
+    document.querySelectorAll('#' + qid + ' .opt').forEach(o => o.classList.remove('correct','wrong'));
+    const fb = document.querySelector('#' + qid + ' .fb');
+    fb.className = 'fb';
+    fb.innerHTML = '';
+  }
+
+  function checkQ1(){
+    const sel = document.querySelector('input[name="q1"]:checked');
+    if (!sel){ showFb('fb1', false, 'Pick an option first.'); return; }
+    const correct = 'b';
+    markOptions('q1', correct);
+    if (sel.value === correct){
+      showFb('fb1', true, '<strong>Correct.</strong> Pushes gave <code>[1, 2, 3]</code> with <code>3</code> on top. One <code>pop()</code> removes <code>3</code>, leaving <code>2</code> on top. That is LIFO in action.');
+    } else {
+      showFb('fb1', false, '<strong>Not quite.</strong> The last item pushed (<code>3</code>) is the first to leave. After one pop, the stack is <code>[1, 2]</code> and <code>2</code> is on top.');
+    }
+  }
+
+  function checkQ2(){
+    const sel = document.querySelector('input[name="q2"]:checked');
+    if (!sel){ showFb('fb2', false, 'Pick an option first.'); return; }
+    const correct = 'c';
+    markOptions('q2', correct);
+    if (sel.value === correct){
+      showFb('fb2', true, '<strong>Correct.</strong> A stack only ever touches one end, so <code>push</code> and <code>pop</code> are O(1) (amortized for the array-backed version). FIFO is a queue; arbitrary-index insertion is a list/array; and a linked list is one valid implementation, not a requirement.');
+    } else {
+      showFb('fb2', false, '<strong>Try again.</strong> FIFO describes a queue. Stacks restrict access to the top, so <code>push</code>/<code>pop</code> are O(1). And they can be backed by either an array or a linked list.');
+    }
+  }
+
+  window.checkQ1 = checkQ1;
+  window.checkQ2 = checkQ2;
+  window.resetQ  = resetQ;
+</script>
+</body>
+</html>

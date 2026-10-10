@@ -24,6 +24,11 @@ def get_career_db_path() -> str:
     override = os.environ.get("CAREER_STUDIO_DB_PATH")
     if override:
         return override
+        
+    env_dir = os.environ.get("LABNINJA_DB_DIR")
+    if env_dir:
+        return str(Path(env_dir) / "career_studio.sqlite3")
+
     path_data = Path(__file__).resolve().parent.parent.parent.parent / "data" / "career_studio.sqlite3"
     if path_data.exists():
         return str(path_data)

@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Stack: LIFO, Push, Pop & Beyond | DSA Masterclass</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-soft: #111827;
+    --panel: #151d2e;
+    --panel-2: #1b2438;
+    --border: #26314a;
+    --text: #e6edf7;
+    --muted: #93a4c0;
+    --accent: #4dd4ac;
+    --accent-2: #5b9dff;
+    --accent-3: #ffb454;
+    --danger: #ff6b81;
+    --purple: #b388ff;
+    --mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: radial-gradient(1200px 600px at 20% -10%, #16233d 0%, var(--bg) 55%) fixed;
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.65;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 24px 120px; }
+
+  /* ---------- HERO ---------- */
+  .hero { text-align: center; padding: 40px 0 32px; position: relative; }
+  .kicker {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(77,212,172,0.35);
+    background: rgba(77,212,172,0.08);
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 22px;
+  }
+  h1 {
+    font-size: clamp(2rem, 5.2vw, 3.3rem);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+    background: linear-gradient(120deg, #fff 10%, var(--accent) 55%, var(--accent-2) 95%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle { color: var(--muted); max-width: 660px; margin: 18px auto 0; font-size: 1.06rem; }
+  .hero-meta {
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 26px;
+  }
+  .chip {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 6px 12px; border-radius: 8px;
+  }
+
+  /* ---------- SECTIONS ---------- */
+  section { margin-top: 64px; }
+  h2 {
+    font-size: 1.55rem; font-weight: 750; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+  }
+  h2 .num {
+    font-family: var(--mono); font-size: 0.8rem; font-weight: 600;
+    color: var(--bg); background: var(--accent);
+    width: 30px; height: 30px; min-width: 30px;
+    display: grid; place-items: center; border-radius: 9px;
+  }
+  h3 { font-size: 1.12rem; font-weight: 700; margin: 26px 0 10px; color: #fff; }
+  p { color: #c8d4e8; margin: 12px 0; }
+  .lead { color: var(--muted); font-size: 1.02rem; }
+  strong { color: #fff; font-weight: 650; }
+  .accent { color: var(--accent); }
+  .accent2 { color: var(--accent-2); }
+  .accent3 { color: var(--accent-3); }
+  code.inline {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 2px 7px; border-radius: 6px; color: var(--accent-3);
+  }
+
+  .card {
+    background: linear-gradient(180deg, var(--panel) 0%, var(--bg-soft) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 26px;
+    margin: 20px 0;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .callout {
+    border-left: 3px solid var(--accent-2);
+    background: rgba(91,157,255,0.07);
+    padding: 16px 20px; border-radius: 0 12px 12px 0; margin: 18px 0;
+  }
+  .callout.warn { border-color: var(--accent-3); background: rgba(255,180,84,0.07); }
+  .callout.danger { border-color: var(--danger); background: rgba(255,107,129,0.07); }
+  .callout .tag {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent-2); display: block; margin-bottom: 6px;
+  }
+  .callout.warn .tag { color: var(--accent-3); }
+  .callout.danger .tag { color: var(--danger); }
+
+  /* ---------- VISUALIZER ---------- */
+  .viz {
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px; margin: 20px 0;
+  }
+  .viz-head {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+  }
+  .viz-title { font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: 0.05em; }
+  .stack-stage {
+    display: flex; align-items: flex-end; gap: 40px; justify-content: center;
+    min-height: 300px; padding: 12px 0;
+  }
+  .tube {
+    width: 170px; min-height: 280px;
+    border: 2px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 14px 14px;
+    background: linear-gradient(180deg, rgba(91,157,255,0.03), rgba(91,157,255,0.09));
+    display: flex; flex-direction: column-reverse;
+    padding: 8px; gap: 7px;
+    position: relative;
+  }
+  .tube::after {
+    content: 'TOP';
+    position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; color: var(--muted);
+  }
+  .cell {
+    height: 42px; border-radius: 8px;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 15px;
+    color: #04121a;
+    background: linear-gradient(135deg, var(--accent), #35b894);
+    box-shadow: 0 4px 14px rgba(77,212,172,0.25);
+    animation: cellIn 0.28s cubic-bezier(.34,1.56,.64,1);
+  }
+  .cell.top-of-stack {
+    background: linear-gradient(135deg, var(--accent-3), #ff9a2e);
+    box-shadow: 0 4px 18px rgba(255,180,84,0.35);
+    color: #1a1000;
+  }
+  .cell.leaving { animation: cellOut 0.28s ease forwards; }
+  @keyframes cellIn {
+    from { opacity: 0; transform: translateY(-26px) scale(0.9); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes cellOut {
+    to { opacity: 0; transform: translateY(-34px) scale(0.85); }
+  }
+  .empty-hint {
+    color: #4a5878; font-family: var(--mono); font-size: 12px;
+    text-align: center; padding: 20px 0; letter-spacing: 0.08em;
+  }
+  .viz-controls { display: flex; flex-direction: column; gap: 14px; justify-content: center; }
+  .io-row { display: flex; gap: 8px; align-items: center; }
+  .io-row input {
+    width: 66px; padding: 10px 12px; border-radius: 9px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); font-family: var(--mono); font-size: 14px; text-align: center;
+    outline: none; transition: border-color .15s;
+  }
+  .io-row input:focus { border-color: var(--accent); }
+  button {
+    font-family: var(--sans); font-weight: 650; font-size: 14px;
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    padding: 10px 18px; border-radius: 9px; cursor: pointer;
+    transition: all .16s ease;
+  }
+  button:hover { transform: translateY(-1px); border-color: var(--accent); }
+  button:active { transform: translateY(0); }
+  button.primary { background: linear-gradient(135deg, var(--accent), #2fa885); color: #04121a; border-color: transparent; }
+  button.warn { background: linear-gradient(135deg, var(--accent-3), #e8952f); color: #1a1000; border-color: transparent; }
+  button.ghost { background: transparent; }
+  button.small { padding: 7px 13px; font-size: 13px; }
+  .viz-status {
+    font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 10px 14px; min-height: 44px;
+    display: flex; align-items: center;
+  }
+  .viz-status .ok { color: var(--accent); }
+  .viz-status .err { color: var(--danger); }
+
+  /* ---------- CODE BLOCKS ---------- */
+  pre {
+    background: #0b1120; border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px; overflow-x: auto;
+    font-family: var(--mono); font-size: 13.5px; line-height: 1.7;
+    margin: 14px 0;
+  }
+  pre code { font-family: inherit; }
+  .tok-kw { color: #ff7ab2; }
+  .tok-fn { color: #82aaff; }
+  .tok-str { color: #c3e88d; }
+  .tok-num { color: #f78c6c; }
+  .tok-com { color: #5b6b8a; font-style: italic; }
+  .tok-cls { color: #ffcb6b; }
+  .tok-self { color: #f78c6c; }
+  .tok-op { color: #89ddff; }
+  .code-label {
+    display: inline-block; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+    margin-bottom: -6px;
+  }
+  .tabs { display: flex; gap: 6px; margin-top: 16px; }
+  .tab {
+    font-family: var(--mono); font-size: 12.5px; padding: 8px 16px;
+    border-radius: 9px 9px 0 0; background: transparent; border: 1px solid transparent;
+    border-bottom: none; color: var(--muted); cursor: pointer;
+  }
+  .tab.active { background: #0b1120; border-color: var(--border); color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .tab-panel pre { border-radius: 0 12px 12px 12px; margin-top: 0; }
+
+  /* ---------- TABLE ---------- */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14.5px; }
+  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  td:first-child { font-family: var(--mono); color: var(--accent-3); font-size: 13.5px; }
+  tr:last-child td { border-bottom: none; }
+  .complexity-pill {
+    font-family: var(--mono); font-size: 12.5px;
+    padding: 3px 10px; border-radius: 6px; display: inline-block;
+  }
+  .pill-green { background: rgba(77,212,172,0.14); color: var(--accent); }
+  .pill-blue { background: rgba(91,157,255,0.14); color: var(--accent-2); }
+  .pill-amber { background: rgba(255,180,84,0.14); color: var(--accent-3); }
+  .pill-red { background: rgba(255,107,129,0.14); color: var(--danger); }
+
+  /* ---------- QUIZ ---------- */
+  .quiz {
+    background: linear-gradient(180deg, #16203a, var(--bg-soft));
+    border: 1px solid #2c3a5c; border-radius: 16px; padding: 26px; margin: 22px 0;
+    position: relative; overflow: hidden;
+  }
+  .quiz::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--purple));
+  }
+  .quiz-q { font-weight: 700; font-size: 1.06rem; margin-bottom: 6px; color: #fff; }
+  .quiz-sub { color: var(--muted); font-size: 0.92rem; margin-bottom: 18px; }
+  .quiz-qnum {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 8px;
+  }
+  .opt {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--panel-2); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 13px 16px; margin: 9px 0;
+    cursor: pointer; transition: all .15s ease; font-size: 14.5px;
+  }
+  .opt:hover { border-color: var(--accent-2); background: #1e2a44; }
+  .opt .letter {
+    font-family: var(--mono); font-weight: 700; font-size: 12.5px;
+    width: 24px; height: 24px; min-width: 24px; border-radius: 6px;
+    display: grid; place-items: center; background: var(--border); color: var(--muted);
+  }
+  .opt.correct { border-color: var(--accent); background: rgba(77,212,172,0.12); }
+  .opt.correct .letter { background: var(--accent); color: #04121a; }
+  .opt.wrong { border-color: var(--danger); background: rgba(255,107,129,0.1); }
+  .opt.wrong .letter { background: var(--danger); color: #fff; }
+  .opt.locked { pointer-events: none; }
+  .opt code { font-family: var(--mono); font-size: 0.9em; color: var(--accent-3); }
+  .feedback {
+    margin-top: 16px; padding: 14px 18px; border-radius: 10px;
+    font-size: 14.5px; display: none; animation: fadeIn .3s ease;
+  }
+  .feedback.show { display: block; }
+  .feedback.good { background: rgba(77,212,172,0.1); border-left: 3px solid var(--accent); }
+  .feedback.bad { background: rgba(255,107,129,0.1); border-left: 3px solid var(--danger); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .quiz-actions { margin-top: 16px; display: flex; gap: 10px; }
+
+  /* ---------- PROBLEM CARDS ---------- */
+  .prob {
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+    background: var(--panel); margin: 14px 0;
+  }
+  .prob-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .prob-name { font-weight: 700; color: #fff; font-size: 1.02rem; }
+  .badge {
+    font-family: var(--mono); font-size: 11px; padding: 3px 10px; border-radius: 6px;
+    letter-spacing: 0.05em;
+  }
+  .badge.med { background: rgba(255,180,84,0.15); color: var(--accent-3); }
+  .badge.hard { background: rgba(255,107,129,0.15); color: var(--danger); }
+  .prob p { font-size: 14px; color: var(--muted); margin: 10px 0 0; }
+
+  footer {
+    margin-top: 80px; padding-top: 30px; border-top: 1px solid var(--border);
+    text-align: center; color: var(--muted); font-size: 13.5px;
+  }
+  footer .mono { font-family: var(--mono); font-size: 12px; color: #5b6b8a; margin-top: 8px; }
+
+  .fade-in { opacity: 0; transform: translateY(20px); transition: opacity .6s ease, transform .6s ease; }
+  .fade-in.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero">
+    <span class="kicker">DSA Masterclass · Module 04</span>
+    <h1>The Stack</h1>
+    <p class="subtitle">
+      A single rule — <strong>Last In, First Out</strong> — unlocks parsers, undo systems,
+      DFS traversals, and some of the most elegant interview solutions you'll ever write.
+      Let's build the intuition from the ground up.
+    </p>
+    <div class="hero-meta">
+      <span class="chip">LIFO · O(1) ops</span>
+      <span class="chip">Visual pointer diagrams</span>
+      <span class="chip">Python + TypeScript</span>
+      <span class="chip">2 interactive quizzes</span>
+    </div>
+  </header>
+
+  <!-- SECTION 1: MENTAL MODEL -->
+  <section class="fade-in">
+    <h2><span class="num">01</span> The Mental Model</h2>
+    <p class="lead">
+      Forget code for a second. Picture a stack of plates in a cafeteria. You add a clean plate
+      to the <strong>top</strong>. When you need one, you take from the <strong>top</strong>.
+      The plate that has been sitting at the bottom the longest is the last to leave.
+    </p>
+
+    <div class="card">
+      <h3 style="margin-top:0">The LIFO Invariant</h3>
+      <p>
+        A stack is a <em>restricted</em> linear data structure. Unlike an array where you can
+        touch any index, a stack exposes exactly <strong>one end</strong> — the <span class="accent">top</span>.
+        Every operation flows through it.
+      </p>
+      <div class="grid-2" style="margin-top:18px">
+        <div>
+          <p style="margin:0"><strong class="accent">push(x)</strong></p>
+          <p style="margin:4px 0 0; font-size:14px; color:var(--muted)">
+            Place <code class="inline">x</code> on top. It becomes the new top.
+          </p>
+        </div>
+        <div>
+          <p style="margin:0"><strong class="accent3">pop()</strong></p>
+          <p style="margin:4px 0 0; font-size:14px; color:var(--muted)">
+            Remove and return the top element. The one below is now exposed.
+          </p>
+        </div>
+        <div>
+          <p style="margin:0"><strong class="accent2">peek() / top()</strong></p>
+          <p style="margin:4px 0 0; font-size:14px; color:var(--muted)">
+            Read the top element <em>without</em> removing it.
+          </p>
+        </div>
+        <div>
+          <p style="margin:0"><strong class="accent2">isEmpty()</strong></p>
+          <p style="margin:4px 0 0; font-size:14px; color:var(--muted)">
+            True when no elements remain. Guard your pops with this.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="tag">Key Insight</span>
+      The stack's power comes from its <strong>constraint</strong>. By forbidding random access,
+      it forces a discipline that mirrors real problems: nested structures, reversal, and
+      backtracking. When a problem says "the most recent thing matters most," reach for a stack.
+    </div>
+  </section>
+
+  <!-- SECTION 2: INTERACTIVE VISUALIZER -->
+  <section class="fade-in">
+    <h2><span class="num">02</span> Interactive Stack Visualizer</h2>
+    <p class="lead">
+      Push and pop values and watch the top pointer move. The <span class="accent3">orange</span>
+      cell is always the current top — the only cell you can legally pop.
+    </p>
+
+    <div class="viz">
+      <div class="viz-head">
+        <span class="viz-title">// stack_visualizer</span>
+        <button class="ghost small" id="resetViz">↺ Reset</button>
+      </div>
+      <div class="stack-stage">
+        <div class="tube" id="tube">
+          <div class="empty-hint" id="emptyHint">— empty —</div>
+        </div>
+        <div class="viz-controls">
+          <div class="io-row">
+            <input type="text" id="pushVal" maxlength="3" placeholder="val" value="7">
+            <button class="primary" id="pushBtn">push ↓</button>
+          </div>
+          <div class="io-row">
+            <button class="warn" id="popBtn">pop ↑</button>
+            <button class="ghost" id="peekBtn">peek 👁</button>
+          </div>
+          <div class="viz-status" id="vizStatus">Stack is empty. Push a value to begin.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3: COMPLEXITY -->
+  <section class="fade-in">
+    <h2><span class="num">03</span> Complexity Derivation</h2>
+    <p class="lead">
+      Why is every core operation <span class="complexity-pill pill-green">O(1)</span>?
+      Let's derive it, not just assert it.
+    </p>
+
+    <div class="card">
+      <p>
+        In an array-backed stack, we maintain a single index variable <code class="inline">top</code>.
+      </p>
+      <pre><code><span class="tok-com"># Array-backed stack with a top index</span>
+stack = []          <span class="tok-com"># backing array</span>
+
+<span class="tok-kw">def</span> <span class="tok-fn">push</span>(x):
+    stack.append(x)  <span class="tok-com"># write at index len(stack); top = len-1</span>
+
+<span class="tok-kw">def</span> <span class="tok-fn">pop</span>():
+    <span class="tok-kw">return</span> stack.pop()  <span class="tok-com"># read + remove at index len-1</span></code></pre>
+      <p>
+        Both <code class="inline">push</code> and <code class="inline">pop</code> touch a
+        <strong>constant number of memory cells</strong> at a known index. No element is shifted,
+        no loop runs. The work is independent of <code class="inline">n</code> — the current
+        number of elements. Hence <strong class="accent">O(1) time</strong>.
+      </p>
+      <p>
+        Space is <strong class="accent">O(n)</strong>: we store exactly one slot per element.
+        The <code class="inline">top</code> pointer itself is a single word — O(1) auxiliary space.
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <span class="tag">Amortized Note</span>
+      Python's <code class="inline">list.append</code> occasionally resizes the backing array
+      (doubling capacity). That single push costs O(n), but spread across n pushes it
+      averages to <strong>O(1) amortized</strong>. Interviewers love this nuance.
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Operation</th><th>Time</th><th>Space</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>push(x)</td><td><span class="complexity-pill pill-green">O(1)</span></td><td><span class="complexity-pill pill-blue">O(1)</span></td><td>O(1) amortized in dynamic arrays</td></tr>
+        <tr><td>pop()</td><td><span class="complexity-pill pill-green">O(1)</span></td><td><span class="complexity-pill pill-blue">O(1)</span></td><td>Must check isEmpty first</td></tr>
+        <tr><td>peek()</td><td><span class="complexity-pill pill-green">O(1)</span></td><td><span class="complexity-pill pill-blue">O(1)</span></td><td>Non-destructive read</td></tr>
+        <tr><td>isEmpty()</td><td><span class="complexity-pill pill-green">O(1)</span></td><td><span class="complexity-pill pill-blue">O(1)</span></td><td>Compare top index to -1</td></tr>
+        <tr><td>search(x)</td><td><span class="complexity-pill pill-amber">O(n)</span></td><td><span class="complexity-pill pill-blue">O(1)</span></td><td>Not a native stack op — requires popping</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- SECTION 4: IMPLEMENTATIONS -->
+  <section class="fade-in">
+    <h2><span class="num">04</span> Idiomatic Implementations</h2>
+    <p class="lead">
+      In production you'd use the language's built-in. But interviewers often ask you to
+      build one from scratch — know both.
+    </p>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="py">Python</button>
+      <button class="tab" data-tab="ts">TypeScript</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-py">
+      <pre><code><span class="tok-kw">class</span> <span class="tok-cls">Stack</span>:
+    <span class="tok-kw">def</span> <span class="tok-fn">__init__</span>(<span class="tok-self">self</span>):
+        <span class="tok-self">self</span>._data = []
+
+    <span class="tok-kw">def</span> <span class="tok-fn">push</span>(<span class="tok-self">self</span>, x) -> <span class="tok-kw">None</span>:
+        <span class="tok-self">self</span>._data.append(x)          <span class="tok-com"># O(1) amortized</span>
+
+    <span class="tok-kw">def</span> <span class="tok-fn">pop</span>(<span class="tok-self">self</span>):
+        <span class="tok-kw">if</span> <span class="tok-kw">not</span> <span class="tok-self">self</span>._data:            <span class="tok-com"># guard: never pop empty</span>
+            <span class="tok-kw">raise</span> <span class="tok-cls">IndexError</span>(<span class="tok-str">"pop from empty stack"</span>)
+        <span class="tok-kw">return</span> <span class="tok-self">self</span>._data.pop()        <span class="tok-com"># O(1)</span>
+
+    <span class="tok-kw">def</span> <span class="tok-fn">peek</span>(<span class="tok-self">self</span>):
+        <span class="tok-kw">if</span> <span class="tok-kw">not</span> <span class="tok-self">self</span>._data:
+            <span class="tok-kw">raise</span> <span class="tok-cls">IndexError</span>(<span class="tok-str">"peek from empty stack"</span>)
+        <span class="tok-kw">return</span> <span class="tok-self">self</span>._data[-<span class="tok-num">1</span>]           <span class="tok-com"># O(1)</span>
+
+    <span class="tok-kw">def</span> <span class="tok-fn">is_empty</span>(<span class="tok-self">self</span>) -> <span class="tok-kw">bool</span>:
+        <span class="tok-kw">return</span> <span class="tok-kw">not</span> <span class="tok-self">self</span>._data
+
+    <span class="tok-kw">def</span> <span class="tok-fn">__len__</span>(<span class="tok-self">self</span>) -> <span class="tok-kw">int</span>:
+        <span class="tok-kw">return</span> <span class="tok-builtin">len</span>(<span class="tok-self">self</span>._data)</code></pre>
+    </div>
+
+    <div class="tab-panel" id="tab-ts">
+      <pre><code><span class="tok-kw">class</span> <span class="tok-cls">Stack</span>&lt;T&gt; {
+  <span class="tok-kw">private</span> data: T[] = [];
+
+  <span class="tok-fn">push</span>(x: T): <span class="tok-kw">void</span> {
+    <span class="tok-kw">this</span>.data.push(x);            <span class="tok-com">// O(1) amortized</span>
+  }
+
+  <span class="tok-fn">pop</span>(): T {
+    <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.data.length === <span class="tok-num">0</span>) {
+      <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-cls">Error</span>(<span class="tok-str">"pop from empty stack"</span>);
+    }
+    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.data.pop()!;      <span class="tok-com">// O(1)</span>
+  }
+
+  <span class="tok-fn">peek</span>(): T {
+    <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.data.length === <span class="tok-num">0</span>) {
+      <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-cls">Error</span>(<span class="tok-str">"peek from empty stack"</span>);
+    }
+    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.data[<span class="tok-kw">this</span>.data.length - <span class="tok-num">1</span>];
+  }
+
+  <span class="tok-fn">isEmpty</span>(): <span class="tok-kw">boolean</span> {
+    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.data.length === <span class="tok-num">0</span>;
+  }
+
+  <span class="tok-kw">get</span> <span class="tok-fn">size</span>(): <span class="tok-kw">number</span> {
+    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.data.length;
+  }
+}</code></pre>
+    </div>
+  </section>
+
+  <!-- SECTION 5: USE CASES -->
+  <section class="fade-in">
+    <h2><span class="num">05</span> Where Stacks Shine</h2>
+    <p class="lead">
+      Recognize these patterns on sight — they're the tell that a stack is the right tool.
+    </p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 style="margin-top:0">🔁 Reversal & Undo</h3>
+        <p style="font-size:14.5px">
+          Undo/redo in editors, browser back button, reversing a string. The most recent
+          action is always the first to be undone — a textbook LIFO fit.
+        </p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">🧮 Expression Evaluation</h3>
+        <p style="font-size:14.5px">
+          Infix → postfix conversion, evaluating <code class="inline">"3 4 + 2 *"</code>.
+          Operators apply to the two most recently seen operands.
+        </p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">🌳 DFS & Backtracking</h3>
+        <p style="font-size:14.5px">
+          Iterative depth-first search, maze solving, N-Queens. The call stack <em>is</em>
+          a stack — recursion is just the language managing it for you.
+        </p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">🧩 Matching & Nesting</h3>
+        <p style="font-size:14.5px">
+          Balanced parentheses, HTML tag validation, JSON parsing. Each opener waits for
+          its closer — the last opened must close first.
+        </p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">📈 Monotonic Stack</h3>
+        <p style="font-size:14.5px">
+          "Next greater element," largest rectangle in histogram, daily temperatures.
+          A stack kept sorted reveals the nearest larger/smaller neighbor in O(n).
+        </p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">⏱️ Function Call Stack</h3>
+        <p style="font-size:14.5px">
+          Every program's runtime uses one. Each call pushes a frame; returning pops it.
+          Stack overflow = you pushed too deep.
+        </p>
+      </div>
+    </div>
+
+    <div class="callout danger">
+      <span class="tag">Edge Case Alert</span>
+      Always guard against <strong>popping an empty stack</strong>. In interviews, this is the
+      #1 bug. Also watch for: single-element stacks, popping to exactly empty, and
+      mismatched bracket types in matching problems.
+    </div>
+  </section>
+
+  <!-- SECTION 6: QUIZ 1 -->
+  <section class="fade-in">
+    <h2><span class="num">06</span> Checkpoint Quiz</h2>
+    <p class="lead">Two questions. Instant feedback. No pressure.</p>
+
+    <div class="quiz" id="quiz1">
+      <span class="quiz-qnum">Question 1 of 2 · LIFO Reasoning</span>
+      <p class="quiz-q">
+        A stack receives these operations in order:
+        <code class="inline">push(1), push(2), push(3), pop(), push(4), pop(), pop()</code>.
+        What is the top of the stack afterward?
+      </p>
+      <p class="quiz-sub">Trace it carefully — track the top at every step.</p>
+
+      <div class="opt" data-correct="false" data-q="1">
+        <span class="letter">A</span><span>4</span>
+      </div>
+      <div class="opt" data-correct="false" data-q="1">
+        <span class="letter">B</span><span>3</span>
+      </div>
+      <div class="opt" data-correct="true" data-q="1">
+        <span class="letter">C</span><span>1</span>
+      </div>
+      <div class="opt" data-correct="false" data-q="1">
+        <span class="letter">D</span><span>The stack is empty</span>
+      </div>
+
+      <div class="feedback" id="fb1"></div>
+    </div>
+
+    <div class="quiz" id="quiz2">
+      <span class="quiz-qnum">Question 2 of 2 · Complexity & Structure</span>
+      <p class="quiz-q">
+        You need a data structure supporting <code class="inline">push</code>,
+        <code class="inline">pop</code>, and <code class="inline">getMin</code> — each in
+        <strong>O(1) time</strong>. Which approach works?
+      </p>
+      <p class="quiz-sub">Think about what "constant time minimum" really requires.</p>
+
+      <div class="opt" data-correct="false" data-q="2">
+        <span class="letter">A</span><span>Sort the stack after every push</span>
+      </div>
+      <div class="opt" data-correct="true" data-q="2">
+        <span class="letter">B</span><span>Maintain a second "min-stack" that tracks the minimum at each depth</span>
+      </div>
+      <div class="opt" data-correct="false" data-q="2">
+        <span class="letter">C</span><span>Scan the whole stack on each getMin call</span>
+      </div>
+      <div class="opt" data-correct="false" data-q="2">
+        <span class="letter">D</span><span>Use a single variable holding the global minimum</span>
+      </div>
+
+      <div class="feedback" id="fb2"></div>
+    </div>
+  </section>
+
+  <!-- SECTION 7: PROBLEMS -->
+  <section class="fade-in">
+    <h2><span class="num">07</span> Practice Problems</h2>
+    <p class="lead">
+      Work these in order. Each one trains a distinct stack muscle.
+    </p>
+
+    <div class="prob">
+      <div class="prob-head">
+        <span class="prob-name">Valid Parentheses</span>
+        <span class="badge med">Medium</span>
+      </div>
+      <p>
+        Push every opener. On a closer, the top must match. End with an empty stack.
+        <strong>O(n) time, O(n) space.</strong> The canonical stack warm-up.
+      </p>
+    </div>
+
+    <div class="prob">
+      <div class="prob-head">
+        <span class="prob-name">Min Stack</span>
+        <span class="badge med">Medium</span>
+      </div>
+      <p>
+        Design a stack with O(1) push, pop, top, and getMin. The trick: a parallel stack
+        where each entry stores the minimum <em>so far</em>. Quiz Q2 above is this problem.
+      </p>
+    </div>
+
+    <div class="prob">
+      <div class="prob-head">
+        <span class="prob-name">Daily Temperatures</span>
+        <span class="badge med">Medium</span>
+      </div>
+      <p>
+        For each day, find how many days until a warmer temperature. A <strong>monotonic
+        decreasing stack</strong> of indices solves it in O(n) — the classic "next greater
+        element" pattern.
+      </p>
+    </div>
+
+    <div class="prob">
+      <div class="prob-head">
+        <span class="prob-name">Largest Rectangle in Histogram</span>
+        <span class="badge hard">Hard</span>
+      </div>
+      <p>
+        The boss level. A monotonic increasing stack of bar indices lets you compute each
+        bar's maximal rectangle in O(n). Master this and monotonic stacks are yours forever.
+      </p>
+    </div>
+
+    <div class="callout">
+      <span class="tag">Pattern Recognition</span>
+      When you see <strong>"nearest greater/smaller,"</strong> <strong>"matching pairs,"</strong>
+      or <strong>"undo the most recent,"</strong> your hand should reach for a stack before
+      you finish reading the problem.
+    </div>
+  </section>
+
+  <footer>
+    <p>You now own the stack — from the LIFO invariant to monotonic patterns.</p>
+    <p class="mono">// next: queues, deques, and the sliding window connection</p>
+  </footer>
+</div>
+
+<script>
+  /* ============ VISUALIZER ============ */
+  const tube = document.getElementById('tube');
+  const emptyHint = document.getElementById('emptyHint');
+  const vizStatus = document.getElementById('vizStatus');
+  const pushInput = document.getElementById('pushVal');
+  let stackData = [];
+
+  function renderStack(highlightChange) {
+    // clear cells but keep hint element
+    [...tube.querySelectorAll('.cell')].forEach(c => c.remove());
+    if (stackData.length === 0) {
+      emptyHint.style.display = 'block';
+    } else {
+      emptyHint.style.display = 'none';
+      stackData.forEach((val, i) => {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if (i === stackData.length - 1) cell.classList.add('top-of-stack');
+        cell.textContent = val;
+        tube.appendChild(cell);
+      });
+    }
+  }
+
+  function setStatus(msg, type) {
+    vizStatus.innerHTML = msg;
+    if (type === 'ok') vizStatus.style.color = 'var(--accent)';
+    else if (type === 'err') vizStatus.style.color = 'var(--danger)';
+    else vizStatus.style.color = 'var(--muted)';
+  }
+
+  document.getElementById('pushBtn').addEventListener('click', () => {
+    const raw = pushInput.value.trim();
+    if (raw === '') { setStatus('Enter a value to push.', 'err'); return; }
+    stackData.push(raw);
+    renderStack();
+    setStatus(`<span class="ok">push(${raw})</span> — top is now <strong>${raw}</strong>. Size = ${stackData.length}.`, 'ok');
+    pushInput.value = '';
+    pushInput.focus();
+  });
+
+  pushInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('pushBtn').click();
+  });
+
+  document.getElementById('popBtn').addEventListener('click', () => {
+    if (stackData.length === 0) {
+      setStatus('<span class="err">pop() on empty stack — invalid operation!</span>', 'err');
+      return;
+    }
+    const removed = stackData.pop();
+    renderStack();
+    const newTop = stackData.length ? stackData[stackData.length - 1] : null;
+    setStatus(
+      `<span class="ok">pop() → ${removed}</span> — ` +
+      (newTop !== null ? `new top is <strong>${newTop}</strong>.` : 'stack is now empty.'),
+      'ok'
+    );
+  });
+
+  document.getElementById('peekBtn').addEventListener('click', () => {
+    if (stackData.length === 0) {
+      setStatus('<span class="err">peek() on empty stack — nothing to see.</span>', 'err');
+      return;
+    }
+    const top = stackData[stackData.length - 1];
+    setStatus(`<span class="ok">peek() → ${top}</span> — top unchanged, stack untouched.`, 'ok');
+  });
+
+  document.getElementById('resetViz').addEventListener('click', () => {
+    stackData = [];
+    renderStack();
+    setStatus('Stack reset. Push a value to begin.', '');
+  });
+
+  /* ============ TABS ============ */
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + target).classList.add('active');
+    });
+  });
+
+  /* ============ QUIZ ============ */
+  const feedbackData = {
+    1: {
+      good: 'Correct! Trace: push(1) → [1]; push(2) → [1,2]; push(3) → [1,2,3]; pop() removes 3 → [1,2]; push(4) → [1,2,4]; pop() removes 4 → [1,2]; pop() removes 2 → [1]. Top is 1.',
+      bad: 'Not quite. Trace carefully: push(1) → [1]; push(2) → [1,2]; push(3) → [1,2,3]; pop() removes 3 → [1,2]; push(4) → [1,2,4]; pop() removes 4 → [1,2]; pop() removes 2 → [1]. Top is 1.'
+    },
+    2: {
+      good: 'Exactly. A parallel min-stack stores the running minimum alongside each element. push/pop/getMin all stay O(1), and O(n) extra space is the tradeoff. This is the Min Stack problem.',
+      bad: 'Not quite. A single global minimum breaks when the minimum is popped — you would not know the next smallest. Scanning or sorting is O(n) or worse. The O(1) solution is a parallel min-stack that records the minimum at each depth.'
+    }
+  };
+
+  document.querySelectorAll('.opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      const q = opt.dataset.q;
+      const quiz = document.getElementById('quiz' + q);
+      if (quiz.dataset.answered === 'true') return;
+      quiz.dataset.answered = 'true';
+
+      const isCorrect = opt.dataset.correct === 'true';
+      quiz.querySelectorAll('.opt').forEach(o => {
+        o.classList.add('locked');
+        if (o.dataset.correct === 'true') o.classList.add('correct');
+      });
+      if (!isCorrect) opt.classList.add('wrong');
+
+      const fb = document.getElementById('fb' + q);
+      fb.classList.add('show', isCorrect ? 'good' : 'bad');
+      fb.innerHTML = (isCorrect ? '✅ ' : '❌ ') + feedbackData[q][isCorrect ? 'good' : 'bad'];
+    });
+  });
+
+  /* ============ FADE IN ============ */
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

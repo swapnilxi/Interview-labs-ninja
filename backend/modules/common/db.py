@@ -36,6 +36,11 @@ def get_db_path() -> str:
     override = os.environ.get("LABNINJA_TEST_DB_PATH")
     if override:
         return override
+        
+    env_dir = os.environ.get("LABNINJA_DB_DIR")
+    if env_dir:
+        return str(Path(env_dir) / "lab_ninja.sqlite3")
+
     path_data = Path(__file__).resolve().parent.parent.parent / "data" / "lab_ninja.sqlite3"
     if path_data.exists():
         return str(path_data)
@@ -199,13 +204,21 @@ def init_db() -> None:
         from modules.cv_lab.schema import register as cv_register
         from modules.dsa_lab.schema import register as dsa_register
         from modules.linkedin_post_generator.templates.schema import register as linkedin_register
-        from modules.todo.shared.schema import register as todo_register
+        from modules.ai_todo.shared.schema import register as todo_register
+        from modules.common.rag.storage import register as rag_register
 
         sd_register(cursor)
         cv_register(cursor)
         dsa_register(cursor)
         linkedin_register(cursor)
         todo_register(cursor)
+        # Shared RAG chunk storage (modules.common.rag) -- registered centrally, like
+        # every other module's schema, regardless of which module ends up using it
+        # first (currently ai_lms; see modules/ai_lms/router.py's thin wrapper).
+        rag_register(cursor)
+
+        from modules.ai_lms.db import init_lms_db
+        init_lms_db(conn)
 
         # ── seed lab_sections from topic categories ────────────────────────────
         # These sections stay globally-owned (user_id NULL) since they're seeded
@@ -533,7 +546,7 @@ def fetch_progress_stats(user_id: int) -> dict:
 ## NOTE: There used to be fetch_settings()/save_settings() functions here backing
 ## a single shared `user_settings` row of AI provider keys. That's gone — keys now
 ## live only in each browser's localStorage and are sent per-request (see
-## modules/common/ai_client.py). The user_settings table above is kept only so
+## modules/common/ai/). The user_settings table above is kept only so
 ## existing installs don't need a migration; nothing reads or writes it anymore.
 
 

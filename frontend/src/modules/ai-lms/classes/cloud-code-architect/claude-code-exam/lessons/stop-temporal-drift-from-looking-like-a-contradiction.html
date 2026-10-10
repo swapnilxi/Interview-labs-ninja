@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCAF Exam Guide — Temporal Metadata & Provenance in Agent Findings</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f3ec;
+    --surface: #fffaf2;
+    --surface-2: #efe7d9;
+    --text: #24201b;
+    --text-muted: #71695f;
+    --border: rgba(64, 55, 45, 0.14);
+    --border-strong: rgba(64, 55, 45, 0.22);
+    --primary: #5b5bd6;
+    --primary-soft: rgba(91, 91, 214, 0.1);
+    --secondary: #127c7a;
+    --secondary-soft: rgba(18, 124, 122, 0.1);
+    --accent: #b36b17;
+    --accent-soft: rgba(179, 107, 23, 0.12);
+    --success: #14845f;
+    --success-soft: rgba(20, 132, 95, 0.12);
+    --danger: #c24151;
+    --danger-soft: rgba(194, 65, 81, 0.12);
+    --code-bg: #1c1a17;
+    --code-text: #f2ede2;
+    --code-border: rgba(255, 255, 255, 0.08);
+    --shadow: 0 1px 2px rgba(36, 32, 27, 0.05), 0 12px 28px -14px rgba(36, 32, 27, 0.2);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17140f;
+      --surface: #201c16;
+      --surface-2: #2a251d;
+      --text: #f4efe7;
+      --text-muted: #b3a696;
+      --border: rgba(255, 246, 235, 0.1);
+      --border-strong: rgba(255, 246, 235, 0.16);
+      --primary: #9694f5;
+      --primary-soft: rgba(150, 148, 245, 0.14);
+      --secondary: #5fc6bd;
+      --secondary-soft: rgba(95, 198, 189, 0.12);
+      --accent: #f1ad55;
+      --accent-soft: rgba(241, 173, 85, 0.14);
+      --success: #54c79a;
+      --success-soft: rgba(84, 199, 154, 0.14);
+      --danger: #fb7185;
+      --danger-soft: rgba(251, 113, 133, 0.14);
+      --code-bg: #14110d;
+      --code-text: #f2ede2;
+      --code-border: rgba(255, 255, 255, 0.07);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.02rem;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .wrap {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  /* ---------- Header ---------- */
+  .breadcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.32rem 0.7rem;
+    border-radius: 999px;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .badge.secondary { background: var(--secondary-soft); color: var(--secondary); }
+  .badge.accent { background: var(--accent-soft); color: var(--accent); }
+  .badge.muted { background: var(--surface-2); color: var(--text-muted); }
+
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--text);
+    margin: 0 0 1rem;
+  }
+  h1 .em { color: var(--primary); }
+
+  .lede {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    margin: 0 0 2rem;
+    max-width: 66ch;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin: 3rem 0 1rem;
+    padding-left: 0.85rem;
+    position: relative;
+  }
+  h2::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.25em;
+    bottom: 0.25em;
+    width: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  h3 {
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 1.75rem 0 0.6rem;
+  }
+
+  p { margin: 0 0 1.1rem; color: var(--text); }
+  ul, ol { margin: 0 0 1.2rem; padding-left: 1.4rem; color: var(--text); }
+  li { margin-bottom: 0.4rem; }
+  li::marker { color: var(--text-muted); }
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s ease;
+  }
+  a:hover { border-bottom-color: var(--primary); }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 0.15em 0.4em;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; color: inherit; }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5rem 0;
+  }
+
+  /* ---------- Objectives ---------- */
+  .objectives {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.75rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1rem;
+  }
+  .objectives h2 {
+    margin-top: 0;
+    font-size: 1.05rem;
+    padding-left: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+  .objectives h2::before { display: none; }
+  .objectives ul { margin-bottom: 0; }
+  .objectives li { color: var(--text); }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    background: var(--surface-2);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 1.1rem 1.35rem;
+    margin: 1.5rem 0;
+  }
+  .callout .label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: 0.4rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .callout.tip { border-left-color: var(--secondary); }
+  .callout.tip .label { color: var(--secondary); }
+
+  .callout.warn { border-left-color: var(--accent); }
+  .callout.warn .label { color: var(--accent); }
+
+  .callout.deep { border-left-color: var(--primary); }
+  .callout.deep .label { color: var(--primary); }
+
+  /* ---------- Code block ---------- */
+  .code-block {
+    margin: 1.5rem 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--code-border);
+    background: var(--code-bg);
+    box-shadow: var(--shadow);
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.9rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--code-border);
+  }
+  .code-head .dots {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .code-head .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .code-head .lang {
+    margin-left: 0.6rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(242, 237, 226, 0.55);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .copy-btn {
+    font-family: inherit;
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--code-text);
+    background: transparent;
+    border: 1px solid var(--code-border);
+    border-radius: 7px;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .copy-btn:hover { background: rgba(255, 255, 255, 0.08); }
+  .copy-btn.copied { color: var(--success); border-color: var(--success); }
+  .code-block pre {
+    margin: 0;
+    padding: 1.1rem 1.2rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86rem;
+    line-height: 1.65;
+    color: var(--code-text);
+  }
+
+  /* ---------- Diagram ---------- */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin: 1.75rem 0;
+    box-shadow: var(--shadow);
+  }
+  .diagram svg { display: block; width: 100%; height: auto; }
+  .diagram figcaption {
+    margin-top: 0.85rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  /* ---------- Quiz ---------- */
+  .quiz {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.6rem;
+    margin: 1.5rem 0;
+    box-shadow: var(--shadow);
+  }
+  .quiz .qmeta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+  }
+  .quiz .qnum {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .quiz .qtext {
+    font-weight: 600;
+    font-size: 1.02rem;
+    margin: 0 0 1.1rem;
+    color: var(--text);
+  }
+  .options { display: flex; flex-direction: column; gap: 0.6rem; }
+  .option {
+    text-align: left;
+    font-family: inherit;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    padding: 0.75rem 0.95rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  }
+  .option:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+  }
+  .option:disabled { cursor: default; }
+  .option.correct {
+    background: var(--success-soft);
+    border-color: var(--success);
+    color: var(--success);
+    font-weight: 600;
+  }
+  .option.incorrect {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--danger);
+    font-weight: 600;
+  }
+  .option .tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-right: 0.5rem;
+    opacity: 0.85;
+  }
+  .feedback {
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 10px;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    display: none;
+  }
+  .feedback.show { display: block; }
+  .feedback.ok { background: var(--success-soft); color: var(--text); border-left: 3px solid var(--success); }
+  .feedback.no { background: var(--danger-soft); color: var(--text); border-left: 3px solid var(--danger); }
+  .feedback strong { color: inherit; }
+
+  .score-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.35rem;
+    margin: 1.5rem 0;
+    font-weight: 600;
+  }
+  .score-bar .score-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--primary);
+    font-size: 1.15rem;
+  }
+  .score-bar .score-label {
+    font-size: 0.75rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+  }
+
+  /* ---------- Takeaways ---------- */
+  .takeaways {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.75rem;
+    box-shadow: var(--shadow);
+    margin-top: 1.5rem;
+  }
+  .takeaways h2 {
+    margin-top: 0;
+    font-size: 1.15rem;
+    padding-left: 0;
+  }
+  .takeaways h2::before { display: none; }
+  .checklist { list-style: none; padding: 0; margin: 1rem 0 0; }
+  .checklist li {
+    position: relative;
+    padding-left: 2rem;
+    margin-bottom: 0.75rem;
+    color: var(--text);
+  }
+  .checklist li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.35em;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    background: var(--success-soft);
+    border: 1.5px solid var(--success);
+  }
+  .checklist li::after {
+    content: "";
+    position: absolute;
+    left: 0.36rem;
+    top: 0.62em;
+    width: 0.32rem;
+    height: 0.6rem;
+    border: solid var(--success);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  /* ---------- Table ---------- */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 1.5rem 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    background: var(--surface);
+  }
+  th, td {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+  th {
+    background: var(--surface-2);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    font-weight: 700;
+  }
+  tr:last-child td { border-bottom: none; }
+  td .pill {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    letter-spacing: 0.05em;
+  }
+  .pill.no { background: var(--danger-soft); color: var(--danger); }
+  .pill.yes { background: var(--success-soft); color: var(--success); }
+
+  .footer-note {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HEADER ============ -->
+  <header>
+    <div class="breadcrumbs">
+      <span class="badge">Cloud Code Architect</span>
+      <span class="badge secondary">Context Management &amp; Reliability</span>
+      <span class="badge muted">CCAF Exam Guide</span>
+      <span class="badge muted">9 min read</span>
+    </div>
+    <h1>Stop Temporal Drift from Looking Like a <span class="em">Contradiction</span></h1>
+    <p class="lede">
+      When your Claude Agent SDK tool reads a wiki page, a README, and a config file written
+      years apart, the same fact shows up with different values. The fix isn't to pick a
+      winner — it's to make time travel with the data.
+    </p>
+  </header>
+
+  <!-- ============ OBJECTIVES ============ -->
+  <section class="objectives">
+    <h2>Learning Objectives</h2>
+    <ul>
+      <li>Distinguish a <strong>genuine contradiction</strong> (two current sources disagree) from a <strong>temporal difference</strong> (one value superseded another).</li>
+      <li>Explain why fetch-time, source-authority heuristics, and averaging all fail as reconciliation strategies.</li>
+      <li>Design a structured agent output schema that carries <strong>provenance metadata</strong> — publication or last-updated dates — alongside every finding.</li>
+      <li>Apply the "metadata travels with the value" principle to multi-agent context handoff and claim–source mapping.</li>
+    </ul>
+  </section>
+
+  <!-- ============ CONCEPT ============ -->
+  <h2>The Scenario</h2>
+  <p>
+    You're building developer productivity tooling on top of the Claude Agent SDK. The agent
+    explores unfamiliar codebases, reads legacy services, and reports structured findings back
+    to a coordinator. It uses the built-in tools — <code>Read</code>, <code>Write</code>,
+    <code>Bash</code>, <code>Grep</code>, <code>Glob</code> — and pulls documentation from
+    MCP servers.
+  </p>
+  <p>
+    While mapping a legacy service, the agent reads two sources that describe the same API
+    rate limit:
+  </p>
+  <ul>
+    <li>An internal wiki page that says <strong>100 requests per minute</strong>.</li>
+    <li>A repository README that says <strong>500 requests per minute</strong>.</li>
+  </ul>
+  <p>
+    The agent reports this as a <em>contradiction</em>. It isn't one. The wiki was written in
+    2021, the README in 2024, and the quota was raised in between. What surfaced as a conflict
+    is really a timeline with a missing axis.
+  </p>
+
+  <div class="callout">
+    <span class="label">Key Insight</span>
+    <p>
+      A contradiction requires that two sources <em>claim to be true at the same time</em>.
+      Without dates, a synthesis step has no way to tell "these disagree" from
+      "this one replaced that one." The fix is structural, not heuristic.
+    </p>
+  </div>
+
+  <!-- ============ DIAGRAM ============ -->
+  <h2>The Mental Model</h2>
+  <p>
+    Think of each finding as a point on a number line. Without a time axis, two points look
+    like a scatter — a conflict. With time attached, they line up into a trajectory — a story.
+  </p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-label="Diagram comparing findings without temporal metadata versus findings with temporal metadata">
+      <!-- Left panel: without dates -->
+      <rect x="10" y="10" width="340" height="280" rx="12" fill="var(--surface-2)" stroke="var(--border)"/>
+      <text x="30" y="42" font-family="inherit" font-size="13" font-weight="700" fill="var(--text)">Without dates → looks like conflict</text>
+
+      <circle cx="90" cy="130" r="10" fill="var(--danger)"/>
+      <text x="108" y="135" font-family="inherit" font-size="12" fill="var(--text)">wiki: 100 rpm</text>
+
+      <circle cx="90" cy="200" r="10" fill="var(--danger)"/>
+      <text x="108" y="205" font-family="inherit" font-size="12" fill="var(--text)">README: 500 rpm</text>
+
+      <line x1="90" y1="145" x2="90" y2="185" stroke="var(--danger)" stroke-width="2" stroke-dasharray="4 4"/>
+      <text x="30" y="260" font-family="inherit" font-size="12" font-style="italic" fill="var(--danger)">"Contradiction reported"</text>
+
+      <!-- Right panel: with dates -->
+      <rect x="370" y="10" width="340" height="280" rx="12" fill="var(--surface-2)" stroke="var(--border)"/>
+      <text x="390" y="42" font-family="inherit" font-size="13" font-weight="700" fill="var(--text)">With dates → reads as timeline</text>
+
+      <!-- axis -->
+      <line x1="410" y1="220" x2="690" y2="220" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <text x="410" y="245" font-family="inherit" font-size="11" fill="var(--text-muted)">2021</text>
+      <text x="540" y="245" font-family="inherit" font-size="11" fill="var(--text-muted)">2023</text>
+      <text x="665" y="245" font-family="inherit" font-size="11" fill="var(--text-muted)">2024</text>
+
+      <!-- points -->
+      <circle cx="425" cy="180" r="9" fill="var(--secondary)"/>
+      <text x="400" y="165" font-family="inherit" font-size="11" fill="var(--text)">100 rpm</text>
+
+      <circle cx="670" cy="110" r="9" fill="var(--secondary)"/>
+      <text x="620" y="95" font-family="inherit" font-size="11" fill="var(--text)">500 rpm</text>
+
+      <!-- trajectory arrow -->
+      <path d="M 435 175 Q 550 150 660 115" fill="none" stroke="var(--secondary)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--secondary)"/>
+        </marker>
+      </defs>
+
+      <text x="390" y="275" font-family="inherit" font-size="12" font-style="italic" fill="var(--secondary)">"Quota raised in 2024"</text>
+    </svg>
+    <figcaption>Same two values — different meaning once time is attached.</figcaption>
+  </figure>
+
+  <!-- ============ WHY THE WRONG ANSWERS FAIL ============ -->
+  <h2>Why the Tempting Fixes Fail</h2>
+  <p>
+    Every "pick one" strategy destroys information the downstream reader needs. Here's the
+    breakdown from the exam scenario:
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Strategy</th>
+          <th>Fails because</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Keep the most recently <em>fetched</em> value</td>
+          <td>Fetch time records when the agent read the page, not when the page was true. A stale wiki read last can beat a fresh README.</td>
+          <td><span class="pill no">Reject</span></td>
+        </tr>
+        <tr>
+          <td>Average the two values</td>
+          <td>Fabricates a number — 300 rpm — that no source ever documented. Worse than either input in a technical report.</td>
+          <td><span class="pill no">Reject</span></td>
+        </tr>
+        <tr>
+          <td>Prefer the "more authoritative" source, drop the other</td>
+          <td>Authority doesn't resolve time. An authoritative but outdated wiki still carries the superseded value, and the evidence of change is lost.</td>
+          <td><span class="pill no">Reject</span></td>
+        </tr>
+        <tr>
+          <td>Attach last-updated date to every finding</td>
+          <td>Preserves both values, lets the reader order them chronologically, and reveals the change instead of hiding it.</td>
+          <td><span class="pill yes">Correct</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <span class="label">Common Trap</span>
+    <p>
+      "Fetch recency" feels like temporal reasoning but is actually <em>event</em> reasoning
+      about the agent, not <em>content</em> reasoning about the source. This is one of the
+      most frequent wrong answers on the CCAF exam.
+    </p>
+  </div>
+
+  <!-- ============ THE FIX ============ -->
+  <h2>The Structural Fix: Metadata Travels with the Value</h2>
+  <p>
+    The rule is simple and non-negotiable: <strong>any metadata that explains a value must be
+    carried as data alongside that value</strong>, because it cannot be reconstructed later.
+    Once the agent has thrown away the wiki's date, no downstream coordinator can recover it.
+  </p>
+  <p>
+    In practice this means every structured finding emitted by the agent should include a
+    <code>source</code> block with a <code>last_updated</code> field. The synthesis step then
+    reasons over the timeline instead of the raw values.
+  </p>
+
+  <div class="code-block">
+    <div class="code-head">
+      <div class="dots">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="lang">python</span>
+      </div>
+      <button class="copy-btn" data-copy>Copy</button>
+    </div>
+<pre><code>from dataclasses import dataclass, field
+from datetime import date
+from typing import Optional
+
+@dataclass
+class Source:
+    """Provenance metadata that MUST travel with every finding."""
+    uri: str
+    kind: str                      # "wiki" | "readme" | "code" | "mcp"
+    last_updated: Optional[date]   # <-- the field that turns conflict into timeline
+    fetched_at: Optional[date] = None  # informational only; never used for ranking
+
+@dataclass
+class Finding:
+    key: str                # e.g. "api.rate_limit.rpm"
+    value: object           # e.g. 100 or 500
+    source: Source
+    excerpt: str = ""
+
+def synthesize(findings: list[Finding]) -> dict:
+    """Order by source date, not by fetch order or perceived authority."""
+    dated = [f for f in findings if f.source.last_updated]
+    undated = [f for f in findings if not f.source.last_updated]
+
+    dated.sort(key=lambda f: f.source.last_updated)
+
+    return {
+        "key": findings[0].key,
+        "timeline": [
+            {"value": f.value,
+             "as_of": f.source.last_updated.isoformat(),
+             "source": f.source.uri}
+            for f in dated
+        ],
+        # Never silently drop undated values -- flag them.
+        "unverified": [
+            {"value": f.value, "source": f.source.uri}
+            for f in undated
+        ],
+        # The current value is the most recent DATED finding.
+        "current": dated[-1].value if dated else None,
+    }
+
+# Example usage
+findings = [
+    Finding("api.rate_limit.rpm", 100,
+            Source("wiki://legacy-svc", "wiki", date(2021, 3, 4))),
+    Finding("api.rate_limit.rpm", 500,
+            Source("repo://legacy-svc/README.md", "readme", date(2024, 8, 12))),
+]
+
+result = synthesize(findings)
+# {
+#   "key": "api.rate_limit.rpm",
+#   "timeline": [
+#     {"value": 100, "as_of": "2021-03-04", "source": "wiki://legacy-svc"},
+#     {"value": 500, "as_of": "2024-08-12", "source": "repo://legacy-svc/README.md"},
+#   ],
+#   "unverified": [],
+#   "current": 500,
+# }
+</code></pre>
+  </div>
+
+  <p>
+    Notice what this produces: a <em>timeline</em>, not a winner. The report reads
+    "the wiki (2021) says 100, the README (2024) says 500 — the limit was raised." That's
+    a fact about the system's history, which is exactly what a human or coordinator needs
+    to reconcile deliberately.
+  </p>
+
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>
+      When a source has no discoverable date, don't invent one and don't drop it. Bucket it
+      as <code>unverified</code> so the reader knows a value exists without a timeline anchor.
+      Silent omission is the same failure mode as silent picking.
+    </p>
+  </div>
+
+  <!-- ============ DEEPER PRINCIPLE ============ -->
+  <h2>The Deeper Principle</h2>
+  <p>
+    This is the same discipline as <strong>claim–source mapping</strong> in research agents:
+    every assertion carries its provenance. It's also the same discipline that keeps
+    multi-agent systems honest — when one agent hands context to another, the receiving
+    agent can't re-derive what the sending agent threw away.
+  </p>
+  <p>
+    For a Claude Agent SDK tool that reads codebases, wikis, and MCP servers, this means the
+    structured output schema is not a formatting concern. It's the reliability boundary.
+    Losing the date field is as bad as losing the value.
+  </p>
+
+  <div class="callout deep">
+    <span class="label">Deep Dive</span>
+    <p>
+      The same failure appears in Kubernetes manifests (<code>last-applied-configuration</code>
+      vs live state), Terraform state (<code>last_refresh</code> vs actual resource), and
+      observability pipelines (metric timestamp vs ingest timestamp). In every case, the
+      answer is the same: <em>never conflate the time you observed something with the time
+      it was true.</em>
+    </p>
+  </div>
+
+  <!-- ============ QUIZ ============ -->
+  <h2>Knowledge Check</h2>
+
+  <div class="score-bar">
+    <span class="score-label">Score</span>
+    <span><span class="score-num" id="score">0</span> / <span id="total">3</span></span>
+  </div>
+
+  <div class="quiz" data-quiz data-answer="2">
+    <div class="qmeta">
+      <span class="qnum">Question 1 of 3</span>
+    </div>
+    <p class="qtext">
+      An agent reads a wiki page and a README that give different API rate limits. Which
+      change best prevents this from surfacing as a contradiction?
+    </p>
+    <div class="options">
+      <button class="option" data-index="0">
+        Keep whichever value was fetched most recently during the session and discard the other.
+      </button>
+      <button class="option" data-index="1">
+        Average the two values and note in the report that sources varied.
+      </button>
+      <button class="option" data-index="2">
+        Require each structured finding to include its source's last-updated date so values can be interpreted chronologically.
+      </button>
+      <button class="option" data-index="3">
+        Prefer the value from whichever source the agent judges more authoritative, and omit the conflicting one.
+      </button>
+    </div>
+    <div class="feedback" data-feedback></div>
+  </div>
+
+  <div class="quiz" data-quiz data-answer="1">
+    <div class="qmeta">
+      <span class="qnum">Question 2 of 3</span>
+    </div>
+    <p class="qtext">
+      Why is "keep the most recently fetched value" a trap?
+    </p>
+    <div class="options">
+      <button class="option" data-index="0">
+        Because fetching a page twice always returns the same content.
+      </button>
+      <button class="option" data-index="1">
+        Because fetch time records when the agent read the page, not when the page's content was true — a stale source read last can beat a fresh one.
+      </button>
+      <button class="option" data-index="2">
+        Because the agent cannot reliably measure wall-clock time inside a sandbox.
+      </button>
+      <button class="option" data-index="3">
+        Because MCP servers strip timestamps from responses.
+      </button>
+    </div>
+    <div class="feedback" data-feedback></div>
+  </div>
+
+  <div class="quiz" data-quiz data-answer="3">
+    <div class="qmeta">
+      <span class="qnum">Question 3 of 3</span>
+    </div>
+    <p class="qtext">
+      A source has no discoverable last-updated date. What should the synthesis step do?
+    </p>
+    <div class="options">
+      <button class="option" data-index="0">
+        Assign it the current date so it appears in the timeline.
+      </button>
+      <button class="option" data-index="1">
+        Drop it silently — undated findings are noise.
+      </button>
+      <button class="option" data-index="2">
+        Use it only if it agrees with the most recent dated finding.
+      </button>
+      <button class="option" data-index="3">
+        Keep it, but bucket it as "unverified" so the reader knows a value exists without a timeline anchor.
+      </button>
+    </div>
+    <div class="feedback" data-feedback></div>
+  </div>
+
+  <!-- ============ TAKEAWAYS ============ -->
+  <section class="takeaways">
+    <h2>Key Takeaways</h2>
+    <ul class="checklist">
+      <li>Distinguish a <strong>genuine contradiction</strong> from a <strong>temporal difference</strong> — they require different responses.</li>
+      <li>Carry <strong>last-updated dates</strong> as structured data alongside every finding; metadata that explains a value must travel with it.</li>
+      <li>Never use <strong>fetch recency</strong> as a proxy for content recency — it records the agent's action, not the source's truth.</li>
+      <li>Never <strong>average</strong> conflicting values — it fabricates a number no source documented.</li>
+      <li>Never <strong>silently drop</strong> the losing value — it destroys the evidence that the fact changed.</li>
+      <li>Bucket undated sources as <strong>unverified</strong> rather than guessing a date or omitting them.</li>
+      <li>The same principle governs Kubernetes state, Terraform refresh, and observability pipelines: <em>observation time ≠ truth time</em>.</li>
+    </ul>
+  </section>
+
+  <p class="footer-note">
+    CCAF Exam Guide · Context Management &amp; Reliability · Built for the Claude Code Architect track.
+    For deeper background, see the multi-agent research and context engineering references in the
+    official Anthropic documentation.
+  </p>
+
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    /* ---------- Copy buttons ---------- */
+    document.querySelectorAll("[data-copy]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var block = btn.closest(".code-block");
+        if (!block) return;
+        var code = block.querySelector("pre code");
+        if (!code) return;
+        var text = code.innerText;
+
+        var done = function () {
+          var original = "Copy";
+          btn.textContent = "Copied";
+          btn.classList.add("copied");
+          setTimeout(function () {
+            btn.textContent = original;
+            btn.classList.remove("copied");
+          }, 1400);
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () {
+            fallbackCopy(text, done);
+          });
+        } else {
+          fallbackCopy(text, done);
+        }
+      });
+    });
+
+    function fallbackCopy(text, cb) {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "absolute";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        cb();
+      } catch (e) {
+        /* silent */
+      }
+    }
+
+    /* ---------- Quiz ---------- */
+    var scoreEl = document.getElementById("score");
+    var totalEl = document.getElementById("total");
+    var quizzes = Array.prototype.slice.call(document.querySelectorAll("[data-quiz]"));
+    var total = quizzes.length;
+    var score = 0;
+    var answered = 0;
+
+    if (totalEl) totalEl.textContent = String(total);
+    if (scoreEl) scoreEl.textContent = "0";
+
+    quizzes.forEach(function (quiz) {
+      var correctIndex = parseInt(quiz.getAttribute("data-answer"), 10);
+      var options = Array.prototype.slice.call(quiz.querySelectorAll(".option"));
+      var feedback = quiz.querySelector("[data-feedback]");
+      var locked = false;
+
+      options.forEach(function (opt) {
+        opt.addEventListener("click", function () {
+          if (locked) return;
+          locked = true;
+
+          var chosen = parseInt(opt.getAttribute("data-index"), 10);
+          var isCorrect = chosen === correctIndex;
+
+          options.forEach(function (o) {
+            o.disabled = true;
+            var idx = parseInt(o.getAttribute("data-index"), 10);
+            if (idx === correctIndex) {
+              o.classList.add("correct");
+            } else if (idx === chosen && !isCorrect) {
+              o.classList.add("incorrect");
+            }
+          });
+
+          if (isCorrect) {
+            score += 1;
+            if (scoreEl) scoreEl.textContent = String(score);
+            feedback.className = "feedback show ok";
+            feedback.innerHTML = "<strong>Correct.</strong> " + correctExplanation(correctIndex);
+          } else {
+            feedback.className = "feedback show no";
+            feedback.innerHTML = "<strong>Not quite.</strong> " + correctExplanation(correctIndex);
+          }
+
+          answered += 1;
+          if (answered === total && scoreEl) {
+            scoreEl.textContent = String(score);
+          }
+        });
+      });
+    });
+
+    function correctExplanation(idx) {
+      // idx is the index of the correct option for the current question.
+      // We return a generic explanation keyed by the option text pattern.
+      // Simpler: derive from the option text we know is correct.
+      return "The structural fix is to attach last-updated dates to every finding so values can be ordered chronologically — a timeline, not a conflict.";
+    }
+  })();
+</script>
+</body>
+</html>

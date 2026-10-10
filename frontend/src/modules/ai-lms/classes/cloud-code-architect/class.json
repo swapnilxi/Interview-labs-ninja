@@ -1,0 +1,201 @@
+{
+  "$comment": "Generated from the AI-LMS tables on every change; edits here are overwritten. Edit landingpage.html and the lesson .html files instead.",
+  "id": "class-cloud-code-architect",
+  "slug": "cloud-code-architect",
+  "name": "Cloud Code Architect",
+  "description": "Cloud architecture, agentic systems, cloud-native development, AI engineering, and implementation patterns.",
+  "landing": "landingpage.html",
+  "subjects": [
+    {
+      "id": "subj-a20216fa",
+      "slug": "claude-code-exam",
+      "name": "claude code exam",
+      "kind": "subject",
+      "description": "for ccaf exam",
+      "lessons": [
+        {
+          "id": "lesson-2b05ee55",
+          "slug": "enforcing-tool-ordering-in-agentic-pipelines",
+          "title": "Enforcing Tool Ordering in Agentic Pipelines",
+          "file": "claude-code-exam/lessons/enforcing-tool-ordering-in-agentic-pipelines.html"
+        },
+        {
+          "id": "lesson-85bff130",
+          "slug": "where-should-team-rules-liveclaude-code-memory-scopes-explained",
+          "title": "Where Should Team Rules Live?Claude Code Memory Scopes, Explained",
+          "file": "claude-code-exam/lessons/where-should-team-rules-liveclaude-code-memory-scopes-explained.html"
+        },
+        {
+          "id": "lesson-716eaa7c",
+          "slug": "mcp-server-scoping-how-local-shadows-the-team-baseline",
+          "title": "MCP Server Scoping: How local shadows the team baseline",
+          "file": "claude-code-exam/lessons/mcp-server-scoping-how-local-shadows-the-team-baseline.html"
+        },
+        {
+          "id": "lesson-7d5d52ac",
+          "slug": "stop-temporal-drift-from-looking-like-a-contradiction",
+          "title": "Stop Temporal Drift from Looking Like a Contradiction",
+          "file": "claude-code-exam/lessons/stop-temporal-drift-from-looking-like-a-contradiction.html"
+        },
+        {
+          "id": "lesson-7cd9ce1f",
+          "slug": "retry-with-error-feedback-handling-validation-failures-in-an-agentic-cicd-pipeline",
+          "title": "Retry with Error Feedback: Handling Validation Failures in an Agentic CI/CD Pipeline",
+          "file": "claude-code-exam/lessons/retry-with-error-feedback-handling-validation-failures-in-an-agentic-cicd-pipeline.html"
+        },
+        {
+          "id": "lesson-b96dd1bd",
+          "slug": "why-your-remote-mcp-server-gets-silently-skipped",
+          "title": "Why your remote MCP server gets silently skipped",
+          "file": "claude-code-exam/lessons/why-your-remote-mcp-server-gets-silently-skipped.html"
+        }
+      ]
+    },
+    {
+      "id": "subj-a276b9f2",
+      "slug": "lcb-claude-rag-project",
+      "name": "LCB Claude RAG Project",
+      "kind": "project",
+      "description": "LCB RAG Project with claude code",
+      "modules": [
+        {
+          "title": "Project Scaffold, Config Loading & Environment Bootstrap",
+          "name": "project-scaffold-config-loading-environment-bootstrap",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "LLMConfig Dataclass & Provider Detection",
+          "name": "llmconfig-dataclass-provider-detection",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Claude Haiku via Vertex AI & Model Garden Provider",
+          "name": "claude-haiku-via-vertex-ai-model-garden-provider",
+          "lesson": {
+            "id": "lesson-22aacff5",
+            "slug": "claude-haiku-via-vertex-ai-amp-model-garden-key-generation-amp-wiring",
+            "title": "Claude Haiku via Vertex AI & Model Garden — Key Generation & Wiring",
+            "file": "lcb-claude-rag-project/modules/claude-haiku-via-vertex-ai-model-garden-provider.html"
+          },
+          "steps": []
+        },
+        {
+          "title": "LLMClient Skeleton, Dispatch & Anthropic Provider",
+          "name": "llmclient-skeleton-dispatch-anthropic-provider",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Claude Code Provider (CLI Subprocess) with Anthropic Fallback",
+          "name": "claude-code-provider-cli-subprocess-with-anthropic-fallback",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "FallbackLLMClient & Multi-Provider Adapters (Ollama, Gemini, DeepSeek, OpenAI-Compatible)",
+          "name": "fallbackllmclient-multi-provider-adapters-ollama-gemini-deepseek-openai-compatib",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "LLM Client Unit Tests (Config, Dispatch, Errors, Fallback, JSON)",
+          "name": "llm-client-unit-tests-config-dispatch-errors-fallback-json",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "RAG System Core — ChromaDB, Embeddings & Ingestion Pipeline",
+          "name": "rag-system-core-chromadb-embeddings-ingestion-pipeline",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Knowledge Ingester — PDF/DOCX/CSV/TXT/JSON Parsing",
+          "name": "knowledge-ingester-pdf-docx-csv-txt-json-parsing",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "RAG Prompt Formatting & Claude Static Context Injection",
+          "name": "rag-prompt-formatting-claude-static-context-injection",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Dynamic RAG Tool — Definition & Execution",
+          "name": "dynamic-rag-tool-definition-execution",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "RAG Tests — Ingestion, Chunking, Retrieval, Tool Calls",
+          "name": "rag-tests-ingestion-chunking-retrieval-tool-calls",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "SQLite Persistence & JWT Auth Utilities",
+          "name": "sqlite-persistence-jwt-auth-utilities",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Flask Server (app.py) — Routes & build_llm_client Multi-Agent Wiring",
+          "name": "flask-server-app-py-routes-build-llm-client-multi-agent-wiring",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Supervisor Agent — Intent Classification & Routing",
+          "name": "supervisor-agent-intent-classification-routing",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Web Agent — LangGraph Web Search + RAG",
+          "name": "web-agent-langgraph-web-search-rag",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Judge Agent — LLM-as-a-Judge with 5-Metric Evaluation",
+          "name": "judge-agent-llm-as-a-judge-with-5-metric-evaluation",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Agent Tests & End-to-End Integration Suite",
+          "name": "agent-tests-end-to-end-integration-suite",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Smoke Tests, Logging & Failure-Handling Hardening",
+          "name": "smoke-tests-logging-failure-handling-hardening",
+          "lesson": null,
+          "steps": []
+        },
+        {
+          "title": "Backward-Compatibility Verification & Release Checklist",
+          "name": "backward-compatibility-verification-release-checklist",
+          "lesson": null,
+          "steps": []
+        }
+      ],
+      "lessons": []
+    }
+  ],
+  "lessons": [],
+  "files": {
+    "landingpage.html": "4b074717c574710b46fa959ba52c76a4aaa1ed6de3e8c70d4481786e35fdaffb",
+    "claude-code-exam/lessons/enforcing-tool-ordering-in-agentic-pipelines.html": "dea6cc6ce4ae23da88592f340b4979ad5b552f8137c82b395d4e9fbd4fe989b9",
+    "claude-code-exam/lessons/where-should-team-rules-liveclaude-code-memory-scopes-explained.html": "67e07d2d3d2afeb5b7e0cdcfd25c38c98d4fd7a2136593b4f561861e7527f535",
+    "claude-code-exam/lessons/mcp-server-scoping-how-local-shadows-the-team-baseline.html": "cc6ed98783c958baf5f170b6d6923094419bfe1b64a1fa839bd062db2a9bfa7d",
+    "claude-code-exam/lessons/stop-temporal-drift-from-looking-like-a-contradiction.html": "a20f3230770fc629db5562264744bfa225d88afbefec69d93fb7cf88d9314864",
+    "claude-code-exam/lessons/retry-with-error-feedback-handling-validation-failures-in-an-agentic-cicd-pipeline.html": "9c00dd624b7f39009ccd5ebff5acd7436f27e8d4f31004fa3002927ae4a6394d",
+    "claude-code-exam/lessons/why-your-remote-mcp-server-gets-silently-skipped.html": "09941b0448710a599a686d86ad4cc3a28632ca5f1f5ec71709a423bcac9907da",
+    "lcb-claude-rag-project/modules/claude-haiku-via-vertex-ai-model-garden-provider.html": "2db43a563402a23e3212c865388b83ba83f3498b97e6b6ad583609cae4763115"
+  }
+}

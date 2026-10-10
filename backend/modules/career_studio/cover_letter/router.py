@@ -17,7 +17,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from modules.auth.dependencies import get_current_user_id
-from modules.common.ai_client import AISettings
+from modules.common.ai import AISettings
 
 from . import db as cover_letter_db
 from . import render

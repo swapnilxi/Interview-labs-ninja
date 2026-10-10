@@ -1,8 +1,8 @@
 """Career Studio HTTP API — resume CRUD, sections, versioning, and import.
 
-Mounted at /career and guarded by the app's existing JWT auth (mirrors the todo
-module): the router-level dependency enforces a valid Bearer token, and each
-endpoint injects the caller's user_id so every row stays user-scoped.
+Mounted at /career and guarded by the app's existing JWT auth: the router-level
+dependency enforces a valid Bearer token, and each endpoint injects the caller's
+user_id so every row stays user-scoped.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from modules.auth.dependencies import get_current_user_id
-from modules.common.ai_client import AISettings
+from modules.common.ai import AISettings
 
 from . import db, render, versions
 from ..shared.ai_runs import track_ai_run

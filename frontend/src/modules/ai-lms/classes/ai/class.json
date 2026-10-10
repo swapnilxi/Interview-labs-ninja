@@ -1,0 +1,86 @@
+{
+  "$comment": "Generated from the AI-LMS tables on every change; edits here are overwritten. Edit landingpage.html and the lesson .html files instead.",
+  "id": "class-ai",
+  "slug": "ai",
+  "name": "AI",
+  "description": "Generative AI, LLMs, RAG, agents, multi-agent systems, evaluation, and AI application development.",
+  "landing": "landingpage.html",
+  "subjects": [
+    {
+      "id": "subj-optimization-dl",
+      "slug": "optimization-deep-learning",
+      "name": "Optimization & Deep Learning",
+      "kind": "subject",
+      "description": "Gradient descent dynamics, loss functions, learning rate schedules, and backpropagation.",
+      "lessons": [
+        {
+          "id": "lesson-gradient-descent-loss",
+          "slug": "gradient-descent-loss-landscapes",
+          "title": "Gradient Descent: Loss Landscapes & Learning Rates",
+          "file": "optimization-deep-learning/lessons/gradient-descent-loss-landscapes.html"
+        },
+        {
+          "id": "lesson-3e3a8af7",
+          "slug": "what-is-a-stack",
+          "title": "What is a Stack?",
+          "file": "optimization-deep-learning/lessons/what-is-a-stack.html"
+        },
+        {
+          "id": "lesson-86e652a2",
+          "slug": "the-stack-last-in-first-out",
+          "title": "The Stack: Last In, First Out",
+          "file": "optimization-deep-learning/lessons/the-stack-last-in-first-out.html"
+        },
+        {
+          "id": "lesson-598f078b",
+          "slug": "the-stack",
+          "title": "The Stack",
+          "file": "optimization-deep-learning/lessons/the-stack.html"
+        },
+        {
+          "id": "lesson-b59dad26",
+          "slug": "the-stack-last-in-first-out-1",
+          "title": "The Stack: Last In, First Out",
+          "file": "optimization-deep-learning/lessons/the-stack-last-in-first-out-1.html"
+        },
+        {
+          "id": "lesson-26981742",
+          "slug": "what-is-a-stack-1",
+          "title": "What is a Stack?",
+          "file": "optimization-deep-learning/lessons/what-is-a-stack-1.html"
+        },
+        {
+          "id": "lesson-d6fe97c2",
+          "slug": "the-stack-1",
+          "title": "The Stack",
+          "file": "optimization-deep-learning/lessons/the-stack-1.html"
+        },
+        {
+          "id": "lesson-e74d358b",
+          "slug": "the-stack-2",
+          "title": "The Stack",
+          "file": "optimization-deep-learning/lessons/the-stack-2.html"
+        },
+        {
+          "id": "lesson-0d6c1853",
+          "slug": "queues-the-fifo-principle-amp-where-they-power-modern-ai",
+          "title": "Queues: The FIFO Principle & Where They Power Modern AI",
+          "file": "optimization-deep-learning/lessons/queues-the-fifo-principle-amp-where-they-power-modern-ai.html"
+        }
+      ]
+    }
+  ],
+  "lessons": [],
+  "files": {
+    "landingpage.html": "8afbe9eb42a191d26a24761ffdbe62aa6ebe63b59fbcaa861f6f196ee3a8c74f",
+    "optimization-deep-learning/lessons/gradient-descent-loss-landscapes.html": "5c7240d7e3b50dc55028bd458a4ffc94dc9a5ba1ca2be76c565d6caefc1649fb",
+    "optimization-deep-learning/lessons/what-is-a-stack.html": "300c106127524daf52835b89859cc4fa5b483b3eb57848aa9d88fa3d58331b8f",
+    "optimization-deep-learning/lessons/the-stack-last-in-first-out.html": "cbb30b9fbc033b2e75862e7ee28ddee8971f0e5877a12b5ffa95efab51c3343e",
+    "optimization-deep-learning/lessons/the-stack.html": "e2d86cf5bfef410463bc1f0a1db7e7dc30e24aac6e90ebb245a62f5f68030f9a",
+    "optimization-deep-learning/lessons/the-stack-last-in-first-out-1.html": "9ac1b627adf897a455109a604fefbf9d05bc45d32e464d3118936f1357fc3f23",
+    "optimization-deep-learning/lessons/what-is-a-stack-1.html": "cdbfdcdcd28038d44235736c63e5947d1d9abcbcc89ce84db465b579e03b866d",
+    "optimization-deep-learning/lessons/the-stack-1.html": "55160b2297734fc084ab5a6d443664eec35d5e5b9c84eb3ae3e93fa3b698005b",
+    "optimization-deep-learning/lessons/the-stack-2.html": "9997c07f862ea4b4a412eb846b1be1fee42584a7fb93a785f9748a6293b0da80",
+    "optimization-deep-learning/lessons/queues-the-fifo-principle-amp-where-they-power-modern-ai.html": "1419babec7473e6cef8d519564823dea915531f9cd1de756b896a94099b607af"
+  }
+}

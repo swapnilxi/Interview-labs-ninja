@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dev Environment: The Four-Layer AI Stack | AI Bootcamp</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --primary: #818cf8;
+      --success: #34d399;
+      --danger: #f87171;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      padding: 2.5rem 1.5rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    header { margin-bottom: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
+    .badges { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .badge { font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 9999px; text-transform: uppercase; }
+    .badge-class { background: rgba(129, 140, 248, 0.15); color: var(--primary); border: 1px solid rgba(129, 140, 248, 0.3); }
+    .badge-time { background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); }
+    h1 { font-size: 2.25rem; font-weight: 800; color: #ffffff; letter-spacing: -0.025em; margin-bottom: 0.5rem; }
+    .subtitle { color: var(--muted); font-size: 1.1rem; margin-bottom: 1.5rem; }
+    .objectives { background: var(--card); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem 1.5rem; margin-bottom: 2.5rem; }
+    .objectives h3 { font-size: 1rem; color: var(--accent); margin-bottom: 0.5rem; }
+    .objectives ul { padding-left: 1.25rem; color: var(--muted); }
+    .objectives li { margin-bottom: 0.25rem; }
+    section { margin-bottom: 2.5rem; }
+    h2 { font-size: 1.4rem; font-weight: 700; color: #ffffff; margin-bottom: 1rem; border-left: 3px solid var(--accent); padding-left: 0.75rem; }
+    h3 { font-size: 1.15rem; font-weight: 600; color: var(--accent); margin: 1.5rem 0 0.5rem; }
+    p { margin-bottom: 1rem; color: #cbd5e1; font-size: 1.05rem; }
+    ul, ol { padding-left: 1.5rem; margin-bottom: 1.25rem; color: #cbd5e1; }
+    li { margin-bottom: 0.4rem; }
+    pre { background: #020617; border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.25rem; overflow-x: auto; font-family: ui-monospace, Menlo, Monaco, monospace; font-size: 0.9rem; margin: 1.5rem 0; color: #e2e8f0; position: relative; }
+    code { font-family: ui-monospace, Menlo, Monaco, monospace; color: var(--accent); font-size: 0.9em; }
+    pre code { color: #e2e8f0; }
+    .copy-btn { position: absolute; top: 0.5rem; right: 0.5rem; background: #1e293b; border: 1px solid var(--border); color: var(--muted); border-radius: 0.25rem; padding: 0.2rem 0.5rem; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; }
+    .copy-btn:hover { color: #ffffff; border-color: var(--accent); }
+    .diagram-box { background: #020617; border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.5rem; margin: 1.5rem 0; text-align: center; }
+    .quiz-container { background: var(--card); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.5rem; margin-top: 2.5rem; }
+    .quiz-title { font-size: 1.2rem; font-weight: 700; color: var(--accent); margin-bottom: 1rem; }
+    .quiz-card { background: #0f172a; border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.25rem; margin-bottom: 1rem; }
+    .quiz-q { font-weight: 600; margin-bottom: 0.75rem; color: #ffffff; }
+    .quiz-opts { display: flex; flex-direction: column; gap: 0.5rem; }
+    .quiz-btn { background: #1e293b; border: 1px solid var(--border); color: #cbd5e1; padding: 0.6rem 1rem; border-radius: 0.375rem; text-align: left; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; }
+    .quiz-btn:hover { border-color: var(--accent); color: #ffffff; }
+    .quiz-feedback { margin-top: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-size: 0.85rem; display: none; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="badges">
+      <span class="badge badge-class">AI Bootcamp</span>
+      <span class="badge badge-class">Foundations</span>
+      <span class="badge badge-time">⏱️ 8 min read</span>
+    </div>
+    <h1>Dev Environment: The Four-Layer AI Stack</h1>
+  </header>
+
+  <div class="objectives">
+    <h3>🎯 Learning Objectives</h3>
+    <ul>
+      <li>Understand the four-layer AI stack: system foundation, package managers, language runtimes, and ML libraries</li><li>Install uv and configure Python 3.12 with reproducible virtual environments</li><li>Set up Node.js 22 with pnpm for MCP and agent tooling</li><li>Verify hardware acceleration on CUDA (NVIDIA) and MPS (Apple Silicon)</li>
+    </ul>
+  </div>
+
+  
+    <section>
+      <h2>The Problem: Why AI Tooling Breaks</h2>
+      <p>Most AI tutorials skip environment setup, leading to version hell, mismatched CUDA runtimes, and broken virtualenvs. In production AI engineering, your tools shape your thinking. We build bottom-up across four decoupled layers.</p>
+      
+    </section>
+        
+    <section>
+      <h2>The Four-Layer AI Stack Architecture</h2>
+      <p>Every professional AI development workstation consists of four stacked layers:</p>
+                    <div class="diagram-box">
+                      <pre style="margin:0; background:transparent; border:none; text-align:left;">
+┌────────────────────────────────────────────────────────────┐
+│ 4. AI/ML Libraries: PyTorch, JAX, HuggingFace, ChromaDB    │
+├────────────────────────────────────────────────────────────┤
+│ 3. Language Runtimes: Python 3.12+, Node.js 22+, Rust      │
+├────────────────────────────────────────────────────────────┤
+│ 2. Package Managers: uv (10-100x pip), pnpm, cargo         │
+├────────────────────────────────────────────────────────────┤
+│ 1. System Foundation: Unix shell, git, CUDA / Metal drivers│
+└────────────────────────────────────────────────────────────┘</pre>
+                    </div>
+      
+    </section>
+        
+    <section>
+      <h2>Step 1: Lightning-Fast Python with uv</h2>
+      <p>We use Astral's <code>uv</code> — written in Rust, it installs dependencies 10-100x faster than pip and manages Python versions natively without pyenv.</p>
+      
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install pinned Python 3.12
+uv python install 3.12
+
+# Create and activate virtual environment
+uv venv .venv --python 3.12
+source .venv/bin/activate
+
+# Install core tensor & data stack
+uv pip install numpy torch torchvision</code></pre>
+            
+    </section>
+        
+    <section>
+      <h2>Step 2: Hardware Acceleration Verification</h2>
+      <p>Test tensor allocations and verify GPU hardware acceleration for both NVIDIA CUDA and Apple Silicon Metal (MPS):</p>
+      
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import torch
+
+print(f"PyTorch Version: {torch.__version__}")
+
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    print(f"CUDA Device: {torch.cuda.get_device_name(0)}")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+    print("Apple Silicon Metal (MPS) is active.")
+else:
+    device = torch.device("cpu")
+    print("Running on CPU.")
+
+# Allocate matrix on device and verify dot product
+x = torch.randn(1000, 1000, device=device)
+y = torch.matmul(x, x.T)
+print(f"Matrix multiply completed successfully on {device}. Shape: {y.shape}")</code></pre>
+            
+    </section>
+        
+
+  
+    <div class="quiz-container">
+      <div class="quiz-title">🧠 Interactive Knowledge Check</div>
+      
+        <div class="quiz-card" id="qcard-0">
+          <div class="quiz-q">1. Why is 'uv' preferred over standard pip in modern AI development?</div>
+          <div class="quiz-opts">
+            
+            <button class="quiz-btn" onclick="checkAnswer(0, 0, false, 'uv%20is%20cross-platform%20across%20macOS,%20Linux,%20and%20Windows.')">
+              uv only works on Windows operating systems.
+            </button>
+                
+            <button class="quiz-btn" onclick="checkAnswer(0, 1, true, 'uv%20provides%20instant%20virtualenv%20creation,%20global%20cache%20deduplication,%20and%20deterministic%20dependency%20resolution.')">
+              uv is written in Rust, resolves dependencies 10-100x faster, and manages Python versions directly.
+            </button>
+                
+            <button class="quiz-btn" onclick="checkAnswer(0, 2, false, 'uv%20is%20a%20package%20manager,%20not%20a%20neural%20network%20framework.')">
+              uv replaces PyTorch with its own tensor engine.
+            </button>
+                
+          </div>
+          <div class="quiz-feedback" id="feedback-0"></div>
+        </div>
+            
+        <div class="quiz-card" id="qcard-1">
+          <div class="quiz-q">2. On Apple Silicon Macs (M1/M2/M3/M4), which PyTorch device backend accelerates tensor math?</div>
+          <div class="quiz-opts">
+            
+            <button class="quiz-btn" onclick="checkAnswer(1, 0, false, 'CUDA%20is%20NVIDIA%27s%20proprietary%20GPU%20architecture.')">
+              torch.device('cuda')
+            </button>
+                
+            <button class="quiz-btn" onclick="checkAnswer(1, 1, true, 'MPS%20(Metal%20Performance%20Shaders)%20maps%20PyTorch%20tensors%20directly%20to%20Apple%20Silicon%20GPUs.')">
+              torch.device('mps')
+            </button>
+                
+            <button class="quiz-btn" onclick="checkAnswer(1, 2, false, 'DirectX%20is%20Windows%20graphics%20API.')">
+              torch.device('directx')
+            </button>
+                
+          </div>
+          <div class="quiz-feedback" id="feedback-1"></div>
+        </div>
+            
+    </div>
+        
+
+  
+  <script>
+    function copyCode(btn) {
+      const pre = btn.parentElement;
+      const code = pre.querySelector('code') ? pre.querySelector('code').innerText : pre.innerText;
+      navigator.clipboard.writeText(code.replace('Copy', '').trim());
+      btn.innerText = 'Copied!';
+      setTimeout(() => { btn.innerText = 'Copy'; }, 2000);
+    }
+    function checkAnswer(qIdx, optIdx, isCorrect, encExp) {
+      const card = document.getElementById('qcard-' + qIdx);
+      const fb = document.getElementById('feedback-' + qIdx);
+      const exp = decodeURIComponent(encExp);
+      const btns = card.querySelectorAll('.quiz-btn');
+      btns.forEach((btn, idx) => {
+        btn.disabled = true;
+        btn.style.cursor = 'default';
+        if (idx === optIdx) {
+          btn.style.borderColor = isCorrect ? '#22c55e' : '#ef4444';
+          btn.style.background = isCorrect ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+        }
+      });
+      fb.style.display = 'block';
+      fb.style.background = isCorrect ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+      fb.style.color = isCorrect ? '#4ade80' : '#f87171';
+      fb.style.border = '1px solid ' + (isCorrect ? '#22c55e' : '#ef4444');
+      fb.innerHTML = (isCorrect ? '<strong>Correct!</strong> ' : '<strong>Incorrect.</strong> ') + exp;
+    }
+  </script>
+
+</body>
+</html>
