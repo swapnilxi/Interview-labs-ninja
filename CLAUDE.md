@@ -12,7 +12,7 @@ This is a personal AI learning-and-experimentation app: a place to build and try
 labs/tools while learning both the subject matter and how to build with AI. It started
 as an interview-prep app (Daily Session, DSA/CV/System Design Labs, Question Bank/
 Review, Progress Dashboard, LinkedIn Post Generator) and has since grown a
-Todo/Project/Quick-Task productivity suite (`ai_todo`, reachable at `/todo`), a Career
+Todo/Project/Quick-Task productivity suite (`ai_todo`, reachable at `/ai-todo`; old `/todo` redirects), a Career
 Studio (`/career`), an AI-generated LMS (`ai_lms`, at `/ai-lms`), and a Swipe PDF
 Reader — each added as its own experiment rather than a planned product roadmap, so
 modules vary in polish and don't all share the same conventions. As of 2026-08-02 it
@@ -57,7 +57,7 @@ further down in `README.md` — check there before assuming a module's shape.
 - **`backend/modules/todo/` and `frontend/src/modules/todo/` are dead leftovers from
   the rename to `ai_todo`/`ai-todo`.** Nothing imports from either (check with grep
   before assuming otherwise) — `backend/main.py` only wires up `modules.ai_todo.*`, and
-  every page under `frontend/src/app/todo/` imports from `@/modules/ai-todo/*`. Edit
+  every page under `frontend/src/app/ai-todo/` imports from `@/modules/ai-todo/*`. Edit
   `ai_todo` / `ai-todo`, not `todo`.
 - **`career_studio` has its own separate database — `backend/modules/career_studio/career_studio.sqlite3`, not `lab_ninja.sqlite3`.** `get_career_db_path()` in
   `backend/modules/career_studio/shared/db.py` honors `CAREER_STUDIO_DB_PATH` (mirrors
@@ -160,12 +160,14 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
 - **`nextjs-api`** — for a zero-external-server Vercel deployment. Requests route to
   Next.js App Router handlers under `frontend/src/app/api/**`, which call into
   **`frontend/fe-apis/`** — a separate, hand-maintained TypeScript reimplementation of
-  a *subset* of backend modules (currently: auth, `ai_lms`, PDF upload/reader, voice,
-  config env-prefill). `fe-apis` is not a thin proxy; it's its own DB/business-logic
-  layer, so a change to `ai_lms`/auth/pdf/voice behavior in the Python backend does
-  **not** automatically apply in `nextjs-api` mode — the `fe-apis/` equivalent needs
-  the matching change too, or the two modes will silently diverge.
-- Most modules (`ai_todo`, `career_studio`, the interview labs, `daily_session`,
+  a *subset* of backend modules (currently: auth, `ai_lms`, the `ai_todo` suite incl.
+  `/pareto`, PDF upload/reader, voice, config env-prefill). `fe-apis` is not a thin proxy;
+  it's its own DB/business-logic layer, so a change to `ai_lms`/`ai_todo`/auth/pdf/voice
+  behavior in the Python backend does **not** automatically apply in `nextjs-api` mode —
+  the `fe-apis/` equivalent needs the matching change too, or the two modes will silently
+  diverge. `ai_todo`'s twin is `frontend/fe-apis/todo/` (one catch-all route per prefix,
+  `src/app/api/{todo,pareto}/[...path]`); its README maps each Python file to its TS port.
+- Most other modules (`career_studio`, the interview labs, `daily_session`,
   `linkedin_post_generator`) have **no** `fe-apis` equivalent — they only work in
   `fastapi` mode. Don't assume feature parity between modes without checking whether a
   module has a `frontend/src/app/api/**` + `frontend/fe-apis/**` counterpart.

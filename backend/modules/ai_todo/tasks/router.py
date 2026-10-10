@@ -651,6 +651,8 @@ Summary: {summary['total']} total tasks, {summary['done_count']} completed, {sum
 Inbox/Distractions Captured (needs processing later):
 {inbox_summary}
 
+User's question: {payload.question}
+
 Answer the user's question helpfully and concisely based on these tasks and distractions. Be specific — reference actual task or distraction names. Keep responses under 200 words unless the user asks for detail."""
 
     try:

@@ -278,8 +278,8 @@ export default function Sidebar({
 
             {/* Personalised To-do */}
             <Link
-              href="/todo"
-              className={railItemClass(isActivePath('/todo'))}
+              href="/ai-todo"
+              className={railItemClass(isActivePath('/ai-todo'))}
               aria-label="Personalised To-do"
             >
               <Icon name="ClipboardDocumentCheckIcon" size={19} variant="outline" />
@@ -593,7 +593,7 @@ export default function Sidebar({
 
             <div className="my-2 border-t border-border" role="separator" />
 
-            <Link href="/todo" onClick={onClose} className={navLinkClass('/todo')}>
+            <Link href="/ai-todo" onClick={onClose} className={navLinkClass('/ai-todo')}>
               <Icon name="ClipboardDocumentCheckIcon" size={18} variant="outline" />
               <span>Personalised To-do</span>
             </Link>

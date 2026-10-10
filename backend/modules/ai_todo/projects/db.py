@@ -114,7 +114,7 @@ def update_project(project_id: int, user_id: int, **fields) -> Optional[Dict[str
         cursor = conn.cursor()
         cursor.execute(f"UPDATE projects SET {set_clause} WHERE id = ? AND user_id = ?", values)
         conn.commit()
-        cursor.execute(f"SELECT {_PROJECT_COLUMNS} FROM projects WHERE id = ?", (project_id,))
+        cursor.execute(f"SELECT {_PROJECT_COLUMNS} FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id))
         row = cursor.fetchone()
         return _project_row_to_dict(row) if row else None
     finally:

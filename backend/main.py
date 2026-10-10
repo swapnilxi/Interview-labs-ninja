@@ -69,6 +69,7 @@ from modules.ai_todo.import_data.router import router as import_router
 # Auth module
 from modules.auth.router import router as auth_router
 from modules.auth.admin_router import router as admin_router
+from modules.auth.admin_router import db_router as admin_db_router
 from modules.auth.access_requests_router import router as access_requests_router
 from modules.auth.db import promote_admins_from_env, promote_superadmins_from_env
 
@@ -158,6 +159,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(admin_db_router)
 app.include_router(access_requests_router)
 app.include_router(config_router)
 app.include_router(session_router)

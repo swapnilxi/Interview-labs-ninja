@@ -27,6 +27,15 @@ from modules.common.neon_sync import download_snapshot, upload_snapshot
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+# A separate router, NOT under plain /admin: every other fe-apis-ported module (e.g.
+# ai_lms) is reachable at /api/<module>/... in both fastapi mode (this backend) and
+# nextjs-api mode (Next's own /api/** routes), so the same frontend path works in
+# either mode -- see frontend/fe-apis/admin/db.ts for the nextjs-api twin of the two
+# routes below. The rest of this file's routes stay admin-only/fastapi-only (no
+# fe-apis equivalent exists for user management yet), consistent with that gap being
+# documented and accepted elsewhere in this app.
+db_router = APIRouter(prefix="/api/admin/db", tags=["admin"])
+
 
 class RoleUpdateRequest(BaseModel):
     role: str = Field(pattern="^(user|editor|admin|superadmin)$")
@@ -258,7 +267,7 @@ def _require_superadmin(admin: dict) -> None:
         raise HTTPException(status_code=403, detail="Only a superadmin can sync the production database")
 
 
-@router.post("/db/push")
+@db_router.post("/push")
 async def push_db_to_production(admin: dict = Depends(require_permission("users:manage"))) -> dict:
     """Push the current lab_ninja.sqlite3 to Neon as the latest snapshot. See
     modules/common/neon_sync.py -- this is the same upload the post-write middleware
@@ -272,7 +281,7 @@ async def push_db_to_production(admin: dict = Depends(require_permission("users:
     return {"status": "pushed"}
 
 
-@router.post("/db/pull")
+@db_router.post("/pull")
 async def pull_db_from_production(admin: dict = Depends(require_permission("users:manage"))) -> dict:
     """Overwrite the local lab_ninja.sqlite3 with the latest Neon snapshot. Destructive
     to whatever's currently in the local file -- the admin UI confirms this before

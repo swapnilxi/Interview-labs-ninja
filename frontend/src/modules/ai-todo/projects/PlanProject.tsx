@@ -125,7 +125,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', 'plan');
     params.set('view', view);
-    router.push(`/todo?${params.toString()}`);
+    router.push(`/ai-todo?${params.toString()}`);
   };
 
   const [showGuide, setShowGuide] = useState(true);

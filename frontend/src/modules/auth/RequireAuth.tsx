@@ -72,7 +72,7 @@ export default function RequireAuth({ children, feature }: { children: React.Rea
                 <Icon name="ArrowRightIcon" size={16} />
               </Link>
               <Link
-                href="/todo"
+                href="/ai-todo"
                 className="text-center text-xs text-muted-foreground hover:text-foreground transition-smooth"
               >
                 Your to-do lists stay fully usable as a guest →

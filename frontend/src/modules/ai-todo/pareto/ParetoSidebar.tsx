@@ -68,7 +68,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
 
   const handleFocus = (task: TopTask) => {
     const tab = task.table ? TABLE_TO_TAB[task.table] : 'smart';
-    router.push(`/todo?tab=${tab}`);
+    router.push(`/ai-todo?tab=${tab}`);
   };
 
   const totalTasks = data ? data.smart.length + data.quick.length + data.plan.length : 0;

@@ -151,13 +151,19 @@ export async function denyAccessRequest(id: number, reviewNote = ''): Promise<Ac
 }
 
 /** Superadmin-only: push the local lab_ninja.sqlite3 to Neon, or overwrite it with
- * Neon's latest snapshot. 503s if DATABASE_URL isn't configured on this backend. */
+ * Neon's latest snapshot. 503s if DATABASE_URL isn't configured on this backend.
+ * Unlike the rest of this file, these use the /api/admin/db/* path (not bare
+ * /admin/...) so the same call works in both fastapi mode (backend/modules/auth/
+ * admin_router.py's db_router) and nextjs-api mode (frontend/fe-apis/admin/db.ts) --
+ * the rest of the admin portal has no nextjs-api equivalent yet, but this one
+ * feature does, so it follows the cross-mode /api/<module>/... convention ai_lms
+ * already uses instead. */
 export async function pushDbToProduction(): Promise<void> {
-  const res = await apiFetch('/admin/db/push', { method: 'POST' });
+  const res = await apiFetch('/api/admin/db/push', { method: 'POST' });
   if (!res.ok) throw new Error(await parseApiError(res));
 }
 
 export async function pullDbFromProduction(): Promise<void> {
-  const res = await apiFetch('/admin/db/pull', { method: 'POST' });
+  const res = await apiFetch('/api/admin/db/pull', { method: 'POST' });
   if (!res.ok) throw new Error(await parseApiError(res));
 }

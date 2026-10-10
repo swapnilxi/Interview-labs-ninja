@@ -25,7 +25,7 @@ function TodoPageInner() {
   const setActiveTab = useCallback((tab: TodoTab) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', tab);
-    router.push(`/todo?${params.toString()}`);
+    router.push(`/ai-todo?${params.toString()}`);
   }, [router, searchParams]);
 
   const [model, setModel] = useState<'ollama' | 'gemini'>('gemini');

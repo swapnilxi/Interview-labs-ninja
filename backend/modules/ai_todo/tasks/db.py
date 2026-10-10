@@ -293,8 +293,9 @@ def update_task(task_id: int, user_id: int, **fields) -> Optional[Dict[str, Any]
                 # Turn off recurrence on the completed task
                 cursor.execute("UPDATE tasks SET is_recurring = 0 WHERE id = ?", (task_id,))
                 conn.commit()
-        elif old_status == "done" and new_status != "done":
-            # Decrement daily completions count
+        elif old_status == "done" and new_status is not None and new_status != "done":
+            # Decrement daily completions count — only when status actually changes
+            # (a rename of a done task carries no status and must not un-count it).
             increment_today_completions(user_id, -1)
 
         cursor.execute(f"SELECT {_TASK_COLUMNS} FROM tasks WHERE id = ?", (task_id,))

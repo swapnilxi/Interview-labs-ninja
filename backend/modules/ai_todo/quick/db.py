@@ -103,7 +103,7 @@ def update_quick_task(task_id: int, user_id: int, **fields) -> Optional[Dict[str
         cursor = conn.cursor()
         cursor.execute(f"UPDATE quick_tasks SET {set_clause} WHERE id = ? AND user_id = ?", values)
         conn.commit()
-        cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ?", (task_id,))
+        cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ? AND user_id = ?", (task_id, user_id))
         row = cursor.fetchone()
         return _quick_task_row_to_dict(row) if row else None
     finally:
@@ -145,7 +145,7 @@ def mark_quick_task_exported(
             (exported_task_id, exported_project_id, task_id, user_id),
         )
         conn.commit()
-        cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ?", (task_id,))
+        cursor.execute(f"SELECT {_QT_COLUMNS} FROM quick_tasks WHERE id = ? AND user_id = ?", (task_id, user_id))
         row = cursor.fetchone()
         return _quick_task_row_to_dict(row) if row else None
     finally:

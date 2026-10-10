@@ -357,7 +357,7 @@ manual transcript-paste box.
 ## To-Do Module (AI To-Do)
 
 A full task-management feature lives alongside the interview-coach modules, reachable
-at `/todo` in the frontend. It has three tabs — **Quick Daily** (flat day-list),
+at `/ai-todo` in the frontend (the old `/todo` page URL redirects there; `/todo/*` is the API). It has three tabs — **Quick Daily** (flat day-list),
 **Smart Todo** (infinitely-nestable task tree), and **Plan & Project** (multi-project
 node trees with AI roadmaps) — plus a Copilot sidebar, a cross-tab "80/20" Pareto
 analysis, and a floating Distraction Inbox for capturing off-task thoughts.
