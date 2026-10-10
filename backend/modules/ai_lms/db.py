@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import html as _html
 import json
 import re
 import sqlite3
@@ -290,6 +291,17 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
             cursor.execute("ALTER TABLE lms_lessons ADD COLUMN file_path TEXT DEFAULT '';")
         if "file_hash" not in lesson_cols:
             cursor.execute("ALTER TABLE lms_lessons ADD COLUMN file_hash TEXT DEFAULT '';")
+
+        # One-time repair: titles/summaries extracted from lesson HTML used to keep literal
+        # entities (`&amp;`). Decode once; rows without an entity are left untouched.
+        _entity = re.compile(r"&(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);")
+        cursor.execute("SELECT id, title, summary FROM lms_lessons WHERE title LIKE '%&%' OR summary LIKE '%&%';")
+        for lesson_id, title, summary in cursor.fetchall():
+            if _entity.search(title or "") or _entity.search(summary or ""):
+                cursor.execute(
+                    "UPDATE lms_lessons SET title = ?, summary = ? WHERE id = ?;",
+                    (_html.unescape(title or ""), _html.unescape(summary or ""), lesson_id),
+                )
 
         # Earlier versions of lesson/landing HTML that a file import replaced, so an IDE
         # edit can never silently destroy what the DB held (see class_folders.py).

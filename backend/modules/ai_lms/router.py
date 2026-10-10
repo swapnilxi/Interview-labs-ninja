@@ -1355,39 +1355,47 @@ def _clean_ai_html_output(raw_text: str) -> str:
     return text.strip()
 
 
-def _extract_title_from_html(html: str, fallback: str) -> str:
+def _plain_text(fragment: str) -> str:
+    """Strip tags and decode HTML entities exactly once (so `&amp;` -> `&`, `&amp;lt;` -> `&lt;`).
+
+    Titles/summaries are pulled out of raw HTML source, where `&` is stored as `&amp;`;
+    they're later rendered as plain text, so the entities must be decoded here.
+    """
+    return html.unescape(re.sub(r"<[^>]+>", "", fragment)).strip()
+
+
+def _extract_title_from_html(markup: str, fallback: str) -> str:
     """Extract title from <title> or <h1> tag."""
-    t_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
+    t_match = re.search(r"<title>(.*?)</title>", markup, re.IGNORECASE)
     if t_match and t_match.group(1).strip():
-        clean_title = t_match.group(1).strip()
+        clean_title = _plain_text(t_match.group(1))
         # Remove suffix like "| Lesson" or "- AI LMS"
         clean_title = re.split(r"[-|–—]", clean_title)[0].strip()
         if clean_title:
             return clean_title
 
-    h1_match = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.IGNORECASE)
+    h1_match = re.search(r"<h1[^>]*>(.*?)</h1>", markup, re.IGNORECASE)
     if h1_match and h1_match.group(1).strip():
-        # Strip internal tags
-        clean_h1 = re.sub(r"<[^>]+>", "", h1_match.group(1)).strip()
+        clean_h1 = _plain_text(h1_match.group(1))
         if clean_h1:
             return clean_h1
 
     return fallback
 
 
-def _extract_summary_from_html(html: str, fallback: str) -> str:
+def _extract_summary_from_html(markup: str, fallback: str) -> str:
     """Extract a brief 1-2 sentence summary from meta description or lead paragraph."""
-    meta_match = re.search(r'<meta\s+name=["\']description["\']\s+content=["\'](.*?)["\']', html, re.IGNORECASE)
+    meta_match = re.search(r'<meta\s+name=["\']description["\']\s+content=["\'](.*?)["\']', markup, re.IGNORECASE)
     if meta_match and meta_match.group(1).strip():
-        return meta_match.group(1).strip()[:200]
+        return _plain_text(meta_match.group(1))[:200]
 
-    p_match = re.search(r"<p[^>]*class=[\"'].*?(?:lead|intro|summary).*?[\"'][^>]*>(.*?)</p>", html, re.IGNORECASE)
+    p_match = re.search(r"<p[^>]*class=[\"'].*?(?:lead|intro|summary).*?[\"'][^>]*>(.*?)</p>", markup, re.IGNORECASE)
     if p_match and p_match.group(1).strip():
-        return re.sub(r"<[^>]+>", "", p_match.group(1)).strip()[:200]
+        return _plain_text(p_match.group(1))[:200]
 
-    p_first = re.search(r"<p[^>]*>(.*?)</p>", html, re.IGNORECASE)
+    p_first = re.search(r"<p[^>]*>(.*?)</p>", markup, re.IGNORECASE)
     if p_first and p_first.group(1).strip():
-        return re.sub(r"<[^>]+>", "", p_first.group(1)).strip()[:200]
+        return _plain_text(p_first.group(1))[:200]
 
     return fallback[:200]
 

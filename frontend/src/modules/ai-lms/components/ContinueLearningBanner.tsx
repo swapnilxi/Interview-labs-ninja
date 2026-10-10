@@ -20,7 +20,7 @@ export default function ContinueLearningBanner({
 }: ContinueLearningBannerProps) {
   if (loading) {
     return (
-      <div className="rounded-2xl border border-border bg-card/60 p-6 animate-pulse">
+      <div className="lms-panel p-5 sm:p-6 animate-pulse">
         <div className="h-4 w-36 bg-muted rounded mb-3" />
         <div className="h-7 w-72 bg-muted rounded mb-2" />
         <div className="h-4 w-48 bg-muted rounded" />
@@ -31,7 +31,7 @@ export default function ContinueLearningBanner({
   // Guidance fallback when user hasn't visited any lesson yet
   if (!item) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-card/80 backdrop-blur-md p-5 sm:p-6 shadow-sm">
+      <div className="lms-panel p-5 sm:p-6">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
@@ -48,7 +48,7 @@ export default function ContinueLearningBanner({
           <div className="flex items-center gap-3">
             <Link
               href="/ai-lms/generate"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-xs shadow-sm hover:opacity-95 transition-all"
+              className="lms-btn-primary lms-btn-lg"
             >
               <Icon name="SparklesIcon" size={15} />
               <span>Generate Lesson</span>
@@ -90,20 +90,25 @@ export default function ContinueLearningBanner({
     );
   }
 
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-card/90 backdrop-blur-md p-5 sm:p-6 shadow-md transition-all duration-300 hover:border-primary/50 hover:shadow-lg space-y-4">
-      {/* Decorative ambient background glows */}
-      <div className="absolute -right-16 -top-16 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+  const tintStyle = (token: string, bg: number, bd: number): React.CSSProperties => ({
+    color: `var(${token})`,
+    background: `color-mix(in srgb, var(${token}) ${bg}%, transparent)`,
+    borderColor: `color-mix(in srgb, var(${token}) ${bd}%, transparent)`,
+  });
 
+  return (
+    <section className="lms-panel p-5 sm:p-6 space-y-4" aria-label="Continue learning">
       {/* Recent Tracks Quick Switcher (when multiple tracks active) */}
       {recentItems && recentItems.length > 1 && (
-        <div className="relative z-10 flex items-center gap-2 overflow-x-auto pb-1 border-b border-border/50 scrollbar-none">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex-shrink-0 flex items-center gap-1">
+        <div
+          className="flex items-center gap-2 overflow-x-auto border-b pb-3 scrollbar-none"
+          style={{ borderColor: 'color-mix(in srgb, var(--color-foreground) 10%, transparent)' }}
+        >
+          <span className="flex flex-shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <Icon name="ClockIcon" size={12} />
-            <span>Recent Tracks:</span>
+            <span>Recent Tracks</span>
           </span>
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5">
             {recentItems.slice(0, 4).map((rec) => {
               const isActive = rec.lesson_id === item.lesson_id;
               return (
@@ -111,16 +116,15 @@ export default function ContinueLearningBanner({
                   key={rec.lesson_id}
                   type="button"
                   onClick={() => onSelectTrack?.(rec)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  aria-pressed={isActive}
+                  className={`lms-focus inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
                     isActive
-                      ? 'bg-primary text-white shadow-xs'
-                      : 'bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50'
+                      ? 'border-transparent bg-primary text-primary-foreground'
+                      : 'border-border text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  <span className="truncate max-w-[130px]">{rec.class_name || rec.lesson_title}</span>
-                  {rec.completed && (
-                    <Icon name="CheckCircleIcon" size={12} className={isActive ? 'text-white' : 'text-emerald-500'} />
-                  )}
+                  <span className="max-w-[130px] truncate">{rec.class_name || rec.lesson_title}</span>
+                  {rec.completed && <Icon name="CheckCircleIcon" size={12} />}
                 </button>
               );
             })}
@@ -128,37 +132,41 @@ export default function ContinueLearningBanner({
         </div>
       )}
 
-      {/* Main Continue Learning Card Content */}
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6">
-        <div className="space-y-2.5">
-          {/* Breadcrumbs & Status Tag */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+        <div className="min-w-0 flex-1 space-y-3">
+          {/* Status label + class / subject context */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
             {isCompleted ? (
-              <span className="font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider text-[10px] sm:text-[11px] flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                style={tintStyle('--color-success', 12, 28)}
+              >
                 <Icon name="CheckCircleIcon" size={12} />
-                <span>{hasNext ? 'Lesson Completed • Ready for Next Topic' : 'Module Completed'}</span>
+                <span>{hasNext ? 'Completed · Next topic ready' : 'Module completed'}</span>
               </span>
             ) : (
-              <span className="font-bold text-primary uppercase tracking-wider text-[10px] sm:text-[11px] flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20">
-                <Icon name="ArrowPathIcon" size={12} className="animate-spin-slow" />
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                style={tintStyle('--color-primary', 12, 28)}
+              >
+                <Icon name="ArrowPathIcon" size={12} />
                 <span>Continue Learning</span>
               </span>
             )}
 
-            <span className="text-muted-foreground">•</span>
             <Link
               href={`/ai-lms/classes/${item.class_slug}`}
-              className="px-2.5 py-0.5 rounded-full bg-muted/90 text-foreground hover:bg-muted font-semibold text-xs border border-border/60 transition-colors"
+              className="lms-focus rounded-md font-semibold text-foreground hover:text-primary transition-colors"
             >
               {item.class_name}
             </Link>
 
             {item.subject_name && (
               <>
-                <span className="text-muted-foreground">/</span>
+                <Icon name="ChevronRightIcon" size={12} className="text-muted-foreground" />
                 <Link
                   href={trackOverviewHref}
-                  className="text-muted-foreground hover:text-foreground font-medium text-xs transition-colors"
+                  className="lms-focus rounded-md text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {item.subject_name}
                 </Link>
@@ -166,128 +174,99 @@ export default function ContinueLearningBanner({
             )}
           </div>
 
-          {/* Lesson Title */}
+          {/* Lesson title */}
           <div>
-            <h3 className="font-heading text-lg sm:text-2xl font-extrabold text-foreground tracking-tight">
+            <h3
+              className="font-heading text-xl sm:text-2xl font-bold leading-tight tracking-tight text-foreground line-clamp-2 [text-wrap:balance]"
+              title={item.lesson_title}
+            >
               {item.lesson_title}
             </h3>
-            {/* Contextual User Guidance Prompt */}
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="mt-1.5 text-sm text-muted-foreground">
               {isCompleted && hasNext ? (
-                <span className="text-foreground font-medium">
-                  🎯 Next in Track: <span className="text-primary font-semibold">{item.next_lesson?.title}</span>
-                </span>
-              ) : isCompleted && !hasNext ? (
-                <span>🎉 Great job! You finished all lessons in this subject module.</span>
+                <>
+                  Next in track:{' '}
+                  <span className="font-semibold text-foreground">{item.next_lesson?.title}</span>
+                </>
+              ) : isCompleted ? (
+                <>You finished all lessons in this subject module.</>
               ) : (
-                <span>
-                  Resuming your active session • Est. ~{item.read_time_minutes || 5} min read
-                </span>
+                <>
+                  Resuming your active session
+                  {item.read_time_minutes ? <> · ~{item.read_time_minutes} min read</> : null}
+                </>
               )}
             </p>
           </div>
 
-          {/* Sequence info & Progress Bar */}
-          <div className="flex items-center gap-3 sm:gap-4 text-xs text-muted-foreground pt-0.5">
-            <span className="font-medium">
+          {/* Sequence info & progress */}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="font-medium tabular-nums">
               Lesson {item.current_index} of {item.total_lessons}
             </span>
-            <div className="w-24 sm:w-36 h-2 rounded-full bg-muted overflow-hidden border border-border/40 p-[1px]">
+            <div
+              className="h-1.5 w-28 overflow-hidden rounded-full sm:w-40"
+              style={{ background: 'color-mix(in srgb, var(--color-foreground) 12%, transparent)' }}
+              role="progressbar"
+              aria-valuenow={progressPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Lesson progress"
+            >
               <div
-                className={`h-full transition-all duration-500 rounded-full ${
-                  isCompleted
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
-                    : 'bg-gradient-to-r from-primary to-indigo-500'
-                }`}
-                style={{ width: `${progressPercent}%` }}
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${progressPercent}%`,
+                  background: isCompleted ? 'var(--color-success)' : 'var(--color-primary)',
+                }}
               />
             </div>
-            <span
-              className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                isCompleted
-                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-muted text-foreground'
-              }`}
-            >
-              {progressPercent}%
-            </span>
+            <span className="font-mono font-semibold tabular-nums text-foreground">{progressPercent}%</span>
           </div>
         </div>
 
-        {/* Guided Actions */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-shrink-0">
-          {/* If completed and next lesson is available, primary button guides to Next Lesson */}
+        {/* Actions: one solid primary, one secondary */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:flex-shrink-0">
           {isCompleted && hasNext ? (
             <>
-              <Link
-                href={nextLessonHref}
-                className="group relative inline-flex items-center justify-center gap-2.5 px-5 py-2.5 sm:px-6 sm:py-3 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-300 border border-white/20 overflow-hidden flex-shrink-0"
-              >
-                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-1000 ease-in-out pointer-events-none" />
-                <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-white/20 backdrop-blur-md text-white">
-                  <Icon name="ArrowRightIcon" size={13} className="text-white" />
-                </span>
-                <span className="tracking-wide">Start Next Lesson</span>
+              <Link href={nextLessonHref} className="lms-btn-primary lms-btn-lg">
+                <Icon name="ArrowRightIcon" size={16} />
+                <span>Start Next Lesson</span>
               </Link>
-
-              <Link
-                href={currentLessonHref}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold transition-all"
-              >
-                <Icon name="ArrowPathIcon" size={13} />
+              <Link href={currentLessonHref} className="lms-btn-secondary lms-btn-lg">
+                <Icon name="ArrowPathIcon" size={15} />
                 <span>Review Lesson</span>
               </Link>
             </>
-          ) : isCompleted && !hasNext ? (
+          ) : isCompleted ? (
             <>
-              <Link
-                href={trackOverviewHref}
-                className="group relative inline-flex items-center justify-center gap-2.5 px-5 py-2.5 sm:px-6 sm:py-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-primary text-white font-bold text-xs sm:text-sm shadow-md shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-300 border border-white/20 overflow-hidden flex-shrink-0"
-              >
-                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-1000 ease-in-out pointer-events-none" />
-                <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-white/20 backdrop-blur-md text-white">
-                  <Icon name="Squares2X2Icon" size={13} className="text-white" />
-                </span>
-                <span className="tracking-wide">Explore Class Modules</span>
+              <Link href={trackOverviewHref} className="lms-btn-primary lms-btn-lg">
+                <Icon name="Squares2X2Icon" size={16} />
+                <span>Explore Class Modules</span>
               </Link>
-
-              <Link
-                href={currentLessonHref}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold transition-all"
-              >
-                <Icon name="ArrowPathIcon" size={13} />
+              <Link href={currentLessonHref} className="lms-btn-secondary lms-btn-lg">
+                <Icon name="ArrowPathIcon" size={15} />
                 <span>Review</span>
               </Link>
             </>
           ) : (
-            /* Active in-progress lesson */
             <>
-              <Link
-                href={currentLessonHref}
-                className="group relative inline-flex items-center justify-center gap-3 px-5 py-2.5 sm:px-6 sm:py-3 rounded-2xl bg-gradient-to-r from-primary via-indigo-600 to-violet-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-primary/25 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-300 border border-white/20 overflow-hidden flex-shrink-0"
-              >
-                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-1000 ease-in-out pointer-events-none" />
-                <span className="flex items-center justify-center w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md text-white group-hover:bg-white/30 group-hover:scale-110 transition-all duration-300 shadow-xs">
-                  <Icon name="PlayIcon" variant="solid" size={13} className="translate-x-0.5 text-white" />
-                </span>
-                <span className="tracking-wide">Continue Lesson</span>
-                <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-white/10 group-hover:bg-white/20 group-hover:translate-x-1 transition-all duration-300">
-                  <Icon name="ArrowRightIcon" size={14} className="text-white" />
-                </span>
+              <Link href={currentLessonHref} className="lms-btn-primary lms-btn-lg">
+                <Icon name="PlayIcon" variant="solid" size={14} />
+                <span>Continue Lesson</span>
               </Link>
-
               <Link
                 href={trackOverviewHref}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold transition-all"
+                className="lms-btn-secondary lms-btn-lg"
                 title="View Track Outline"
               >
-                <Icon name="ListBulletIcon" size={14} />
-                <span className="hidden sm:inline">Track Outline</span>
+                <Icon name="ListBulletIcon" size={15} />
+                <span>Track Outline</span>
               </Link>
             </>
           )}
         </div>
       </div>
-    </div>
+    </section>
   );
 }

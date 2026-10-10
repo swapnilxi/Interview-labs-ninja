@@ -109,38 +109,49 @@ export default function LmsHomeModule() {
   const totalSubjects = classes.reduce((sum, c) => sum + (c.subject_count || 0), 0);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Compact Glassmorphic Hero & Sub-Tabs Header */}
-      <div className="relative rounded-2xl border border-border/80 bg-card/60 backdrop-blur-md p-4 sm:p-5 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Header Info */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary flex-shrink-0 shadow-xs">
-              <Icon name="SparklesIcon" size={20} />
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-[5rem] space-y-6">
+      {/* Header: identity + primary actions, then segmented nav + stats */}
+      <header className="space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border text-primary"
+              style={{
+                background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--color-primary) 30%, transparent)',
+              }}
+            >
+              <Icon name="SparklesIcon" size={22} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-heading text-xl sm:text-2xl font-extrabold tracking-tight text-foreground">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <h1 className="font-heading text-xl sm:text-2xl font-bold tracking-tight text-foreground">
                   AI Learning Platform
                 </h1>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                <span
+                  className="inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary"
+                  style={{
+                    background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--color-primary) 28%, transparent)',
+                  }}
+                >
                   AI LMS 2.0
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground font-body max-w-xl mt-0.5 line-clamp-1 sm:line-clamp-none">
-                Generate, organize, and consume interactive engineering lessons. Manage curriculum classes & AI faculty personas.
+              <p className="mt-1 max-w-2xl text-sm leading-snug text-muted-foreground">
+                Generate, organize, and consume interactive engineering lessons. Manage curriculum
+                classes &amp; AI faculty personas.
               </p>
             </div>
           </div>
 
-          {/* Action CTAs */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 lg:flex-shrink-0">
             <Link
               href="/ai-lms/landing"
               title="About AI LMS & all classes"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground font-semibold text-xs transition-all shadow-xs"
+              className="lms-btn-secondary"
             >
-              <Icon name="InformationCircleIcon" size={14} />
+              <Icon name="InformationCircleIcon" size={15} />
               <span>About AI LMS</span>
             </Link>
 
@@ -148,127 +159,120 @@ export default function LmsHomeModule() {
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground font-semibold text-xs transition-all shadow-xs"
+                className="lms-btn-secondary"
               >
-                <Icon name="PlusIcon" size={14} />
+                <Icon name="PlusIcon" size={15} />
                 <span>New Class</span>
               </button>
             )}
 
             {canEdit && (
-              <Link
-                href="/ai-lms/generate"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs shadow-xs hover:opacity-90 transition-all"
-              >
-                <Icon name="SparklesIcon" size={14} />
+              <Link href="/ai-lms/generate" className="lms-btn-primary">
+                <Icon name="SparklesIcon" size={15} />
                 <span>Generate Lesson</span>
               </Link>
             )}
           </div>
         </div>
 
-        {/* Sub-Tabs Bar: | Class Management | Instructor Management | */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border/60">
-          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-muted/60 border border-border/60 w-fit">
+        <div
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t pt-4"
+          style={{ borderColor: 'color-mix(in srgb, var(--color-foreground) 10%, transparent)' }}
+        >
+          <nav className="lms-segment w-fit max-w-full overflow-x-auto" aria-label="AI LMS sections">
             <button
               type="button"
               onClick={() => handleTabChange('classes')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'classes'
-                  ? 'bg-card text-foreground shadow-xs border border-border/80'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              aria-current={activeTab === 'classes'}
+              className="lms-segment-item"
             >
               <Icon name="AcademicCapIcon" size={15} />
               <span>Class Management</span>
             </button>
-
             <button
               type="button"
               onClick={() => handleTabChange('instructors')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'instructors'
-                  ? 'bg-card text-foreground shadow-xs border border-border/80'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              aria-current={activeTab === 'instructors'}
+              className="lms-segment-item"
             >
               <Icon name="UserGroupIcon" size={15} />
               <span>Instructor Management</span>
             </button>
-          </div>
+          </nav>
 
           {activeTab === 'classes' && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card/60 px-3 py-1.5 rounded-xl border border-border/60 w-fit shadow-2xs">
-              <span className="font-semibold text-foreground">{classes.length} classes</span>
-              <span>•</span>
-              <span>{totalSubjects} subjects</span>
-              <span>•</span>
-              <span>{totalLessons} lessons</span>
-            </div>
+            <dl className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+              <div className="flex items-baseline gap-1">
+                <dt className="sr-only">Classes</dt>
+                <dd className="font-semibold text-foreground">{classes.length}</dd>
+                <span aria-hidden="true">classes</span>
+              </div>
+              <span aria-hidden="true" className="h-3 w-px bg-border" />
+              <div className="flex items-baseline gap-1">
+                <dt className="sr-only">Subjects</dt>
+                <dd className="font-semibold text-foreground">{totalSubjects}</dd>
+                <span aria-hidden="true">subjects</span>
+              </div>
+              <span aria-hidden="true" className="h-3 w-px bg-border" />
+              <div className="flex items-baseline gap-1">
+                <dt className="sr-only">Lessons</dt>
+                <dd className="font-semibold text-foreground">{totalLessons}</dd>
+                <span aria-hidden="true">lessons</span>
+              </div>
+            </dl>
           )}
         </div>
-      </div>
+      </header>
 
       {/* Tab 1: Class Management View */}
       {activeTab === 'classes' && (
-        <div className="space-y-12 animate-fadeIn">
-          {/* Scannable Search Bar */}
-          <div className="flex justify-center">
-            <SearchBar />
-          </div>
+        <div className="space-y-8 animate-fadeIn">
+          <SearchBar />
 
-          {/* Continue Learning Experience (Reactive & Guided) */}
-          <section className="space-y-3">
-            <ContinueLearningBanner
-              item={continueItem}
-              recentItems={recentItems}
-              onSelectTrack={selectActiveTrack}
-              loading={continueLoading}
-            />
-          </section>
+          <ContinueLearningBanner
+            item={continueItem}
+            recentItems={recentItems}
+            onSelectTrack={selectActiveTrack}
+            loading={continueLoading}
+          />
 
           {/* Classes Section */}
-          <section className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <section className="space-y-4" aria-labelledby="curriculum-classes-heading">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
               <div>
-                <h2 className="font-heading text-xl md:text-2xl font-bold text-foreground">
+                <h2
+                  id="curriculum-classes-heading"
+                  className="font-heading text-xl md:text-2xl font-bold tracking-tight text-foreground"
+                >
                   Curriculum Classes
                 </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Browse structured technical domains, algorithms, and system design tracks
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                {canEdit && classes.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setIsOrganizeMode(!isOrganizeMode)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
-                      isOrganizeMode
-                        ? 'bg-primary text-white border-primary shadow-sm'
-                        : 'bg-card text-foreground border-border hover:bg-muted'
-                    }`}
-                  >
-                    <Icon name="ArrowsUpDownIcon" size={14} />
-                    <span>{isOrganizeMode ? 'Done Organizing' : 'Organize Classes'}</span>
-                  </button>
-                )}
-              </div>
+              {canEdit && classes.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setIsOrganizeMode(!isOrganizeMode)}
+                  aria-pressed={isOrganizeMode}
+                  className={isOrganizeMode ? 'lms-btn-primary' : 'lms-btn-secondary'}
+                >
+                  <Icon name="ArrowsUpDownIcon" size={15} />
+                  <span>{isOrganizeMode ? 'Done Organizing' : 'Organize Classes'}</span>
+                </button>
+              )}
             </div>
 
             {/* Classes Grid */}
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <div
-                    key={i}
-                    className="min-h-[220px] rounded-2xl border border-border bg-card/60 p-[24px] animate-pulse"
-                  />
+                  <div key={i} className="lms-panel min-h-[240px] animate-pulse" />
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {classes.map((cls, idx) => (
                   <ClassCard
                     key={cls.id}

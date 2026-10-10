@@ -4,7 +4,6 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import type { LmsClass } from '../types';
-import { useGlowSpotlight } from './useGlowSpotlight';
 
 interface ClassCardProps {
   lmsClass: LmsClass;
@@ -30,29 +29,24 @@ export default function ClassCard({
   onMoveRight,
 }: ClassCardProps) {
   const router = useRouter();
-  const { ref, onPointerMove, onPointerEnter, onPointerLeave } = useGlowSpotlight<HTMLDivElement>();
   const isOther = lmsClass.slug === 'other';
   const href = `/ai-lms/classes/${lmsClass.slug}`;
   const accent = lmsClass.accent_color || '#6366f1';
 
   return (
     <div
-      className="glow-card-wrap relative"
+      className="h-full"
       style={{ '--card-accent': accent } as React.CSSProperties}
     >
-      {!isOrganizeMode && <span className="glow-card-halo" aria-hidden="true" />}
       <div
-        ref={isOrganizeMode ? undefined : ref}
         onClick={() => {
           if (!isOrganizeMode) {
             router.push(href);
           }
         }}
-        onPointerMove={isOrganizeMode ? undefined : onPointerMove}
-        onPointerEnter={isOrganizeMode ? undefined : onPointerEnter}
-        onPointerLeave={isOrganizeMode ? undefined : onPointerLeave}
         role={isOrganizeMode ? undefined : 'button'}
         tabIndex={isOrganizeMode ? undefined : 0}
+        aria-label={isOrganizeMode ? undefined : `Open ${lmsClass.name}`}
         onKeyDown={
           isOrganizeMode
             ? undefined
@@ -64,42 +58,28 @@ export default function ClassCard({
                 }
               }
         }
-        className={`group relative flex flex-col justify-between rounded-2xl border bg-card p-[24px] shadow-sm focus-ring ${
-          isOrganizeMode
-            ? 'border-primary/40 ring-1 ring-primary/20 cursor-default'
-            : 'glow-card cursor-pointer hover:-translate-y-1 focus-visible:-translate-y-1'
+        className={`group lms-card p-5 ${
+          isOrganizeMode ? 'cursor-default' : 'lms-card-interactive'
         }`}
       >
-        {!isOrganizeMode && (
-          <>
-            <span className="glow-card-rim" aria-hidden="true" />
-            <span className="glow-card-spotlight" aria-hidden="true" />
-          </>
-        )}
-
-        {/* Top subtle accent gradient edge bar */}
-        <div
-          className="absolute top-0 left-6 right-6 h-[2.5px] rounded-full opacity-45 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-events-none"
-          style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
-        />
-
-        <div className="relative z-[2]">
+        <div className="flex-1">
           {/* Top Header: Icon & System badge/menu/reorder */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div
-                className="flex h-[44px] w-[44px] items-center justify-center rounded-xl border transition-transform duration-300 group-hover:scale-105"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border"
                 style={{
                   backgroundColor: `color-mix(in srgb, ${accent} 14%, transparent)`,
                   borderColor: `color-mix(in srgb, ${accent} 30%, transparent)`,
                   color: accent,
                 }}
               >
-                <Icon name={lmsClass.icon || 'BookmarkIcon'} size={22} />
+                <Icon name={lmsClass.icon || 'BookmarkIcon'} size={20} />
               </div>
 
               {orderIndex !== undefined && (
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
+                <span className="font-mono text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md border"
+                  style={{ color: `color-mix(in srgb, ${accent} 70%, var(--color-foreground))`, borderColor: `color-mix(in srgb, ${accent} 22%, transparent)`, background: `color-mix(in srgb, ${accent} 8%, transparent)` }}>
                   #{orderIndex + 1}
                 </span>
               )}
@@ -182,31 +162,30 @@ export default function ClassCard({
           </div>
 
           {/* Title & Description */}
-          <div className="mt-5">
-            <h3 className="font-heading text-lg font-semibold text-foreground transition-colors group-hover:text-[var(--card-accent)] group-focus-visible:text-[var(--card-accent)]">
+          <div className="mt-4">
+            <h3 className="lms-card-title font-heading text-lg font-semibold leading-snug text-foreground break-words line-clamp-2" title={lmsClass.name}>
               {lmsClass.name}
             </h3>
-            <p className="mt-2 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+            <p
+              className="mt-1.5 text-sm leading-relaxed text-muted-foreground line-clamp-2"
+              title={lmsClass.description || undefined}
+            >
               {lmsClass.description || 'Curated lessons and technical modules.'}
             </p>
             {lmsClass.ai_context && (
-              <div
-                className="mt-3 flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-lg border"
-                style={{
-                  backgroundColor: `color-mix(in srgb, ${accent} 8%, transparent)`,
-                  borderColor: `color-mix(in srgb, ${accent} 22%, transparent)`,
-                  color: accent,
-                }}
-              >
-                <Icon name="SparklesIcon" size={12} className="flex-shrink-0" />
-                <span className="truncate">AI: {lmsClass.ai_context}</span>
+              <div className="mt-3 flex">
+                <span className="lms-meta-pill" title={`AI focus: ${lmsClass.ai_context}`}>
+                  <Icon name="SparklesIcon" size={12} className="flex-shrink-0" />
+                  <span className="truncate">{lmsClass.ai_context}</span>
+                </span>
               </div>
             )}
           </div>
         </div>
 
         {/* Footer: Metadata & Open CTA */}
-        <div className="relative z-[2] mt-[20px] flex items-center justify-between pt-[16px] border-t border-border/60">
+        <div className="mt-4 flex items-center justify-between gap-2 border-t pt-3"
+          style={{ borderColor: 'color-mix(in srgb, var(--color-foreground) 10%, transparent)' }}>
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             {isOther ? (
               <span className="flex items-center gap-1" style={{ color: accent }}>
@@ -227,7 +206,7 @@ export default function ClassCard({
           </div>
 
           <div
-            className="inline-flex items-center gap-1 text-xs font-semibold group-hover:translate-x-1 transition-transform"
+            className="lms-card-open inline-flex items-center gap-1 text-xs font-semibold"
             style={{ color: accent }}
           >
             <span>Open</span>

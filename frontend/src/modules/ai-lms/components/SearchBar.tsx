@@ -53,7 +53,7 @@ export default function SearchBar() {
     : 0;
 
   return (
-    <div ref={containerRef} className="relative w-full max-w-xl">
+    <div ref={containerRef} className="relative w-full" role="search">
       <div className="relative flex items-center">
         <div className="absolute left-3.5 text-muted-foreground pointer-events-none">
           <Icon
@@ -62,7 +62,11 @@ export default function SearchBar() {
             className={loading ? 'animate-spin' : ''}
           />
         </div>
+        <label htmlFor="lms-search" className="sr-only">
+          Search classes, subjects, and lessons
+        </label>
         <input
+          id="lms-search"
           type="text"
           placeholder="Search classes, subjects, lessons..."
           value={query}
@@ -70,7 +74,7 @@ export default function SearchBar() {
           onFocus={() => {
             if (results && totalResults > 0) setIsOpen(true);
           }}
-          className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-border bg-card text-foreground text-sm placeholder:text-muted-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all"
+          className="lms-input h-11 pl-10 pr-10"
         />
         {query && (
           <button
@@ -80,7 +84,8 @@ export default function SearchBar() {
               setResults(null);
               setIsOpen(false);
             }}
-            className="absolute right-3 text-muted-foreground hover:text-foreground p-0.5"
+            aria-label="Clear search"
+            className="absolute right-3 rounded p-0.5 text-muted-foreground hover:text-foreground lms-focus"
           >
             <Icon name="XMarkIcon" size={16} />
           </button>

@@ -57,6 +57,22 @@ import * as landingEdit from './landingEdit';
 import { withNeonSync } from '@/lib/server/neonSync';
 import { buildZip } from './zip';
 
+const NAMED_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
+
+/** Strip tags, then decode HTML entities in ONE pass (`&amp;lt;` -> `&lt;`, never `<`). Twin of `_plain_text` in router.py. */
+function htmlToText(fragment: string): string {
+  return fragment
+    .replace(/<[^>]+>/g, '')
+    .replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (m, dec, hex, name) => {
+      if (dec || hex) {
+        const cp = dec ? parseInt(dec, 10) : parseInt(hex, 16);
+        return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
+      }
+      return NAMED_ENTITIES[String(name).toLowerCase()] ?? m;
+    })
+    .trim();
+}
+
 const EDITOR_ROLES = new Set(['editor', 'admin', 'superadmin']);
 
 // Writes that only touch the caller's own state or return AI output without saving anything
@@ -1481,7 +1497,7 @@ CONTENT STRUCTURE:
   }
 
   const titleMatch = finalHtml.match(/<h1[^>]*>(.*?)<\/h1>/i) || finalHtml.match(/<title[^>]*>(.*?)<\/title>/i);
-  const finalTitle = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() || fallbackTitle : fallbackTitle;
+  const finalTitle = titleMatch ? htmlToText(titleMatch[1]) || fallbackTitle : fallbackTitle;
   const finalSummary = `Interactive technical lesson on ${finalTitle}`;
 
   return { html: finalHtml, title: finalTitle, summary: finalSummary };
@@ -2343,7 +2359,7 @@ RULES:
       );
     }
     const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/i) || html.match(/<title[^>]*>(.*?)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+    const title = titleMatch ? htmlToText(titleMatch[1]) : '';
     return NextResponse.json({
       generated_html: html,
       title: title || String(lesson.title || ''),

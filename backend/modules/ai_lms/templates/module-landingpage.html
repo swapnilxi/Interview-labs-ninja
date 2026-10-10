@@ -180,6 +180,101 @@
       background: var(--surface);
     }
     .closing h2 { margin: 0 0 18px; }
+
+    /* ================================================================
+       Premium glow cards: layered ambient halo (box-shadow), a cursor-
+       following spotlight + static corner highlight (::before, clipped
+       to the card), and a slow continuous shimmering rim (::after,
+       masked to a thin ring). --mx/--my are written by the pointer
+       script below; everything else is driven by :hover/:focus-within.
+       ================================================================ */
+    @property --rim-angle {
+      syntax: '<angle>';
+      initial-value: 0deg;
+      inherits: true;
+    }
+    .lms-card, .feature-card {
+      position: relative;
+      isolation: isolate;
+      --mx: 50%;
+      --my: 0%;
+      box-shadow:
+        0 2px 8px -4px rgba(0, 0, 0, 0.08),
+        0 0 28px -18px color-mix(in srgb, var(--accent) 35%, transparent);
+      transition:
+        transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .lms-card:hover, .feature-card:hover,
+    .lms-card:focus-within, .feature-card:focus-within {
+      transform: translateY(-4px);
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      box-shadow:
+        0 2px 10px -4px rgba(0, 0, 0, 0.1),
+        0 16px 36px -16px color-mix(in srgb, var(--accent) 48%, transparent),
+        0 0 54px -14px color-mix(in srgb, var(--accent) 42%, transparent);
+    }
+    .lms-card::before, .feature-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background:
+        radial-gradient(220px circle at var(--mx) var(--my), color-mix(in srgb, var(--accent) 22%, transparent), transparent 65%),
+        radial-gradient(60% 50% at 18% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 72%);
+      opacity: 0;
+      transition: opacity 350ms ease;
+    }
+    .lms-card:hover::before, .feature-card:hover::before,
+    .lms-card:focus-within::before, .feature-card:focus-within::before {
+      opacity: 1;
+    }
+    .lms-card::after, .feature-card::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      z-index: 0;
+      padding: 1px;
+      border-radius: inherit;
+      pointer-events: none;
+      background: conic-gradient(
+        from var(--rim-angle, 0deg),
+        color-mix(in srgb, var(--accent) 95%, white 5%) 0deg,
+        color-mix(in srgb, var(--accent) 55%, transparent) 12deg,
+        transparent 38deg,
+        transparent 360deg
+      );
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask-composite: exclude;
+      opacity: 0.35;
+      animation: lms-rim-spin 4.5s linear infinite;
+      transition: opacity 300ms ease;
+    }
+    .lms-card:hover::after, .feature-card:hover::after,
+    .lms-card:focus-within::after, .feature-card:focus-within::after {
+      opacity: 1;
+    }
+    @keyframes lms-rim-spin {
+      to { --rim-angle: 360deg; }
+    }
+    .lms-card > *, .feature-card > * {
+      position: relative;
+      z-index: 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .lms-card, .feature-card { transition: none; }
+      .lms-card:hover, .feature-card:hover,
+      .lms-card:focus-within, .feature-card:focus-within { transform: none; }
+      .lms-card::after, .feature-card::after { animation: none; opacity: 0.5; }
+    }
+    @media (hover: none), (pointer: coarse) {
+      .lms-card::before, .feature-card::before { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -272,6 +367,39 @@
         setLmsTheme(data.theme);
       }
     });
+  </script>
+  <script>
+    /* Glow card spotlight: tracks the pointer per card into --mx/--my (used by
+       the ::before radial-gradient in <style>). Opacity/hover state is pure
+       CSS (:hover/:focus-within); this only ever updates coordinates. */
+    (function () {
+      var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) return;
+      var raf = null;
+      var pending = null;
+      function flush() {
+        raf = null;
+        if (!pending) return;
+        pending.el.style.setProperty('--mx', pending.x + '%');
+        pending.el.style.setProperty('--my', pending.y + '%');
+        pending = null;
+      }
+      var cards = document.querySelectorAll('.lms-card, .feature-card');
+      for (var i = 0; i < cards.length; i++) {
+        (function (card) {
+          card.addEventListener('pointermove', function (e) {
+            if (e.pointerType === 'touch') return;
+            var rect = card.getBoundingClientRect();
+            pending = {
+              el: card,
+              x: (((e.clientX - rect.left) / rect.width) * 100).toFixed(1),
+              y: (((e.clientY - rect.top) / rect.height) * 100).toFixed(1),
+            };
+            if (raf == null) raf = requestAnimationFrame(flush);
+          });
+        })(cards[i]);
+      }
+    })();
   </script>
 </body>
 </html>
