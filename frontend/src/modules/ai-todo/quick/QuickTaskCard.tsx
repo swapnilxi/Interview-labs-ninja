@@ -87,8 +87,8 @@ export default function QuickTaskCard({
   const metaRowVisible = hasMeta || editingField !== null;
 
   return (
-    <div className={`relative bg-card border border-border/60 rounded-lg p-2.5 transition-smooth hover:border-border/80 group ${paretoClasses} ${task.done ? 'opacity-60' : ''}`}>
-      <div className="flex flex-col gap-1.5">
+    <div className={`todo-lit relative bg-card border border-border/60 rounded-lg p-3.5 group ${paretoClasses} ${task.done ? 'opacity-60' : ''}`}>
+      <div className="flex flex-col gap-2.5">
         {/* Row 1: checkbox + title + actions (actions are shrink-0 so they never wrap) */}
         <div className="flex items-start gap-2">
           {!hideDragHandle && (

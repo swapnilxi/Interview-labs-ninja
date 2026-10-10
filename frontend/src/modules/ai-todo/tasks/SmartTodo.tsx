@@ -159,7 +159,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
   })) as unknown as (MatrixItem & Task)[];
 
   return (
-    <div className="flex flex-col h-full gap-4">
+    <div className="flex flex-col h-full gap-[1.75rem]">
       {/* 80/20 Analyze result toast */}
       {toast && (
         <div
@@ -178,10 +178,10 @@ export default function SmartTodo({ model }: SmartTodoProps) {
 
       {/* AI Fast Capture — natural language in, structured task out */}
       <form onSubmit={handleNlpSubmit} aria-label="Add a task with AI" className="w-full">
-        <div className="todo-capture">
+        <div className="todo-capture todo-lit">
           <label
             htmlFor="todo-fast-capture"
-            className="flex shrink-0 items-center gap-1.5 pl-2 text-xs font-semibold text-primary"
+            className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-primary"
           >
             <Icon name="SparklesIcon" size={16} variant="solid" />
             <span className="hidden sm:inline">AI Fast Capture</span>
@@ -196,12 +196,12 @@ export default function SmartTodo({ model }: SmartTodoProps) {
             aria-describedby="todo-fast-capture-hint"
             aria-invalid={nlpError ? true : undefined}
             autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent px-1.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
           <button
             type="submit"
             disabled={nlpLoading || !nlpInput.trim()}
-            className="todo-btn todo-btn-primary shrink-0 px-2.5 sm:px-3.5 py-2"
+            className="todo-btn todo-btn-primary shrink-0 px-3 sm:px-4 py-2.5"
           >
             {nlpLoading ? (
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
@@ -212,7 +212,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
             <span className="sr-only sm:hidden">{nlpLoading ? 'Adding' : 'Parse and add task'}</span>
           </button>
         </div>
-        <div id="todo-fast-capture-hint" aria-live="polite" className="mt-1.5 min-h-[18px] px-1 text-[11px] leading-snug">
+        <div id="todo-fast-capture-hint" aria-live="polite" className="mt-2 min-h-[18px] px-4 text-[11px] leading-snug">
           {nlpError ? (
             <p className="flex items-start gap-1.5 text-error">
               <Icon name="ExclamationCircleIcon" size={14} className="mt-px shrink-0" />

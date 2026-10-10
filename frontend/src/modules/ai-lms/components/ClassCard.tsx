@@ -35,9 +35,10 @@ export default function ClassCard({
 
   return (
     <div
-      className="h-full"
+      className="glow-card-wrap relative h-full"
       style={{ '--card-accent': accent } as React.CSSProperties}
     >
+      {!isOrganizeMode && <span className="glow-card-halo" aria-hidden="true" />}
       <div
         onClick={() => {
           if (!isOrganizeMode) {
@@ -58,11 +59,13 @@ export default function ClassCard({
                 }
               }
         }
-        className={`group lms-card p-5 ${
+        className={`group lms-card glow-card p-[1.75rem] ${
           isOrganizeMode ? 'cursor-default' : 'lms-card-interactive'
         }`}
       >
-        <div className="flex-1">
+        {!isOrganizeMode && <span className="glow-card-rim" aria-hidden="true" />}
+
+        <div className="relative z-[2] flex-1">
           {/* Top Header: Icon & System badge/menu/reorder */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -162,18 +165,18 @@ export default function ClassCard({
           </div>
 
           {/* Title & Description */}
-          <div className="mt-4">
+          <div className="mt-[1.5rem]">
             <h3 className="lms-card-title font-heading text-lg font-semibold leading-snug text-foreground break-words line-clamp-2" title={lmsClass.name}>
               {lmsClass.name}
             </h3>
             <p
-              className="mt-1.5 text-sm leading-relaxed text-muted-foreground line-clamp-2"
+              className="mt-3 text-sm leading-relaxed text-muted-foreground line-clamp-2"
               title={lmsClass.description || undefined}
             >
               {lmsClass.description || 'Curated lessons and technical modules.'}
             </p>
             {lmsClass.ai_context && (
-              <div className="mt-3 flex">
+              <div className="mt-[1.25rem] flex">
                 <span className="lms-meta-pill" title={`AI focus: ${lmsClass.ai_context}`}>
                   <Icon name="SparklesIcon" size={12} className="flex-shrink-0" />
                   <span className="truncate">{lmsClass.ai_context}</span>
@@ -184,7 +187,7 @@ export default function ClassCard({
         </div>
 
         {/* Footer: Metadata & Open CTA */}
-        <div className="mt-4 flex items-center justify-between gap-2 border-t pt-3"
+        <div className="relative z-[2] mt-[1.75rem] flex items-center justify-between gap-2 border-t pt-[1.25rem]"
           style={{ borderColor: 'color-mix(in srgb, var(--color-foreground) 10%, transparent)' }}>
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             {isOther ? (

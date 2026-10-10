@@ -36,7 +36,7 @@ export default function RequireAuth({ children, feature }: { children: React.Rea
     return (
       <div className="min-h-[calc(100svh-60px)] flex items-center justify-center px-[4vw] py-36
                       bg-[radial-gradient(ellipse_at_top,var(--color-glow),transparent_60%)]">
-        <div className="w-full max-w-[440px] bg-card border border-border rounded-2xl shadow-xl overflow-hidden">
+        <div className="todo-lit lit-soft w-full max-w-[440px] bg-card border border-border rounded-2xl shadow-xl overflow-hidden">
           {/* Gradient header */}
           <div className="relative px-24 pt-36 pb-24 text-center text-white overflow-hidden
                           bg-gradient-to-br from-[#5b5bd6] via-[#6d5be0] to-[#7c3aed]">

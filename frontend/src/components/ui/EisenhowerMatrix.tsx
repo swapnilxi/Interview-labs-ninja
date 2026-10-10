@@ -43,11 +43,11 @@ interface EisenhowerMatrixProps<T extends MatrixItem> {
   itemRenderer: (item: T, isDragging?: boolean) => React.ReactNode;
 }
 
-const QUADRANTS: { id: QuadrantType; label: string; colorClass: string; bgClass: string; borderActive: string; desc: string; emoji: string }[] = [
-  { id: 'do_now',    label: 'DO NOW',    emoji: '🔴', colorClass: 'text-red-500',   bgClass: 'bg-red-500/5 border-red-500/20',   borderActive: 'border-red-500/60 bg-red-500/10',   desc: 'Urgent & Important' },
-  { id: 'schedule',  label: 'SCHEDULE',  emoji: '🔵', colorClass: 'text-blue-500',  bgClass: 'bg-blue-500/5 border-blue-500/20',  borderActive: 'border-blue-500/60 bg-blue-500/10',  desc: 'Important, Not Urgent' },
-  { id: 'delegate',  label: 'DELEGATE',  emoji: '🟡', colorClass: 'text-amber-500', bgClass: 'bg-amber-500/5 border-amber-500/20', borderActive: 'border-amber-500/60 bg-amber-500/10', desc: 'Urgent, Not Important' },
-  { id: 'eliminate', label: 'ELIMINATE', emoji: '⚫', colorClass: 'text-gray-500',  bgClass: 'bg-gray-500/5 border-gray-500/20',  borderActive: 'border-gray-400/60 bg-gray-400/10',  desc: 'Neither' },
+const QUADRANTS: { id: QuadrantType; label: string; colorClass: string; bgClass: string; borderActive: string; desc: string; emoji: string; lit: string }[] = [
+  { id: 'do_now',    label: 'DO NOW',    emoji: '🔴', colorClass: 'text-red-500',   bgClass: 'bg-red-500/5 border-red-500/20',   borderActive: 'border-red-500/60 bg-red-500/10',   desc: 'Urgent & Important', lit: '#ef4444' },
+  { id: 'schedule',  label: 'SCHEDULE',  emoji: '🔵', colorClass: 'text-blue-500',  bgClass: 'bg-blue-500/5 border-blue-500/20',  borderActive: 'border-blue-500/60 bg-blue-500/10',  desc: 'Important, Not Urgent', lit: '#3b82f6' },
+  { id: 'delegate',  label: 'DELEGATE',  emoji: '🟡', colorClass: 'text-amber-500', bgClass: 'bg-amber-500/5 border-amber-500/20', borderActive: 'border-amber-500/60 bg-amber-500/10', desc: 'Urgent, Not Important', lit: '#f59e0b' },
+  { id: 'eliminate', label: 'ELIMINATE', emoji: '⚫', colorClass: 'text-gray-500',  bgClass: 'bg-gray-500/5 border-gray-500/20',  borderActive: 'border-gray-400/60 bg-gray-400/10',  desc: 'Neither', lit: '#9ca3af' },
 ];
 
 // ── Draggable card ────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ function SortableCard<T extends MatrixItem>({
       style={style}
       {...attributes}
       {...listeners}
-      className={`mb-2 cursor-grab active:cursor-grabbing touch-none select-none ${item.is_top_20 ? 'ring-1 ring-amber-400 rounded-xl shadow-sm' : ''}`}
+      className={`mb-3 cursor-grab active:cursor-grabbing touch-none select-none ${item.is_top_20 ? 'ring-1 ring-amber-400 rounded-xl shadow-sm' : ''}`}
     >
       {renderer(item, isDragging)}
     </div>
@@ -101,12 +101,13 @@ function QuadrantDropZone<T extends MatrixItem>({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col rounded-xl border-2 transition-all duration-150 overflow-hidden min-h-[220px] ${
+      style={{ '--lit': quad.lit } as React.CSSProperties}
+      className={`todo-lit flex flex-col rounded-xl border-2 overflow-hidden min-h-[220px] ${
         isOver ? quad.borderActive : quad.bgClass
       }`}
     >
       {/* Header */}
-      <div className="px-3 py-2.5 flex items-center justify-between border-b border-black/5 dark:border-white/5 bg-black/[0.03] dark:bg-white/[0.03]">
+      <div className="px-[1.25rem] py-4 flex items-center justify-between border-b border-black/5 dark:border-white/5 bg-black/[0.03] dark:bg-white/[0.03]">
         <div className="flex items-center gap-2">
           <span>{quad.emoji}</span>
           <span className={`font-bold text-xs uppercase tracking-wider ${quad.colorClass}`}>
@@ -120,7 +121,7 @@ function QuadrantDropZone<T extends MatrixItem>({
       </div>
 
       {/* Items */}
-      <div className="flex-1 p-2 overflow-y-auto scrollbar-clean">
+      <div className="flex-1 p-4 overflow-y-auto scrollbar-clean">
         <SortableContext
           id={quad.id}
           items={items.map((i) => i.id.toString())}
@@ -227,7 +228,7 @@ export default function EisenhowerMatrix<T extends MatrixItem>({
   };
 
   return (
-    <div className="flex flex-col h-full gap-3">
+    <div className="flex flex-col h-full gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="font-heading font-semibold text-base text-foreground flex items-center gap-2">
@@ -256,7 +257,7 @@ export default function EisenhowerMatrix<T extends MatrixItem>({
         onDragEnd={handleDragEnd}
       >
         {/* 2×2 grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0">
+        <div className="todo-stagger grid grid-cols-1 md:grid-cols-2 gap-[1.25rem] flex-1 min-h-0">
           {QUADRANTS.map((quad) => {
             const isOver = overId ? resolveQuadrant(overId) === quad.id : false;
             return (

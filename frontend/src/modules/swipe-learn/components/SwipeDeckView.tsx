@@ -156,9 +156,9 @@ export default function SwipeDeckView({
   const isSaved = savedCardIds.includes(currentCard.id);
 
   return (
-    <div className="w-full max-w-[460px] mx-auto px-3 sm:px-4 flex flex-col items-center select-none pt-2 pb-8">
+    <div className="w-full max-w-[520px] mx-auto px-4 sm:px-[1.5rem] flex-1 min-h-0 flex flex-col items-center select-none pt-4 pb-4">
       {/* Card Stack Container */}
-      <div className="relative w-full min-h-[460px]">
+      <div className="relative w-full flex-1 min-h-0">
         {/* Behind Card (Stack Effect) */}
         {nextCard && (
           <div
@@ -169,7 +169,7 @@ export default function SwipeDeckView({
 
         {/* Top Active Card */}
         <div
-          className="w-full relative touch-pan-y cursor-grab active:cursor-grabbing"
+          className="w-full h-full relative touch-pan-y cursor-grab active:cursor-grabbing"
           style={{
             transform: transformStyle,
             transition: transitionStyle,
@@ -215,16 +215,17 @@ export default function SwipeDeckView({
       </div>
 
       {/* Floating Bottom Action Pod matching input_file_0.png */}
-      <div className="mt-7 flex items-center justify-center gap-5 sm:gap-6">
+      <div className="mt-5 shrink-0 flex items-center justify-center gap-[1.5rem] sm:gap-[2rem]">
         {/* Red ✕ (Skip) */}
         <button
           type="button"
           onClick={triggerSkip}
-          className="w-15 h-15 rounded-full bg-card hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-border/80 text-rose-500 shadow-xl flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 group"
+          className="swipe-act w-[4rem] h-[4rem]"
+          style={{ '--tone': 'var(--color-error)' } as React.CSSProperties}
           title="Skip card (Swipe Left or ←)"
           aria-label="Skip card"
         >
-          <svg className="w-7 h-7 stroke-current stroke-[2.5]" fill="none" viewBox="0 0 24 24">
+          <svg className="w-[1.625rem] h-[1.625rem] stroke-current stroke-[2.5]" fill="none" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
@@ -234,7 +235,7 @@ export default function SwipeDeckView({
           type="button"
           onClick={onUndo || onResetDeck}
           disabled={!canUndo && !onUndo}
-          className="w-11 h-11 rounded-full bg-card hover:bg-amber-50 dark:hover:bg-amber-950/30 border border-border/80 text-amber-500 shadow-lg flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 disabled:opacity-40"
+          className="swipe-act w-[3.25rem] h-[3.25rem]"
           title={canUndo ? 'Undo last swipe (Z)' : 'Refresh deck'}
           aria-label="Undo or refresh"
         >
@@ -245,11 +246,12 @@ export default function SwipeDeckView({
         <button
           type="button"
           onClick={triggerSave}
-          className="w-15 h-15 rounded-full bg-card hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border border-border/80 text-emerald-600 dark:text-emerald-400 shadow-xl flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 group"
+          className="swipe-act w-[4rem] h-[4rem]"
+          style={{ '--tone': 'var(--color-success)' } as React.CSSProperties}
           title="Save card (Swipe Right or →)"
           aria-label="Save card"
         >
-          <svg className="w-7 h-7 stroke-current stroke-[2.5]" fill="none" viewBox="0 0 24 24">
+          <svg className="w-[1.625rem] h-[1.625rem] stroke-current stroke-[2.5]" fill="none" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
           </svg>
         </button>

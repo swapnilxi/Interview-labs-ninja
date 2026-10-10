@@ -248,7 +248,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
   const totalCount = activeTasks.length;
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="flex flex-col h-full gap-[1.75rem]">
       {/* Toast */}
       {toast && (
         <div className={`fixed top-20 right-6 z-[200] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 whitespace-pre-line animate-slide-up ${
@@ -259,8 +259,8 @@ export default function QuickDaily({ model }: QuickDailyProps) {
       )}
 
       {/* Header & Quick Add Bar */}
-      <div className="bg-card border border-border/80 rounded-xl p-3 shadow-sm flex flex-col gap-2.5">
-        <form onSubmit={handleCreateTask} className="flex flex-col gap-2">
+      <div className="todo-lit bg-card border border-border/80 rounded-xl p-[1.25rem] shadow-sm flex flex-col gap-4">
+        <form onSubmit={handleCreateTask} className="flex flex-col gap-3">
           <div className="relative flex items-center">
             <input
               type="text"
@@ -346,7 +346,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
       </div>
 
       {/* 80/20 Toolbar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <button
           onClick={() => setTop20Only(!top20Only)}
           className={`text-[10px] px-2.5 py-1.5 rounded-lg border transition-smooth flex items-center gap-1 font-semibold ${
@@ -372,7 +372,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
       </div>
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 flex-1 min-h-0">
+      <div className="todo-stagger grid grid-cols-1 xl:grid-cols-3 gap-[1.75rem] flex-1 min-h-0">
         {/* Left: Eisenhower Matrix */}
         <div className="xl:col-span-2 flex flex-col min-h-[500px]">
           <EisenhowerMatrix
@@ -396,8 +396,8 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         </div>
 
         {/* Right: Today's Flat List */}
-        <div className="flex flex-col bg-card border border-border/80 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-black/5 dark:bg-white/5 flex items-center justify-between">
+        <div className="todo-lit flex flex-col bg-card border border-border/80 rounded-xl overflow-hidden">
+          <div className="px-[1.25rem] py-4 border-b border-border bg-black/5 dark:bg-white/5 flex items-center justify-between">
             <div>
               <h2 className="font-heading font-semibold text-sm text-foreground">Today's List</h2>
               <p className="text-[10px] text-muted-foreground mt-0.5">{completedCount} of {totalCount} done</p>
@@ -410,7 +410,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 scrollbar-clean space-y-2">
+          <div className="flex-1 overflow-y-auto p-4 scrollbar-clean space-y-3">
             {loading ? (
               <div className="h-full flex items-center justify-center">
                 <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />

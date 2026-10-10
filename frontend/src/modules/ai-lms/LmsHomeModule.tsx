@@ -15,6 +15,8 @@ import EditClassModal from './components/EditClassModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import InstructorManagementTab from './components/InstructorManagementTab';
 import { useLearningProgress } from './services/learningStateManager';
+import { useLmsCopilotContext } from './context/LmsCopilotContext';
+import { homeCopilotContext } from './utils/copilotContext';
 
 export default function LmsHomeModule() {
   const { canEdit: canEditReal } = useAuth();
@@ -105,17 +107,19 @@ export default function LmsHomeModule() {
     }
   };
 
+  useLmsCopilotContext(classes.length > 0 ? homeCopilotContext(classes) : null);
+
   const totalLessons = classes.reduce((sum, c) => sum + (c.lesson_count || 0), 0);
   const totalSubjects = classes.reduce((sum, c) => sum + (c.subject_count || 0), 0);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-[5rem] space-y-6">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-[2rem] lg:px-[2.5rem] pt-[2rem] pb-[6rem] space-y-[2.5rem]">
       {/* Header: identity + primary actions, then segmented nav + stats */}
-      <header className="space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
+      <header className="space-y-[1.5rem]">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-[1.5rem]">
+          <div className="flex items-start sm:items-center gap-4 min-w-0">
             <div
-              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border text-primary"
+              className="flex h-[3rem] w-[3rem] flex-shrink-0 items-center justify-center rounded-xl border text-primary"
               style={{
                 background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)',
                 borderColor: 'color-mix(in srgb, var(--color-primary) 30%, transparent)',
@@ -138,14 +142,14 @@ export default function LmsHomeModule() {
                   AI LMS 2.0
                 </span>
               </div>
-              <p className="mt-1 max-w-2xl text-sm leading-snug text-muted-foreground">
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 Generate, organize, and consume interactive engineering lessons. Manage curriculum
                 classes &amp; AI faculty personas.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 lg:flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-3 lg:flex-shrink-0">
             <Link
               href="/ai-lms/landing"
               title="About AI LMS & all classes"
@@ -176,7 +180,7 @@ export default function LmsHomeModule() {
         </div>
 
         <div
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t pt-4"
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t pt-[1.5rem]"
           style={{ borderColor: 'color-mix(in srgb, var(--color-foreground) 10%, transparent)' }}
         >
           <nav className="lms-segment w-fit max-w-full overflow-x-auto" aria-label="AI LMS sections">
@@ -226,7 +230,7 @@ export default function LmsHomeModule() {
 
       {/* Tab 1: Class Management View */}
       {activeTab === 'classes' && (
-        <div className="space-y-8 animate-fadeIn">
+        <div className="space-y-[2.5rem] animate-fadeIn">
           <SearchBar />
 
           <ContinueLearningBanner
@@ -237,8 +241,8 @@ export default function LmsHomeModule() {
           />
 
           {/* Classes Section */}
-          <section className="space-y-4" aria-labelledby="curriculum-classes-heading">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <section className="space-y-[1.5rem]" aria-labelledby="curriculum-classes-heading">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
                 <h2
                   id="curriculum-classes-heading"
@@ -246,7 +250,7 @@ export default function LmsHomeModule() {
                 >
                   Curriculum Classes
                 </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Browse structured technical domains, algorithms, and system design tracks
                 </p>
               </div>
@@ -266,13 +270,13 @@ export default function LmsHomeModule() {
 
             {/* Classes Grid */}
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[1.5rem]">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                   <div key={i} className="lms-panel min-h-[240px] animate-pulse" />
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[1.5rem]">
                 {classes.map((cls, idx) => (
                   <ClassCard
                     key={cls.id}

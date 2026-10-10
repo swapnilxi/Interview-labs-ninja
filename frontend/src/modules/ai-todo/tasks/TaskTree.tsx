@@ -347,11 +347,11 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-[1.75rem]">
       {/* Progress overview — only real numbers; hidden if stats couldn't load */}
       {stats && <StatsRow stats={stats} />}
 
-      <section aria-labelledby="todo-tasks-heading" className="flex flex-col gap-3">
+      <section aria-labelledby="todo-tasks-heading" className="flex flex-col gap-[1.25rem]">
         {/* Section header + primary actions */}
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div className="flex items-baseline gap-2">
@@ -414,7 +414,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
           <div id="todo-quick-add" className="animate-fade-in">
             <form
               onSubmit={e => { e.preventDefault(); handleQuickAdd(); }}
-              className="todo-capture"
+              className="todo-capture todo-lit"
               aria-label="Quick add task"
             >
               <label htmlFor="todo-quick-add-input" className="sr-only">New task title</label>
@@ -473,8 +473,8 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
         {/* Pinned Today's Focus Plan (Feature 1) */}
         {activePlan && activePlan.tasks && activePlan.tasks.length > 0 && (
-          <div className="todo-glass p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="todo-glass todo-lit p-[1.5rem]">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="todo-icon-chip h-7 w-7">
                   <Icon name="FlagIcon" size={14} variant="solid" />
@@ -821,13 +821,13 @@ function StatCard({ icon, iconClassName = 'text-muted-foreground', label, shortL
   children: React.ReactNode;
 }) {
   return (
-    <div className="todo-glass flex min-w-0 flex-col p-3 sm:p-4">
+    <div className="todo-glass todo-lit flex min-w-0 flex-col p-4 sm:p-[1.5rem]">
       <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground sm:text-xs">
         <Icon name={icon} size={14} variant="solid" className={`shrink-0 ${iconClassName}`} />
         <span className="truncate sm:hidden" aria-hidden="true">{shortLabel}</span>
         <span className="sr-only sm:not-sr-only sm:truncate sm:whitespace-nowrap">{label}</span>
       </div>
-      <div className="mt-2 flex flex-1 flex-col">{children}</div>
+      <div className="mt-3 flex flex-1 flex-col">{children}</div>
     </div>
   );
 }
@@ -839,7 +839,7 @@ function StatsRow({ stats }: { stats: TodoStats }) {
   const weekTotal = week.reduce((sum, n) => sum + n, 0);
 
   return (
-    <div className="grid grid-cols-3 gap-2 sm:gap-3 animate-fade-in">
+    <div className="todo-stagger grid grid-cols-3 gap-3 sm:gap-[1.25rem]">
       <StatCard
         icon="CheckCircleIcon"
         iconClassName={targetHit ? 'text-success' : 'text-muted-foreground'}

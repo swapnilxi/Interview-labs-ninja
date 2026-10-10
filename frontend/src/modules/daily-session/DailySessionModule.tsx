@@ -547,7 +547,7 @@ export default function DailySessionInteractive() {
           </div>
         )}
         {/* ── Setup Card ── */}
-        <div className="relative bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+        <div className="relative todo-lit lit-soft bg-card rounded-2xl border border-border overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-violet-500/[0.03] pointer-events-none" />
           <div className="relative p-9">
             <h2 className="font-heading text-lg font-semibold text-foreground mb-7 flex items-center gap-3">
@@ -624,7 +624,7 @@ export default function DailySessionInteractive() {
         </div>
 
         {/* ── Question Preview from DB ── */}
-        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+        <div className="todo-lit lit-soft bg-card rounded-2xl border border-border overflow-hidden">
           <div className="p-9">
             {/* Header row */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
@@ -685,7 +685,7 @@ export default function DailySessionInteractive() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {displayedDbQuestions.map((q, idx) => (
                   <div key={q.id}
-                    className="bg-background border border-border rounded-xl p-5 flex flex-col gap-3 hover:border-primary/40 transition-smooth">
+                    className="todo-lit lit-soft bg-background border border-border rounded-xl p-5 flex flex-col gap-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 flex-wrap min-w-0">
                         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary shrink-0">
@@ -716,7 +716,7 @@ export default function DailySessionInteractive() {
   // Phase 2: Ready / Interstitial
   if (sessionActive && !practiceStarted) {
     return (
-      <div className="max-w-2xl mx-auto bg-card rounded-lg p-36 shadow-lg border border-border mt-36 text-center animate-fade-in">
+      <div className="todo-lit lit-soft max-w-2xl mx-auto bg-card rounded-lg p-36 border border-border mt-36 text-center animate-fade-in">
         <Icon name="CheckBadgeIcon" size={64} className="text-success mx-auto mb-18" variant="outline" />
         <h2 className="font-heading text-3xl font-semibold text-foreground mb-12">Session Ready!</h2>
         <p className="text-muted-foreground mb-24 font-body">
@@ -795,7 +795,7 @@ export default function DailySessionInteractive() {
           <h3 className="text-xl font-semibold text-foreground font-heading">All Questions Overview</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-18">
             {questions.map((q, idx) => (
-              <div key={q.id} className="bg-card border border-border rounded-lg p-18 flex flex-col justify-between">
+              <div key={q.id} className="todo-lit lit-soft bg-card border border-border rounded-lg p-18 flex flex-col justify-between">
                 <div>
                   <div className="flex justify-between items-center mb-12">
                     <span className="text-xs font-caption text-muted-foreground">
@@ -850,7 +850,7 @@ export default function DailySessionInteractive() {
           {/* AI Helper Sidebar Panel (Now on the LEFT) */}
           <div className="space-y-24 order-2 lg:order-1">
             {!showHint ? (
-              <div className="bg-card border border-border rounded-lg p-24 text-center shadow-md">
+              <div className="todo-lit lit-soft bg-card border border-border rounded-lg p-24 text-center">
                 <Icon name="SparklesIcon" size={32} variant="outline" className="text-warning mx-auto mb-12" />
                 <h4 className="font-heading text-sm font-medium text-foreground mb-6">AI Copilot</h4>
                 <p className="text-xs text-muted-foreground leading-relaxed mb-18">
@@ -875,7 +875,7 @@ export default function DailySessionInteractive() {
                 </button>
               </div>
             ) : (
-              <div className="bg-card border border-warning/50 rounded-lg p-24 shadow-glow space-y-18 animate-fade-in">
+              <div className="todo-lit lit-soft bg-card border border-warning/50 rounded-lg p-24 space-y-18 animate-fade-in">
                 <div className="flex items-center justify-between pb-12 border-b border-border">
                   <div className="flex items-center gap-12">
                     <Icon name="SparklesIcon" size={20} variant="solid" className="text-warning" />
@@ -895,7 +895,7 @@ export default function DailySessionInteractive() {
             )}
 
             {showHint && showExplain && (
-              <div className="bg-card border border-secondary/50 rounded-lg p-24 shadow-md space-y-12 animate-fade-in">
+              <div className="todo-lit lit-soft bg-card border border-secondary/50 rounded-lg p-24 space-y-12 animate-fade-in">
                 <div className="flex items-center gap-6 pb-6 border-b border-border">
                   <Icon name="CpuChipIcon" size={18} variant="outline" className="text-secondary" />
                   <h5 className="font-heading text-sm font-semibold text-foreground">Technical Breakdown</h5>
@@ -909,7 +909,7 @@ export default function DailySessionInteractive() {
 
           <div className="lg:col-span-2 space-y-24 order-1 lg:order-2">
             {/* Question Card */}
-            <div className="bg-card border border-border rounded-lg p-24 shadow-md">
+            <div className="todo-lit lit-soft bg-card border border-border rounded-lg p-24">
               <div className="flex justify-between items-center mb-18 pb-12 border-b border-border">
                 <span className="text-xs font-semibold px-12 py-6 rounded bg-primary/15 text-primary">
                   Question {currentIndex + 1} of 10 ({activeQuestion?.category})
@@ -924,7 +924,7 @@ export default function DailySessionInteractive() {
             </div>
 
             {/* Answer Editor */}
-            <div className="bg-card border border-border rounded-lg p-24 shadow-md space-y-18">
+            <div className="todo-lit lit-soft bg-card border border-border rounded-lg p-24 space-y-18">
               <label htmlFor="answer-box" className="block font-heading text-base font-medium text-foreground">
                 Your Response
               </label>

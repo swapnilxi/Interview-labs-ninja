@@ -81,14 +81,14 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
         </div>
       )}
       <div
-        className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-smooth"
+        className="flex cursor-pointer items-center justify-between px-4 py-3 transition-colors hover:bg-muted"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-1.5">
-          <span className="text-amber-500 text-xs">⭐</span>
+          <Icon name="StarIcon" size={14} variant="solid" className="text-primary" />
           <span className="font-heading text-xs font-semibold text-foreground">Your 20%</span>
           {totalTasks > 0 && (
-            <span className="ml-1 bg-amber-500/10 text-amber-600 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+            <span className="copilot-tint ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold">
               {totalTasks}
             </span>
           )}
@@ -101,10 +101,11 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
                 runAnalysis();
               }}
               disabled={loading}
-              className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-smooth flex items-center gap-1 disabled:opacity-50"
+              className="copilot-tint px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50"
               title="Re-run AI 80/20 analysis across all tabs"
             >
-              {loading ? '⏳' : '↺ Re-analyze'}
+              <Icon name="ArrowPathIcon" size={12} className={loading ? 'animate-spin' : ''} />
+              {loading ? 'Analyzing' : 'Re-analyze'}
             </button>
           )}
           <Icon name="ChevronDownIcon" size={12} className={`text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
@@ -112,7 +113,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
       </div>
 
       {expanded && (
-        <div className="px-3 pb-3 overflow-y-auto scrollbar-clean">
+        <div className="overflow-y-auto px-4 pb-4 scrollbar-clean">
           {isGuest ? (
             <div className="py-3 text-center space-y-2">
               <p className="text-[10px] text-muted-foreground italic">
@@ -120,7 +121,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
               </p>
               <a
                 href="/login"
-                className="inline-block text-[10px] font-bold px-3 py-1 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-smooth shadow-sm"
+                className="todo-btn todo-btn-primary"
               >
                 Log in
               </a>
@@ -133,9 +134,10 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
               <button
                 onClick={runAnalysis}
                 disabled={loading}
-                className="text-[10px] font-bold px-3 py-1 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-smooth shadow-sm"
+                className="todo-btn todo-btn-primary"
               >
-                ⚡ Run 80/20 AI Analysis
+                <Icon name="BoltIcon" size={14} variant="solid" />
+                Run 80/20 AI Analysis
               </button>
             </div>
           ) : (
@@ -184,24 +186,24 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
 function TaskRow({ task, onFocus }: { task: TopTask; onFocus: (task: TopTask) => void }) {
   return (
     <div
-      className="group relative bg-muted/30 border border-border/50 rounded p-2 hover:bg-muted transition-smooth"
+      className="group relative rounded-lg border border-border p-2.5 transition-colors hover:bg-muted"
       title={task.reason || undefined}
     >
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-[10px] font-medium text-foreground truncate pr-2 flex items-center gap-1">
-          {task.locked && <span title="Manually pinned">📌</span>}
+          {task.locked && <Icon name="MapPinIcon" size={11} variant="solid" className="text-primary" />}
           {task.title}
         </span>
         <button
           onClick={() => onFocus(task)}
-          className="opacity-0 group-hover:opacity-100 flex-shrink-0 text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded transition-smooth hover:bg-primary hover:text-primary-foreground"
+          className="copilot-tint flex-shrink-0 px-2 py-0.5 text-[10px] font-semibold opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         >
-          → Focus
+          Focus
         </button>
       </div>
       <div className="w-full h-1 bg-muted/60 rounded-full overflow-hidden">
         <div
-          className="h-full bg-amber-400"
+          className="h-full rounded-full bg-primary"
           style={{ width: `${Math.round((task.pareto_score || 0) * 100)}%` }}
         />
       </div>

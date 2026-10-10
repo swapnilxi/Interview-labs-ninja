@@ -115,7 +115,7 @@ export default function GoalTimelineBoard({
   return (
     <div className="w-full">
       {allGoals.length === 0 && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3 px-1">
+        <div className="todo-glass mb-[1.5rem] flex items-center gap-3 px-[1.25rem] py-4 text-sm text-muted-foreground">
           <Icon name="SparklesIcon" size={14} className="text-primary shrink-0" />
           <span>
             <strong className="text-foreground font-semibold">Start with what matters</strong> — create a
@@ -123,22 +123,22 @@ export default function GoalTimelineBoard({
           </span>
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3 items-start">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-[1.25rem] items-start todo-stagger">
         {columns.map((col) => (
           <div
             key={col.id}
-            className="min-w-0 flex flex-col bg-card border border-border/60 rounded-xl shadow-sm overflow-hidden"
+            className="todo-lit min-w-0 flex flex-col bg-card border border-border rounded-xl overflow-hidden"
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-muted/30 shrink-0">
-              <span className="text-xs font-bold text-foreground">{col.label}</span>
-              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-sm">
+            <div className="flex items-center justify-between px-[1.25rem] py-4 border-b border-border shrink-0" style={{ background: 'color-mix(in srgb, var(--color-foreground) 4%, transparent)' }}>
+              <span className="font-heading text-sm font-bold text-foreground">{col.label}</span>
+              <span className="copilot-tint rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums">
                 {col.count}
               </span>
             </div>
 
-            <div className="max-h-[420px] overflow-y-auto scrollbar-clean p-2 space-y-2">
+            <div className="max-h-[460px] overflow-y-auto scrollbar-clean p-4 space-y-3">
               {col.standalone.length === 0 && col.groups.length === 0 && (
-                <p className="text-[10px] text-muted-foreground/70 text-center py-3">No {col.label.toLowerCase()} goals yet</p>
+                <p className="py-4 text-center text-xs text-muted-foreground">No {col.label.toLowerCase()} goals yet</p>
               )}
 
               {col.standalone.map((item) => renderCard(item))}
@@ -177,12 +177,12 @@ export default function GoalTimelineBoard({
               })}
             </div>
 
-            <div className="p-2 pt-0 shrink-0">
+            <div className="shrink-0 p-4 pt-0">
               <button
                 onClick={() => onAddAtLevel(col.id)}
-                className="w-full py-1.5 rounded-lg border border-dashed border-border/70 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/40 transition-smooth flex items-center justify-center gap-1"
+                className="todo-add-slot todo-focus flex w-full items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-semibold"
               >
-                <Icon name="PlusIcon" size={11} /> Add {col.label}
+                <Icon name="PlusIcon" size={13} /> Add {col.label}
               </button>
             </div>
           </div>

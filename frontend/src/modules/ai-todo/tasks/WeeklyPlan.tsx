@@ -34,7 +34,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
   return (
-    <div className="todo-glass flex flex-col h-full p-4">
+    <div className="todo-glass todo-lit flex flex-col h-full p-[1.5rem]">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h2 className="font-heading font-semibold text-lg leading-tight flex items-center gap-2">

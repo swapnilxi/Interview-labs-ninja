@@ -291,9 +291,9 @@ export default function SwipeLearnModule() {
   }, [allCards, savedCardIds]);
 
   return (
-    <div className="w-full min-h-[calc(100vh-60px)] bg-background flex flex-col items-center">
+    <div className="w-full h-[calc(100dvh-60px)] overflow-hidden bg-background flex flex-col items-center">
       {/* Mobile-first centered frame */}
-      <div className="w-full max-w-[600px] flex-1 flex flex-col bg-background/50 border-x border-border/30 relative">
+      <div className="w-full max-w-[680px] flex-1 min-h-0 flex flex-col border-x border-border relative">
         {/* Toast Alert */}
         {toastMessage && (
           <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-2xl bg-foreground text-background text-xs font-semibold shadow-xl flex items-center gap-2 animate-bounce">
@@ -327,7 +327,7 @@ export default function SwipeLearnModule() {
         )}
 
         {/* 3. Main View Area */}
-        <main className="flex-1 flex flex-col justify-center">
+        <main className="flex-1 min-h-0 flex flex-col overflow-y-auto scrollbar-clean">
           {currentTab === 'saved' ? (
             <SavedCardsView
               cards={savedCardsList}

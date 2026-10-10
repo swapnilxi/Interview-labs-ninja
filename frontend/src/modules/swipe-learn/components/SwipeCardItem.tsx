@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ContentCard, TopicType, QuizDisplayMode } from '../types';
 import Icon from '@/components/ui/AppIcon';
+import { topicHue } from '../utils/topicHue';
 
 interface SwipeCardItemProps {
   card: ContentCard;
@@ -91,6 +92,7 @@ export default function SwipeCardItem({
   };
 
   const theme = getTopicTheme(card.topic);
+  const hue = topicHue(card.topic);
 
   const formatDifficulty = (diff?: string) => {
     if (!diff) return 'Beginner';
@@ -130,15 +132,15 @@ export default function SwipeCardItem({
       card.depth.interviewQuestion);
 
   return (
-    <div className="w-full bg-card rounded-3xl border border-border/70 shadow-lg overflow-hidden flex flex-col transition-all select-none">
+    <div className={`todo-lit lit-soft lit-static w-full bg-card rounded-3xl border border-border overflow-hidden flex flex-col select-none ${mode === 'deck' ? 'h-full' : ''}`}>
       {/* 1. Header Banner */}
-      <div className={`${theme.bg} px-5 py-3.5 flex items-center justify-between text-white`}>
+      <div className="swipe-banner px-[1.5rem] py-4 flex items-center justify-between" style={{ '--tone': hue } as React.CSSProperties}>
         {/* Left: Topic with Emoji */}
-        <div className="flex items-center gap-2 font-bold text-sm sm:text-base tracking-wide">
+        <div className="swipe-banner-label flex items-center gap-2 font-bold text-sm sm:text-base tracking-wide">
           <span className="text-base">{theme.emoji}</span>
           <span>{theme.label}</span>
           {card.subCategory && (
-            <span className="text-[11px] font-normal opacity-90 px-1.5 py-0.5 rounded-md bg-black/15">
+            <span className="text-[11px] font-normal px-1.5 py-0.5 rounded-md" style={{ background: 'color-mix(in srgb, var(--tone) 14%, transparent)' }}>
               {card.subCategory}
             </span>
           )}
@@ -146,7 +148,7 @@ export default function SwipeCardItem({
 
         {/* Right: Tag Pills */}
         <div className="flex items-center gap-1.5 text-xs font-semibold">
-          <span className={`${theme.badgeBg} px-2.5 py-0.5 rounded-full flex items-center gap-1`}>
+          <span className="swipe-banner-chip flex items-center gap-1">
             {card.type === 'code' ? (
               <span className="font-mono text-[11px]">&lt;/&gt;</span>
             ) : card.type === 'quiz' ? (
@@ -157,14 +159,14 @@ export default function SwipeCardItem({
             <span>{formatTypeLabel(card.type)}</span>
           </span>
 
-          <span className={`${theme.badgeBg} px-2.5 py-0.5 rounded-full`}>
+          <span className="swipe-banner-chip">
             {formatDifficulty(card.difficulty)}
           </span>
         </div>
       </div>
 
       {/* 2. Card Body */}
-      <div className="p-5 sm:p-7 flex-1 flex flex-col">
+      <div className={`p-[1.5rem] sm:p-[2rem] flex-1 flex flex-col ${mode === 'deck' ? 'min-h-0 overflow-y-auto scrollbar-clean' : ''}`}>
         {/* Optional Hook (<= 100 chars) */}
         {card.hook && (
           <span className="text-xs font-bold uppercase tracking-wider text-primary mb-1 block">

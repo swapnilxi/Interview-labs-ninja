@@ -6,6 +6,8 @@ import { recordLessonActivity } from './services/learningStateManager';
 import type { LmsClass, LmsLesson, LmsNavigation, LmsSubject } from './types';
 import LessonViewer from './components/LessonViewer';
 import EmptyState from './components/EmptyState';
+import { useLmsCopilotContext } from './context/LmsCopilotContext';
+import { lessonCopilotContext } from './utils/copilotContext';
 
 interface LessonViewerModuleProps {
   classSlug: string;
@@ -22,6 +24,7 @@ export default function LessonViewerModule({
   const [navigation, setNavigation] = useState<LmsNavigation | null>(null);
   const [lmsClass, setLmsClass] = useState<LmsClass | null>(null);
   const [subject, setSubject] = useState<LmsSubject | null>(null);
+  useLmsCopilotContext(lesson ? lessonCopilotContext(lesson, subject, lmsClass) : null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

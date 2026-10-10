@@ -55,7 +55,7 @@ export default function SearchBar() {
   return (
     <div ref={containerRef} className="relative w-full" role="search">
       <div className="relative flex items-center">
-        <div className="absolute left-3.5 text-muted-foreground pointer-events-none">
+        <div className="absolute left-4 text-muted-foreground pointer-events-none">
           <Icon
             name={loading ? 'ArrowPathIcon' : 'MagnifyingGlassIcon'}
             size={18}
@@ -74,7 +74,7 @@ export default function SearchBar() {
           onFocus={() => {
             if (results && totalResults > 0) setIsOpen(true);
           }}
-          className="lms-input h-11 pl-10 pr-10"
+          className="lms-input h-[3rem] pl-[3rem] pr-[3rem]"
         />
         {query && (
           <button

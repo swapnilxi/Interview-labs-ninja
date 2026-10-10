@@ -31,7 +31,7 @@ export default function ContinueLearningBanner({
   // Guidance fallback when user hasn't visited any lesson yet
   if (!item) {
     return (
-      <div className="lms-panel p-5 sm:p-6">
+      <div className="lms-panel p-[1.5rem] sm:p-[2rem]">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
@@ -97,11 +97,11 @@ export default function ContinueLearningBanner({
   });
 
   return (
-    <section className="lms-panel p-5 sm:p-6 space-y-4" aria-label="Continue learning">
+    <section className="lms-panel lms-lit p-[1.5rem] sm:p-[2rem] space-y-[1.5rem]" aria-label="Continue learning">
       {/* Recent Tracks Quick Switcher (when multiple tracks active) */}
       {recentItems && recentItems.length > 1 && (
         <div
-          className="flex items-center gap-2 overflow-x-auto border-b pb-3 scrollbar-none"
+          className="flex items-center gap-2 overflow-x-auto border-b pb-4 scrollbar-none"
           style={{ borderColor: 'color-mix(in srgb, var(--color-foreground) 10%, transparent)' }}
         >
           <span className="flex flex-shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -132,8 +132,8 @@ export default function ContinueLearningBanner({
         </div>
       )}
 
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
-        <div className="min-w-0 flex-1 space-y-3">
+      <div className="flex flex-col gap-[1.5rem] lg:flex-row lg:items-center lg:justify-between lg:gap-[2.5rem]">
+        <div className="min-w-0 flex-1 space-y-[1.25rem]">
           {/* Status label + class / subject context */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
             {isCompleted ? (
@@ -182,7 +182,7 @@ export default function ContinueLearningBanner({
             >
               {item.lesson_title}
             </h3>
-            <p className="mt-1.5 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-muted-foreground">
               {isCompleted && hasNext ? (
                 <>
                   Next in track:{' '}
@@ -226,7 +226,7 @@ export default function ContinueLearningBanner({
         </div>
 
         {/* Actions: one solid primary, one secondary */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:flex-shrink-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:flex-shrink-0">
           {isCompleted && hasNext ? (
             <>
               <Link href={nextLessonHref} className="lms-btn-primary lms-btn-lg">

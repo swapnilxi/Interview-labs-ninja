@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FeedMode, TopicMeta, QuizDisplayMode } from '../types';
 import Icon from '@/components/ui/AppIcon';
+import { topicHue } from '../utils/topicHue';
 
 interface TopicPillSelectorProps {
   topics: TopicMeta[];
@@ -35,34 +36,81 @@ export default function TopicPillSelector({
   // Find current topic meta to see if it has sub-tabs
   const currentTopicMeta = topics.find((t) => t.id === selectedMode);
 
+  // Scrollable pill strip: the scrollbar is hidden, so support mouse wheel, click-drag and edge arrows.
+  const stripRef = useRef<HTMLDivElement>(null);
+  const drag = useRef({ active: false, moved: false, startX: 0, startLeft: 0 });
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  const updateEdges = useCallback(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    setEdges({
+      left: el.scrollLeft > 2,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+    });
+  }, []);
+
+  useEffect(() => {
+    updateEdges();
+    window.addEventListener('resize', updateEdges);
+    return () => window.removeEventListener('resize', updateEdges);
+  }, [updateEdges, topics.length]);
+
+  // Keep the selected pill in view.
+  useEffect(() => {
+    stripRef.current
+      ?.querySelector<HTMLElement>('[data-active="true"]')
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [selectedMode]);
+
+  const nudge = (dir: 1 | -1) =>
+    stripRef.current?.scrollBy({ left: dir * Math.max(160, (stripRef.current?.clientWidth ?? 0) * 0.6), behavior: 'smooth' });
+
   return (
-    <div className="w-full sticky top-[60px] z-20 bg-background/90 backdrop-blur-md border-b border-border/50 py-2.5 transition-all">
+    <div className="w-full sticky top-[60px] z-20 bg-background border-b border-border py-3 transition-all">
       {/* 1. Main Horizontal Scrollable Topic Pills */}
-      <div className="w-full overflow-x-auto scrollbar-none px-3 sm:px-5">
-        <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
+      <div className="relative">
+      <div
+        ref={stripRef}
+        onScroll={updateEdges}
+        onWheel={(e) => {
+          const el = stripRef.current;
+          if (el && Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY;
+        }}
+        onPointerDown={(e) => {
+          if (e.pointerType !== 'mouse' || !stripRef.current) return;
+          drag.current = { active: true, moved: false, startX: e.clientX, startLeft: stripRef.current.scrollLeft };
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (!d.active || !stripRef.current) return;
+          const dx = e.clientX - d.startX;
+          if (Math.abs(dx) > 5) d.moved = true;
+          if (d.moved) stripRef.current.scrollLeft = d.startLeft - dx;
+        }}
+        onPointerUp={() => { drag.current.active = false; }}
+        onPointerLeave={() => { drag.current.active = false; }}
+        onClickCapture={(e) => {
+          if (drag.current.moved) {
+            e.stopPropagation();
+            e.preventDefault();
+            drag.current.moved = false;
+          }
+        }}
+        className="w-full overflow-x-auto scrollbar-none px-4 sm:px-[1.5rem] cursor-grab active:cursor-grabbing"
+      >
+        <div className="flex items-center gap-2 min-w-max">
           {topics.map((topic) => {
             const isActive = selectedMode === topic.id;
-
-            let activeClass = '';
-            if (isActive) {
-              if (topic.id === 'mixed') activeClass = 'bg-purple-600 text-white shadow-md shadow-purple-500/20';
-              else if (topic.id === 'python') activeClass = 'bg-[#10957d] text-white shadow-md shadow-emerald-600/20';
-              else if (topic.id === 'computer-vision') activeClass = 'bg-sky-600 text-white shadow-md shadow-sky-600/20';
-              else if (topic.id === 'finance') activeClass = 'bg-blue-600 text-white shadow-md shadow-blue-600/20';
-              else if (topic.id === 'ai') activeClass = 'bg-violet-600 text-white shadow-md shadow-violet-600/20';
-              else if (topic.id === 'interview') activeClass = 'bg-amber-600 text-white shadow-md shadow-amber-600/20';
-              else if (topic.id === 'quiz') activeClass = 'bg-rose-600 text-white shadow-md shadow-rose-600/20';
-              else activeClass = 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20';
-            } else {
-              activeClass = 'bg-card border border-border/70 text-foreground/80 hover:bg-muted/70 hover:text-foreground';
-            }
 
             return (
               <button
                 key={topic.id}
                 type="button"
+                data-active={isActive}
                 onClick={() => onSelectMode(topic.id)}
-                className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-200 active:scale-95 ${activeClass}`}
+                className="swipe-pill"
+                style={{ '--tone': topicHue(topic.id) } as React.CSSProperties}
               >
                 <span className="text-sm leading-none">{topic.emoji}</span>
                 <span>{topic.label}</span>
@@ -99,6 +147,22 @@ export default function TopicPillSelector({
             <span>Add Topic</span>
           </button>
         </div>
+      </div>
+      {(['left', 'right'] as const).map((side) =>
+        edges[side] ? (
+          <button
+            key={side}
+            type="button"
+            onClick={() => nudge(side === 'left' ? -1 : 1)}
+            aria-label={side === 'left' ? 'Scroll topics left' : 'Scroll topics right'}
+            className={`absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition-transform hover:scale-105 active:scale-95 ${
+              side === 'left' ? 'left-2' : 'right-2'
+            }`}
+          >
+            <Icon name={side === 'left' ? 'ChevronLeftIcon' : 'ChevronRightIcon'} size={16} />
+          </button>
+        ) : null
+      )}
       </div>
 
       {/* 2. Sub-Tabs Bar (When active topic has sub-tabs or quiz mode toggle) */}

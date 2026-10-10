@@ -20,7 +20,7 @@ const TABS: { id: TodoTab; label: string; short: string; icon: string; descripti
 
 export default function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps) {
   return (
-    <nav aria-label="To-Do sections" className="todo-segmented flex w-full rounded-xl p-1">
+    <nav aria-label="To-Do sections" className="todo-segmented flex w-full gap-1 rounded-xl p-1.5">
       {TABS.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
@@ -30,7 +30,7 @@ export default function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps
             onClick={() => onTabChange(tab.id)}
             aria-current={isActive ? 'page' : undefined}
             title={tab.description}
-            className="todo-segment flex-1 justify-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold sm:px-4 sm:py-2.5 sm:text-[13px]"
+            className="todo-segment flex-1 justify-center gap-2 rounded-lg px-2 py-2.5 text-xs font-semibold sm:px-[1.25rem] sm:py-3 sm:text-[13px]"
           >
             <Icon name={tab.icon} size={16} variant={isActive ? 'solid' : 'outline'} />
             <span className="sm:hidden" aria-hidden="true">{tab.short}</span>

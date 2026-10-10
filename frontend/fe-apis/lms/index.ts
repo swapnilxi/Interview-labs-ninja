@@ -79,7 +79,7 @@ const EDITOR_ROLES = new Set(['editor', 'admin', 'superadmin']);
 // (mirrors _NON_EDIT_WRITES in backend/modules/ai_lms/router.py). Every other
 // POST/PUT/PATCH/DELETE changes shared LMS content and needs an editor role.
 const NON_EDIT_WRITES =
-  /^\/api\/lms\/(?:lessons\/[^/]+\/view|voice-chat|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai)\/?$/;
+  /^\/api\/lms\/(?:lessons\/[^/]+\/view|voice-chat|copilot|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai)\/?$/;
 
 function requireUserId(req: Request): number | NextResponse {
   const user = getUserFromAuthHeader(req.headers.get('authorization'));

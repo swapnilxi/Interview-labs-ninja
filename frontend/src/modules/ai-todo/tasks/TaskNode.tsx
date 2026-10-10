@@ -297,7 +297,7 @@ export default function TaskNode({
       )}
 
       {/* Main task card */}
-      <div className={`todo-task-card p-3 mb-2 ${paretoClasses}`}
+      <div className={`todo-task-card p-4 mb-3 ${paretoClasses}`}
            style={{ borderLeftWidth: '3px', borderLeftColor: depthColor }}>
 
         {/* Row 1: checkbox + title + status + priority + details toggle — the compact, always-visible row */}

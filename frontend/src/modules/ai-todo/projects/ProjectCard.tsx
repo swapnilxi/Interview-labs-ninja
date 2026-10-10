@@ -68,26 +68,27 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
 
   return (
     <div
-      className={`flex flex-col bg-card border border-border/60 rounded-xl overflow-hidden transition-smooth hover:border-border/80 hover:shadow-md ${paretoClasses} ${project.status === 'completed' || project.status === 'archived' ? 'opacity-60' : ''}`}
+      style={{ '--lit': color } as React.CSSProperties}
+      className={`todo-lit flex flex-col bg-card border border-border rounded-xl overflow-hidden ${paretoClasses} ${project.status === 'completed' || project.status === 'archived' ? 'opacity-60' : ''}`}
     >
       {/* Clickable main body */}
       <div
-        className="p-4 flex-1 cursor-pointer"
+        className="p-[1.5rem] flex-1 cursor-pointer"
         onClick={() => onClick(project)}
       >
-        <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm shrink-0"
+              className="todo-icon-chip w-[2.75rem] h-[2.75rem] rounded-xl flex items-center justify-center text-xl shadow-sm shrink-0"
               style={{ backgroundColor: `${color}20`, border: `1px solid ${color}40` }}
             >
               {project.icon || '📁'}
             </div>
             <div className="min-w-0 flex flex-col">
-              <h3 className="font-heading font-semibold text-foreground truncate text-sm">
+              <h3 className="font-heading font-semibold text-foreground truncate text-base">
                 {project.title}
               </h3>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <div className="flex items-center gap-2.5 mt-2 flex-wrap">
                 <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${statusColors[project.status] || 'bg-muted text-muted-foreground'}`}>
                   {project.status}
                 </span>
@@ -113,8 +114,8 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
           {/* Right: badges */}
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             {project.is_top_20 && (
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                ⭐ Top 20%
+              <span className="copilot-tint px-2 py-0.5 text-[10px] font-bold">
+                <Icon name="StarIcon" size={10} variant="solid" /> Top 20%
               </span>
             )}
             <div className="relative w-8 h-8 flex items-center justify-center" title={`${exportedCount}/${nodeCount} plan nodes exported to action`}>
@@ -128,7 +129,7 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
         </div>
 
         {project.description && !isCompact && (
-          <p className="text-xs text-muted-foreground line-clamp-2 mt-2 leading-relaxed">
+          <p className="text-sm text-muted-foreground line-clamp-2 mt-4 leading-relaxed">
             {project.description}
           </p>
         )}
@@ -136,22 +137,22 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
 
       {/* ── Action footer — always visible, NOT part of the clickable area ── */}
       {!isCompact && (
-        <div className="px-3 py-2 bg-muted/20 border-t border-border/50 flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 border-t border-border px-[1.25rem] py-3" style={{ background: 'color-mix(in srgb, var(--color-foreground) 4%, transparent)' }}>
           {/* Left: explore / roadmap buttons */}
           <div className="flex items-center gap-1.5">
             {onActionClick && (
               <>
                 <button
                   onClick={(e) => { e.stopPropagation(); onActionClick(project, 'dive'); }}
-                  className="text-[10px] font-semibold px-2 py-1 rounded bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth"
+                  className="copilot-tint px-2.5 py-1.5 text-[11px] font-semibold"
                 >
-                  🔍 Explore
+                  <Icon name="MagnifyingGlassIcon" size={12} /> Explore
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onActionClick(project, 'roadmap'); }}
-                  className="text-[10px] font-semibold px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-smooth"
+                  className="copilot-tint px-2.5 py-1.5 text-[11px] font-semibold"
                 >
-                  🗺️ Roadmap
+                  <Icon name="MapIcon" size={12} /> Roadmap
                 </button>
               </>
             )}

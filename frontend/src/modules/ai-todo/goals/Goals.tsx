@@ -132,20 +132,23 @@ export default function Goals({ model }: GoalsProps) {
   };
 
   return (
-    <div className="flex flex-col gap-3 relative">
+    <div className="flex flex-col gap-[1.75rem] relative">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border/80 rounded-xl p-3 shadow-sm">
-        <div>
-          <h2 className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
-            <Icon name="ViewfinderCircleIcon" size={18} className="text-primary" /> Goals
-          </h2>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+      <div className="todo-glass todo-lit flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-[1.5rem]">
+        <div className="flex items-center gap-4">
+          <span className="todo-icon-chip h-[2.75rem] w-[2.75rem] shrink-0">
+            <Icon name="ViewfinderCircleIcon" size={22} />
+          </span>
+          <div>
+          <h2 className="font-heading text-base font-bold text-foreground">Goals</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Set a goal at any time horizon and chunk it down — no fixed flow required.
           </p>
+          </div>
         </div>
         <button
           onClick={() => handleAddAtLevel('main')}
-          className="px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-smooth flex items-center gap-2 justify-center shrink-0"
+          className="todo-btn todo-btn-primary shrink-0 px-4 py-2.5"
         >
           <Icon name="PlusIcon" size={14} variant="solid" /> New Goal
         </button>

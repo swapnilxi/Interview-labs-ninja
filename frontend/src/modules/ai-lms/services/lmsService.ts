@@ -639,6 +639,23 @@ export const lmsService = {
     return res.text;
   },
 
+  // ── Context-aware Copilot (same chat UI as the To-Do copilot) ─────────────
+  async askCopilot(payload: {
+    question: string;
+    scope: 'home' | 'class' | 'subject' | 'project' | 'module' | 'lesson';
+    contextTitle: string;
+    breadcrumb: string;
+    contextText: string;
+    history: { role: 'user' | 'ai'; content: string }[];
+  }): Promise<string> {
+    const aiFields = defaultAIRequestFields();
+    const res = await apiJson<{ answer: string }>('/api/lms/copilot', {
+      method: 'POST',
+      body: JSON.stringify({ ...aiFields, ...payload }),
+    });
+    return res.answer;
+  },
+
   // ── Project Track: README/context -> AI-planned implementation modules ──
   /** Ask the AI to (re)decompose the project's README/context into an ordered module outline.
    * Replaces any existing outline and deletes the lessons it pointed to. */

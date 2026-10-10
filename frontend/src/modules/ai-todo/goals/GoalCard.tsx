@@ -71,25 +71,25 @@ export default function GoalCard({
   return (
     <div
       onClick={() => onSelect(isSelected ? null : node.id)}
-      className={`relative bg-card border rounded-lg p-2.5 cursor-pointer transition-smooth ${
-        isSelected ? 'border-primary shadow-md ring-1 ring-primary/40' : 'border-border/60 hover:border-border'
+      className={`todo-task-card cursor-pointer p-4 ${
+        isSelected ? 'border-primary shadow-md ring-1 ring-primary' : ''
       } ${isDimmed ? 'opacity-35' : ''}`}
     >
       {breadcrumb.length > 0 && (
-        <div className="text-[9px] text-muted-foreground truncate mb-1" title={breadcrumb.map((b) => b.title).join(' › ')}>
+        <div className="mb-1.5 truncate text-[10px] text-muted-foreground" title={breadcrumb.map((b) => b.title).join(' › ')}>
           ↳ {breadcrumb.map((b) => b.title).join(' › ')}
         </div>
       )}
 
       <div className="flex items-start justify-between gap-1.5">
-        <p className="text-xs font-semibold text-foreground leading-snug flex-1">{node.title}</p>
+        <p className="flex-1 text-[13px] font-semibold leading-snug text-foreground">{node.title}</p>
         <button
           onClick={(e) => {
             e.stopPropagation();
             setActionsExpanded((v) => !v);
           }}
-          className={`shrink-0 p-0.5 rounded transition-smooth ${
-            actionsExpanded ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          className={`shrink-0 rounded-md p-1 transition-colors ${
+            actionsExpanded ? 'copilot-tint' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           }`}
           title={actionsExpanded ? 'Hide actions' : 'Show actions (breakdown, chunk, move, delete)'}
         >
@@ -102,11 +102,11 @@ export default function GoalCard({
       </div>
 
       {node.description && (
-        <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">{node.description}</p>
+        <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{node.description}</p>
       )}
 
-      <div className="flex items-center gap-1.5 flex-wrap mt-2">
-        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${statusCfg.bgClass}`}>{statusCfg.label}</span>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusCfg.bgClass}`}>{statusCfg.label}</span>
         <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
           <div className={`w-1.5 h-1.5 rounded-full ${priorityCfg.dotClass}`} />
           {node.priority.toUpperCase()}
@@ -144,11 +144,11 @@ export default function GoalCard({
       )}
 
       {actionsExpanded && (
-        <div className="flex items-center gap-1.5 mt-2 flex-wrap pt-2 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => onDiveDeeper(node)}
             disabled={!!busy}
-            className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
+            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
             title="AI: break into strategic sub-goals at the next level down"
           >
             {busy === 'dive-deeper' ? (
@@ -161,7 +161,7 @@ export default function GoalCard({
           <button
             onClick={() => onChunk(node)}
             disabled={!!busy}
-            className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
+            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
             title="AI: break into small, concrete daily action steps"
           >
             {busy === 'chunk' ? (
@@ -173,7 +173,7 @@ export default function GoalCard({
           </button>
           <button
             onClick={() => onEdit(node)}
-            className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-smooth flex items-center gap-0.5"
+            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-smooth flex items-center gap-0.5"
             title="Edit"
           >
             <Icon name="PencilSquareIcon" size={10} />
@@ -182,7 +182,7 @@ export default function GoalCard({
           {!node.parent_id && (
             <button
               onClick={() => exportGoalTreeToCsv(node, byId)}
-              className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-smooth flex items-center gap-0.5"
+              className="text-[10px] font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-smooth flex items-center gap-0.5"
               title="Export this goal's full breakdown (all levels) as CSV — opens in Excel or Google Sheets"
             >
               <Icon name="ArrowDownTrayIcon" size={10} /> Export
@@ -193,7 +193,7 @@ export default function GoalCard({
             <button
               onClick={() => setShowMoveMenu((v) => !v)}
               disabled={!!busy}
-              className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
+              className="text-[10px] font-semibold px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
             >
               Move to <Icon name="ChevronDownIcon" size={9} />
             </button>
@@ -232,7 +232,7 @@ export default function GoalCard({
 
           <button
             onClick={() => onDelete(node)}
-            className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-smooth"
+            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-smooth"
           >
             <Icon name="TrashIcon" size={10} />
           </button>

@@ -18,7 +18,7 @@ export default function BottomNavBar({
   return (
     <nav
       aria-label="Mobile navigation"
-      className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 border-t border-border/80 backdrop-blur-lg px-4 py-2 flex items-center justify-around shadow-2xl max-w-[600px] mx-auto rounded-t-3xl"
+      className="relative z-30 w-full shrink-0 border-t border-border bg-card px-[1.5rem] py-2 flex items-center justify-around"
     >
       {/* 1. Home / Swipe Feed */}
       <button

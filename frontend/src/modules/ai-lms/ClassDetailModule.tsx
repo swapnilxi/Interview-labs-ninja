@@ -17,6 +17,8 @@ import ManualLessonModal from './components/ManualLessonModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import EmptyState from './components/EmptyState';
 import ExportClassButton from './components/ExportClassButton';
+import { useLmsCopilotContext } from './context/LmsCopilotContext';
+import { classCopilotContext } from './utils/copilotContext';
 
 interface ClassDetailModuleProps {
   classSlug: string;
@@ -27,6 +29,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
   const { isPreviewingAsStudent } = useLmsViewMode();
   const canEdit = canEditReal && !isPreviewingAsStudent;
   const [lmsClass, setLmsClass] = useState<LmsClass | null>(null);
+  useLmsCopilotContext(lmsClass ? classCopilotContext(lmsClass) : null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

@@ -14,6 +14,8 @@ import ConfirmDialog from './components/ConfirmDialog';
 import EmptyState from './components/EmptyState';
 import QuickLessonGenerator from './components/QuickLessonGenerator';
 import ProjectDetailModule from './components/ProjectDetailModule';
+import { useLmsCopilotContext } from './context/LmsCopilotContext';
+import { subjectCopilotContext } from './utils/copilotContext';
 
 interface SubjectDetailModuleProps {
   classSlug: string;
@@ -27,6 +29,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
   const [subject, setSubject] = useState<LmsSubject | null>(null);
   const [lmsClass, setLmsClass] = useState<LmsClass | null>(null);
   const [lessons, setLessons] = useState<LmsLesson[]>([]);
+  useLmsCopilotContext(subject ? subjectCopilotContext(subject, lmsClass, lessons) : null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

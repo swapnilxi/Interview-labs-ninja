@@ -247,44 +247,43 @@ export default function PlanProject({ model }: PlanProjectProps) {
   const guide = TAB_GUIDE[activeSubView];
 
   return (
-    <div className="flex flex-col h-full gap-3 relative">
+    <div className="flex flex-col h-full gap-[1.75rem] relative">
       {/* Header & Sub-view Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border/80 rounded-xl p-3 shadow-sm">
-        <div className="inline-flex items-center p-1 bg-muted/50 rounded-lg border border-border shrink-0">
+      <div className="todo-glass todo-lit flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-[1.25rem]">
+        <div className="todo-segmented shrink-0 p-1">
           {(['projects', 'matrix', 'roadmap'] as PlanSubView[]).map((view) => {
-            const icons: Record<PlanSubView, string> = { projects: '📁', matrix: '🟦', roadmap: '🗺️' };
+            const icons: Record<PlanSubView, string> = { projects: 'FolderIcon', matrix: 'Squares2X2Icon', roadmap: 'MapIcon' };
             const labels: Record<PlanSubView, string> = { projects: 'Projects', matrix: 'Matrix', roadmap: 'Roadmap' };
             return (
               <button
                 key={view}
                 onClick={() => setActiveSubView(view)}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-semibold transition-smooth ${
-                  activeSubView === view
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                }`}
+                aria-pressed={activeSubView === view}
+                className="todo-segment gap-2 px-4 py-2 text-[13px] font-semibold"
               >
-                <span>{icons[view]}</span> {labels[view]}
+                <Icon name={icons[view]} size={15} variant={activeSubView === view ? 'solid' : 'outline'} /> {labels[view]}
               </button>
             );
           })}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={handleAnalyze}
             disabled={analyzeLoading}
-            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-amber-400/50 bg-amber-400/5 text-amber-600 dark:text-amber-400 hover:bg-amber-400/10 transition-smooth flex items-center gap-1.5 disabled:opacity-50"
+            className="todo-btn todo-btn-secondary px-4 py-2.5"
             title="Run AI 80/20 analysis on all projects"
           >
             {analyzeLoading ? (
-              <span className="w-3 h-3 border border-amber-500/40 border-t-amber-500 rounded-full animate-spin" />
-            ) : '⭐'}
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <Icon name="StarIcon" size={14} variant="solid" className="text-primary" />
+            )}
             <span className="hidden sm:inline">80/20 Analyze</span>
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-smooth flex items-center gap-2 justify-center"
+            className="todo-btn todo-btn-primary px-4 py-2.5"
           >
             <Icon name="PlusIcon" size={14} variant="solid" /> New Project
           </button>
@@ -293,7 +292,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
 
       {/* 80/20 Analyze toast */}
       {analyzeToast && (
-        <div className="fixed top-20 right-6 z-[200] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold bg-amber-500 text-white animate-slide-up">
+        <div className="fixed top-20 right-6 z-[200] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold bg-primary text-primary-foreground animate-slide-up">
           {analyzeToast}
         </div>
       )}
@@ -311,21 +310,23 @@ export default function PlanProject({ model }: PlanProjectProps) {
 
       {/* ── How-to guide banner ─────────────────────────────────────────── */}
       {showGuide && (
-        <div className="relative bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border border-primary/20 rounded-xl px-4 py-3 animate-in fade-in duration-200">
+        <div className="todo-glass relative px-[1.5rem] py-[1.25rem] animate-fade-in">
           <button
             onClick={() => setShowGuide(false)}
-            className="absolute top-2 right-2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-smooth"
+            className="todo-focus absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title="Dismiss"
           >
             <Icon name="XMarkIcon" size={13} />
           </button>
-          <div className="flex items-start gap-3 pr-6">
-            <span className="text-xl shrink-0">{guide.icon}</span>
+          <div className="flex items-start gap-4 pr-8">
+            <span className="todo-icon-chip h-9 w-9 shrink-0">
+              <Icon name="LightBulbIcon" size={18} />
+            </span>
             <div>
-              <p className="text-xs font-bold text-foreground mb-1.5">{guide.title}</p>
-              <ul className="space-y-0.5">
+              <p className="mb-2 text-sm font-bold text-foreground">{guide.title}</p>
+              <ul className="space-y-1.5">
                 {guide.steps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[11px] text-muted-foreground">
+                  <li key={i} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
                     <span className="text-primary font-bold shrink-0 mt-px">{i + 1}.</span>
                     <span>{step}</span>
                   </li>
@@ -345,15 +346,17 @@ export default function PlanProject({ model }: PlanProjectProps) {
                 <span className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
               </div>
             ) : projects.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-4 opacity-70">
-                <span className="text-5xl">🏔️</span>
+              <div className="todo-glass todo-lit mx-auto mt-4 flex max-w-xl flex-col items-center gap-5 px-[2rem] py-[3rem] text-center text-muted-foreground">
+                <span className="todo-icon-chip h-[4rem] w-[4rem]">
+                  <Icon name="FolderPlusIcon" size={30} />
+                </span>
                 <div className="text-center">
-                  <p className="text-sm font-medium">No projects yet.</p>
-                  <p className="text-xs mt-1">Click <strong>+ New Project</strong> to start planning.</p>
+                  <p className="font-heading text-base font-semibold text-foreground">No projects yet</p>
+                  <p className="mt-1.5 text-sm">Click <strong className="text-foreground">New Project</strong> to start planning.</p>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="todo-stagger grid grid-cols-1 gap-[1.5rem] md:grid-cols-2 xl:grid-cols-3">
                 {projects.map(project => (
                   <ProjectCard
                     key={project.id}
@@ -376,8 +379,10 @@ export default function PlanProject({ model }: PlanProjectProps) {
                 <span className="text-xs">Loading project tasks & subtasks...</span>
               </div>
             ) : projectNodes.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3 opacity-70">
-                <span className="text-4xl">🌱</span>
+              <div className="todo-glass mx-auto mt-4 flex max-w-xl flex-col items-center gap-4 px-[2rem] py-[3rem] text-center text-muted-foreground">
+                <span className="todo-icon-chip h-[3.5rem] w-[3.5rem]">
+                  <Icon name="Squares2X2Icon" size={26} />
+                </span>
                 <div className="text-center">
                   <p className="text-sm font-medium">No project tasks found.</p>
                   <p className="text-xs mt-1">Open a project in the <strong>Projects</strong> tab to add topics & tasks.</p>

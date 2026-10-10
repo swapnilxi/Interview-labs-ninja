@@ -70,22 +70,22 @@ function TodoPageInner() {
         <div className="todo-shell flex h-full" data-copilot={copilotOpen ? 'open' : 'collapsed'}>
           {/* Main content area */}
           <div className="flex-1 min-w-0 overflow-y-auto scrollbar-clean">
-            <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-[6.5rem]">
+            <div className="max-w-[1440px] mx-auto px-4 sm:px-[2rem] lg:px-[2.5rem] pt-[2rem] pb-[7rem]">
               {/* Page header */}
-              <div className="mb-4 flex items-center gap-3">
-                <span className="todo-icon-chip h-10 w-10">
+              <div className="mb-[1.75rem] flex items-center gap-4">
+                <span className="todo-icon-chip h-[2.75rem] w-[2.75rem]">
                   <Icon name="ClipboardDocumentCheckIcon" size={22} />
                 </span>
                 <div className="min-w-0">
                   <h1 className="font-heading text-xl font-bold leading-tight text-foreground sm:text-2xl">AI To-Do</h1>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     Break tasks infinitely deep with AI · Track progress · Stay productive
                   </p>
                 </div>
               </div>
 
               {/* Tab Switcher */}
-              <div className="mb-4">
+              <div className="mb-[2rem]">
                 <TabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
               </div>
 

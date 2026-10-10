@@ -79,7 +79,7 @@ _NO_SYNC_POST = re.compile(
     r"lessons/[^/]+/(?:view|complete|visualize|easy-read|deeper|breakdown|revise)"
     r"|projects/[^/]+/suggest-placement"
     r"|subjects/[^/]+/(?:rag/index|summarize-context)"
-    r"|voice-chat|upload-source"
+    r"|voice-chat|copilot|upload-source"
     r")/?$"
 )
 
@@ -87,7 +87,7 @@ _NO_SYNC_POST = re.compile(
 # Writes that only touch the caller's own state or return AI output without saving anything;
 # every other POST/PUT/PATCH/DELETE changes shared LMS content and needs an editor role.
 _NON_EDIT_WRITES = re.compile(
-    r"^/api/lms/(?:lessons/[^/]+/(?:view|complete)|voice-chat|upload-source"
+    r"^/api/lms/(?:lessons/[^/]+/(?:view|complete)|voice-chat|copilot|upload-source"
     r"|lessons/[^/]+/(?:revise|easy-read|deeper|visualize|breakdown)"
     r"|classes/[^/]+/landing/ai|landing/ai)/?$"
 )
@@ -2468,3 +2468,57 @@ Respond concisely in plain text (no markdown formatting, no code blocks, no aste
         raise HTTPException(status_code=500, detail=str(exc))
     spoken_text = re.sub(r"[*#_`]", "", response).strip()
     return {"text": spoken_text}
+
+
+# ── Context-aware Copilot chat (class / subject / project / module / lesson) ──────────────
+# Same chat UI as the To-Do copilot (modules/common/copilot/CopilotChat.tsx). The client sends
+# what is open right now (title, breadcrumb, an excerpt of its content) so answers are scoped to it.
+# Mirrors frontend/src/app/api/lms/copilot/route.ts.
+
+class CopilotTurn(BaseModel):
+    role: Literal["user", "ai"]
+    content: str = ""
+
+
+class CopilotRequest(AISettings):
+    question: str = Field(..., min_length=1, max_length=2000)
+    scope: Literal["home", "class", "subject", "project", "module", "lesson"] = "home"
+    contextTitle: Optional[str] = ""
+    breadcrumb: Optional[str] = ""
+    contextText: Optional[str] = ""
+    history: List[CopilotTurn] = Field(default_factory=list)
+
+
+def build_copilot_prompt(payload: "CopilotRequest") -> str:
+    scope_label = {
+        "home": "the AI Learning Platform home (all classes)",
+        "class": "a class (a curriculum domain)",
+        "subject": "a subject inside a class",
+        "project": "a hands-on project track",
+        "module": "one module/step of a project",
+        "lesson": "a single lesson",
+    }[payload.scope]
+    turns = "\n".join(
+        f"{'Student' if t.role == 'user' else 'Copilot'}: {t.content[:800]}" for t in payload.history[-6:]
+    )
+    return f"""You are the learning copilot inside an AI LMS. The student currently has {scope_label} open.
+Open item: {payload.contextTitle or "(none)"}
+Where it sits: {payload.breadcrumb or "(top level)"}
+
+Content of the open item (excerpt):
+{(payload.contextText or "")[:6000]}
+
+{("Conversation so far:\n" + turns) if turns else ""}
+
+Student: {payload.question}
+
+Answer for THIS open item, using its content above. If the question is about something outside it, say so briefly and connect it back. If the content does not contain the answer, say what is missing rather than inventing details. Be concise and practical: short paragraphs or "- " bullets, **bold** for key terms, no headings."""
+
+
+@router.post("/copilot")
+async def lms_copilot(payload: CopilotRequest) -> Dict[str, str]:
+    try:
+        response = call_ai_text(build_copilot_prompt(payload), payload)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"answer": response.strip()}

@@ -7,6 +7,7 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   SidebarMode,
+  applySidebarMode,
   getStoredSidebarMode,
   setStoredSidebarMode,
   subscribeSidebarMode,
@@ -64,8 +65,20 @@ export default function Sidebar({
     }
   };
 
+  // Enable the content-shift transition only after first paint (see `sidebar-animate` in tailwind.css).
   useEffect(() => {
-    setInternalMode(getStoredSidebarMode());
+    const id = requestAnimationFrame(() =>
+      requestAnimationFrame(() => document.documentElement.classList.add('sidebar-animate'))
+    );
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    const stored = getStoredSidebarMode();
+    setInternalMode(stored);
+    // Hydration can drop the pre-paint `has-sidebar-rail` class (seen on dark-mode loads),
+    // leaving content under the rail; re-assert it from the stored mode.
+    applySidebarMode(stored);
     return subscribeSidebarMode((m) => setInternalMode(m));
   }, []);
 
@@ -74,20 +87,19 @@ export default function Sidebar({
   const [labsOpen, setLabsOpen] = useState(true);
   const [careerOpen, setCareerOpen] = useState(true);
 
-  // Hover popover states for the icon-only rail
-  const [activeFlyout, setActiveFlyout] = useState<'labs' | 'career' | null>(null);
-  const flyoutTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Icon-only rail: a group's sub-icons expand inline under its icon (pushing the rest of
+  // the rail down) instead of floating, since the rail's scroll container would clip a popover.
+  const [railOpen, setRailOpen] = useState({ labs: false, career: false });
+  const toggleRailGroup = (group: 'labs' | 'career') =>
+    setRailOpen((cur) => ({ ...cur, [group]: !cur[group] }));
 
-  const handleFlyoutEnter = (flyout: 'labs' | 'career') => {
-    if (flyoutTimerRef.current) clearTimeout(flyoutTimerRef.current);
-    setActiveFlyout(flyout);
-  };
+  useEffect(() => {
+    if (isLabRoute) setRailOpen((cur) => ({ ...cur, labs: true }));
+  }, [isLabRoute]);
 
-  const handleFlyoutLeave = () => {
-    flyoutTimerRef.current = setTimeout(() => {
-      setActiveFlyout(null);
-    }, 220);
-  };
+  useEffect(() => {
+    if (isCareerRoute) setRailOpen((cur) => ({ ...cur, career: true }));
+  }, [isCareerRoute]);
 
   useEffect(() => {
     if (isLabRoute) setLabsOpen(true);
@@ -163,7 +175,7 @@ export default function Sidebar({
           </div>
 
           {/* Middle navigation items */}
-          <nav className="flex-1 w-full overflow-y-auto scrollbar-none flex flex-col items-center gap-1 py-1.5 min-h-0">
+          <nav className="flex-1 w-full overflow-y-auto overscroll-contain scrollbar-none flex flex-col items-center gap-1 pt-1.5 pb-[4rem] min-h-0">
             {/* Daily Session */}
             <Link
               href="/daily-session"
@@ -203,47 +215,37 @@ export default function Sidebar({
             </Link>
 
             {/* Labs Popover Group */}
-            <div
-              className="relative w-full flex justify-center"
-              onMouseEnter={() => handleFlyoutEnter('labs')}
-              onMouseLeave={handleFlyoutLeave}
-            >
+            <div className="flex w-full flex-col items-center gap-1">
               <button
                 type="button"
-                onClick={() => setActiveFlyout((cur) => (cur === 'labs' ? null : 'labs'))}
+                onClick={() => toggleRailGroup('labs')}
                 className={railItemClass(isLabRoute)}
                 aria-label="Labs (CV, DSA, System Design)"
-                aria-haspopup="true"
-                aria-expanded={activeFlyout === 'labs'}
+                aria-expanded={railOpen.labs}
               >
                 <Icon name="RectangleGroupIcon" size={19} variant="outline" />
-                <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                  Labs (CV, DSA, System Design)
-                </span>
+                <Icon
+                  name="ChevronDownIcon"
+                  size={9}
+                  variant="solid"
+                  className={`absolute bottom-0.5 right-0.5 transition-transform ${railOpen.labs ? 'rotate-180' : ''}`}
+                />
               </button>
 
-              {activeFlyout === 'labs' && (
+              {railOpen.labs && (
                 <div
-                  className="absolute left-[56px] top-0 z-[130] w-48 rounded-lg border border-border bg-card p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
-                  onMouseEnter={() => handleFlyoutEnter('labs')}
-                  onMouseLeave={handleFlyoutLeave}
+                  className="flex w-[44px] flex-col items-center gap-1 rounded-xl py-1"
+                  style={{ background: 'color-mix(in srgb, var(--color-foreground) 5%, transparent)' }}
                 >
-                  <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 mb-1">
-                    Preparation Labs
-                  </div>
                   {LAB_LINKS.map((link) => (
                     <Link
                       key={link.path}
                       href={link.path}
-                      onClick={() => setActiveFlyout(null)}
-                      className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-smooth ${
-                        pathname === link.path
-                          ? 'bg-primary/15 text-primary'
-                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                      }`}
+                      title={link.label}
+                      aria-label={link.label}
+                      className={railItemClass(pathname === link.path)}
                     >
-                      <Icon name={link.icon as any} size={15} variant="outline" />
-                      <span>{link.label}</span>
+                      <Icon name={link.icon as any} size={17} variant="outline" />
                     </Link>
                   ))}
                 </div>
@@ -313,47 +315,37 @@ export default function Sidebar({
             </Link>
 
             {/* Career Studio Popover Group */}
-            <div
-              className="relative w-full flex justify-center"
-              onMouseEnter={() => handleFlyoutEnter('career')}
-              onMouseLeave={handleFlyoutLeave}
-            >
+            <div className="flex w-full flex-col items-center gap-1">
               <button
                 type="button"
-                onClick={() => setActiveFlyout((cur) => (cur === 'career' ? null : 'career'))}
+                onClick={() => toggleRailGroup('career')}
                 className={railItemClass(isCareerRoute)}
                 aria-label="Career Studio"
-                aria-haspopup="true"
-                aria-expanded={activeFlyout === 'career'}
+                aria-expanded={railOpen.career}
               >
                 <Icon name="BriefcaseIcon" size={19} variant="outline" />
-                <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                  Career Studio
-                </span>
+                <Icon
+                  name="ChevronDownIcon"
+                  size={9}
+                  variant="solid"
+                  className={`absolute bottom-0.5 right-0.5 transition-transform ${railOpen.career ? 'rotate-180' : ''}`}
+                />
               </button>
 
-              {activeFlyout === 'career' && (
+              {railOpen.career && (
                 <div
-                  className="absolute left-[56px] top-0 z-[130] w-48 rounded-lg border border-border bg-card p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
-                  onMouseEnter={() => handleFlyoutEnter('career')}
-                  onMouseLeave={handleFlyoutLeave}
+                  className="flex w-[44px] flex-col items-center gap-1 rounded-xl py-1"
+                  style={{ background: 'color-mix(in srgb, var(--color-foreground) 5%, transparent)' }}
                 >
-                  <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 mb-1">
-                    Career Studio
-                  </div>
                   {CAREER_LINKS.map((link) => (
                     <Link
                       key={link.path}
                       href={link.path}
-                      onClick={() => setActiveFlyout(null)}
-                      className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-smooth ${
-                        isCareerLinkActive(link.path)
-                          ? 'bg-primary/15 text-primary'
-                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                      }`}
+                      title={link.label}
+                      aria-label={link.label}
+                      className={railItemClass(isCareerLinkActive(link.path))}
                     >
-                      <Icon name={link.icon as any} size={15} variant="outline" />
-                      <span>{link.label}</span>
+                      <Icon name={link.icon as any} size={17} variant="outline" />
                     </Link>
                   ))}
                 </div>
