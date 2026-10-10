@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transformer Architecture and Self-Attention</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f3ec;
+    --surface: #fffaf2;
+    --surface-2: #efe7d9;
+    --text: #24201b;
+    --text-muted: #71695f;
+    --border: rgba(64, 55, 45, 0.14);
+    --border-strong: rgba(64, 55, 45, 0.22);
+    --primary: #5b5bd6;
+    --primary-soft: rgba(91, 91, 214, 0.1);
+    --secondary: #127c7a;
+    --secondary-soft: rgba(18, 124, 122, 0.1);
+    --accent: #b36b17;
+    --accent-soft: rgba(179, 107, 23, 0.12);
+    --success: #14845f;
+    --success-soft: rgba(20, 132, 95, 0.12);
+    --danger: #c24151;
+    --danger-soft: rgba(194, 65, 81, 0.12);
+    --code-bg: #1c1a17;
+    --code-text: #f2ede2;
+    --code-border: rgba(255, 255, 255, 0.08);
+    --shadow: 0 1px 2px rgba(36, 32, 27, 0.05), 0 12px 28px -14px rgba(36, 32, 27, 0.2);
+    --radius: 14px;
+  }
+  :root[data-theme="light"], html.light, body.light {
+    color-scheme: light;
+    --bg: #f7f3ec;
+    --surface: #fffaf2;
+    --surface-2: #efe7d9;
+    --text: #24201b;
+    --text-muted: #71695f;
+    --border: rgba(64, 55, 45, 0.14);
+    --border-strong: rgba(64, 55, 45, 0.22);
+    --primary: #5b5bd6;
+    --primary-soft: rgba(91, 91, 214, 0.1);
+    --secondary: #127c7a;
+    --secondary-soft: rgba(18, 124, 122, 0.1);
+    --accent: #b36b17;
+    --accent-soft: rgba(179, 107, 23, 0.12);
+    --success: #14845f;
+    --success-soft: rgba(20, 132, 95, 0.12);
+    --danger: #c24151;
+    --danger-soft: rgba(194, 65, 81, 0.12);
+    --code-bg: #1c1a17;
+    --code-text: #f2ede2;
+    --code-border: rgba(255, 255, 255, 0.08);
+    --shadow: 0 1px 2px rgba(36, 32, 27, 0.05), 0 12px 28px -14px rgba(36, 32, 27, 0.2);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #17140f;
+      --surface: #201c16;
+      --surface-2: #2a251d;
+      --text: #f4efe7;
+      --text-muted: #b3a696;
+      --border: rgba(255, 246, 235, 0.1);
+      --border-strong: rgba(255, 246, 235, 0.16);
+      --primary: #9694f5;
+      --primary-soft: rgba(150, 148, 245, 0.14);
+      --secondary: #5fc6bd;
+      --secondary-soft: rgba(95, 198, 189, 0.12);
+      --accent: #f1ad55;
+      --accent-soft: rgba(241, 173, 85, 0.14);
+      --success: #54c79a;
+      --success-soft: rgba(84, 199, 154, 0.14);
+      --danger: #fb7185;
+      --danger-soft: rgba(251, 113, 133, 0.14);
+      --code-bg: #14110d;
+      --code-text: #f2ede2;
+      --code-border: rgba(255, 255, 255, 0.07);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
+    }
+  }
+  :root[data-theme="dark"], html.dark, body.dark {
+    color-scheme: dark;
+    --bg: #17140f;
+    --surface: #201c16;
+    --surface-2: #2a251d;
+    --text: #f4efe7;
+    --text-muted: #b3a696;
+    --border: rgba(255, 246, 235, 0.1);
+    --border-strong: rgba(255, 246, 235, 0.16);
+    --primary: #9694f5;
+    --primary-soft: rgba(150, 148, 245, 0.14);
+    --secondary: #5fc6bd;
+    --secondary-soft: rgba(95, 198, 189, 0.12);
+    --accent: #f1ad55;
+    --accent-soft: rgba(241, 173, 85, 0.14);
+    --success: #54c79a;
+    --success-soft: rgba(84, 199, 154, 0.14);
+    --danger: #fb7185;
+    --danger-soft: rgba(251, 113, 133, 0.14);
+    --code-bg: #14110d;
+    --code-text: #f2ede2;
+    --code-border: rgba(255, 255, 255, 0.07);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  /* Header */
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .badge.secondary {
+    background: var(--secondary-soft);
+    color: var(--secondary);
+  }
+  .badge.accent {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin: 0 0 0.75rem;
+    color: var(--text);
+  }
+  h1 .accent-word { color: var(--primary); }
+
+  .subtitle {
+    font-size: 1.05rem;
+    color: var(--text-muted);
+    margin: 0 0 1.5rem;
+    max-width: 640px;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 3rem 0 1rem;
+    padding-left: 0.85rem;
+    position: relative;
+    color: var(--text);
+  }
+  h2::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.35rem;
+    bottom: 0.35rem;
+    width: 4px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 1.75rem 0 0.6rem;
+    color: var(--text);
+  }
+
+  p { margin: 0.85rem 0; color: var(--text); }
+  ul, ol { color: var(--text); padding-left: 1.4rem; }
+  li { margin: 0.35rem 0; }
+  strong { color: var(--text); font-weight: 700; }
+  em { color: var(--text-muted); }
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+    border-bottom: 1px solid var(--primary-soft);
+  }
+  a:hover { border-bottom-color: var(--primary); }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5rem 0;
+  }
+
+  code {
+    font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.87em;
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 0.12em 0.4em;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+  }
+
+  /* Learning objectives card */
+  .objectives {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.75rem;
+    margin: 1.5rem 0 0;
+    box-shadow: var(--shadow);
+  }
+  .objectives h3 {
+    margin-top: 0;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+  }
+  .objectives ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .objectives li {
+    position: relative;
+    padding-left: 1.6rem;
+    margin: 0.5rem 0;
+    color: var(--text);
+  }
+  .objectives li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.55rem;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--primary);
+  }
+
+  /* Callouts */
+  .callout {
+    background: var(--surface-2);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .callout .label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: 0.35rem;
+  }
+  .callout p { margin: 0.35rem 0; }
+  .callout.tip { border-left-color: var(--secondary); }
+  .callout.tip .label { color: var(--secondary); }
+  .callout.warning { border-left-color: var(--danger); }
+  .callout.warning .label { color: var(--danger); }
+  .callout.deep { border-left-color: var(--accent); }
+  .callout.deep .label { color: var(--accent); }
+
+  /* Code blocks */
+  .code-block {
+    margin: 1.5rem 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--code-border);
+    background: var(--code-bg);
+  }
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.55rem 0.9rem;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--code-border);
+  }
+  .code-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .dots {
+    display: flex;
+    gap: 0.35rem;
+  }
+  .dots span {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+  }
+  .code-lang {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(242,237,226,0.55);
+  }
+  .copy-btn {
+    background: transparent;
+    color: rgba(242,237,226,0.7);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+  }
+  .copy-btn:hover {
+    color: var(--code-text);
+    border-color: rgba(255,255,255,0.35);
+  }
+  .copy-btn.copied {
+    color: #54c79a;
+    border-color: #54c79a;
+  }
+  pre {
+    margin: 0;
+    padding: 1.1rem 1.25rem;
+    overflow-x: auto;
+    font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.83rem;
+    line-height: 1.65;
+    color: var(--code-text);
+  }
+  pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+  .tok-kw { color: #c792ea; }
+  .tok-fn { color: #82aaff; }
+  .tok-str { color: #c3e88d; }
+  .tok-num { color: #f78c6c; }
+  .tok-com { color: #7a8199; font-style: italic; }
+  .tok-var { color: #ffcb6b; }
+
+  /* Diagram */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin: 1.75rem 0;
+    box-shadow: var(--shadow);
+  }
+  .diagram-caption {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 0.9rem;
+    font-style: italic;
+  }
+  .diagram svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Interactive attention demo */
+  .demo {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin: 1.75rem 0;
+    box-shadow: var(--shadow);
+  }
+  .demo-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+  .demo p.lead {
+    font-size: 0.92rem;
+    color: var(--text-muted);
+    margin-top: 0;
+  }
+  .tokens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0;
+  }
+  .token {
+    padding: 0.5rem 0.85rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+  }
+  .token:hover {
+    border-color: var(--primary);
+  }
+  .token.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+  :root[data-theme="dark"] .token.active,
+  html.dark .token.active,
+  body.dark .token.active {
+    color: #17140f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .token.active {
+      color: #17140f;
+    }
+  }
+  .attention-bars {
+    margin-top: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .attn-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 55px;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+  }
+  .attn-label {
+    font-weight: 600;
+    color: var(--text);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .attn-bar-track {
+    height: 12px;
+    background: var(--surface-2);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .attn-bar-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 999px;
+    transition: width 0.35s ease;
+  }
+  .attn-value {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+
+  /* Quiz */
+  .quiz {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: var(--shadow);
+  }
+  .quiz-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+  .quiz-score {
+    color: var(--primary);
+  }
+  .quiz-question {
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 1rem;
+    line-height: 1.5;
+  }
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .option {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.92rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1.5;
+  }
+  .option:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+  }
+  .option:disabled {
+    cursor: default;
+  }
+  .option.correct {
+    background: var(--success-soft);
+    border-color: var(--success);
+    color: var(--success);
+    font-weight: 600;
+  }
+  .option.wrong {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--danger);
+    font-weight: 600;
+  }
+  .explanation {
+    margin-top: 1rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border-left: 3px solid var(--primary);
+    font-size: 0.9rem;
+    color: var(--text);
+    display: none;
+  }
+  .explanation.show { display: block; }
+  .explanation strong { color: var(--primary); }
+
+  /* Takeaways */
+  .takeaways {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.75rem;
+    margin: 1.5rem 0;
+    box-shadow: var(--shadow);
+  }
+  .takeaways ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .takeaways li {
+    position: relative;
+    padding-left: 2rem;
+    margin: 0.7rem 0;
+    color: var(--text);
+  }
+  .takeaways li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.35rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    background: var(--success-soft);
+    border: 1.5px solid var(--success);
+  }
+  .takeaways li::after {
+    content: "";
+    position: absolute;
+    left: 0.42rem;
+    top: 0.62rem;
+    width: 0.32rem;
+    height: 0.55rem;
+    border: solid var(--success);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  /* Table */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 1.5rem 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: var(--surface);
+  }
+  th, td {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+  th {
+    background: var(--surface-2);
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  tr:last-child td { border-bottom: none; }
+  td code { font-size: 0.82em; }
+
+  .formula {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.92rem;
+    color: var(--text);
+    text-align: center;
+    overflow-x: auto;
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  @media (max-width: 560px) {
+    .wrap { padding: 2rem 1rem 3.5rem; }
+    h1 { font-size: 1.65rem; }
+    h2 { font-size: 1.2rem; }
+    .attn-row { grid-template-columns: 70px 1fr 45px; font-size: 0.78rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="breadcrumb">
+    <span class="badge">AI</span>
+    <span class="badge secondary">Optimization &amp; Deep Learning</span>
+    <span class="badge accent">9 min read</span>
+  </div>
+
+  <h1>Transformer Architecture and <span class="accent-word">Self-Attention</span></h1>
+  <p class="subtitle">The neural network design that made modern LLMs possible — and the attention math that lets every token look at every other token at once.</p>
+
+  <!-- Learning Objectives -->
+  <div class="objectives">
+    <h3>What you'll learn</h3>
+    <ul>
+      <li>Why the Transformer replaced recurrence, and what problem self-attention actually solves.</li>
+      <li>How Query, Key, and Value projections produce a weighted context vector for each token.</li>
+      <li>The role of multi-head attention, positional encoding, and the residual + layer-norm block.</li>
+      <li>Where Transformers sit in the modern LLM stack — and where their compute cost comes from.</li>
+    </ul>
+  </div>
+
+  <!-- Section: Core Concepts -->
+  <h2>Why Transformers exist</h2>
+  <p>
+    Before 2017, sequence models were dominated by RNNs and LSTMs. They processed tokens one at a time, carrying a hidden state left to right. That works, but it has two stubborn problems: it's <strong>sequential</strong> (you can't parallelize across time steps on a GPU), and long-range information gets squeezed through a fixed-size hidden state, so it fades.
+  </p>
+  <p>
+    The Transformer (Vaswani et al., <em>“Attention Is All You Need”</em>, 2017) threw out recurrence entirely. Instead, every token is projected into a representation and then allowed to <strong>directly attend to every other token</strong> in the sequence. One matrix multiply replaces a whole chain of sequential steps.
+  </p>
+
+  <div class="callout tip">
+    <span class="label">Analogy</span>
+    <p>
+      Think of a room full of people at a conference. In an RNN, each person can only whisper to the person next to them, and news travels down the line. In a Transformer, everyone can hear everyone simultaneously — and each person decides how much to listen to each other person based on relevance.
+    </p>
+  </div>
+
+  <!-- Section: Visual -->
+  <h2>Anatomy of one Transformer block</h2>
+  <p>
+    A Transformer is a stack of identical blocks. Each block has two sublayers: a <strong>multi-head self-attention</strong> layer and a <strong>position-wise feed-forward network</strong>. Both are wrapped with a residual connection and layer normalization.
+  </p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 720 380" role="img" aria-label="Transformer block architecture diagram">
+      <!-- Input embeddings -->
+      <rect x="40" y="320" width="640" height="40" rx="8" fill="var(--surface-2)" stroke="var(--border-strong)"/>
+      <text x="360" y="345" text-anchor="middle" font-family="inherit" font-size="13" font-weight="700" fill="var(--text)">Input Embeddings + Positional Encoding</text>
+
+      <!-- Arrow up -->
+      <line x1="360" y1="320" x2="360" y2="288" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <polygon points="360,282 355,292 365,292" fill="var(--border-strong)"/>
+
+      <!-- Multi-head attention -->
+      <rect x="140" y="220" width="440" height="60" rx="10" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="1.5"/>
+      <text x="360" y="248" text-anchor="middle" font-family="inherit" font-size="14" font-weight="700" fill="var(--primary)">Multi-Head Self-Attention</text>
+      <text x="360" y="266" text-anchor="middle" font-family="inherit" font-size="11" fill="var(--text-muted)">Q · Kᵀ → softmax → · V</text>
+
+      <!-- Add & Norm -->
+      <rect x="260" y="176" width="200" height="30" rx="15" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>
+      <text x="360" y="196" text-anchor="middle" font-family="inherit" font-size="11.5" font-weight="700" fill="var(--accent)">Add &amp; LayerNorm</text>
+
+      <!-- Residual arrow -->
+      <path d="M 120 250 Q 90 250 90 191 Q 90 191 255 191" fill="none" stroke="var(--border-strong)" stroke-width="1.3" stroke-dasharray="4 3"/>
+      <text x="100" y="225" font-family="inherit" font-size="10" fill="var(--text-muted)">residual</text>
+
+      <!-- Arrow up -->
+      <line x1="360" y1="176" x2="360" y2="146" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <polygon points="360,140 355,150 365,150" fill="var(--border-strong)"/>
+
+      <!-- Feed forward -->
+      <rect x="140" y="80" width="440" height="60" rx="10" fill="var(--secondary-soft)" stroke="var(--secondary)" stroke-width="1.5"/>
+      <text x="360" y="108" text-anchor="middle" font-family="inherit" font-size="14" font-weight="700" fill="var(--secondary)">Feed-Forward Network</text>
+      <text x="360" y="126" text-anchor="middle" font-family="inherit" font-size="11" fill="var(--text-muted)">Linear → GELU → Linear (per position)</text>
+
+      <!-- Add & Norm 2 -->
+      <rect x="260" y="36" width="200" height="30" rx="15" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>
+      <text x="360" y="56" text-anchor="middle" font-family="inherit" font-size="11.5" font-weight="700" fill="var(--accent)">Add &amp; LayerNorm</text>
+
+      <!-- Residual arrow 2 -->
+      <path d="M 120 110 Q 90 110 90 51 Q 90 51 255 51" fill="none" stroke="var(--border-strong)" stroke-width="1.3" stroke-dasharray="4 3"/>
+
+      <!-- Output arrow -->
+      <line x1="360" y1="36" x2="360" y2="14" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <polygon points="360,8 355,18 365,18" fill="var(--border-strong)"/>
+      <text x="380" y="20" font-family="inherit" font-size="11" fill="var(--text-muted)">to next block</text>
+    </svg>
+    <p class="diagram-caption">One Transformer block. Stack N of these — GPT-style models use 12 to 100+.</p>
+  </div>
+
+  <!-- Section: Deep Dive -->
+  <h2>Self-attention, step by step</h2>
+  <p>
+    Self-attention is a soft, learned lookup. For every token, we compute three vectors by multiplying its embedding with learned weight matrices:
+  </p>
+  <ul>
+    <li><strong>Query (Q)</strong> — "what am I looking for?"</li>
+    <li><strong>Key (K)</strong> — "what do I offer?"</li>
+    <li><strong>Value (V)</strong> — "what information do I carry?"</li>
+  </ul>
+  <p>
+    We then score each query against every key with a dot product, scale by <code>1/√d_k</code> to keep gradients stable, apply softmax to get attention weights, and take a weighted sum of the values.
+  </p>
+
+  <div class="formula">
+    Attention(Q, K, V) = softmax( Q·Kᵀ / √d_k ) · V
+  </div>
+
+  <div class="callout deep">
+    <span class="label">Deep dive — why divide by √d_k?</span>
+    <p>
+      Dot products of high-dimensional vectors grow with <code>d_k</code>. Without scaling, the softmax saturates — one weight goes to ~1, the rest to ~0 — and gradients vanish. Dividing by <code>√d_k</code> keeps the scores in a range where softmax produces useful, non-degenerate distributions.
+    </p>
+  </div>
+
+  <!-- Interactive attention demo -->
+  <div class="demo">
+    <div class="demo-title">Interactive — attention weights</div>
+    <p class="lead">Click a token below to see how it distributes its attention across the sentence. (Illustrative weights, not a real model.)</p>
+    <div class="tokens" id="tokens">
+      <button class="token active" data-token="0">The</button>
+      <button class="token" data-token="1">cat</button>
+      <button class="token" data-token="2">sat</button>
+      <button class="token" data-token="3">on</button>
+      <button class="token" data-token="4">the</button>
+      <button class="token" data-token="5">mat</button>
+    </div>
+    <div class="attention-bars" id="bars"></div>
+  </div>
+
+  <h3>Multi-head attention</h3>
+  <p>
+    A single attention head can only learn one "type" of relationship. Multi-head attention runs <code>h</code> attention operations in parallel with different learned projections, then concatenates and projects the results. One head might track syntactic dependencies ("cat" → "sat"), another might track coreference ("it" → "the mat"), another might track position.
+  </p>
+
+  <h3>Positional encoding</h3>
+  <p>
+    Attention is permutation-invariant — it has no built-in sense of order. Without help, "dog bites man" and "man bites dog" would look identical. Positional encodings (sinusoidal, learned, or rotary) are added to token embeddings so the model knows where each token sits.
+  </p>
+
+  <h3>Encoder vs. decoder</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Variant</th>
+          <th>Attention</th>
+          <th>Typical use</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Encoder-only</td>
+          <td>Bidirectional (every token sees every token)</td>
+          <td>BERT — classification, embeddings, RAG reranking</td>
+        </tr>
+        <tr>
+          <td>Decoder-only</td>
+          <td>Causal (each token sees only prior tokens)</td>
+          <td>GPT, Llama, Claude — generation, chat, agents</td>
+        </tr>
+        <tr>
+          <td>Encoder–decoder</td>
+          <td>Bidirectional encoder + causal decoder with cross-attention</td>
+          <td>T5, translation, summarization</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warning">
+    <span class="label">Cost warning</span>
+    <p>
+      Self-attention is <code>O(n²)</code> in sequence length — for each of <code>n</code> tokens you score against <code>n</code> keys. Doubling context length quadruples the attention compute and memory. This is why long-context models use tricks like FlashAttention, sliding-window attention, or grouped-query attention.
+    </p>
+  </div>
+
+  <!-- Code -->
+  <h2>Self-attention in code</h2>
+  <p>A minimal, dependency-free implementation of scaled dot-product attention:</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-header-left">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="code-lang">Python</span>
+      </div>
+      <button class="copy-btn" data-copy="code1">Copy</button>
+    </div>
+    <pre><code id="code1"><span class="tok-kw">import</span> numpy <span class="tok-kw">as</span> np
+
+<span class="tok-kw">def</span> <span class="tok-fn">softmax</span>(x, axis=<span class="tok-num">-1</span>):
+    x = x - x.<span class="tok-fn">max</span>(axis=axis, keepdims=<span class="tok-kw">True</span>)   <span class="tok-com"># stability</span>
+    e = np.<span class="tok-fn">exp</span>(x)
+    <span class="tok-kw">return</span> e / e.<span class="tok-fn">sum</span>(axis=axis, keepdims=<span class="tok-kw">True</span>)
+
+<span class="tok-kw">def</span> <span class="tok-fn">scaled_dot_product_attention</span>(Q, K, V, mask=<span class="tok-kw">None</span>):
+    <span class="tok-com"># Q, K, V: (batch, seq_len, d_k)</span>
+    d_k = Q.shape[-<span class="tok-num">1</span>]
+    scores = Q @ K.<span class="tok-fn">transpose</span>(<span class="tok-num">0</span>, <span class="tok-num">2</span>, <span class="tok-num">1</span>) / np.<span class="tok-fn">sqrt</span>(d_k)
+
+    <span class="tok-kw">if</span> mask <span class="tok-kw">is</span> <span class="tok-kw">not</span> <span class="tok-kw">None</span>:
+        <span class="tok-com"># causal mask: -inf for future positions</span>
+        scores = np.<span class="tok-fn">where</span>(mask, scores, -<span class="tok-num">1e9</span>)
+
+    weights = <span class="tok-fn">softmax</span>(scores, axis=<span class="tok-num">-1</span>)
+    <span class="tok-kw">return</span> weights @ V, weights
+</code></pre>
+  </div>
+
+  <p>And a full multi-head attention module — the workhorse inside every LLM block:</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-header-left">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="code-lang">Python</span>
+      </div>
+      <button class="copy-btn" data-copy="code2">Copy</button>
+    </div>
+    <pre><code id="code2"><span class="tok-kw">import</span> torch
+<span class="tok-kw">import</span> torch.nn <span class="tok-kw">as</span> nn
+
+<span class="tok-kw">class</span> <span class="tok-fn">MultiHeadAttention</span>(nn.Module):
+    <span class="tok-kw">def</span> <span class="tok-fn">__init__</span>(self, d_model, n_heads):
+        <span class="tok-fn">super</span>().<span class="tok-fn">__init__</span>()
+        <span class="tok-kw">assert</span> d_model % n_heads == <span class="tok-num">0</span>
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_head  = d_model // n_heads
+        self.qkv  = nn.<span class="tok-fn">Linear</span>(d_model, <span class="tok-num">3</span> * d_model)
+        self.proj = nn.<span class="tok-fn">Linear</span>(d_model, d_model)
+
+    <span class="tok-kw">def</span> <span class="tok-fn">forward</span>(self, x, causal=<span class="tok-kw">True</span>):
+        B, T, C = x.shape
+        qkv = self.<span class="tok-fn">qkv</span>(x)                           <span class="tok-com"># (B, T, 3C)</span>
+        q, k, v = qkv.<span class="tok-fn">chunk</span>(<span class="tok-num">3</span>, dim=<span class="tok-num">-1</span>)
+
+        <span class="tok-com"># split into heads: (B, n_heads, T, d_head)</span>
+        shape = (B, T, self.n_heads, self.d_head)
+        q, k, v = [t.<span class="tok-fn">view</span>(shape).<span class="tok-fn">transpose</span>(<span class="tok-num">1</span>, <span class="tok-num">2</span>) <span class="tok-kw">for</span> t <span class="tok-kw">in</span> (q, k, v)]
+
+        <span class="tok-com"># scaled dot-product attention</span>
+        att = (q @ k.<span class="tok-fn">transpose</span>(-<span class="tok-num">2</span>, -<span class="tok-num">1</span>)) / (self.d_head ** <span class="tok-num">0.5</span>)
+        <span class="tok-kw">if</span> causal:
+            mask = torch.<span class="tok-fn">tril</span>(torch.<span class="tok-fn">ones</span>(T, T, device=x.device))
+            att = att.<span class="tok-fn">masked_fill</span>(mask == <span class="tok-num">0</span>, <span class="tok-kw">float</span>(<span class="tok-str">'-inf'</span>))
+        att = torch.<span class="tok-fn">softmax</span>(att, dim=<span class="tok-num">-1</span>)
+        out = att @ v                                 <span class="tok-com"># (B, h, T, d_head)</span>
+
+        <span class="tok-com"># merge heads and project</span>
+        out = out.<span class="tok-fn">transpose</span>(<span class="tok-num">1</span>, <span class="tok-num">2</span>).<span class="tok-fn">contiguous</span>().<span class="tok-fn">view</span>(B, T, C)
+        <span class="tok-kw">return</span> self.<span class="tok-fn">proj</span>(out)
+</code></pre>
+  </div>
+
+  <!-- Quiz -->
+  <h2>Check your understanding</h2>
+
+  <div class="quiz" data-quiz>
+    <div class="quiz-meta">
+      <span>Question 1 of 3</span>
+      <span class="quiz-score">Score: <span class="score-val">0</span>/3</span>
+    </div>
+    <p class="quiz-question">Why do we divide the dot-product scores by √d_k before the softmax in scaled dot-product attention?</p>
+    <div class="options">
+      <button class="option" data-correct="false">To reduce the number of parameters in the attention layer.</button>
+      <button class="option" data-correct="true">To prevent the softmax from saturating, which would cause vanishing gradients.</button>
+      <button class="option" data-correct="false">To make attention weights sum to more than 1, increasing expressiveness.</button>
+      <button class="option" data-correct="false">To enforce that each token can only attend to itself.</button>
+    </div>
+    <div class="explanation">
+      <strong>Correct:</strong> Dot products grow with dimension, and large logits push the softmax into a saturated regime where one weight ≈ 1 and gradients vanish. Scaling by <code>1/√d_k</code> keeps scores in a range where softmax produces useful distributions.
+    </div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="quiz-meta">
+      <span>Question 2 of 3</span>
+      <span class="quiz-score">Score: <span class="score-val">0</span>/3</span>
+    </div>
+    <p class="quiz-question">A decoder-only Transformer (like GPT) differs from an encoder-only Transformer (like BERT) primarily because it uses:</p>
+    <div class="options">
+      <button class="option" data-correct="false">No positional encoding, since order is implicit in the decoder.</button>
+      <button class="option" data-correct="false">A different loss function — cross-entropy instead of attention.</button>
+      <button class="option" data-correct="true">A causal attention mask, so each token can only attend to earlier tokens.</button>
+      <button class="option" data-correct="false">Only one attention head, to keep inference fast.</button>
+    </div>
+    <div class="explanation">
+      <strong>Correct:</strong> Decoder-only models apply a causal mask that blocks attention to future tokens, which is what makes autoregressive next-token generation possible. BERT's encoder uses full bidirectional attention.
+    </div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="quiz-meta">
+      <span>Question 3 of 3</span>
+      <span class="quiz-score">Score: <span class="score-val">0</span>/3</span>
+    </div>
+    <p class="quiz-question">Why is self-attention considered <code>O(n²)</code> in sequence length n?</p>
+    <div class="options">
+      <button class="option" data-correct="false">Because each token is projected through three weight matrices Q, K, and V.</button>
+      <button class="option" data-correct="true">Because every token must be scored against every other token, producing an n×n attention matrix.</button>
+      <button class="option" data-correct="false">Because layer normalization is applied twice per block.</button>
+      <button class="option" data-correct="false">Because positional encodings must be recomputed for every token pair.</button>
+    </div>
+    <div class="explanation">
+      <strong>Correct:</strong> The Q·Kᵀ step produces an <code>n×n</code> matrix of scores — one for every (query, key) pair. Doubling context length quadruples this cost, which is why long-context models need efficient attention variants.
+    </div>
+  </div>
+
+  <!-- Takeaways -->
+  <h2>Key takeaways</h2>
+  <div class="takeaways">
+    <ul>
+      <li>Transformers replace sequential recurrence with <strong>parallel self-attention</strong>, unlocking GPU efficiency and long-range context.</li>
+      <li>Each token is projected into <strong>Query, Key, and Value</strong> vectors; attention is a soft, learned lookup over the sequence.</li>
+      <li>The scaling factor <code>1/√d_k</code> is not cosmetic — it keeps softmax gradients healthy.</li>
+      <li><strong>Multi-head attention</strong> lets different heads specialize on different relationship types.</li>
+      <li><strong>Positional encodings</strong> inject order, since attention itself is permutation-invariant.</li>
+      <li>Cost is <code>O(n²)</code> in sequence length — the central bottleneck for long-context LLMs.</li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <span class="label">Where this fits</span>
+    <p>
+      Every modern LLM — the ones powering chat assistants, RAG pipelines, and multi-agent frameworks like LangGraph and CrewAI — is a stack of Transformer blocks. Understanding attention is the prerequisite for reasoning about context windows, KV-cache memory, prompt length costs, and why retrieval augmentation exists at all.
+    </p>
+  </div>
+
+  <footer>
+    AI · Optimization &amp; Deep Learning — Transformer Architecture and Self-Attention
+  </footer>
+</div>
+
+<script>
+  // ---- Copy buttons ----
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var targetId = btn.getAttribute('data-copy');
+      var el = document.getElementById(targetId);
+      if (!el) return;
+      var text = el.innerText;
+      var done = function () {
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(function () {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {
+          fallbackCopy(text, done);
+        });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+
+  function fallbackCopy(text, cb) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    cb();
+  }
+
+  // ---- Interactive attention demo ----
+  var tokens = ['The', 'cat', 'sat', 'on', 'the', 'mat'];
+  // Illustrative attention distributions per source token
+  var attentionData = {
+    0: [0.45, 0.20, 0.10, 0.05, 0.15, 0.05],
+    1: [0.15, 0.35, 0.30, 0.05, 0.05, 0.10],
+    2: [0.05, 0.40, 0.20, 0.15, 0.05, 0.15],
+    3: [0.05, 0.10, 0.30, 0.25, 0.10, 0.20],
+    4: [0.10, 0.05, 0.05, 0.10, 0.35, 0.35],
+    5: [0.05, 0.20, 0.10, 0.15, 0.25, 0.25]
+  };
+
+  var tokenButtons = document.querySelectorAll('#tokens .token');
+  var barsContainer = document.getElementById('bars');
+
+  function renderBars(sourceIdx) {
+    var weights = attentionData[sourceIdx];
+    barsContainer.innerHTML = '';
+    tokens.forEach(function (tok, i) {
+      var w = weights[i];
+      var row = document.createElement('div');
+      row.className = 'attn-row';
+
+      var label = document.createElement('div');
+      label.className = 'attn-label';
+      label.textContent = tok;
+
+      var track = document.createElement('div');
+      track.className = 'attn-bar-track';
+      var fill = document.createElement('div');
+      fill.className = 'attn-bar-fill';
+      fill.style.width = (w * 100).toFixed(1) + '%';
+      track.appendChild(fill);
+
+      var val = document.createElement('div');
+      val.className = 'attn-value';
+      val.textContent = w.toFixed(2);
+
+      row.appendChild(label);
+      row.appendChild(track);
+      row.appendChild(val);
+      barsContainer.appendChild(row);
+    });
+  }
+
+  tokenButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      tokenButtons.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var idx = parseInt(btn.getAttribute('data-token'), 10);
+      renderBars(idx);
+    });
+  });
+
+  renderBars(0);
+
+  // ---- Quiz logic ----
+  var quizzes = document.querySelectorAll('[data-quiz]');
+  var totalCorrect = 0;
+
+  function updateScores() {
+    document.querySelectorAll('.score-val').forEach(function (el) {
+      el.textContent = totalCorrect;
+    });
+  }
+
+  quizzes.forEach(function (quiz) {
+    var options = quiz.querySelectorAll('.option');
+    var explanation = quiz.querySelector('.explanation');
+    var answered = false;
+
+    options.forEach(function (opt) {
+      opt.addEventListener('click', function () {
+        if (answered) return;
+        answered = true;
+        var isCorrect = opt.getAttribute('data-correct') === 'true';
+        options.forEach(function (o) {
+          o.disabled = true;
+          if (o.getAttribute('data-correct') === 'true') {
+            o.classList.add('correct');
+          } else if (o === opt && !isCorrect) {
+            o.classList.add('wrong');
+          }
+        });
+        if (isCorrect) {
+          totalCorrect += 1;
+          updateScores();
+        }
+        explanation.classList.add('show');
+      });
+    });
+  });
+
+  updateScores();
+</script>
+</body>
+</html>
