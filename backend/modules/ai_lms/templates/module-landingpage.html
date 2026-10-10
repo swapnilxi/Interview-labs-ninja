@@ -182,98 +182,183 @@
     .closing h2 { margin: 0 0 18px; }
 
     /* ================================================================
-       Premium glow cards: layered ambient halo (box-shadow), a cursor-
-       following spotlight + static corner highlight (::before, clipped
-       to the card), and a slow continuous shimmering rim (::after,
-       masked to a thin ring). --mx/--my are written by the pointer
-       script below; everything else is driven by :hover/:focus-within.
+       Premium multi-hue glow. Each card pairs two hues (--ga / --gb) from a
+       small jewel palette, cycling per card, so the page reads as a considered
+       spectrum rather than one accent. Rest: a thin static rim (::before) with a
+       fixed specular highlight and a quiet two-tone halo. Hover: the halo
+       deepens, a soft spotlight follows the pointer (--mx/--my from the script
+       below) and a narrow highlight (::after) travels the rim. Nothing moves
+       at rest.
        ================================================================ */
-    @property --rim-angle {
-      syntax: '<angle>';
-      initial-value: 0deg;
-      inherits: true;
+    @property --rim-angle { syntax: '<angle>'; initial-value: 0deg; inherits: true; }
+    @property --spot { syntax: '<number>'; initial-value: 0; inherits: false; }
+
+    :root {
+      --h-indigo: #6366f1; --h-cyan: #06b6d4; --h-violet: #8b5cf6; --h-pink: #ec4899;
+      --h-teal: #14b8a6; --h-sky: #0ea5e9; --h-amber: #f59e0b; --h-rose: #f43f5e;
+      --h-emerald: #10b981; --h-fuchsia: #d946ef;
     }
-    .lms-card, .feature-card {
-      position: relative;
-      isolation: isolate;
+    :root[data-theme="dark"], html.dark, body.dark {
+      --h-indigo: #818cf8; --h-cyan: #22d3ee; --h-violet: #a78bfa; --h-pink: #f472b6;
+      --h-teal: #2dd4bf; --h-sky: #38bdf8; --h-amber: #fbbf24; --h-rose: #fb7185;
+      --h-emerald: #34d399; --h-fuchsia: #e879f9;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --h-indigo: #818cf8; --h-cyan: #22d3ee; --h-violet: #a78bfa; --h-pink: #f472b6;
+        --h-teal: #2dd4bf; --h-sky: #38bdf8; --h-amber: #fbbf24; --h-rose: #fb7185;
+        --h-emerald: #34d399; --h-fuchsia: #e879f9;
+      }
+    }
+
+    .lms-card, .feature-card, .closing {
+      --ga: var(--h-indigo);
+      --gb: var(--h-cyan);
       --mx: 50%;
       --my: 0%;
+      --spot: 0;
+      position: relative;
+      isolation: isolate;
+      background:
+        radial-gradient(260px circle at var(--mx) var(--my), color-mix(in srgb, var(--ga) calc(var(--spot) * 14%), transparent), transparent 65%),
+        radial-gradient(70% 60% at 100% 100%, color-mix(in srgb, var(--gb) calc(var(--spot) * 8%), transparent), transparent 70%),
+        var(--surface);
       box-shadow:
-        0 2px 8px -4px rgba(0, 0, 0, 0.08),
-        0 0 28px -18px color-mix(in srgb, var(--accent) 35%, transparent);
+        0 0 0 1px color-mix(in srgb, var(--ga) 6%, transparent),
+        0 0 20px -10px color-mix(in srgb, var(--ga) 30%, transparent),
+        0 10px 26px -18px color-mix(in srgb, var(--gb) 32%, transparent);
       transition:
         transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
         border-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
-        box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1),
+        --spot 350ms ease;
     }
-    .lms-card:hover, .feature-card:hover,
+    /* Hue pairs, cycling per card. */
+    .lms-card:nth-child(6n+2), .feature-card:nth-child(3n+2) { --ga: var(--h-violet);  --gb: var(--h-pink); }
+    .lms-card:nth-child(6n+3), .feature-card:nth-child(3n+3) { --ga: var(--h-teal);    --gb: var(--h-sky); }
+    .lms-card:nth-child(6n+4) { --ga: var(--h-amber);   --gb: var(--h-rose); }
+    .lms-card:nth-child(6n+5) { --ga: var(--h-emerald); --gb: var(--h-cyan); }
+    .lms-card:nth-child(6n+6) { --ga: var(--h-fuchsia); --gb: var(--h-violet); }
+    .closing { --ga: var(--h-violet); --gb: var(--h-cyan); }
+
+    .lms-card:hover, .feature-card:hover, .closing:hover,
     .lms-card:focus-within, .feature-card:focus-within {
-      transform: translateY(-4px);
-      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      --spot: 1;
+      transform: translateY(-3px);
+      border-color: color-mix(in srgb, var(--ga) 45%, var(--line));
       box-shadow:
-        0 2px 10px -4px rgba(0, 0, 0, 0.1),
-        0 16px 36px -16px color-mix(in srgb, var(--accent) 48%, transparent),
-        0 0 54px -14px color-mix(in srgb, var(--accent) 42%, transparent);
+        0 0 0 1px color-mix(in srgb, var(--ga) 10%, transparent),
+        0 0 30px -8px color-mix(in srgb, var(--ga) 42%, transparent),
+        0 18px 40px -16px color-mix(in srgb, var(--gb) 46%, transparent);
     }
-    .lms-card::before, .feature-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      border-radius: inherit;
-      pointer-events: none;
-      background:
-        radial-gradient(220px circle at var(--mx) var(--my), color-mix(in srgb, var(--accent) 22%, transparent), transparent 65%),
-        radial-gradient(60% 50% at 18% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 72%);
-      opacity: 0;
-      transition: opacity 350ms ease;
-    }
-    .lms-card:hover::before, .feature-card:hover::before,
-    .lms-card:focus-within::before, .feature-card:focus-within::before {
-      opacity: 1;
-    }
-    .lms-card::after, .feature-card::after {
+    .closing:hover { transform: none; }
+
+    /* Static rim: faint two-hue ring, fixed specular highlight top-left. */
+    .lms-card::before, .feature-card::before, .closing::before {
       content: "";
       position: absolute;
       inset: -1px;
       z-index: 0;
-      padding: 1px;
+      padding: 1.5px;
+      border-radius: inherit;
+      pointer-events: none;
+      background: linear-gradient(
+        125deg,
+        color-mix(in srgb, var(--ga) 40%, white) 0%,
+        color-mix(in srgb, var(--ga) 70%, transparent) 9%,
+        color-mix(in srgb, var(--ga) 26%, transparent) 30%,
+        color-mix(in srgb, var(--gb) 22%, transparent) 70%,
+        color-mix(in srgb, var(--gb) 55%, transparent) 92%,
+        color-mix(in srgb, var(--gb) 40%, white) 100%
+      );
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask-composite: exclude;
+      opacity: 0.7;
+      transition: opacity 300ms ease;
+    }
+    .lms-card:hover::before, .feature-card:hover::before, .closing:hover::before,
+    .lms-card:focus-within::before, .feature-card:focus-within::before {
+      opacity: 1;
+    }
+
+    /* Hover shimmer: a narrow two-hue highlight orbiting the rim. Paused and hidden at rest. */
+    .lms-card::after, .feature-card::after, .closing::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      z-index: 0;
+      padding: 1.5px;
       border-radius: inherit;
       pointer-events: none;
       background: conic-gradient(
         from var(--rim-angle, 0deg),
-        color-mix(in srgb, var(--accent) 95%, white 5%) 0deg,
-        color-mix(in srgb, var(--accent) 55%, transparent) 12deg,
-        transparent 38deg,
+        transparent 0deg,
+        transparent 60deg,
+        color-mix(in srgb, var(--ga) 70%, transparent) 85deg,
+        color-mix(in srgb, var(--ga) 35%, white) 105deg,
+        color-mix(in srgb, var(--gb) 70%, transparent) 125deg,
+        transparent 150deg,
         transparent 360deg
       );
       -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
       -webkit-mask-composite: xor;
       mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
       mask-composite: exclude;
-      opacity: 0.35;
-      animation: lms-rim-spin 4.5s linear infinite;
+      opacity: 0;
+      animation: lms-rim-spin 2.2s linear infinite paused;
       transition: opacity 300ms ease;
     }
-    .lms-card:hover::after, .feature-card:hover::after,
+    .lms-card:hover::after, .feature-card:hover::after, .closing:hover::after,
     .lms-card:focus-within::after, .feature-card:focus-within::after {
       opacity: 1;
+      animation-play-state: running;
     }
     @keyframes lms-rim-spin {
       to { --rim-angle: 360deg; }
     }
-    .lms-card > *, .feature-card > * {
+    .lms-card > *, .feature-card > *, .closing > * {
       position: relative;
       z-index: 1;
     }
+
+    /* Hero: a soft three-hue aurora behind the headline; the CTA gets a matching glow. */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(48% 70% at 12% 0%, color-mix(in srgb, var(--h-indigo) 16%, transparent), transparent 70%),
+        radial-gradient(40% 60% at 92% 10%, color-mix(in srgb, var(--h-cyan) 12%, transparent), transparent 70%),
+        radial-gradient(45% 55% at 60% 100%, color-mix(in srgb, var(--h-pink) 9%, transparent), transparent 72%),
+        var(--surface);
+    }
+    .hero > .wrap { position: relative; z-index: 1; }
+    .lms-cta {
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
+        0 0 18px -2px color-mix(in srgb, var(--accent) 55%, transparent),
+        0 6px 20px -8px color-mix(in srgb, var(--h-cyan) 45%, transparent);
+      transition: transform 200ms ease, box-shadow 200ms ease;
+    }
+    .lms-cta:hover {
+      opacity: 1;
+      transform: translateY(-2px);
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent),
+        0 0 26px -1px color-mix(in srgb, var(--accent) 70%, transparent),
+        0 10px 26px -8px color-mix(in srgb, var(--h-cyan) 55%, transparent);
+    }
+    .lms-cta:active { transform: scale(0.97); }
+
     @media (prefers-reduced-motion: reduce) {
-      .lms-card, .feature-card { transition: none; }
-      .lms-card:hover, .feature-card:hover,
-      .lms-card:focus-within, .feature-card:focus-within { transform: none; }
-      .lms-card::after, .feature-card::after { animation: none; opacity: 0.5; }
+      .lms-card, .feature-card, .closing, .lms-cta { transition: none; }
+      .lms-card:hover, .feature-card:hover, .closing:hover,
+      .lms-card:focus-within, .feature-card:focus-within, .lms-cta:hover { transform: none; }
+      .lms-card::after, .feature-card::after, .closing::after { display: none; }
     }
     @media (hover: none), (pointer: coarse) {
-      .lms-card::before, .feature-card::before { display: none; }
+      .lms-card, .feature-card, .closing { --spot: 0 !important; }
     }
   </style>
 </head>
