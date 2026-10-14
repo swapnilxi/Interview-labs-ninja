@@ -9,7 +9,7 @@ import WeeklySummaryCard from './WeeklySummaryCard';
 import { sessionService } from '@/lib/services/sessionService';
 import { questionsService, Question } from '@/lib/services/questionsService';
 
-export default function ProgressDashboardInteractive() {
+export default function ProgressDashboardInteractive({ embedded = false }: { embedded?: boolean } = {}) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -245,10 +245,9 @@ export default function ProgressDashboardInteractive() {
     { label: 'Unique Session Days', value: `${stats.totalSessions || 4} Days`, icon: 'CalendarIcon', change: 25 },
   ];
 
-  return (
-    <div className="min-h-screen bg-background pt-[60px]">
-      <div className="max-w-[1400px] mx-auto px-24 py-36 space-y-24">
-        {/* Metric Cards Grid */}
+  const content = (
+    <div className={embedded ? "space-y-6 pt-1 pb-10" : "max-w-[1400px] mx-auto px-24 py-36 space-y-24"}>
+      {/* Metric Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-24 animate-fade-in">
           <MetricCard
             title="Total Sessions Started"
@@ -307,9 +306,16 @@ export default function ProgressDashboardInteractive() {
               stats={weeklyStatsList}
               focusAreas={['Edge Quantization', 'Stereo Geometry', 'Dijkstra Optimizations', 'Adversarial Validation']}
             />
-          </div>
         </div>
       </div>
+    </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <div className="min-h-screen bg-background pt-[60px]">
+      {content}
     </div>
   );
 }

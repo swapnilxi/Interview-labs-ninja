@@ -19,7 +19,7 @@ interface FilterOptions {
 }
 
 
-export default function QuestionBankInteractive() {
+export default function QuestionBankInteractive({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const [isHydrated, setIsHydrated] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
@@ -245,6 +245,13 @@ export default function QuestionBankInteractive() {
     filters.searchQuery !== '';
 
   if (!isHydrated || loading) {
+    if (embedded) {
+      return (
+        <div className="flex h-72 items-center justify-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-background pt-[60px]">
         <div className="max-w-[1400px] mx-auto px-24 py-36">
@@ -258,9 +265,9 @@ export default function QuestionBankInteractive() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background pt-[60px]">
-      <div className="max-w-[1400px] mx-auto px-24 py-36">
+  const content = (
+    <div className={embedded ? "space-y-6 pt-1 pb-10" : "max-w-[1400px] mx-auto px-24 py-36"}>
+      {!embedded && (
         <div className="mb-36">
           <h1 className="font-heading text-4xl font-semibold text-foreground mb-12">
             Question Bank
@@ -269,6 +276,7 @@ export default function QuestionBankInteractive() {
             Review and practice previously encountered questions to reinforce your skills
           </p>
         </div>
+      )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-24">
           <div className="lg:col-span-3 space-y-24">
@@ -382,6 +390,13 @@ export default function QuestionBankInteractive() {
           onClearSelection={handleClearSelection}
         />
       </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <div className="min-h-screen bg-background pt-[60px]">
+      {content}
     </div>
   );
 }

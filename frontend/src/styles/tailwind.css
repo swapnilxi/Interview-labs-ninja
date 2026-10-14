@@ -225,6 +225,31 @@
     height: calc(100vh - var(--app-banner-h, 0px));
   }
 
+  @supports (height: 100dvh) {
+    .h-app-screen {
+      height: calc(100dvh - var(--app-banner-h, 0px));
+    }
+  }
+
+  /* Phones: the bottom tab bar (components/ui/MobileTabBar.tsx) is fixed to the viewport bottom, so
+     reserve its height. Full-height shells shrink (their inner panes scroll); normal pages get
+     bottom padding on <body>. */
+  @media (max-width: 767px) {
+    html.has-mobile-tabs {
+      --mobile-tab-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    html.has-mobile-tabs body {
+      padding-bottom: var(--mobile-tab-h);
+    }
+
+    html.has-mobile-tabs .h-app-screen,
+    html.has-mobile-tabs .lab-shell {
+      height: calc(100vh - var(--app-banner-h, 0px) - var(--mobile-tab-h));
+      height: calc(100dvh - var(--app-banner-h, 0px) - var(--mobile-tab-h));
+    }
+  }
+
   .app-nav-link {
     @apply flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-muted-foreground transition-smooth hover:bg-muted hover:text-foreground;
   }
@@ -303,7 +328,7 @@
   }
 
   .page-wrapper {
-    @apply max-w-[1100px] mx-auto px-24 py-24;
+    @apply max-w-[1100px] mx-auto px-[1rem] py-[1rem] sm:px-24 sm:py-24;
   }
 
   .page-header {
@@ -1357,6 +1382,13 @@
     bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
   }
 
+  /* With the tab bar present, sit just above it; the FABs lift by the same amount below. */
+  @media (max-width: 767px) {
+    html.has-mobile-tabs .todo-toast-host {
+      bottom: calc(5.75rem + var(--mobile-tab-h));
+    }
+  }
+
   @media (min-width: 640px) {
     .todo-toast-host {
       bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
@@ -1395,6 +1427,124 @@
     background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   }
 
+  /* ── Mobile tab bar ─────────────────────────────────────────────────────────────────── */
+  .mobile-tabbar {
+    @apply fixed inset-x-0 bottom-0 z-[120] flex items-stretch border-t border-border;
+    height: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    background: color-mix(in srgb, var(--color-card) 94%, transparent);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+
+  .mobile-tab {
+    @apply flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground transition-colors;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-tab:active {
+    background: color-mix(in srgb, var(--color-muted) 70%, transparent);
+  }
+
+  .mobile-tab-active {
+    color: var(--color-primary);
+  }
+
+  .mobile-tab-active span:last-child {
+    font-weight: 700;
+  }
+
+  /* Unread count on a bell. */
+  .notif-badge {
+    @apply absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-error-foreground;
+  }
+
+  /* Bottom sheet on phones (notifications, labs picker); a floating panel from sm up. */
+  .notif-sheet {
+    max-height: 85dvh;
+    border-radius: 1.25rem 1.25rem 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: sheet-up 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  @media (min-width: 640px) {
+    .notif-sheet {
+      max-height: min(36rem, calc(100dvh - 5rem));
+      border-radius: 1rem;
+      padding-bottom: 0;
+      animation: none;
+    }
+  }
+
+  @keyframes sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .notif-sheet {
+      animation: none;
+    }
+  }
+
+  /* ── Labs on phones: topics + copilot become slide-over sheets ──────────────────────── */
+  @media (max-width: 767px) {
+    .lab-sidebar,
+    .lab-copilot {
+      position: fixed;
+      top: calc(60px + var(--app-banner-h, 0px));
+      bottom: var(--mobile-tab-h, 0px);
+      z-index: 115;
+      width: min(88vw, 22rem) !important;
+      min-width: 0 !important;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.35);
+      transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+      overscroll-behavior: contain;
+    }
+
+    .lab-sidebar {
+      left: 0;
+      transform: translateX(-105%);
+    }
+
+    .lab-copilot {
+      right: 0;
+      transform: translateX(105%);
+    }
+
+    .lab-sidebar[data-sheet='open'],
+    .lab-copilot[data-sheet='open'] {
+      transform: translateX(0);
+    }
+
+    .lab-sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      top: calc(60px + var(--app-banner-h, 0px));
+      bottom: var(--mobile-tab-h, 0px);
+      z-index: 114;
+      background: rgba(0, 0, 0, 0.45);
+      animation: fadeIn 180ms ease-out;
+    }
+
+    /* A lab's content is the page: comfortable gutters and larger tap targets for list rows. */
+    .lab-main {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+    }
+
+    .lab-sidebar :is(button, a),
+    .lab-copilot :is(button, a) {
+      min-height: 2.5rem;
+    }
+  }
+
   /*
    * Floating action buttons. Kept inside the main column: clear of the sidebar
    * rail on the left and the Copilot panel on the right (.todo-shell carries
@@ -1404,6 +1554,16 @@
   .todo-fab {
     @apply todo-focus fixed z-30 flex h-[3rem] w-[3rem] items-center justify-center rounded-full shadow-lg transition-smooth sm:h-14 sm:w-14;
     bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (max-width: 767px) {
+    html.has-mobile-tabs .todo-fab {
+      bottom: calc(1rem + var(--mobile-tab-h));
+    }
+
+    html.has-mobile-tabs .todo-fab-popover {
+      bottom: calc(4.75rem + var(--mobile-tab-h));
+    }
   }
 
   .todo-fab:hover {

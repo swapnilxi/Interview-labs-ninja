@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import LabCopilot from '@/components/common/LabCopilot';
+import { LabMobileBar, LabSheetBackdrop, useLabSheets } from '@/modules/common/lab/LabMobile';
 import OnDemandSection from '@/components/lab/OnDemandSection';
 import QuizCarousel from '@/components/lab/QuizCarousel';
 import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/GenerateQuestionsPanel';
@@ -932,6 +933,11 @@ export default function SystemDesignLabInteractive() {
   const [newTopicInput, setNewTopicInput] = useState('');
   const [leftOpen,      setLeftOpen]      = useState(true);
   const [rightOpen,     setRightOpen]     = useState(true);
+  const lab = useLabSheets(`${selectedTopicId}|${selectedSubtopicId}`);
+  const leftExpanded = leftOpen || lab.isMobile;
+  const rightExpanded = rightOpen || lab.isMobile;
+  const collapseLeft = () => (lab.isMobile ? lab.close() : setLeftOpen(false));
+  const collapseRight = () => (lab.isMobile ? lab.close() : setRightOpen(false));
   const [recentTopics,  setRecentTopics]  = useState<{ id: string; name: string; subId?: string; subName?: string }[]>([]);
 
   useEffect(() => {
@@ -1233,9 +1239,10 @@ export default function SystemDesignLabInteractive() {
   return (
     <div className="lab-shell flex flex-col">
       <div className="lab-workspace flex">
+        {lab.isMobile && lab.sheet && <LabSheetBackdrop onClose={lab.close} />}
 
         {/* ── LEFT Sidebar ──────────────────────────────────────────────── */}
-        <aside className="lab-sidebar border-r flex flex-col overflow-hidden" style={{ width: leftOpen ? 264 : 48, minWidth: leftOpen ? 264 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
+        <aside data-sheet={lab.sheet === 'left' ? 'open' : 'closed'} inert={lab.isMobile && lab.sheet !== 'left' ? true : undefined} className="lab-sidebar border-r flex flex-col overflow-hidden" style={{ width: leftExpanded ? 264 : 48, minWidth: leftExpanded ? 264 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
 
           {/* Header */}
           <div className="flex-shrink-0 border-b border-border">
@@ -1243,19 +1250,19 @@ export default function SystemDesignLabInteractive() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-amber-500/20">
                 <Icon name="ServerStackIcon" size={15} className="text-white" />
               </div>
-              {leftOpen && (
+              {leftExpanded && (
                 <>
                   <div className="flex-1 min-w-0">
                     <h2 className="text-sm font-bold text-foreground tracking-tight">System Design</h2>
                     <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{allTopics.length} problems · {groupedSections.length} categories</p>
                   </div>
-                  <button onClick={() => setLeftOpen(false)} className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Collapse sidebar">
+                  <button onClick={() => collapseLeft()} className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Collapse sidebar">
                     <Icon name="ChevronLeftIcon" size={14} />
                   </button>
                 </>
               )}
             </div>
-            {leftOpen && (
+            {leftExpanded && (
               <div className="px-3 pb-3">
                 {showAddSec ? (
                   <div className="flex gap-1.5">
@@ -1280,7 +1287,7 @@ export default function SystemDesignLabInteractive() {
               </div>
             )}
           </div>
-          {!leftOpen && (
+          {!leftExpanded && (
             <div className="flex justify-center py-1.5">
               <button onClick={() => setLeftOpen(true)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Expand sidebar">
                 <Icon name="ChevronRightIcon" size={14} />
@@ -1288,7 +1295,7 @@ export default function SystemDesignLabInteractive() {
             </div>
           )}
 
-          {leftOpen && (
+          {leftExpanded && (
           <div className="flex-1 overflow-y-auto py-2 scrollbar-clean">
 
             {/* Wiki Index */}
@@ -1447,6 +1454,7 @@ export default function SystemDesignLabInteractive() {
 
         {/* ── CENTER ────────────────────────────────────────────────────── */}
         <main className="lab-main scrollbar-clean">
+          {lab.isMobile && <LabMobileBar title={contextLabel} onTopics={lab.openTopics} onCopilot={lab.openCopilot} />}
           {selectedTopicId !== 'wiki' && (
             <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2.5 border-b border-border bg-background/95 backdrop-blur-sm">
               <button onClick={() => selectTopic('wiki')}
@@ -1615,9 +1623,9 @@ export default function SystemDesignLabInteractive() {
         </main>
 
         {/* ── RIGHT: Copilot ─────────────────────────────────────────────── */}
-        <aside className="lab-copilot border-l flex flex-col overflow-hidden" style={{ width: rightOpen ? 300 : 48, minWidth: rightOpen ? 300 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
-          {rightOpen ? (
-            <LabCopilot context={contextLabel} labType="system-design" onCollapse={() => setRightOpen(false)} />
+        <aside data-sheet={lab.sheet === 'right' ? 'open' : 'closed'} inert={lab.isMobile && lab.sheet !== 'right' ? true : undefined} className="lab-copilot border-l flex flex-col overflow-hidden" style={{ width: rightExpanded ? 300 : 48, minWidth: rightExpanded ? 300 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
+          {rightExpanded ? (
+            <LabCopilot context={contextLabel} labType="system-design" onCollapse={() => collapseRight()} />
           ) : (
             <div className="flex flex-col items-center gap-2 py-3">
               <button onClick={() => setRightOpen(true)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Show Copilot">

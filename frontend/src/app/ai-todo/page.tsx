@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '@/components/common/Header';
 import Icon from '@/components/ui/AppIcon';
 import Modal from '@/components/ui/Modal';
-import ToastHost from '@/components/ui/ToastHost';
 import ConfirmHost from '@/components/ui/ConfirmHost';
 import { useDistractionShortcutLabel } from '@/modules/ai-todo/shared/useDistractionShortcutLabel';
 import TaskTree from '@/modules/ai-todo/tasks/TaskTree';
@@ -75,7 +74,6 @@ function TodoPageInner() {
   return (
     <>
       <Header />
-      <ToastHost />
       <ConfirmHost />
       <div className="h-app-screen overflow-hidden bg-background pt-[60px] text-foreground">
         {/* .todo-shell + data-copilot let the floating buttons stay clear of the Copilot panel */}

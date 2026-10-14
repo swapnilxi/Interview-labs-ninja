@@ -1,5 +1,6 @@
 'use client';
 
+import { notify } from '@/lib/ui/notifications';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
@@ -372,8 +373,23 @@ export default function DailySessionInteractive() {
     setLoading(true);
     try {
       await persistAnswer(payload);
+      const done = questions.filter(
+        (q) => (q.questionText === currentQ.questionText ? answerText : answers[q.questionText] || '').trim()
+      ).length;
+      const total = questions.length;
+      if (total > 0 && done === total) {
+        notify({
+          source: 'daily-session',
+          tone: 'success',
+          title: 'Daily session complete',
+          body: `All ${total} questions answered. Nice work!`,
+          href: '/progress-dashboard',
+          dedupeKey: `daily-session-done:${sessionDate}`,
+        });
+      }
     } catch (err) {
       console.error(err);
+      notify({ source: 'daily-session', tone: 'error', title: "Couldn't save your answer", body: 'Check your connection and try again.' });
     } finally {
       setLoading(false);
     }
@@ -549,20 +565,20 @@ export default function DailySessionInteractive() {
         {/* ── Setup Card ── */}
         <div className="relative todo-lit lit-soft bg-card rounded-2xl border border-border overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-violet-500/[0.03] pointer-events-none" />
-          <div className="relative p-9">
+          <div className="relative p-5 sm:p-9">
             <h2 className="font-heading text-lg font-semibold text-foreground mb-7 flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500/20 to-primary/20 flex items-center justify-center flex-shrink-0">
                 <Icon name="AcademicCapIcon" size={17} className="text-primary" />
               </div>
               Configure Your Session
             </h2>
-            <form onSubmit={handleStartSession} className="space-y-7">
+            <form onSubmit={handleStartSession} className="space-y-6 sm:space-y-7">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-3">Difficulty</label>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {difficultyOptions.map(({ label, active }) => (
                     <button key={label} type="button" onClick={() => setDifficulty(label)}
-                      className={`py-3 rounded-xl border text-sm font-semibold transition-all ${
+                      className={`min-h-[48px] py-3 rounded-xl border text-sm font-semibold transition-all ${
                         difficulty === label ? active : 'bg-muted/40 border-border text-muted-foreground hover:bg-muted hover:border-muted-foreground/40'
                       }`}>
                       {label}
@@ -572,12 +588,12 @@ export default function DailySessionInteractive() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label htmlFor="cv-text" className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <label htmlFor="cv-text" className="flex items-center gap-2 text-sm font-medium text-foreground whitespace-nowrap">
                     Context / Resume
                     <span className="text-xs text-muted-foreground font-normal">Optional</span>
                   </label>
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-smooth border border-primary/20">
+                  <label className="cursor-pointer inline-flex min-h-[40px] items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-smooth border border-primary/20">
                     <Icon name="DocumentArrowUpIcon" size={14} />
                     {uploadingResume ? 'Extracting...' : 'Upload Resume (.pdf/.docx/.txt)'}
                     <input
@@ -716,23 +732,23 @@ export default function DailySessionInteractive() {
   // Phase 2: Ready / Interstitial
   if (sessionActive && !practiceStarted) {
     return (
-      <div className="todo-lit lit-soft max-w-2xl mx-auto bg-card rounded-lg p-36 border border-border mt-36 text-center animate-fade-in">
+      <div className="todo-lit lit-soft max-w-2xl mx-auto bg-card rounded-lg p-[1.25rem] sm:p-36 border border-border mt-[1rem] sm:mt-36 text-center animate-fade-in">
         <Icon name="CheckBadgeIcon" size={64} className="text-success mx-auto mb-18" variant="outline" />
         <h2 className="font-heading text-3xl font-semibold text-foreground mb-12">Session Ready!</h2>
         <p className="text-muted-foreground mb-24 font-body">
           Your custom interview questions have been generated and securely saved. This quiz mode will record your session duration and track your completion.
         </p>
-        <div className="flex items-center justify-center gap-12">
+        <div className="flex flex-col-reverse items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:gap-12">
           <button
             onClick={handleClearSession}
-            className="py-12 px-24 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth inline-flex items-center gap-12 focus-ring"
+            className="py-12 px-24 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth inline-flex items-center justify-center gap-12 focus-ring"
           >
             <Icon name="ArrowLeftIcon" size={18} variant="outline" />
             Back
           </button>
           <button
             onClick={() => setPracticeStarted(true)}
-            className="py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-lg font-medium transition-smooth inline-flex items-center gap-12 focus-ring shadow-glow"
+            className="py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-lg font-medium transition-smooth inline-flex items-center justify-center gap-12 focus-ring shadow-glow"
           >
             <Icon name="PlayCircleIcon" size={24} variant="solid" />
             Start Practicing

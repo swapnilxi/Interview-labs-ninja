@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Sidebar from '@/modules/common/Sidebar';
+import NotificationBell from '@/components/ui/NotificationCenter';
+import { OPEN_NAV_EVENT } from '@/components/ui/MobileTabBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, API_BASE_URL } from '@/lib/http/apiClient';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
@@ -155,7 +157,7 @@ function AuthStatus() {
   }
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-muted-foreground max-w-[140px] truncate" title={user?.email}>
+      <span className="hidden text-xs text-muted-foreground max-w-[140px] truncate sm:inline" title={user?.email}>
         {user?.display_name || user?.email}
       </span>
       <button
@@ -194,11 +196,15 @@ export default function Header() {
     };
     window.addEventListener('interview-ninja-theme-change', handleThemeEvent);
 
+    const openNav = () => setSidebarOpen(true);
+    window.addEventListener(OPEN_NAV_EVENT, openNav);
+
     // Initialize and subscribe to sidebar mode
     setSidebarMode(getStoredSidebarMode());
     const unsub = subscribeSidebarMode((m) => setSidebarMode(m));
     return () => {
       unsub();
+      window.removeEventListener(OPEN_NAV_EVENT, openNav);
       window.removeEventListener('interview-ninja-theme-change', handleThemeEvent);
     };
   }, []);
@@ -247,7 +253,7 @@ export default function Header() {
   return (
     <>
       <header className={`app-header transition-[left] duration-200 ${sidebarMode === 'icon-only' ? 'md:left-[60px]' : 'left-0'}`}>
-        <nav className="h-[60px] px-4 sm:px-6 xl:px-8 flex items-center justify-between gap-4">
+        <nav className="h-[60px] px-3 sm:px-6 xl:px-8 flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -297,7 +303,7 @@ export default function Header() {
                     </linearGradient>
                   </defs>
                 </svg>
-                <span className="font-heading text-xl font-semibold text-foreground">
+                <span className="font-heading whitespace-nowrap text-xl font-semibold text-foreground">
                   Lab-Ninja
                 </span>
               </div>
@@ -329,10 +335,11 @@ export default function Header() {
                 <span>{item.label}</span>
               </Link>
             ))}
+            <span className="ml-2"><NotificationBell /></span>
             <button
               type="button"
               onClick={toggleTheme}
-              className="theme-toggle ml-2"
+              className="theme-toggle"
               aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
               title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
             >

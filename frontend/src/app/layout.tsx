@@ -3,10 +3,14 @@ import type { Metadata, Viewport } from 'next';
 import '../styles/index.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import PendingStatusBanner from '@/modules/common/PendingStatusBanner';
+import NotificationHost from '@/components/ui/NotificationHost';
+import MobileTabBar from '@/components/ui/MobileTabBar';
+import LoginModal from '@/components/auth/LoginModal';
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export const metadata: Metadata = {
@@ -40,6 +44,9 @@ try{var sm=localStorage.getItem('labninja.sidebar_mode.v1');if(sm!=='hidden'){do
         <AuthProvider>
           <PendingStatusBanner />
           {children}
+          <NotificationHost />
+          <MobileTabBar />
+          <LoginModal />
         </AuthProvider>
 
         <script

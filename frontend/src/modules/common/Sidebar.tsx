@@ -19,6 +19,14 @@ interface SidebarLink {
   icon: string;
 }
 
+const DAILY_SESSION_LINKS: SidebarLink[] = [
+  { label: 'Daily Session', path: '/daily-session?tab=session', icon: 'AcademicCapIcon' },
+  { label: 'Practice Mode', path: '/daily-session?tab=practice', icon: 'SparklesIcon' },
+  { label: 'Quick Practice', path: '/daily-session?tab=quick-practice', icon: 'BoltIcon' },
+  { label: 'Progress Dashboard', path: '/daily-session?tab=progress', icon: 'ChartBarIcon' },
+  { label: 'Question Bank', path: '/daily-session?tab=question-bank', icon: 'BookOpenIcon' },
+];
+
 const LAB_LINKS: SidebarLink[] = [
   { label: 'CV Lab', path: '/cv-lab', icon: 'EyeIcon' },
   { label: 'DSA Lab', path: '/dsa-lab', icon: 'CpuChipIcon' },
@@ -82,16 +90,29 @@ export default function Sidebar({
     return subscribeSidebarMode((m) => setInternalMode(m));
   }, []);
 
+  const isDailySessionRoute =
+    pathname === '/daily-session' ||
+    pathname === '/progress-dashboard' ||
+    pathname === '/question-bank';
   const isLabRoute = LAB_LINKS.some((link) => link.path === pathname);
   const isCareerRoute = pathname === '/career' || pathname.startsWith('/career/');
+  const [dailySessionOpen, setDailySessionOpen] = useState(true);
   const [labsOpen, setLabsOpen] = useState(true);
   const [careerOpen, setCareerOpen] = useState(true);
 
   // Icon-only rail: a group's sub-icons expand inline under its icon (pushing the rest of
   // the rail down) instead of floating, since the rail's scroll container would clip a popover.
-  const [railOpen, setRailOpen] = useState({ labs: false, career: false });
-  const toggleRailGroup = (group: 'labs' | 'career') =>
+  const [railOpen, setRailOpen] = useState({ labs: false, career: false, daily: false });
+  const toggleRailGroup = (group: 'labs' | 'career' | 'daily') =>
     setRailOpen((cur) => ({ ...cur, [group]: !cur[group] }));
+
+  useEffect(() => {
+    if (isDailySessionRoute) setRailOpen((cur) => ({ ...cur, daily: true }));
+  }, [isDailySessionRoute]);
+
+  useEffect(() => {
+    if (isDailySessionRoute) setDailySessionOpen(true);
+  }, [isDailySessionRoute]);
 
   useEffect(() => {
     if (isLabRoute) setRailOpen((cur) => ({ ...cur, labs: true }));
@@ -108,6 +129,19 @@ export default function Sidebar({
   useEffect(() => {
     if (isCareerRoute) setCareerOpen(true);
   }, [isCareerRoute]);
+
+  const isDailySessionTabActive = (path: string) => {
+    if (typeof window === 'undefined') return pathname === path;
+    const search = window.location.search;
+    const currentTab = new URLSearchParams(search).get('tab') || 'session';
+    const targetTab = new URLSearchParams(path.split('?')[1] || '').get('tab') || 'session';
+    return (
+      (pathname === '/daily-session' ||
+        pathname === '/progress-dashboard' ||
+        pathname === '/question-bank') &&
+      currentTab === targetTab
+    );
+  };
 
   const isCareerLinkActive = (path: string) => {
     if (typeof window === 'undefined') return pathname === path;
@@ -176,17 +210,43 @@ export default function Sidebar({
 
           {/* Middle navigation items */}
           <nav className="flex-1 w-full overflow-y-auto overscroll-contain scrollbar-none flex flex-col items-center gap-1 pt-1.5 pb-[4rem] min-h-0">
-            {/* Daily Session */}
-            <Link
-              href="/daily-session"
-              className={railItemClass(isActivePath('/daily-session'))}
-              aria-label="Daily Session"
-            >
-              <Icon name="AcademicCapIcon" size={19} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                Daily Session
-              </span>
-            </Link>
+            {/* Daily Session Group */}
+            <div className="flex w-full flex-col items-center gap-1">
+              <button
+                type="button"
+                onClick={() => toggleRailGroup('daily')}
+                className={railItemClass(isDailySessionRoute)}
+                aria-label="Daily Session & Practice"
+                aria-expanded={railOpen.daily}
+              >
+                <Icon name="AcademicCapIcon" size={19} variant="outline" />
+                <Icon
+                  name="ChevronDownIcon"
+                  size={9}
+                  variant="solid"
+                  className={`absolute bottom-0.5 right-0.5 transition-transform ${railOpen.daily ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {railOpen.daily && (
+                <div
+                  className="flex w-[44px] flex-col items-center gap-1 rounded-xl py-1"
+                  style={{ background: 'color-mix(in srgb, var(--color-foreground) 5%, transparent)' }}
+                >
+                  {DAILY_SESSION_LINKS.map((link) => (
+                    <Link
+                      key={link.path}
+                      href={link.path}
+                      title={link.label}
+                      aria-label={link.label}
+                      className={railItemClass(isDailySessionTabActive(link.path))}
+                    >
+                      <Icon name={link.icon as any} size={17} variant="outline" />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* SwipeLearn */}
             <Link
@@ -252,29 +312,7 @@ export default function Sidebar({
               )}
             </div>
 
-            {/* Progress */}
-            <Link
-              href="/progress-dashboard"
-              className={railItemClass(isActivePath('/progress-dashboard'))}
-              aria-label="Progress Dashboard"
-            >
-              <Icon name="ChartBarIcon" size={19} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                Progress Dashboard
-              </span>
-            </Link>
 
-            {/* Question Bank */}
-            <Link
-              href="/question-bank"
-              className={railItemClass(isActivePath('/question-bank'))}
-              aria-label="Question Bank"
-            >
-              <Icon name="BookOpenIcon" size={19} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                Question Bank
-              </span>
-            </Link>
 
             <div className="w-6 h-[1px] bg-border my-1" />
 
@@ -514,10 +552,39 @@ export default function Sidebar({
         {/* Drawer Links Navigation */}
         <nav className="flex-1 overflow-y-auto scrollbar-clean px-3 py-3">
           <div className="flex flex-col gap-1">
-            <Link href="/daily-session" onClick={onClose} className={navLinkClass('/daily-session')}>
-              <Icon name="AcademicCapIcon" size={18} variant="outline" />
-              <span>Daily Session</span>
-            </Link>
+            <button
+              type="button"
+              onClick={() => setDailySessionOpen((prev) => !prev)}
+              className={`app-nav-link w-full justify-between ${isDailySessionRoute ? 'app-nav-link-active' : ''}`}
+              aria-expanded={dailySessionOpen}
+            >
+              <span className="flex items-center gap-1.5">
+                <Icon name="AcademicCapIcon" size={18} variant="outline" />
+                <span>Daily Session</span>
+              </span>
+              <Icon
+                name="ChevronDownIcon"
+                size={16}
+                variant="outline"
+                className={`transition-smooth ${dailySessionOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {dailySessionOpen && (
+              <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
+                {DAILY_SESSION_LINKS.map((link) => (
+                  <Link
+                    key={link.path}
+                    href={link.path}
+                    onClick={onClose}
+                    className={navLinkClass(isDailySessionTabActive(link.path) ? pathname : link.path)}
+                  >
+                    <Icon name={link.icon as any} size={17} variant="outline" />
+                    <span>{link.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
 
             <Link href="/swipe-learn" onClick={onClose} className={navLinkClass('/swipe-learn')}>
               <Icon name="Square3Stack3DIcon" size={18} variant="outline" />
@@ -573,15 +640,7 @@ export default function Sidebar({
               </div>
             )}
 
-            <Link href="/progress-dashboard" onClick={onClose} className={navLinkClass('/progress-dashboard')}>
-              <Icon name="ChartBarIcon" size={18} variant="outline" />
-              <span>Progress</span>
-            </Link>
 
-            <Link href="/question-bank" onClick={onClose} className={navLinkClass('/question-bank')}>
-              <Icon name="BookOpenIcon" size={18} variant="outline" />
-              <span>Question Bank</span>
-            </Link>
 
             <div className="my-2 border-t border-border" role="separator" />
 

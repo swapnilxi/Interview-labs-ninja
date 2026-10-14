@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import MarkdownLite from '@/modules/common/lab/MarkdownLite';
+import { notify } from '@/lib/ui/notifications';
 import { questionsService } from '@/lib/services/questionsService';
 import { defaultAIRequestFields, settingsService } from '@/lib/services/settingsService';
 import { apiFetch } from '@/lib/http/apiClient';
@@ -98,9 +99,17 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
         throw new Error(err.detail || `Server error ${res.status}`);
       }
       const data = await res.json();
-      setQuestions(questionListToGenQ(data.questions as { text: string; difficulty: string; sub_type: string }[]));
+      const generated = questionListToGenQ(data.questions as { text: string; difficulty: string; sub_type: string }[]);
+      setQuestions(generated);
+      notify({
+        source: 'labs',
+        tone: 'success',
+        title: `${generated.length} questions ready`,
+        body: `${subtopicName || topicName} · review and save them to your bank`,
+      });
     } catch (e: any) {
       setError(e?.message ?? 'Generation failed. Check API key in Config.');
+      notify({ source: 'labs', tone: 'error', title: 'Question generation failed', body: e?.message ?? 'Check your API key in Config.' });
     } finally {
       setGenerating(false);
     }
@@ -125,6 +134,13 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
       );
       setSavedCount(toSave.length);
       setQuestions([]);
+      notify({
+        source: 'labs',
+        tone: 'success',
+        title: `${toSave.length} question${toSave.length > 1 ? 's' : ''} saved`,
+        body: 'Added to your Question Bank',
+        href: '/question-bank',
+      });
     } catch (e: any) {
       setError('Failed to save. Check backend connection.');
     } finally {
