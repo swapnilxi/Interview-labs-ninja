@@ -287,7 +287,7 @@ export default function QuestionBankInteractive() {
                         <h2 className="font-heading text-lg font-medium text-foreground">
                           Questions
                         </h2>
-                        <span className="px-12 py-6 rounded-md bg-primary/10 text-primary text-sm font-medium font-code">
+                        <span className="px-12 py-6 rounded-md bg-primary/10 text-primary text-sm font-medium tabular-nums">
                           {filteredQuestions.length}
                         </span>
                       </div>

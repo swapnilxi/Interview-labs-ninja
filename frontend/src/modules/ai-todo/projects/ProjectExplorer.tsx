@@ -2,9 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import FlatIcon from '@/components/ui/FlatIcon';
+import ProjectIcon from './ProjectIcon';
 import { Project, ProjectNode, projectService } from '@/lib/services/projectService';
 import ProjectNodeDetailModal from './ProjectNodeDetailModal';
 import ParetoModal from '@/components/ui/ParetoModal';
+import { confirmDialog } from '@/lib/ui/confirm';
 
 interface ProjectExplorerProps {
   project: Project;
@@ -32,7 +35,8 @@ function NodeItem({
   collapsedIds: Set<number>;
   onSetExpanded: (nodeId: number, expanded: boolean) => void;
   onAction: (node: ProjectNode, action: 'dive' | 'chunk' | 'smart' | 'quick') => void;
-  onAddSubtask: (parentId: number, title: string, nodeType: string) => Promise<void>;
+  /** Resolves true when the subtask was created (so the input is only cleared on success). */
+  onAddSubtask: (parentId: number, title: string, nodeType: string) => Promise<boolean>;
   onDeleteNode: (nodeId: number) => Promise<void>;
   onOpenDetails: (node: ProjectNode) => void;
   onParetoUpdate: (node: ProjectNode, updates: { pareto_score?: number | null; is_top_20?: boolean }) => void;
@@ -61,10 +65,13 @@ function NodeItem({
     if (e) e.preventDefault();
     if (!subtaskTitle.trim() || addingSubtask) return;
     setAddingSubtask(true);
-    await onAddSubtask(node.id, subtaskTitle.trim(), subtaskType);
-    setSubtaskTitle('');
+    const ok = await onAddSubtask(node.id, subtaskTitle.trim(), subtaskType);
+    // On failure the service already toasted why; keep the typed title so it can be retried.
+    if (ok) {
+      setSubtaskTitle('');
+      onSetExpanded(node.id, true);
+    }
     setAddingSubtask(false);
-    onSetExpanded(node.id, true);
     // Keep focus for rapid subtask entry
     setTimeout(() => subtaskInputRef.current?.focus(), 50);
   };
@@ -79,7 +86,7 @@ function NodeItem({
   return (
     <div className="flex flex-col">
       <div
-        className={`group relative flex items-start gap-2 py-2 pr-2 rounded-lg hover:bg-muted/30 transition-smooth ${paretoClasses}`}
+        className={`group relative flex items-start gap-2 py-2 pr-2 rounded-lg hover:mix-bg-muted/30 transition-smooth ${paretoClasses}`}
         style={{ paddingLeft: `${level * 24}px` }}
       >
         {/* Indent Guide Line */}
@@ -131,45 +138,45 @@ function NodeItem({
 
             <button
               onClick={() => setShowParetoModal(true)}
-              className={`text-[9px] font-bold px-1 py-0.5 rounded border transition-smooth ${
+              className={`text-xs font-bold px-1 py-0.5 rounded border transition-smooth ${
                 node.is_top_20
                   ? 'border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400'
-                  : 'border-border/60 text-muted-foreground hover:bg-muted'
+                  : 'mix-border-border/60 text-muted-foreground hover:bg-muted'
               }`}
               title="80/20 Pareto Analysis"
             >
-              {node.is_top_20 ? (node.pareto_locked ? '📌' : '⭐') : '⭐'}
+              {node.is_top_20 && node.pareto_locked ? <Icon name="BookmarkIcon" size={16} variant="solid" /> : <Icon name="StarIcon" size={16} variant={node.is_top_20 ? 'solid' : 'outline'} />}
             </button>
 
             {/* Badges */}
-            <span className="text-[9px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted px-1 rounded-sm">
+            <span className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted px-1 rounded-sm">
               {node.node_type}
             </span>
             {node.generation_type !== 'manual' && (
-              <span className="text-[9px] uppercase tracking-wider font-semibold text-blue-500 bg-blue-500/10 px-1 rounded-sm">
+              <span className="text-[11px] uppercase tracking-wider font-semibold text-blue-500 bg-blue-500/10 px-1 rounded-sm">
                 AI {node.generation_type.replace('_', ' ')}
               </span>
             )}
 
             {/* Exported Badges */}
             {node.exported_to_smart_todo && (
-              <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-0.5">
+              <span className="text-xs font-bold text-emerald-500 flex items-center gap-0.5">
                 <Icon name="CheckIcon" size={10} /> Smart To-Do
               </span>
             )}
             {node.exported_to_quick && (
-              <span className="text-[9px] font-bold text-amber-500 flex items-center gap-0.5">
+              <span className="text-xs font-bold text-amber-500 flex items-center gap-0.5">
                 <Icon name="CheckIcon" size={10} /> Quick Daily
               </span>
             )}
 
             {node.time_estimate && (
-              <span className="text-[9px] font-semibold text-muted-foreground flex items-center gap-0.5">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-0.5">
                 <Icon name="ClockIcon" size={10} /> {node.time_estimate}
               </span>
             )}
             {node.due_date && (
-              <span className="text-[9px] font-semibold text-muted-foreground flex items-center gap-0.5">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-0.5">
                 <Icon name="CalendarIcon" size={10} /> {node.due_date}
               </span>
             )}
@@ -179,51 +186,51 @@ function NodeItem({
           <div className="flex items-center gap-1.5 mt-1 transition-opacity flex-wrap">
             <button
               onClick={() => onOpenDetails(node)}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 text-primary hover:bg-primary/10 transition-smooth flex items-center gap-1"
+              className="text-xs font-semibold px-2 py-0.5 rounded border mix-border-primary/30 text-primary hover:mix-bg-primary/10 transition-smooth flex items-center gap-1"
               title="Open details page for context, due date & more"
             >
-              <span>📄</span> Details
+              <FlatIcon name="details" size={14} /> Details
             </button>
             <button
               onClick={() => {
                 setShowAddSubtask(!showAddSubtask);
                 if (!showAddSubtask) setTimeout(() => subtaskInputRef.current?.focus(), 50);
               }}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-smooth flex items-center gap-1"
+              className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-smooth flex items-center gap-1"
             >
               <Icon name="PlusIcon" size={10} /> Subtask
             </button>
             <button
               onClick={() => onAction(node, 'dive')}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth"
+              className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth flex items-center gap-1"
             >
-              🔍 Dive Deeper
+              <FlatIcon name="search" size={14} /> Dive Deeper
             </button>
             <button
               onClick={() => onAction(node, 'chunk')}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-smooth"
+              className="text-xs font-semibold px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-smooth flex items-center gap-1"
             >
-              ⚡ Chunk It
+              <FlatIcon name="quick" size={14} /> Chunk It
             </button>
             <div className="w-px h-3 bg-border mx-0.5" />
             <button
               onClick={() => onAction(node, 'smart')}
               disabled={node.exported_to_smart_todo}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded border border-border hover:bg-muted transition-smooth disabled:opacity-50 flex items-center gap-1"
+              className="text-xs font-semibold px-2 py-0.5 rounded border border-border hover:bg-muted transition-smooth disabled:opacity-50 flex items-center gap-1"
             >
-              <span>🧠</span> → Smart
+              <FlatIcon name="brain" size={14} /> → Smart
             </button>
             <button
               onClick={() => onAction(node, 'quick')}
               disabled={node.exported_to_quick}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded border border-border hover:bg-muted transition-smooth disabled:opacity-50 flex items-center gap-1"
+              className="text-xs font-semibold px-2 py-0.5 rounded border border-border hover:bg-muted transition-smooth disabled:opacity-50 flex items-center gap-1"
             >
-              <span>⚡</span> → Quick
+              <FlatIcon name="quick" size={14} /> → Quick
             </button>
 
             <button
               onClick={() => onDeleteNode(node.id)}
-              className="text-[10px] p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-smooth ml-auto"
+              className="text-xs p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-smooth ml-auto"
               title="Delete node"
             >
               <Icon name="TrashIcon" size={11} />
@@ -236,7 +243,7 @@ function NodeItem({
       {showAddSubtask && (
         <form
           onSubmit={handleSubtaskSubmit}
-          className="flex items-center gap-2 py-1.5 my-1 rounded-lg bg-muted/40 border border-emerald-500/30 transition-smooth"
+          className="flex items-center gap-2 py-1.5 my-1 rounded-lg mix-bg-muted/40 border border-emerald-500/30 transition-smooth"
           style={{ marginLeft: `${(level + 1) * 24}px` }}
         >
           <input
@@ -245,7 +252,7 @@ function NodeItem({
             value={subtaskTitle}
             onChange={(e) => setSubtaskTitle(e.target.value)}
             placeholder={`Add subtask under "${node.title}"...`}
-            className="flex-1 min-w-0 bg-transparent px-2 py-0.5 text-xs text-foreground focus:outline-none placeholder:text-muted-foreground/60"
+            className="flex-1 min-w-0 bg-transparent px-2 py-0.5 text-xs text-foreground focus:outline-none placeholder:mix-text-muted-foreground/60"
             onKeyDown={(e) => {
               if (e.key === 'Escape') setShowAddSubtask(false);
             }}
@@ -253,7 +260,7 @@ function NodeItem({
           <select
             value={subtaskType}
             onChange={(e) => setSubtaskType(e.target.value)}
-            className="bg-card border border-border/80 rounded px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
+            className="bg-card border mix-border-border/80 rounded px-1.5 py-0.5 text-xs font-semibold text-muted-foreground"
           >
             <option value="action">Action</option>
             <option value="topic">Topic</option>
@@ -262,16 +269,17 @@ function NodeItem({
           <button
             type="submit"
             disabled={!subtaskTitle.trim() || addingSubtask}
-            className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-500 text-white hover:bg-emerald-600 transition-smooth disabled:opacity-50 shrink-0 mr-1.5"
+            className="px-2 py-0.5 text-xs font-bold rounded bg-emerald-500 text-white hover:bg-emerald-600 transition-smooth disabled:opacity-50 shrink-0 mr-1.5"
           >
             {addingSubtask ? '...' : '+ Add'}
           </button>
           <button
             type="button"
             onClick={() => setShowAddSubtask(false)}
-            className="text-[10px] text-muted-foreground hover:text-foreground px-1 mr-1"
+            className="text-xs text-muted-foreground hover:text-foreground px-1 mr-1"
+            aria-label="Cancel adding a subtask"
           >
-            ✕
+            <Icon name="XMarkIcon" size={14} />
           </button>
         </form>
       )}
@@ -384,15 +392,15 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
     setTimeout(() => rootInputRef.current?.focus(), 50);
   };
 
-  const handleAddSubtask = async (parentId: number, title: string, nodeType: string) => {
+  const handleAddSubtask = async (parentId: number, title: string, nodeType: string): Promise<boolean> => {
     const created = await projectService.createNode(project.id, {
       title,
       parent_node_id: parentId,
       node_type: nodeType as any,
     });
-    if (created) {
-      await loadTree();
-    }
+    if (!created) return false;
+    await loadTree();
+    return true;
   };
 
   const handleDeleteNode = async (nodeId: number) => {
@@ -414,7 +422,12 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
     try {
       if (action === 'dive' || action === 'chunk') {
         if (node.depth_level >= 4) {
-          if (!confirm('This node is quite deep. AI generation might lose context. Continue?')) {
+          const confirmed = await confirmDialog({
+            title: 'This item is quite deep',
+            message: 'AI suggestions can lose context this far down the tree. Generate anyway?',
+            confirmLabel: 'Generate anyway',
+          });
+          if (!confirmed) {
             setActionLoading(null);
             return;
           }
@@ -441,9 +454,9 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border border-border/80 rounded-xl shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="flex flex-col h-full bg-card border mix-border-border/80 rounded-xl shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border/50 bg-muted/20">
+      <div className="flex items-center justify-between p-4 border-b mix-border-border/50 mix-bg-muted/20">
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
@@ -461,18 +474,18 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
                 border: `1px solid ${project.color || '#3b82f6'}40`,
               }}
             >
-              {project.icon || '📁'}
+              <ProjectIcon icon={project.icon} size={22} />
             </div>
             <div>
               <h2 className="font-heading font-semibold text-foreground text-sm flex items-center gap-2">
                 {project.title}
                 {project.is_top_20 && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 shadow-sm">
-                    ⭐ Top 20%
+                  <span className="inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 shadow-sm">
+                    <FlatIcon name="star" size={14} /> Top 20%
                   </span>
                 )}
               </h2>
-              <p className="text-[10px] text-muted-foreground flex items-center gap-2">
+              <p className="text-xs text-muted-foreground flex items-center gap-2">
                 <span className="uppercase font-bold text-emerald-500">{project.status}</span>
                 <span>•</span>
                 <span>{project.priority.toUpperCase()}</span>
@@ -493,7 +506,7 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
             <button
               onClick={handleExpandAll}
               disabled={collapsedCount === 0}
-              className="px-2.5 py-1.5 text-[10px] font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
+              className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
               title="Expand all tasks"
             >
               <Icon name="ChevronDoubleDownIcon" size={12} />
@@ -502,7 +515,7 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
             <button
               onClick={handleCollapseAll}
               disabled={collapsedCount === parentIds.length}
-              className="px-2.5 py-1.5 text-[10px] font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
+              className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
               title="Collapse all tasks"
             >
               <Icon name="ChevronDoubleUpIcon" size={12} />
@@ -514,7 +527,7 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
 
       {/* Description if present */}
       {project.description && (
-        <div className="px-4 py-2 border-b border-border/50 bg-black/5 dark:bg-white/5">
+        <div className="px-4 py-2 border-b mix-border-border/50 bg-black/5 dark:bg-white/5">
           <p className="text-xs text-muted-foreground italic">"{project.description}"</p>
         </div>
       )}
@@ -522,8 +535,8 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
       {/* AI action error */}
       {actionError && (
         <div className="mx-4 mt-3 p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-          <span className="text-xs shrink-0">⚠️</span>
-          <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{actionError}</p>
+          <FlatIcon name="warning" size={16} className="mt-px" />
+          <p className="text-xs text-red-600 dark:text-red-400 flex-1 leading-relaxed">{actionError}</p>
           <button onClick={() => setActionError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
             <Icon name="XMarkIcon" size={12} />
           </button>
@@ -531,7 +544,7 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
       )}
 
       {/* ── On-Page Inline Root Task Add Form (NO MODAL, NO POPUP) ───────── */}
-      <div className="p-3 border-b border-border/60 bg-muted/20">
+      <div className="p-3 border-b mix-border-border/60 mix-bg-muted/20">
         <form onSubmit={handleAddRootNode} className="flex items-center gap-2">
           <div className="relative flex-1">
             <input
@@ -540,23 +553,23 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
               value={rootTitle}
               onChange={(e) => setRootTitle(e.target.value)}
               placeholder="Add a topic or task to this project..."
-              className="w-full bg-input border border-border/80 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+              className="w-full bg-input border mix-border-border/80 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
             />
           </div>
           <select
             value={rootType}
             onChange={(e) => setRootType(e.target.value)}
-            className="bg-card border border-border/80 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground focus:outline-none"
+            className="bg-card border mix-border-border/80 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground focus:outline-none"
           >
-            <option value="topic">📁 Topic</option>
-            <option value="phase">🚩 Phase</option>
-            <option value="action">⚡ Action</option>
-            <option value="idea">💡 Idea</option>
+            <option value="topic">Topic</option>
+            <option value="phase">Phase</option>
+            <option value="action">Action</option>
+            <option value="idea">Idea</option>
           </select>
           <button
             type="submit"
             disabled={!rootTitle.trim() || addingRoot}
-            className="px-3.5 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-smooth flex items-center gap-1 disabled:opacity-50 shrink-0"
+            className="px-3.5 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:mix-bg-primary/90 transition-smooth flex items-center gap-1 disabled:opacity-50 shrink-0"
           >
             {addingRoot ? (
               <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
@@ -572,12 +585,12 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
       <div className="flex-1 overflow-y-auto p-4 scrollbar-clean relative">
         {loading ? (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3">
-            <span className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+            <span className="w-[1.5rem] h-[1.5rem] border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
             <span className="text-xs font-medium">Loading project structure...</span>
           </div>
         ) : nodes.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-4 opacity-70">
-            <span className="text-4xl">🌱</span>
+            <FlatIcon name="idea" size={44} />
             <div className="text-center">
               <p className="text-sm font-medium">This project has no tasks yet.</p>
               <p className="text-xs mt-1">Use the input bar above to add your first topic or task.</p>
@@ -606,9 +619,9 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
 
         {/* Global Loading Overlay for AI Actions */}
         {actionLoading && (
-          <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] flex items-center justify-center z-50">
+          <div className="absolute inset-0 mix-bg-background/50 backdrop-blur-[1px] flex items-center justify-center z-50">
             <div className="bg-card border border-border shadow-lg rounded-xl px-4 py-3 flex items-center gap-3">
-              <span className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+              <span className="w-5 h-5 border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
               <span className="text-xs font-bold text-foreground">AI generating breakdown...</span>
             </div>
           </div>

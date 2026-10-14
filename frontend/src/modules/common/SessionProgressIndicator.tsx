@@ -35,7 +35,7 @@ export default function SessionProgressIndicator({
         <h3 className="font-heading text-lg font-medium text-foreground">
           Session Progress
         </h3>
-        <span className="font-code text-sm text-muted-foreground">
+        <span className="tabular-nums text-sm text-muted-foreground">
           {completedQuestions.length}/{totalQuestions} Complete
         </span>
       </div>
@@ -48,7 +48,7 @@ export default function SessionProgressIndicator({
           />
         </div>
         <div className="mt-6 text-right">
-          <span className="font-code text-xs text-muted-foreground">
+          <span className="tabular-nums text-xs text-muted-foreground">
             {Math.round(progress)}%
           </span>
         </div>
@@ -67,7 +67,7 @@ export default function SessionProgressIndicator({
               disabled={!completed && !current}
               className={`
                 aspect-square rounded-md flex items-center justify-center
-                font-code text-sm font-medium transition-smooth
+                tabular-nums text-sm font-medium transition-smooth
                 ${
                   completed
                     ? 'bg-success text-success-foreground shadow-sm hover:scale-105'

@@ -397,7 +397,7 @@ export default function GenerateLessonForm({
                       {selectedClass.description}
                     </p>
                   )}
-                  <p className="text-[11px] text-primary/90 font-mono bg-primary/5 p-1.5 rounded border border-primary/10">
+                  <p className="text-[11px] text-primary/90 bg-primary/5 p-1.5 rounded border border-primary/10">
                     <span className="font-bold">AI Directives: </span>
                     {selectedClass?.ai_context || 'Standard technical defaults'}
                   </p>
@@ -421,7 +421,7 @@ export default function GenerateLessonForm({
                         {selectedSubject.description}
                       </p>
                     )}
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-500/5 p-1.5 rounded border border-emerald-500/10">
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 p-1.5 rounded border border-emerald-500/10">
                       <span className="font-bold">AI Directives: </span>
                       {selectedSubject.ai_context || 'Inherits class directives'}
                     </p>
@@ -551,7 +551,7 @@ export default function GenerateLessonForm({
                   Generating your interactive lesson...
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground font-mono pl-8">
+              <p className="text-xs text-muted-foreground pl-8">
                 {GENERATION_STEPS[currentStepIdx]}
               </p>
             </div>

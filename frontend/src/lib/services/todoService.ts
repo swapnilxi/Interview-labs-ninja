@@ -9,6 +9,7 @@ import { aiRequestFields, aiQueryString } from './settingsService';
 import { apiFetch, parseApiError } from '../http/apiClient';
 import { isLoggedIn } from '../auth/tokenStore';
 import { localTodoAdapter } from './local/localTodoAdapter';
+import { reportFailure } from './mutationFeedback';
 
 export { parseApiError };
 
@@ -172,7 +173,7 @@ export function parseTimeEstimateMinutes(est: string | null): number | null {
  * isn't FastAPI's JSON means the route doesn't exist on this server at all — what
  * the nextjs-api deployment returns, since ai_todo has no fe-apis equivalent.
  */
-async function todoApiError(res: Response): Promise<string> {
+export async function todoApiError(res: Response): Promise<string> {
   const contentType = res.headers.get('content-type') || '';
   if (res.status === 404 && !contentType.includes('application/json')) {
     return "This server doesn't include the To-Do backend (HTTP 404), so tasks can't be loaded or saved for your account here.";
@@ -180,8 +181,17 @@ async function todoApiError(res: Response): Promise<string> {
   return parseApiError(res);
 }
 
+/**
+ * A JSON 404 on a DELETE means the row is already gone (a double-click, another tab) — which is the
+ * outcome the user asked for, so it isn't an error. A non-JSON 404 is the nextjs-api "this server has
+ * no To-Do backend" case and stays one (see todoApiError).
+ */
+export function isAlreadyGone(res: Response): boolean {
+  return res.status === 404 && (res.headers.get('content-type') || '').includes('application/json');
+}
+
 /** apiFetch, but a network failure becomes a readable Error instead of "Failed to fetch". */
-async function todoFetch(path: string, options: RequestInit = {}): Promise<Response> {
+export async function todoFetch(path: string, options: RequestInit = {}): Promise<Response> {
   try {
     return await apiFetch(path, options);
   } catch {
@@ -261,6 +271,7 @@ export const todoService = {
       return await this.createTaskStrict(data);
     } catch (error) {
       console.error('Failed to create task:', error);
+      reportFailure('add the task', error);
       return null;
     }
   },
@@ -268,14 +279,15 @@ export const todoService = {
   async updateTask(taskId: number, data: TaskUpdatePayload): Promise<Task | null> {
     if (!isLoggedIn()) return localTodoAdapter.updateTask(taskId, data);
     try {
-      const res = await apiFetch(`/todo/tasks/${taskId}`, {
+      const res = await todoFetch(`/todo/tasks/${taskId}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (error) {
       console.error(`Failed to update task ${taskId}:`, error);
+      reportFailure('save that change', error);
       return null;
     }
   },
@@ -283,10 +295,12 @@ export const todoService = {
   async deleteTask(taskId: number): Promise<boolean> {
     if (!isLoggedIn()) return localTodoAdapter.deleteTask(taskId);
     try {
-      const res = await apiFetch(`/todo/tasks/${taskId}`, { method: 'DELETE' });
-      return res.ok;
+      const res = await todoFetch(`/todo/tasks/${taskId}`, { method: 'DELETE' });
+      if (!res.ok && !isAlreadyGone(res)) throw new Error(await todoApiError(res));
+      return true;
     } catch (error) {
       console.error(`Failed to delete task ${taskId}:`, error);
+      reportFailure('delete the task', error);
       return false;
     }
   },
@@ -323,11 +337,12 @@ export const todoService = {
   async moveToQuick(taskId: number): Promise<any> {
     if (!isLoggedIn()) return localTodoAdapter.moveToQuick(taskId);
     try {
-      const res = await apiFetch(`/todo/tasks/${taskId}/move-to-quick`, { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await todoFetch(`/todo/tasks/${taskId}/move-to-quick`, { method: 'POST' });
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (error) {
       console.error(`Failed to move task ${taskId} to quick`, error);
+      reportFailure('move the task', error);
       return null;
     }
   },
@@ -335,14 +350,15 @@ export const todoService = {
   async moveToPlan(taskId: number, projectId?: number | null): Promise<any> {
     if (!isLoggedIn()) return localTodoAdapter.moveToPlan(taskId, projectId);
     try {
-      const res = await apiFetch(`/todo/tasks/${taskId}/move-to-plan`, {
+      const res = await todoFetch(`/todo/tasks/${taskId}/move-to-plan`, {
         method: 'POST',
         body: JSON.stringify({ project_id: projectId ?? null }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (error) {
       console.error(`Failed to move task ${taskId} to plan`, error);
+      reportFailure('move the task', error);
       return null;
     }
   },
@@ -364,14 +380,15 @@ export const todoService = {
       const { model: visionModel, ...rest } = aiRequestFields(model);
       formData.append('vision_model', visionModel);
       Object.entries(rest).forEach(([key, value]) => formData.append(key, value));
-      const res = await apiFetch('/todo/tasks/upload-context', {
+      const res = await todoFetch('/todo/tasks/upload-context', {
         method: 'POST',
         body: formData,
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (error) {
       console.error('Failed to upload context:', error);
+      reportFailure('read that file', error);
       return null;
     }
   },
@@ -408,14 +425,15 @@ export const todoService = {
   async createNote(taskId: number, content: string): Promise<Note | null> {
     if (!isLoggedIn()) return localTodoAdapter.createNote(taskId, content);
     try {
-      const res = await apiFetch(`/todo/tasks/${taskId}/notes`, {
+      const res = await todoFetch(`/todo/tasks/${taskId}/notes`, {
         method: 'POST',
         body: JSON.stringify({ content }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (error) {
       console.error(`Failed to create note for task ${taskId}:`, error);
+      reportFailure('add the note', error);
       return null;
     }
   },
@@ -571,11 +589,12 @@ export const todoService = {
   async deleteInboxItem(id: number): Promise<any> {
     if (!isLoggedIn()) return localTodoAdapter.deleteInboxItem(id);
     try {
-      const res = await apiFetch(`/todo/inbox/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await todoFetch(`/todo/inbox/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (error) {
       console.error(`Failed to delete inbox item ${id}:`, error);
+      reportFailure('remove that item', error);
       return null;
     }
   },

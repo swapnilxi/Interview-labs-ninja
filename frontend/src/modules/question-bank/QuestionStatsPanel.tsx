@@ -154,7 +154,7 @@ export default function QuestionStatsPanel({
                   <span className="text-sm text-muted-foreground font-caption">
                     {stat.label}
                   </span>
-                  <span className="text-sm font-medium text-foreground font-code">
+                  <span className="text-sm font-medium text-foreground tabular-nums">
                     {stat.value} ({Math.round(stat.percentage)}%)
                   </span>
                 </div>
@@ -189,7 +189,7 @@ export default function QuestionStatsPanel({
                   />
                 ))}
               </div>
-              <span className="text-sm font-medium text-foreground font-code">
+              <span className="text-sm font-medium text-foreground tabular-nums">
                 {stats.averagePerformance.toFixed(1)}
               </span>
             </div>

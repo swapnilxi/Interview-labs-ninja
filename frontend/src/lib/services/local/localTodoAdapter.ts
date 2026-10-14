@@ -10,6 +10,7 @@
 
 import { nextId, getAll, getAllByIndex, get, put, remove } from './db';
 import type { Task, TaskCreatePayload, TaskUpdatePayload, Note } from '../todoService';
+import { UNSORTED } from '../quickQuadrants';
 
 interface StoredTask extends Omit<Task, 'children'> {}
 
@@ -133,7 +134,7 @@ export const localTodoAdapter = {
     const id = await nextId();
     const today = new Date().toISOString().slice(0, 10);
     const qt = {
-      id, title: task.title, done: false, quadrant: 'do_now' as const, date: today,
+      id, title: task.title, done: false, quadrant: UNSORTED, date: today,
       source: 'moved_from_smart' as const, original_task_id: taskId, order_index: 0,
       created_at: new Date().toISOString(), pareto_score: null, is_top_20: false,
     };

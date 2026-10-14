@@ -9,6 +9,8 @@ import { aiRequestFields } from './settingsService';
 import { apiFetch, parseApiError } from '../http/apiClient';
 import { isLoggedIn } from '../auth/tokenStore';
 import { localGoalAdapter } from './local/localGoalAdapter';
+import { todoApiError, todoFetch } from './todoService';
+import { reportFailure } from './mutationFeedback';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -149,11 +151,12 @@ export const goalService = {
   async moveToSmart(id: number): Promise<any> {
     if (!isLoggedIn()) return localGoalAdapter.moveToSmart(id);
     try {
-      const res = await apiFetch(`/todo/goals/${id}/move-to-smart`, { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await todoFetch(`/todo/goals/${id}/move-to-smart`, { method: 'POST' });
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error(`Failed to move goal ${id} to smart`, err);
+      reportFailure('send that goal to Smart To-Do', err);
       return null;
     }
   },
@@ -161,11 +164,12 @@ export const goalService = {
   async moveToQuick(id: number): Promise<any> {
     if (!isLoggedIn()) return localGoalAdapter.moveToQuick(id);
     try {
-      const res = await apiFetch(`/todo/goals/${id}/move-to-quick`, { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await todoFetch(`/todo/goals/${id}/move-to-quick`, { method: 'POST' });
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error(`Failed to move goal ${id} to quick`, err);
+      reportFailure('send that goal to Quick Daily', err);
       return null;
     }
   },
@@ -173,11 +177,12 @@ export const goalService = {
   async moveToPlan(id: number): Promise<any> {
     if (!isLoggedIn()) return localGoalAdapter.moveToPlan(id);
     try {
-      const res = await apiFetch(`/todo/goals/${id}/move-to-plan`, { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await todoFetch(`/todo/goals/${id}/move-to-plan`, { method: 'POST' });
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error(`Failed to move goal ${id} to plan`, err);
+      reportFailure('send that goal to Plan & Project', err);
       return null;
     }
   },

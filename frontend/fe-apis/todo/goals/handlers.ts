@@ -5,7 +5,7 @@
  * mounted at /todo). Keep prompts, status codes and response shapes in sync with Python.
  */
 
-import { HttpError, aiSettings, callAi, extractJsonArray, todayIso, type Row } from '../_shared';
+import { HttpError, aiSettings, callAi, extractJsonArray, patchUpdates, todayIso, type Row } from '../_shared';
 import { errMsg } from '../py';
 import type { TodoCtx, TodoRoute } from '../router';
 import {
@@ -120,16 +120,19 @@ const GOAL_UPDATE_FIELDS: [string, Kind][] = [
   ['attachments', 'strList'],
 ];
 
+/** GOAL_NULLABLE in goals/router.py: columns a PATCH can empty by sending `null` (`parent_id: null` = top level). */
+const GOAL_NULLABLE: ReadonlySet<string> = new Set(['description', 'due_date', 'parent_id', 'attachments']);
+
 /** PATCH /todo/goals/{goal_id} — update_goal_endpoint. */
 async function updateGoalHandler(ctx: TodoCtx) {
   const goalId = ctx.intParam('goal_id');
   const body = await jsonBody(ctx);
-  // model_dump(exclude_none=True): only known fields with a non-null value.
-  const updates: Row = {};
+  // patch_updates(payload, GOAL_NULLABLE): the known fields the body sent; `null` only empties a nullable column.
+  const sent: Row = {};
   for (const [key, kind] of GOAL_UPDATE_FIELDS) {
-    const value = field(body, key, kind, { nullable: true });
-    if (value !== null) updates[key] = value;
+    if (key in body) sent[key] = field(body, key, kind, { nullable: true });
   }
+  const updates = patchUpdates(sent, GOAL_NULLABLE);
   const updated = updateGoalNode(goalId, ctx.userId, updates);
   if (!updated) throw new HttpError(404, 'Goal not found');
   return updated;

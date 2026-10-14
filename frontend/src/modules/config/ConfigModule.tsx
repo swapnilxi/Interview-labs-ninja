@@ -977,7 +977,7 @@ export default function ConfigInteractive() {
                   value={settings.ollamaUrl}
                   onChange={e => handleChange('ollamaUrl', e.target.value)}
                   placeholder="http://localhost:11434"
-                  className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring font-code"
+                  className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring"
                 />
                 {ollamaStatus && !ollamaStatus.running && ollamaStatus.error && (
                   <p className="text-[11px] text-red-500">{ollamaStatus.error}</p>
@@ -1014,7 +1014,7 @@ export default function ConfigInteractive() {
                       }
                       handleChange('ollamaModel', e.target.value);
                     }}
-                    className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring font-code"
+                    className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring"
                   >
                     {!ollamaModels.includes(settings.ollamaModel) && settings.ollamaModel && (
                       <option value={settings.ollamaModel}>{settings.ollamaModel} (current)</option>
@@ -1031,7 +1031,7 @@ export default function ConfigInteractive() {
                     value={settings.ollamaModel}
                     onChange={e => handleChange('ollamaModel', e.target.value)}
                     placeholder="llama3.2"
-                    className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring font-code"
+                    className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring"
                   />
                 )}
                 {ollamaModelsError ? (
@@ -1056,7 +1056,7 @@ export default function ConfigInteractive() {
                   <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
                     <Icon name="InformationCircleIcon" size={12} className="shrink-0 mt-0.5" />
                     <span>
-                      Server default uses <span className="font-code">{envOllamaModel}</span>{' '}
+                      Server default uses <span className="font-semibold">{envOllamaModel}</span>{' '}
                       (AI_MODEL); this field applies to models set to plain{' '}
                       <code className="bg-muted px-1 rounded text-[10px]">ollama</code>, e.g. the
                       To-Do local toggle.
@@ -1082,7 +1082,7 @@ export default function ConfigInteractive() {
                           : 'border-border text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground'
                       }`}
                     >
-                      <span className="font-code">{m.name}</span>
+                      <span className="font-semibold">{m.name}</span>
                       {m.size_gb && (
                         <span
                           className={`text-[9px] font-semibold px-1 rounded ${
@@ -1145,7 +1145,7 @@ export default function ConfigInteractive() {
                     value={settings[field.key as keyof UserSettings]}
                     onChange={e => handleChange(field.key as keyof UserSettings, e.target.value)}
                     placeholder={field.placeholder}
-                    className="w-full rounded-md border border-border bg-input pl-12 pr-48 py-9 text-sm text-foreground focus-ring font-code"
+                    className="w-full rounded-md border border-border bg-input pl-12 pr-48 py-9 text-sm text-foreground focus-ring"
                   />
                   <button
                     type="button"
@@ -1203,7 +1203,7 @@ export default function ConfigInteractive() {
                       value={settings.openrouterUrl}
                       onChange={e => handleChange('openrouterUrl', e.target.value)}
                       placeholder="https://openrouter.ai/api/v1"
-                      className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring font-code"
+                      className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring"
                     />
                     <p className="text-[11px] text-muted-foreground">
                       Default: <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-code">https://openrouter.ai/api/v1</code>. Supports OpenRouter proxies and compatible endpoints.
@@ -1223,7 +1223,7 @@ export default function ConfigInteractive() {
                         value={settings.customBaseUrl}
                         onChange={e => handleChange('customBaseUrl', e.target.value)}
                         placeholder="https://api.together.xyz/v1"
-                        className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring font-code"
+                        className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring"
                       />
                     </div>
                     <div className="space-y-6">
@@ -1236,7 +1236,7 @@ export default function ConfigInteractive() {
                         value={settings.customModel}
                         onChange={e => handleChange('customModel', e.target.value)}
                         placeholder="meta-llama/Llama-3.3-70B-Instruct-Turbo"
-                        className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring font-code"
+                        className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring"
                       />
                     </div>
                     <p className="text-[11px] text-muted-foreground">
@@ -1281,7 +1281,7 @@ export default function ConfigInteractive() {
                 value={settings.youtubeApiKey}
                 onChange={e => handleChange('youtubeApiKey', e.target.value)}
                 placeholder="AIzaSy…"
-                className="w-full rounded-md border border-border bg-input pl-12 pr-48 py-9 text-sm text-foreground focus-ring font-code"
+                className="w-full rounded-md border border-border bg-input pl-12 pr-48 py-9 text-sm text-foreground focus-ring"
               />
               <button
                 type="button"
@@ -1297,7 +1297,7 @@ export default function ConfigInteractive() {
               <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                 Google Cloud Console
               </a>{' '}
-              → create or select a project → enable <span className="font-code">YouTube Data API v3</span> → go to
+              → create or select a project → enable <span className="font-semibold">YouTube Data API v3</span> → go to
               &quot;Credentials&quot; → &quot;Create Credentials&quot; → &quot;API key&quot;. Optionally restrict the key to the
               YouTube Data API v3 for safety.
             </p>

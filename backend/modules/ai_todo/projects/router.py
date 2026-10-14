@@ -41,6 +41,7 @@ class NodeUpdate(BaseModel):
     intention: Optional[str] = None
     definition_of_done: Optional[str] = None
 
+from ..shared.patch import patch_updates
 from .db import (
     create_project,
     get_all_projects,
@@ -89,6 +90,18 @@ class ProjectUpdate(BaseModel):
     pareto_reason: Optional[str] = None
 
 
+# Columns a PATCH can empty by sending `null` (see shared/patch.py). Not title / status / priority /
+# is_top_20 (project) or title / node_type / order_index / is_top_20 (node): `null` there means "no change".
+# A node's eisenhower_quadrant isn't here either: it always reads back as 'schedule' when NULL, so clearing
+# it would report success and change nothing visible.
+PROJECT_NULLABLE = frozenset({
+    "description", "due_date", "color", "icon", "eisenhower_quadrant", "pareto_score", "pareto_reason",
+})
+NODE_NULLABLE = frozenset({
+    "pareto_score", "pareto_reason", "context", "due_date", "time_estimate", "intention", "definition_of_done",
+})
+
+
 class NodeCreate(BaseModel):
     title: str
     parent_node_id: Optional[int] = None
@@ -128,7 +141,7 @@ async def list_projects_endpoint(user_id: int = Depends(get_current_user_id)) ->
 
 @router.patch("/projects/{project_id}")
 async def update_project_endpoint(project_id: int, payload: ProjectUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
-    updates = payload.model_dump(exclude_none=True)
+    updates = patch_updates(payload, PROJECT_NULLABLE)
     if "is_top_20" in updates:
         updates["pareto_locked"] = 1
     project = update_project(project_id, user_id, **updates)
@@ -298,7 +311,7 @@ async def get_all_project_nodes_endpoint(user_id: int = Depends(get_current_user
 @router.patch("/project-nodes/{node_id}")
 async def update_project_node_endpoint(node_id: int, payload: NodeUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
     """Update a project node (e.g. title, quadrant, order_index)."""
-    updates = payload.model_dump(exclude_none=True)
+    updates = patch_updates(payload, NODE_NULLABLE)
     if "is_top_20" in updates:
         updates["pareto_locked"] = 1
     updated = update_project_node(node_id, user_id, **updates)

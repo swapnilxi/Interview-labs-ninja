@@ -181,7 +181,7 @@ function InsertGap({
           value={context}
           onChange={(e) => setContext(e.target.value)}
           placeholder="Context -- paste notes, findings, errors or docs here, or upload files. The lesson is generated from this."
-          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
@@ -274,7 +274,7 @@ function InsertGap({
                   onClick={() => addAtRecommendation(r)}
                   className="w-full text-left flex items-start gap-2 px-2.5 py-1.5 rounded-lg border border-border bg-card hover:border-primary/60 hover:bg-primary/5 disabled:opacity-50 transition-colors"
                 >
-                  <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0">
+                  <span className="tabular-nums text-[11px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0">
                     {i === 0 ? 'Best · ' : ''}
                     {r.label}
                   </span>
@@ -683,7 +683,7 @@ export default function ProjectDetailModule({
           >
             <Icon name="Bars3Icon" size={16} />
           </span>
-          <span className="font-mono text-xs font-bold px-2 py-1 rounded-md bg-muted text-muted-foreground border border-border flex-shrink-0">
+          <span className="tabular-nums text-xs font-bold px-2 py-1 rounded-md bg-muted text-muted-foreground border border-border flex-shrink-0">
             {flat.depth === 0
               ? String(flat.moduleIndex + 1).padStart(2, '0')
               : `${flat.moduleIndex + 1}.${(flat.subIndex ?? 0) + 1}`}
@@ -828,7 +828,7 @@ export default function ProjectDetailModule({
                     setReadmeDirty(true);
                   }}
                   placeholder="Describe the project: goals, tech stack, scope, constraints..."
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-indigo-500/30 bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 resize-y placeholder:text-muted-foreground/60"
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-indigo-500/30 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 resize-y placeholder:text-muted-foreground/60"
                 />
 
                 <div className="flex flex-wrap items-center justify-between gap-3">

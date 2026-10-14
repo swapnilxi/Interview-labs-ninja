@@ -12,6 +12,7 @@ import {
   callAiVision,
   extractJsonArray,
   imageMimeType,
+  patchUpdates,
   todayIso,
   type Row,
 } from '../_shared';
@@ -29,6 +30,7 @@ import {
   moveQuickTasksToTomorrow,
   updateQuickTask,
 } from './db';
+import { UNSORTED, cleanAssignments, pickTasksToSort } from './autoSort';
 import { createTask, getAllTasks } from '../tasks/db';
 import { createProject } from '../projects/db';
 
@@ -176,7 +178,7 @@ async function createQuickTaskHandler(ctx: TodoCtx) {
   const body = await jsonBody(ctx);
   const title = field(body, 'title', 'str', { required: true });
   const opts = {
-    quadrant: field(body, 'quadrant', 'str', { default: 'do_now' }),
+    quadrant: field(body, 'quadrant', 'str', { default: UNSORTED }),   // "unsorted" until the user (or AI Auto-Sort) places it
     source: field(body, 'source', 'str', { default: 'manual' }),
     original_task_id: field(body, 'original_task_id', 'int', { nullable: true }),
     order_index: field(body, 'order_index', 'int', { default: 0 }),
@@ -204,16 +206,21 @@ const QUICK_TASK_UPDATE_FIELDS: [string, Kind][] = [
   ['context', 'str'],
 ];
 
+/** QUICK_TASK_NULLABLE in quick/router.py: columns a PATCH can empty by sending `null`; `null` elsewhere = no change. */
+const QUICK_TASK_NULLABLE: ReadonlySet<string> = new Set([
+  'due_date', 'time_estimate', 'context', 'pareto_score', 'pareto_reason',
+]);
+
 /** PATCH /todo/quick-tasks/{task_id} — update_quick_task_endpoint. */
 async function updateQuickTaskHandler(ctx: TodoCtx) {
   const taskId = ctx.intParam('task_id');
   const body = await jsonBody(ctx);
-  // model_dump(exclude_none=True): only known fields with a non-null value.
-  const updates: Row = {};
+  // patch_updates(payload, QUICK_TASK_NULLABLE): the known fields the body sent; `null` only empties a nullable column.
+  const sent: Row = {};
   for (const [key, kind] of QUICK_TASK_UPDATE_FIELDS) {
-    const value = field(body, key, kind, { nullable: true });
-    if (value !== null) updates[key] = value;
+    if (key in body) sent[key] = field(body, key, kind, { nullable: true });
   }
+  const updates = patchUpdates(sent, QUICK_TASK_NULLABLE);
   if ('is_top_20' in updates) {
     // Human toggle via the Pareto modal — lock so bulk /pareto/analyze won't overwrite it.
     updates.pareto_locked = 1;
@@ -359,7 +366,7 @@ async function bulkCreateHandler(ctx: TodoCtx) {
     created.push(
       createQuickTask(ctx.userId, get(t, 'title', 'Unnamed task') as string, {
         task_date: todayStr,
-        quadrant: get(t, 'quadrant', 'do_now') as string,
+        quadrant: (get(t, 'quadrant', null) as string | null) || UNSORTED,
         source: 'brain_dump',
       })
     );
@@ -449,7 +456,9 @@ async function eisenhowerAutoHandler(ctx: TodoCtx) {
   const undone = tasks.filter((t) => !t.done && !t.is_exported);
   if (!undone.length) return { assignments: [], message: 'No undone tasks to sort.' };
 
-  const taskList = undone.map((t) => ({ task_id: t.id, title: t.title, is_top_20: Boolean(t.is_top_20) }));
+  const toSort = pickTasksToSort(undone);
+
+  const taskList = toSort.map((t) => ({ task_id: t.id, title: t.title, is_top_20: Boolean(t.is_top_20) }));
   const taskJson = pyJsonDumps(taskList, 2);
 
   const prompt = `You are a productivity expert using the Eisenhower Matrix.
@@ -478,6 +487,7 @@ No extra text.`;
     throw new HttpError(500, `AI Eisenhower sort failed: ${errMsg(err)}`);
   }
 
+  assignments = cleanAssignments(assignments, toSort);
   bulkUpdateQuadrants(ctx.userId, assignments);
   return { assignments };
 }

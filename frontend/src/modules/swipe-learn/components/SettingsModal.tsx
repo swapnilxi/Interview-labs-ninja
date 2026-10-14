@@ -126,7 +126,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   setTestStatus('idle');
                 }}
                 placeholder="AIzaSy..."
-                className="w-full pl-3.5 pr-10 py-2.5 rounded-2xl bg-input border border-border text-xs sm:text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-inner"
+                className="w-full pl-3.5 pr-10 py-2.5 rounded-2xl bg-input border border-border text-xs sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-inner"
               />
               <button
                 type="button"

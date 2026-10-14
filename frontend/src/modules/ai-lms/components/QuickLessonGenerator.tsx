@@ -237,7 +237,7 @@ export default function QuickLessonGenerator({
             )}
           </button>
 
-          <span className="hidden md:inline-block text-[11px] text-muted-foreground/60 font-mono">
+          <span className="hidden md:inline-block text-[11px] text-muted-foreground/60">
             Press{' '}
             <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px]">⌘</kbd>
             +

@@ -1,19 +1,22 @@
 'use client';
 
-import { parseApiError } from './todoService';
+import { isAlreadyGone, parseApiError, todoApiError, todoFetch } from './todoService';
 import { aiRequestFields } from './settingsService';
 import { apiFetch } from '../http/apiClient';
 import { isLoggedIn } from '../auth/tokenStore';
 import { localQuickTaskAdapter } from './local/localQuickTaskAdapter';
+import { reportFailure } from './mutationFeedback';
+import type { QuadrantType, QuickQuadrant } from './quickQuadrants';
 
-export type QuadrantType = 'do_now' | 'schedule' | 'delegate' | 'eliminate';
+export type { QuadrantType, QuickQuadrant } from './quickQuadrants';
 export type QuickTaskSource = 'manual' | 'brain_dump' | 'handwriting' | 'moved_from_smart' | 'moved_from_plan';
 
 export interface QuickTask {
   id: number;
   title: string;
   done: boolean;
-  quadrant: QuadrantType | null;
+  /** `unsorted` until placed in a quadrant; `null` only on rows from before that existed. */
+  quadrant: QuickQuadrant | null;
   date: string;
   due_date?: string | null;
   time_estimate?: string | null;
@@ -33,7 +36,8 @@ export interface QuickTask {
 
 export interface QuickTaskCreate {
   title: string;
-  quadrant?: QuadrantType;
+  /** Defaults to `unsorted` on every backend. */
+  quadrant?: QuickQuadrant;
   source?: QuickTaskSource;
   due_date?: string | null;
   time_estimate?: string | null;
@@ -42,7 +46,7 @@ export interface QuickTaskCreate {
 export interface QuickTaskUpdate {
   title?: string;
   done?: boolean;
-  quadrant?: QuadrantType | null;
+  quadrant?: QuickQuadrant | null;
   order_index?: number;
   is_top_20?: boolean;
   pareto_score?: number | null;
@@ -82,14 +86,15 @@ export const quickTaskService = {
   async createTask(data: QuickTaskCreate): Promise<QuickTask | null> {
     if (!isLoggedIn()) return localQuickTaskAdapter.createTask(data);
     try {
-      const res = await apiFetch('/todo/quick-tasks', {
+      const res = await todoFetch('/todo/quick-tasks', {
         method: 'POST',
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error('Failed to create quick task', err);
+      reportFailure('add the task', err);
       return null;
     }
   },
@@ -97,14 +102,15 @@ export const quickTaskService = {
   async updateTask(id: number, data: QuickTaskUpdate): Promise<QuickTask | null> {
     if (!isLoggedIn()) return localQuickTaskAdapter.updateTask(id, data);
     try {
-      const res = await apiFetch(`/todo/quick-tasks/${id}`, {
+      const res = await todoFetch(`/todo/quick-tasks/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error(`Failed to update quick task ${id}`, err);
+      reportFailure('save that change', err);
       return null;
     }
   },
@@ -112,10 +118,12 @@ export const quickTaskService = {
   async deleteTask(id: number): Promise<boolean> {
     if (!isLoggedIn()) return localQuickTaskAdapter.deleteTask(id);
     try {
-      const res = await apiFetch(`/todo/quick-tasks/${id}`, { method: 'DELETE' });
-      return res.ok;
+      const res = await todoFetch(`/todo/quick-tasks/${id}`, { method: 'DELETE' });
+      if (!res.ok && !isAlreadyGone(res)) throw new Error(await todoApiError(res));
+      return true;
     } catch (err) {
       console.error(`Failed to delete quick task ${id}`, err);
+      reportFailure('delete the task', err);
       return false;
     }
   },
@@ -123,11 +131,12 @@ export const quickTaskService = {
   async moveToSmart(id: number): Promise<any | null> {
     if (!isLoggedIn()) return localQuickTaskAdapter.moveToSmart(id);
     try {
-      const res = await apiFetch(`/todo/quick-tasks/${id}/move-to-smart`, { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await todoFetch(`/todo/quick-tasks/${id}/move-to-smart`, { method: 'POST' });
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error(`Failed to move quick task ${id} to smart`, err);
+      reportFailure('move the task', err);
       return null;
     }
   },
@@ -135,11 +144,12 @@ export const quickTaskService = {
   async moveToPlan(id: number): Promise<any | null> {
     if (!isLoggedIn()) return localQuickTaskAdapter.moveToPlan(id);
     try {
-      const res = await apiFetch(`/todo/quick-tasks/${id}/move-to-plan`, { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await todoFetch(`/todo/quick-tasks/${id}/move-to-plan`, { method: 'POST' });
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error(`Failed to move quick task ${id} to plan`, err);
+      reportFailure('move the task', err);
       return null;
     }
   },
@@ -164,14 +174,15 @@ export const quickTaskService = {
   async bulkCreate(tasks: ParsedBrainDumpTask[]): Promise<{ created: QuickTask[]; count: number } | null> {
     if (!isLoggedIn()) return localQuickTaskAdapter.bulkCreate(tasks);
     try {
-      const res = await apiFetch('/todo/quick-tasks/bulk-create', {
+      const res = await todoFetch('/todo/quick-tasks/bulk-create', {
         method: 'POST',
         body: JSON.stringify({ tasks }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error('Bulk create failed', err);
+      reportFailure('add those tasks', err);
       return null;
     }
   },

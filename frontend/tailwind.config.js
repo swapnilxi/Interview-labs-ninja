@@ -162,5 +162,6 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  // `mix-bg-muted/20` & co: opacity for the theme colours, which cannot take a `/NN` modifier (tailwind/mix-colors.js)
+  plugins: [require('./tailwind/mix-colors')],
 }

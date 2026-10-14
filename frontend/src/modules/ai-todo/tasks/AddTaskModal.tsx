@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import Modal from '@/components/ui/Modal';
+import { toast } from '@/lib/ui/toast';
 import {
   type Task,
   type TaskPriority,
@@ -38,11 +40,12 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
   const [recurrenceInterval, setRecurrenceInterval] = useState('daily');
   const [recurrenceCustomDays, setRecurrenceCustomDays] = useState('');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !savingRef.current) onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // A stray click outside shouldn't throw away a half-written task.
+  const dirty = !!(
+    title.trim() !== initialTitle.trim() ||
+    timeEstimate.trim() || dueDate || context.trim() || intention.trim() || definitionOfDone.trim() ||
+    attachments.length > 0 || isRecurring
+  );
 
   const handleSuggestIntention = async () => {
     if (!title.trim()) return;
@@ -68,7 +71,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
 
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['txt', 'pdf', 'docx'].includes(ext || '')) {
-      alert('Only .txt, .pdf, .docx files are supported');
+      toast.error('Only .txt, .pdf, .docx files are supported.');
       return;
     }
 
@@ -119,253 +122,250 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
   };
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+    <Modal
+      isOpen
+      onClose={onClose}
+      labelledBy="todo-add-task-title"
+      closeOnEscape={!saving}
+      closeOnBackdrop={!saving && !dirty}
+      backdropClassName="bg-black/40 backdrop-blur-sm"
+      className="w-full max-w-lg bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <h3 id="todo-add-task-title" className="font-heading text-base font-semibold text-foreground">Add New Task</h3>
+        <button type="button" onClick={onClose} className="theme-toggle w-8 h-8" aria-label="Close">
+          <Icon name="XMarkIcon" size={16} />
+        </button>
+      </div>
 
-      {/* Modal */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="todo-add-task-title"
-        className="relative w-full max-w-lg mx-4 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 id="todo-add-task-title" className="font-heading text-base font-semibold text-foreground">Add New Task</h3>
-          <button type="button" onClick={onClose} className="theme-toggle w-8 h-8" aria-label="Close">
-            <Icon name="XMarkIcon" size={16} />
-          </button>
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
+        {/* Title */}
+        <div>
+          <label htmlFor="todo-add-title" className="block text-xs font-medium text-muted-foreground mb-1.5">Task Title *</label>
+          <input
+            id="todo-add-title"
+            type="text"
+            required
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="What do you need to do?"
+            className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
+            autoFocus
+          />
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
-          {/* Title */}
+        {/* Priority + Time + Due date row */}
+        <div className="grid grid-cols-3 gap-3">
           <div>
-            <label htmlFor="todo-add-title" className="block text-xs font-medium text-muted-foreground mb-1.5">Task Title *</label>
-            <input
-              id="todo-add-title"
-              type="text"
-              required
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="What do you need to do?"
-              className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
-              autoFocus
-            />
-          </div>
-
-          {/* Priority + Time + Due date row */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Priority</label>
-              <select
-                value={priority}
-                onChange={e => setPriority(e.target.value as TaskPriority)}
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
-              >
-                {(Object.entries(PRIORITY_CONFIG) as [TaskPriority, any][]).map(([key, conf]) => (
-                  <option key={key} value={key}>{conf.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Time Estimate</label>
-              <input
-                type="text"
-                value={timeEstimate}
-                onChange={e => setTimeEstimate(e.target.value)}
-                placeholder="e.g. 2 hrs"
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Due Date</label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={e => setDueDate(e.target.value)}
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
-              />
-            </div>
-          </div>
-
-          {/* Context textarea */}
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-              Add Context <span className="text-muted-foreground/60">(optional)</span>
-            </label>
-            <textarea
-              value={context}
-              onChange={e => setContext(e.target.value)}
-              placeholder="Add notes, requirements, or paste relevant information. AI will use this to generate better subtasks."
-              rows={3}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus-ring placeholder:text-muted-foreground resize-none"
-            />
-          </div>
-
-          {/* Collapsible Intention & Definition of Done */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowIntentionFields(!showIntentionFields)}
-              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Priority</label>
+            <select
+              value={priority}
+              onChange={e => setPriority(e.target.value as TaskPriority)}
+              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
             >
-              <Icon name={showIntentionFields ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={14} />
-              Intention & Definition of Done (Optional)
-            </button>
-
-            {showIntentionFields && (
-              <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border animate-fade-in">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-medium text-muted-foreground">Why does this matter? (Intention)</label>
-                    <button
-                      type="button"
-                      onClick={handleSuggestIntention}
-                      disabled={suggesting || !title.trim()}
-                      className="text-[10px] text-primary hover:underline font-semibold disabled:opacity-50"
-                    >
-                      <span className="inline-flex items-center gap-1"><Icon name="SparklesIcon" size={11} variant="solid" />{suggesting ? 'Suggesting...' : 'Suggest'}</span>
-                    </button>
-                  </div>
-                  {suggestError && (
-                    <p className="text-[10px] text-red-500 mb-1.5">{suggestError}</p>
-                  )}
-                  <input
-                    type="text"
-                    value={intention}
-                    onChange={e => setIntention(e.target.value)}
-                    placeholder="e.g. To clear technical debt and speed up queries"
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">What does done look like? (Definition of Done)</label>
-                  <input
-                    type="text"
-                    value={definitionOfDone}
-                    onChange={e => setDefinitionOfDone(e.target.value)}
-                    placeholder="e.g. Unit tests passing, code merged, index created"
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
-                  />
-                </div>
-              </div>
-            )}
+              {(Object.entries(PRIORITY_CONFIG) as [TaskPriority, any][]).map(([key, conf]) => (
+                <option key={key} value={key}>{conf.label}</option>
+              ))}
+            </select>
           </div>
-
-          {/* Recurring Task toggle (Feature 4) */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isRecurring}
-                onChange={e => setIsRecurring(e.target.checked)}
-                className="h-4 w-4 rounded border-border text-primary focus-ring cursor-pointer"
-              />
-              <Icon name="ArrowPathIcon" size={14} className="text-muted-foreground" />
-              <span>Make this task recurring</span>
-            </label>
-
-            {isRecurring && (
-              <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border animate-fade-in">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Recurrence Interval</label>
-                  <select
-                    value={recurrenceInterval}
-                    onChange={e => setRecurrenceInterval(e.target.value)}
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
-                  >
-                    <option value="daily">Daily (Every day)</option>
-                    <option value="weekly">Weekly (Every week)</option>
-                    <option value="custom_days">Custom Days</option>
-                  </select>
-                </div>
-
-                {recurrenceInterval === 'custom_days' && (
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Custom Days (comma-separated)</label>
-                    <input
-                      type="text"
-                      value={recurrenceCustomDays}
-                      onChange={e => setRecurrenceCustomDays(e.target.value)}
-                      placeholder="e.g. mon,wed,fri"
-                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* File upload */}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-              Attach Files <span className="text-muted-foreground/60">(.txt, .pdf, .docx)</span>
-            </label>
-            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-smooth">
-              <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
-                {uploading ? 'Extracting text...' : 'Choose file'}
-              </span>
-              <input
-                type="file"
-                accept=".txt,.pdf,.docx"
-                onChange={handleFileUpload}
-                className="hidden"
-                disabled={uploading}
-              />
-              {uploading && <span className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />}
-            </label>
-
-            {/* Attached file chips */}
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {attachments.map(name => (
-                  <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs text-foreground">
-                    <Icon name="DocumentIcon" size={12} className="text-muted-foreground" />
-                    {name}
-                    <button type="button" onClick={() => removeAttachment(name)} className="text-muted-foreground hover:text-red-500 transition-smooth">
-                      <Icon name="XMarkIcon" size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Time Estimate</label>
+            <input
+              type="text"
+              value={timeEstimate}
+              onChange={e => setTimeEstimate(e.target.value)}
+              placeholder="e.g. 2 hrs"
+              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
+            />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Due Date</label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={e => setDueDate(e.target.value)}
+              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
+            />
+          </div>
+        </div>
 
-          {saveError && (
-            <div role="alert" className="todo-alert todo-alert-error">
-              <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
-              <p className="flex-1 leading-relaxed">{saveError}</p>
+        {/* Context textarea */}
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Add Context <span className="mix-text-muted-foreground/60">(optional)</span>
+          </label>
+          <textarea
+            value={context}
+            onChange={e => setContext(e.target.value)}
+            placeholder="Add notes, requirements, or paste relevant information. AI will use this to generate better subtasks."
+            rows={3}
+            className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus-ring placeholder:text-muted-foreground resize-none"
+          />
+        </div>
+
+        {/* Collapsible Intention & Definition of Done */}
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setShowIntentionFields(!showIntentionFields)}
+            className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+          >
+            <Icon name={showIntentionFields ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={14} />
+            Intention & Definition of Done (Optional)
+          </button>
+
+          {showIntentionFields && (
+            <div className="space-y-3 p-3 rounded-lg mix-bg-muted/30 border border-border animate-fade-in">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground">Why does this matter? (Intention)</label>
+                  <button
+                    type="button"
+                    onClick={handleSuggestIntention}
+                    disabled={suggesting || !title.trim()}
+                    className="text-xs text-primary hover:underline font-semibold disabled:opacity-50"
+                  >
+                    <span className="inline-flex items-center gap-1"><Icon name="SparklesIcon" size={11} variant="solid" />{suggesting ? 'Suggesting...' : 'Suggest'}</span>
+                  </button>
+                </div>
+                {suggestError && (
+                  <p className="text-xs text-red-500 mb-1.5">{suggestError}</p>
+                )}
+                <input
+                  type="text"
+                  value={intention}
+                  onChange={e => setIntention(e.target.value)}
+                  placeholder="e.g. To clear technical debt and speed up queries"
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">What does done look like? (Definition of Done)</label>
+                <input
+                  type="text"
+                  value={definitionOfDone}
+                  onChange={e => setDefinitionOfDone(e.target.value)}
+                  placeholder="e.g. Unit tests passing, code merged, index created"
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
+                />
+              </div>
             </div>
           )}
+        </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition-smooth"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!title.trim() || saving}
-              className="todo-btn todo-btn-primary px-4 py-2 text-sm"
-            >
-              {saving ? (
-                <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              ) : (
-                <Icon name="PlusIcon" size={14} variant="solid" />
+        {/* Recurring Task toggle (Feature 4) */}
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer [@media(pointer:coarse)]:min-h-10">
+            <input
+              type="checkbox"
+              checked={isRecurring}
+              onChange={e => setIsRecurring(e.target.checked)}
+              className="h-4 w-4 rounded border-border text-primary focus-ring cursor-pointer"
+            />
+            <Icon name="ArrowPathIcon" size={14} className="text-muted-foreground" />
+            <span>Make this task recurring</span>
+          </label>
+
+          {isRecurring && (
+            <div className="space-y-3 p-3 rounded-lg mix-bg-muted/30 border border-border animate-fade-in">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Recurrence Interval</label>
+                <select
+                  value={recurrenceInterval}
+                  onChange={e => setRecurrenceInterval(e.target.value)}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
+                >
+                  <option value="daily">Daily (Every day)</option>
+                  <option value="weekly">Weekly (Every week)</option>
+                  <option value="custom_days">Custom Days</option>
+                </select>
+              </div>
+
+              {recurrenceInterval === 'custom_days' && (
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Custom Days (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={recurrenceCustomDays}
+                    onChange={e => setRecurrenceCustomDays(e.target.value)}
+                    placeholder="e.g. mon,wed,fri"
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring placeholder:text-muted-foreground"
+                  />
+                </div>
               )}
-              Create Task
-            </button>
+            </div>
+          )}
+        </div>
+
+        {/* File upload */}
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Attach Files <span className="mix-text-muted-foreground/60">(.txt, .pdf, .docx)</span>
+          </label>
+          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:mix-border-primary/40 hover:mix-bg-primary/5 transition-smooth">
+            <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
+              {uploading ? 'Extracting text...' : 'Choose file'}
+            </span>
+            <input
+              type="file"
+              accept=".txt,.pdf,.docx"
+              onChange={handleFileUpload}
+              className="hidden"
+              disabled={uploading}
+            />
+            {uploading && <span className="w-3 h-3 border-2 mix-border-primary/30 border-t-primary rounded-full animate-spin" />}
+          </label>
+
+          {/* Attached file chips */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {attachments.map(name => (
+                <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs text-foreground">
+                  <Icon name="DocumentIcon" size={12} className="text-muted-foreground" />
+                  {name}
+                  <button type="button" onClick={() => removeAttachment(name)} className="text-muted-foreground hover:text-red-500 transition-smooth">
+                    <Icon name="XMarkIcon" size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {saveError && (
+          <div role="alert" className="todo-alert todo-alert-error">
+            <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
+            <p className="flex-1 leading-relaxed">{saveError}</p>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition-smooth"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!title.trim() || saving}
+            className="todo-btn todo-btn-primary px-4 py-2 text-sm"
+          >
+            {saving ? (
+              <span className="w-4 h-4 border-2 mix-border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+            ) : (
+              <Icon name="PlusIcon" size={14} variant="solid" />
+            )}
+            Create Task
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

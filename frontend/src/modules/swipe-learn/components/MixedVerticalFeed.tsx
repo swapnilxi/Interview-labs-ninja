@@ -41,7 +41,7 @@ export default function MixedVerticalFeed({
           <span className="text-sm">🔀</span>
           <span>Mixed Feed: Scroll through Python, Vision, Finance & AI</span>
         </span>
-        <span className="font-mono text-[11px] opacity-75">{visibleCards.length} cards</span>
+        <span className="tabular-nums text-[11px] opacity-75">{visibleCards.length} cards</span>
       </div>
 
       {/* Vertical Stack of Cards matching input_file_1.png */}

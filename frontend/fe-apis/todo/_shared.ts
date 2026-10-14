@@ -108,6 +108,23 @@ export function parseJson<T>(value: unknown, fallback: T): T {
   }
 }
 
+// ── PATCH bodies ────────────────────────────────────────────────────────────
+
+/**
+ * Port of `patch_updates` (backend/modules/ai_todo/shared/patch.py). `sent` holds the validated
+ * fields the PATCH body actually contained. A `null` is kept — and so written as NULL — only for
+ * columns in `nullable` ("no due date" is a real value); for the required ones (title, status…)
+ * it is dropped, so `null` still means "no change" there. Replaces `model_dump(exclude_none=True)`,
+ * which could not tell "left out" from "clear it".
+ */
+export function patchUpdates(sent: Row, nullable: ReadonlySet<string>): Row {
+  const out: Row = {};
+  for (const [key, value] of Object.entries(sent)) {
+    if (value !== null || nullable.has(key)) out[key] = value;
+  }
+  return out;
+}
+
 // ── Dates (Python date.today() / datetime.now() use server-local time) ──────
 
 function pad(n: number): string {

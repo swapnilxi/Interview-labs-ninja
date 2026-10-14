@@ -116,7 +116,7 @@ export default function QuestionTableMobile({
                       variant="outline"
                       className="text-muted-foreground"
                     />
-                    <span className="text-xs text-muted-foreground font-code">
+                    <span className="text-xs text-muted-foreground tabular-nums">
                       {formatDate(question.dateEncountered)}
                     </span>
                   </div>
@@ -127,7 +127,7 @@ export default function QuestionTableMobile({
                       variant="outline"
                       className="text-muted-foreground"
                     />
-                    <span className="text-xs text-muted-foreground font-code">
+                    <span className="text-xs text-muted-foreground tabular-nums">
                       Last: {question.lastReviewed ? formatDate(question.lastReviewed) : 'Never'}
                     </span>
                   </div>

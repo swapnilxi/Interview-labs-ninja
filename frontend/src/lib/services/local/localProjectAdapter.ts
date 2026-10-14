@@ -10,6 +10,7 @@
 import { nextId, getAll, getAllByIndex, get, put, remove } from './db';
 import type { Project, ProjectNode, ProjectNodeFlat } from '../projectService';
 import { localTodoAdapter } from './localTodoAdapter';
+import { UNSORTED } from '../quickQuadrants';
 
 function buildNodeTree(flat: ProjectNode[]): ProjectNode[] {
   const byId = new Map<number, ProjectNode>();
@@ -169,7 +170,7 @@ export const localProjectAdapter = {
     const id = await nextId();
     const today = new Date().toISOString().slice(0, 10);
     const qt = {
-      id, title: node.title, done: false, quadrant: 'do_now' as const, date: today,
+      id, title: node.title, done: false, quadrant: UNSORTED, date: today,
       source: 'moved_from_plan' as const, original_task_id: null, order_index: 0,
       created_at: new Date().toISOString(), pareto_score: null, is_top_20: false,
     };

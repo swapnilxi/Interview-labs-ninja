@@ -7,6 +7,7 @@
  */
 
 import { withTodoDb, todayIso, type Row } from '../_shared';
+import { UNSORTED } from './autoSort';
 
 /** Port of `_quick_task_row_to_dict`. */
 function quickTaskRowToDict(row: Row): Row {
@@ -41,7 +42,7 @@ const QT_COLUMNS =
 /** Port of `create_quick_task` (task_date defaults to today). */
 export function createQuickTask(userId: number, title: string, opts: { task_date?: string | null; quadrant?: string; source?: string; original_task_id?: number | null; order_index?: number; due_date?: string | null; time_estimate?: string | null } = {}): Row {
   const {
-    quadrant = 'do_now',
+    quadrant = UNSORTED,
     source = 'manual',
     original_task_id = null,
     order_index = 0,

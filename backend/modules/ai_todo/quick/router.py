@@ -25,6 +25,8 @@ from pydantic import BaseModel
 
 from modules.auth.dependencies import get_current_user_id
 from modules.common.ai import AISettings
+from ..shared.patch import patch_updates
+from .auto_sort import UNSORTED, clean_assignments, pick_tasks_to_sort
 from .db import (
     create_quick_task,
     get_quick_tasks_for_date,
@@ -47,7 +49,7 @@ router = APIRouter(prefix="/todo/quick-tasks", tags=["quick-tasks"], dependencie
 
 class QuickTaskCreate(BaseModel):
     title: str
-    quadrant: str = "do_now"
+    quadrant: str = UNSORTED        # "unsorted" until the user (or AI Auto-Sort) places it in a quadrant
     source: str = "manual"
     original_task_id: Optional[int] = None
     order_index: int = 0
@@ -66,6 +68,11 @@ class QuickTaskUpdate(BaseModel):
     due_date: Optional[str] = None
     time_estimate: Optional[str] = None
     context: Optional[str] = None
+
+
+# Columns a PATCH can empty by sending `null` (see shared/patch.py). Not title / done / quadrant /
+# order_index / is_top_20: a required column has no empty state, so `null` there still means "no change".
+QUICK_TASK_NULLABLE = frozenset({"due_date", "time_estimate", "context", "pareto_score", "pareto_reason"})
 
 
 class AIDayPlanRequest(AISettings):
@@ -163,7 +170,7 @@ async def get_today_tasks_endpoint(user_id: int = Depends(get_current_user_id)) 
 
 @router.patch("/{task_id}")
 async def update_quick_task_endpoint(task_id: int, payload: QuickTaskUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
-    updates = payload.model_dump(exclude_none=True)
+    updates = patch_updates(payload, QUICK_TASK_NULLABLE)
     if "is_top_20" in updates:
         # Human toggle via the Pareto modal — lock so bulk /pareto/analyze won't overwrite it.
         updates["pareto_locked"] = 1
@@ -353,7 +360,7 @@ async def bulk_create_quick_tasks_endpoint(payload: BulkCreateQuickTasksRequest,
             user_id=user_id,
             title=t.get("title", "Unnamed task"),
             task_date=today_str,
-            quadrant=t.get("quadrant", "do_now"),
+            quadrant=t.get("quadrant") or UNSORTED,
             source="brain_dump",
         )
         created.append(task)
@@ -450,9 +457,11 @@ async def eisenhower_auto_endpoint(payload: AIEisenhowerRequest, user_id: int = 
     if not undone:
         return {"assignments": [], "message": "No undone tasks to sort."}
 
+    to_sort = pick_tasks_to_sort(undone)
+
     task_list = [
         {"task_id": t["id"], "title": t["title"], "is_top_20": bool(t.get("is_top_20"))}
-        for t in undone
+        for t in to_sort
     ]
     task_json = json.dumps(task_list, indent=2)
 
@@ -480,6 +489,7 @@ No extra text."""
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Eisenhower sort failed: {exc}")
 
+    assignments = clean_assignments(assignments, to_sort)
     bulk_update_quadrants(user_id, assignments)
     return {"assignments": assignments}
 

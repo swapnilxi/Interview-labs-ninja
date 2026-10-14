@@ -15,6 +15,7 @@ import {
   callAiVision,
   extractJsonArray,
   imageMimeType,
+  patchUpdates,
   withTodoDb,
   type Row,
 } from '../_shared';
@@ -134,6 +135,12 @@ const TASK_UPDATE: Record<string, FieldSpec> = {
   pareto_score: { kind: 'float', nullable: true },
   pareto_reason: optStr,
 };
+
+/** TASK_NULLABLE in tasks/router.py: columns a PATCH can empty by sending `null`; `null` elsewhere = no change. */
+const TASK_NULLABLE: ReadonlySet<string> = new Set([
+  'time_estimate', 'due_date', 'context', 'attachments', 'recurrence_interval', 'recurrence_custom_days',
+  'intention', 'definition_of_done', 'eisenhower_quadrant', 'pareto_score', 'pareto_reason',
+]);
 
 // ── Small Python-isms ───────────────────────────────────────────────────────
 
@@ -623,15 +630,13 @@ export const routes: TodoRoute[] = [
     handler: (ctx) => getChildren(ctx.intParam('task_id'), ctx.userId),
   },
 
-  /** PATCH /todo/tasks/{task_id} — model_dump(exclude_none=True); is_top_20 locks the Pareto flag. */
+  /** PATCH /todo/tasks/{task_id} — patch_updates(payload, TASK_NULLABLE); is_top_20 locks the Pareto flag. */
   {
     method: 'PATCH',
     path: '/tasks/:task_id',
     handler: async (ctx) => {
       const taskId = ctx.intParam('task_id');
-      const updates = Object.fromEntries(
-        Object.entries(validate(await ctx.json(), TASK_UPDATE)).filter(([, v]) => v !== null)
-      );
+      const updates = patchUpdates(validate(await ctx.json(), TASK_UPDATE), TASK_NULLABLE);
       // A human explicitly toggled this via the Pareto modal — lock it so the
       // bulk /pareto/analyze sweep never silently overwrites the override.
       if ('is_top_20' in updates) updates.pareto_locked = 1;

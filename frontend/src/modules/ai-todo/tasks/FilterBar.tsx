@@ -76,7 +76,7 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
     filterKey: keyof TaskFilters;
   }) => (
     <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={`${label} filter`}>
-      <span className="mr-1 w-14 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span className="mr-1 w-14 shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
       {chips.map(chip => {
         const isActive = activeKey === chip.key;
         return (
@@ -85,7 +85,7 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
             type="button"
             aria-pressed={isActive}
             onClick={() => update(filterKey, chip.key)}
-            className={`todo-focus inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-smooth ${
+            className={`todo-focus inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-smooth ${
               isActive ? 'todo-btn-active' : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
           >
@@ -150,7 +150,7 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
             <span className="hidden sm:inline">Filters</span>
             <span className="sr-only sm:hidden">Filters</span>
             {activeFilterCount > 0 && (
-              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-primary-foreground">
                 {activeFilterCount}
               </span>
             )}
@@ -189,7 +189,7 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
             <button
               type="button"
               onClick={() => onChange({ ...filters, status: 'all', priority: 'all', time: 'all', genType: 'all', top20: false })}
-              className="todo-focus rounded text-[11px] font-medium text-primary transition-smooth hover:underline"
+              className="todo-focus rounded text-xs font-medium text-primary transition-smooth hover:underline"
             >
               Clear all filters
             </button>

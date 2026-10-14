@@ -374,7 +374,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
                     value={youtubeUrl}
                     onChange={e => setYoutubeUrl(e.target.value)}
                     placeholder="https://www.youtube.com/watch?v=…"
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 font-code"
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1"
                     style={{ '--tw-ring-color': accent } as React.CSSProperties}
                   />
 

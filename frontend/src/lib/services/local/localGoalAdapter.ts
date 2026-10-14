@@ -8,6 +8,7 @@
 
 import { nextId, getAll, getAllByIndex, get, put, remove } from './db';
 import type { GoalNode, GoalCreatePayload, GoalUpdatePayload } from '../goalService';
+import { UNSORTED } from '../quickQuadrants';
 
 interface StoredGoal extends Omit<GoalNode, 'children'> {}
 
@@ -121,7 +122,7 @@ export const localGoalAdapter = {
     const qid = await nextId();
     const today = new Date().toISOString().slice(0, 10);
     const qt = {
-      id: qid, title: goal.title, done: false, quadrant: 'do_now' as const, date: today,
+      id: qid, title: goal.title, done: false, quadrant: UNSORTED, date: today,
       source: 'moved_from_goal' as const, original_task_id: null, order_index: 0,
       created_at: new Date().toISOString(), pareto_score: null, is_top_20: false,
     };

@@ -47,7 +47,7 @@ function renderContent(content: string) {
               return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
             }
             if (part.startsWith('`') && part.endsWith('`')) {
-              return <code key={i} className="rounded bg-muted px-1 py-0.5 font-code text-[10px]">{part.slice(1, -1)}</code>;
+              return <code key={i} className="rounded bg-muted px-1 py-0.5 font-code text-xs">{part.slice(1, -1)}</code>;
             }
             return <span key={i}>{part}</span>;
           })}
@@ -112,7 +112,7 @@ export default function CopilotChat({
           </span>
           <div className="min-w-0 flex-1">
             <span className="font-heading text-sm font-semibold text-foreground">{title}</span>
-            <p className="mt-0.5 text-[11px] leading-none text-muted-foreground">{subtitle}</p>
+            <p className="mt-0.5 text-xs leading-none text-muted-foreground">{subtitle}</p>
           </div>
           {onCollapse && (
             <button

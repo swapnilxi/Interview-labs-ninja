@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from modules.auth.dependencies import get_current_user_id
 from modules.common.ai import AISettings
 
+from ..shared.patch import patch_updates
 from .db import (
     LEVEL_ORDER,
     create_goal_node,
@@ -60,6 +61,11 @@ class GoalUpdate(BaseModel):
     parent_id: Optional[int] = None
     order_index: Optional[int] = None
     attachments: Optional[List[str]] = None
+
+
+# Columns a PATCH can empty by sending `null` (see shared/patch.py); `parent_id: null` moves a goal to the
+# top level. Not title / level / status / priority / order_index: `null` there still means "no change".
+GOAL_NULLABLE = frozenset({"description", "due_date", "parent_id", "attachments"})
 
 
 class GoalAIRequest(AISettings):
@@ -103,7 +109,7 @@ async def get_goal_tree_endpoint(user_id: int = Depends(get_current_user_id)) ->
 
 @router.patch("/goals/{goal_id}")
 async def update_goal_endpoint(goal_id: int, payload: GoalUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
-    updates = payload.model_dump(exclude_none=True)
+    updates = patch_updates(payload, GOAL_NULLABLE)
     updated = update_goal_node(goal_id, user_id, **updates)
     if not updated:
         raise HTTPException(status_code=404, detail="Goal not found")

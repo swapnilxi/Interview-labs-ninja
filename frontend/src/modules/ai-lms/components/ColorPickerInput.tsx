@@ -37,7 +37,7 @@ export default function ColorPickerInput({
           {label}
         </label>
         <span
-          className="text-[11px] font-mono px-2 py-0.5 rounded border"
+          className="text-[11px] tabular-nums px-2 py-0.5 rounded border"
           style={{
             color: activeColor,
             borderColor: activeColor + '40',

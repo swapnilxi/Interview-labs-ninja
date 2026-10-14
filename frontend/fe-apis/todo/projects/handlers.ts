@@ -6,7 +6,7 @@
  * keep the two in sync. Paths are relative to the /todo prefix.
  */
 
-import { HttpError, aiSettings, callAi, extractJsonArray, todayIso, withTodoDb, type Row } from '../_shared';
+import { HttpError, aiSettings, callAi, extractJsonArray, patchUpdates, todayIso, withTodoDb, type Row } from '../_shared';
 import { pyJsonDumps, pyStr } from '../py';
 import type { TodoCtx, TodoRoute } from '../router';
 import { createTask } from '../tasks/db';
@@ -70,13 +70,17 @@ function field(body: Row, key: string, kind: Kind, dflt: unknown = REQUIRED): an
   return scalar(value, kind, `body.${key}`);
 }
 
-/** `payload.model_dump(exclude_none=True)` for an all-Optional model: present, non-null fields only. */
-function dumpExcludeNone(body: Row, spec: Record<string, Kind>): Row {
-  const out: Row = {};
+/**
+ * `patch_updates(payload, nullable)` for an all-Optional model: the fields the body sent; a `null` is
+ * kept (and written as NULL) only for a nullable column, otherwise it means "no change".
+ */
+function dumpPatch(body: Row, spec: Record<string, Kind>, nullable: ReadonlySet<string>): Row {
+  const sent: Row = {};
   for (const [key, kind] of Object.entries(spec)) {
-    if (body[key] !== undefined && body[key] !== null) out[key] = scalar(body[key], kind, `body.${key}`);
+    if (body[key] === undefined) continue;
+    sent[key] = body[key] === null ? null : scalar(body[key], kind, `body.${key}`);
   }
-  return out;
+  return patchUpdates(sent, nullable);
 }
 
 async function bodyModel(ctx: TodoCtx): Promise<Row> {
@@ -97,6 +101,18 @@ const NODE_UPDATE_FIELDS: Record<string, Kind> = {
   pareto_reason: 'str', order_index: 'int', context: 'str', due_date: 'str', time_estimate: 'str',
   intention: 'str', definition_of_done: 'str',
 };
+
+/**
+ * PROJECT_NULLABLE / NODE_NULLABLE in projects/router.py: columns a PATCH can empty by sending `null`.
+ * A node's eisenhower_quadrant is left out on purpose: NULL reads back as 'schedule', so clearing it
+ * would report success and change nothing visible.
+ */
+const PROJECT_NULLABLE: ReadonlySet<string> = new Set([
+  'description', 'due_date', 'color', 'icon', 'eisenhower_quadrant', 'pareto_score', 'pareto_reason',
+]);
+const NODE_NULLABLE: ReadonlySet<string> = new Set([
+  'pareto_score', 'pareto_reason', 'context', 'due_date', 'time_estimate', 'intention', 'definition_of_done',
+]);
 
 // ── Python-compatible formatting for prompts ─────────────────────────────────
 
@@ -147,7 +163,7 @@ export const routes: TodoRoute[] = [
     path: '/projects/:project_id',
     handler: async (ctx) => {
       const projectId = ctx.intParam('project_id');
-      const updates = dumpExcludeNone(await bodyModel(ctx), PROJECT_UPDATE_FIELDS);
+      const updates = dumpPatch(await bodyModel(ctx), PROJECT_UPDATE_FIELDS, PROJECT_NULLABLE);
       if ('is_top_20' in updates) updates.pareto_locked = 1;
       const project = updateProject(projectId, ctx.userId, updates);
       if (!project) throw new HttpError(404, 'Project not found');
@@ -321,7 +337,7 @@ No extra text.`;
     path: '/project-nodes/:node_id',
     handler: async (ctx) => {
       const nodeId = ctx.intParam('node_id');
-      const updates = dumpExcludeNone(await bodyModel(ctx), NODE_UPDATE_FIELDS);
+      const updates = dumpPatch(await bodyModel(ctx), NODE_UPDATE_FIELDS, NODE_NULLABLE);
       if ('is_top_20' in updates) updates.pareto_locked = 1;
       const updated = updateProjectNode(nodeId, ctx.userId, updates);
       if (!updated) throw new HttpError(404, 'Node not found');

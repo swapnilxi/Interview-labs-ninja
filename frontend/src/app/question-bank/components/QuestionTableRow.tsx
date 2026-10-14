@@ -139,12 +139,12 @@ export default function QuestionTableRow({
           </span>
         </td>
         <td className="px-18 py-12">
-          <span className="text-sm text-foreground font-code">
+          <span className="text-sm text-foreground tabular-nums">
             {formatDate(question.dateEncountered)}
           </span>
         </td>
         <td className="px-18 py-12">
-          <span className="text-sm text-muted-foreground font-code">
+          <span className="text-sm text-muted-foreground tabular-nums">
             {question.lastReviewed ? formatDate(question.lastReviewed) : 'Never'}
           </span>
         </td>

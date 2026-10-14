@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,450;14..32,500;14..32,600;14..32,700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Fira+Code:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -117,7 +117,6 @@
     min-height: 100vh;
     font-size: 16px;
     line-height: 1.62;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     letter-spacing: 0;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -173,9 +172,17 @@
     color: color-mix(in srgb, var(--color-foreground) 90%, transparent);
   }
 
+  /* Monospace is for real code only (config.js). Tailwind's preflight would also set <kbd> and <samp> in
+     system mono; keys and sample output stay in the UI font. */
   code,
   pre {
     @apply font-code;
+  }
+
+  kbd,
+  samp {
+    font-family: inherit;
+    font-weight: 600;
   }
 
   ::selection {
@@ -187,6 +194,35 @@
   .app-header {
     @apply fixed left-0 right-0 top-0 z-[100] border-b border-border shadow-sm backdrop-blur-xl;
     background: color-mix(in srgb, var(--color-card) 90%, transparent);
+  }
+
+  /* Account-status notice (modules/common/PendingStatusBanner.tsx): a strip fixed directly under the
+     60px header. Opaque (mixed with the card colour) so it stays readable over any page. Its height
+     is published as --app-banner-h; body pads by it so page content starts below the strip. */
+  .app-banner {
+    @apply fixed left-0 right-0 z-[95] border-b px-[4vw] py-2 text-center text-[13px] font-medium leading-snug;
+    top: 60px;
+  }
+
+  .app-banner-warning {
+    color: var(--color-warning);
+    border-color: color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
+    background: color-mix(in srgb, var(--color-warning) 14%, var(--color-card));
+  }
+
+  .app-banner-error {
+    color: var(--color-error);
+    border-color: color-mix(in srgb, var(--color-error) 40%, var(--color-border));
+    background: color-mix(in srgb, var(--color-error) 12%, var(--color-card));
+  }
+
+  body {
+    padding-top: var(--app-banner-h, 0px);
+  }
+
+  /* Full-height page shells: 100vh minus the banner (identical to h-screen when there is none). */
+  .h-app-screen {
+    height: calc(100vh - var(--app-banner-h, 0px));
   }
 
   .app-nav-link {
@@ -214,7 +250,9 @@
     }
 
     html.has-sidebar-rail .app-header,
-    body.has-sidebar-rail .app-header {
+    body.has-sidebar-rail .app-header,
+    html.has-sidebar-rail .app-banner,
+    body.has-sidebar-rail .app-banner {
       left: 60px;
     }
 
@@ -224,13 +262,14 @@
       transition: padding-left 220ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    html.sidebar-animate .app-header {
+    html.sidebar-animate .app-header,
+    html.sidebar-animate .app-banner {
       transition: left 220ms cubic-bezier(0.4, 0, 0.2, 1);
     }
   }
 
   .lab-shell {
-    @apply h-screen overflow-hidden bg-background pt-[60px] text-foreground;
+    @apply h-app-screen overflow-hidden bg-background pt-[60px] text-foreground;
   }
 
   .lab-workspace {
@@ -851,6 +890,22 @@
     @apply text-primary;
   }
 
+  /* Touch targets (checklist 1.8). On a coarse pointer — a finger — everything you tap in the To-Do area is at
+     least 40×40. Real size, not an invisible halo: neighbouring halos overlap, so a tap lands on the wrong
+     control (the checkbox next to a chevron, say). Fine pointers (a mouse) are untouched. */
+  @media (pointer: coarse) {
+    :is(.todo-shell, .ui-modal-panel, .todo-popover, .todo-toast, header)
+      :is(button, summary, [role='button'], [role='checkbox'], [role='menuitem'], [role='tab'], a.todo-btn) {
+      min-height: 2.5rem;
+      min-width: 2.5rem;
+    }
+
+    :is(.todo-shell, .ui-modal-panel, .todo-popover, .todo-toast)
+      :is(select, input:not([type='checkbox'], [type='radio'], [type='file'], [type='hidden'], [type='range'])) {
+      min-height: 2.5rem;
+    }
+  }
+
   /* Fast-capture bar: the one AI entry point that should read as "type here". */
   .todo-capture {
     @apply flex items-center gap-3 rounded-xl border py-2 pl-4 pr-2 transition-smooth;
@@ -884,6 +939,11 @@
    * orbits the edge. Rings are masked pseudo-elements, so they work on overflow-hidden cards;
    * the glow is a box-shadow for the same reason. `--lit` defaults to the theme accent.
    * `.todo-task-card` shares the hover behaviour only (a list of rest-lit cards would be noise).
+   *
+   * DO NOT render dialogs, menus or any `position: fixed/absolute` overlay *inside* these elements.
+   * The hover `transform` makes them a containing block for fixed descendants (a "full-screen"
+   * dialog shrinks to the card) and a stacking context (the next card paints over their menus).
+   * Use components/ui/Modal.tsx and components/ui/Popover.tsx, which portal to <body>.
    */
   @property --lit-angle {
     syntax: '<angle>';
@@ -1153,7 +1213,7 @@
   }
 
   .copilot-chip {
-    @apply flex items-start gap-2 rounded-lg border border-border px-2.5 py-2 text-left text-[11px] leading-snug text-muted-foreground transition-all disabled:opacity-50;
+    @apply flex items-start gap-2 rounded-lg border border-border px-2.5 py-2 text-left text-xs leading-snug text-muted-foreground transition-all disabled:opacity-50;
   }
   .copilot-chip:hover:not(:disabled) {
     @apply text-foreground;
@@ -1255,11 +1315,62 @@
   }
 
   .todo-chip {
-    @apply inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold;
+    @apply inline-flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
   }
 
   .todo-popover {
     @apply rounded-lg border border-border bg-popover text-popover-foreground shadow-lg;
+  }
+
+  /* Dialog panel of components/ui/Modal.tsx: a short enter animation (off for reduced motion).
+     The animation ends at `transform: none`, so the panel never stays a containing block. */
+  .ui-modal-panel {
+    animation: ui-modal-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes ui-modal-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-modal-panel {
+      animation: none;
+    }
+  }
+
+  /* Toast of components/ui/ToastHost.tsx. Opaque (mixed with the popover colour) so it stays
+     readable over any content. Tint comes from data-tone. */
+  .todo-toast {
+    @apply flex items-start gap-2.5 rounded-xl border border-border bg-popover px-3.5 py-2.5 text-[13px] text-popover-foreground shadow-xl animate-fade-in;
+    max-width: min(26rem, calc(100vw - 2rem));
+  }
+
+  /* Bottom-centre. Phones: lifted above the corner FABs (3rem tall at 1.25rem from the bottom). */
+  .todo-toast-host {
+    bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 640px) {
+    .todo-toast-host {
+      bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  .todo-toast[data-tone='error'] {
+    border-color: color-mix(in srgb, var(--color-error) 45%, var(--color-border));
+    background: color-mix(in srgb, var(--color-error) 9%, var(--color-popover));
+  }
+
+  .todo-toast[data-tone='success'] {
+    border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+    background: color-mix(in srgb, var(--color-success) 8%, var(--color-popover));
   }
 
   .todo-alert {

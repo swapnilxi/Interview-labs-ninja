@@ -119,7 +119,7 @@ export default function PerformanceMetricsCard({
                   {attempt.timeSpent}
                 </span>
               </div>
-              <span className="font-code text-sm font-medium text-foreground">
+              <span className="tabular-nums text-sm font-medium text-foreground">
                 {attempt.score}%
               </span>
             </div>

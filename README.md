@@ -357,7 +357,7 @@ manual transcript-paste box.
 ## To-Do Module (AI To-Do)
 
 A full task-management feature lives alongside the interview-coach modules, reachable
-at `/ai-todo` in the frontend (the old `/todo` page URL redirects there; `/todo/*` is the API). It has three tabs — **Quick Daily** (flat day-list),
+at `/ai-todo` in the frontend (the old `/todo` page URL redirects there; `/todo/*` is the API). It has three tabs — **Quick Daily** (a day-list: new tasks start *Unsorted*, then you sort them into Eisenhower quadrants by dragging, the quadrant chip, or the optional *Prioritise* matrix view),
 **Smart Todo** (infinitely-nestable task tree), and **Plan & Project** (multi-project
 node trees with AI roadmaps) — plus a Copilot sidebar, a cross-tab "80/20" Pareto
 analysis, and a floating Distraction Inbox for capturing off-task thoughts.
@@ -409,10 +409,14 @@ worth picking up in a follow-up pass:
   `project_nodes` has no done/status field, so the project card's progress ring
   shows the share of nodes already exported into actionable tasks (Smart
   Todo/Quick Daily), not how much work is actually finished.
-- **Inconsistent CRUD error handling** — AI-action service calls throw and get
-  surfaced to the user, but plain CRUD calls (`updateTask`, `deleteTask`, etc.)
-  swallow failures with just a `console.error`, so a failed edit due to a network
-  blip currently fails silently in the UI.
+- **CRUD error handling** — AI-action service calls throw and get surfaced to the
+  user. Plain CRUD calls (`updateTask`, `deleteTask`, etc.) still return `null`/`false`
+  instead of throwing, but as of 2026-10-14 a failed *logged-in* request now shows a
+  toast with the real reason (`reportFailure()` in `lib/services/mutationFeedback.ts`;
+  the To-Do page mounts `ToastHost`), and optimistic edits roll back. Still open:
+  failures from the guest IndexedDB adapters are only logged to the console.
+  Dialogs/menus in this area use `components/ui/Modal` and `components/ui/Popover`
+  (portals) — never render an overlay inside a hover-lifted `.todo-lit` card.
 
 ## Career Studio Module (`/career`)
 

@@ -9,6 +9,8 @@ import { paretoService } from '@/lib/services/paretoService';
 import TaskNode from './TaskNode';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/lib/ui/toast';
+import { confirmParetoRun } from '../shared/confirmPareto';
 
 export type SmartSubView = 'tree' | 'matrix' | 'weekly';
 
@@ -21,8 +23,6 @@ const SUB_VIEWS: { id: SmartSubView; label: string; short: string; icon: string 
   { id: 'matrix', label: 'Eisenhower Matrix', short: 'Matrix', icon: 'Squares2X2Icon' },
   { id: 'weekly', label: 'Weekly Plan', short: 'Weekly', icon: 'CalendarDaysIcon' },
 ];
-
-type Toast = { tone: 'success' | 'error'; text: string };
 
 export default function SmartTodo({ model }: SmartTodoProps) {
   const { isGuest } = useAuth();
@@ -43,7 +43,6 @@ export default function SmartTodo({ model }: SmartTodoProps) {
   const nlpAddedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [treeRefreshSignal, setTreeRefreshSignal] = useState(0);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
-  const [toast, setToast] = useState<Toast | null>(null);
 
   const loadMatrixTasks = async () => {
     setLoading(true);
@@ -114,15 +113,15 @@ export default function SmartTodo({ model }: SmartTodoProps) {
 
   const handleQuadrantChange = async (itemId: string | number, newQuadrant: any) => {
     const id = typeof itemId === 'string' ? parseInt(itemId) : itemId;
+    const previous = tasks.find(t => t.id === id)?.eisenhower_quadrant ?? null;
     setTasks(prev => prev.map(t => t.id === id ? { ...t, eisenhower_quadrant: newQuadrant } : t));
-    await todoService.updateTask(id, { eisenhower_quadrant: newQuadrant });
+    const updated = await todoService.updateTask(id, { eisenhower_quadrant: newQuadrant });
+    // Not saved (the service already toasted why): move the card back instead of leaving it where it isn't.
+    if (!updated) setTasks(prev => prev.map(t => t.id === id ? { ...t, eisenhower_quadrant: previous } : t));
   };
 
   const handleAnalyze = async () => {
-    if (paretoService.hasAnalyzedToday('smart')) {
-      if (!confirm('You already ran analysis today. Results may be similar. Continue?')) return;
-    }
-    if (!confirm('AI will analyze all your tasks and identify the top 20% that will drive 80% of your results. This takes a few seconds.')) return;
+    if (!(await confirmParetoRun('smart', 'all your tasks'))) return;
     setAnalyzeLoading(true);
     try {
       const result = await paretoService.analyze('smart', model);
@@ -130,12 +129,11 @@ export default function SmartTodo({ model }: SmartTodoProps) {
       setTreeRefreshSignal(prev => prev + 1);
       if (activeSubView === 'matrix') await loadMatrixTasks();
       const top = result.top20_count ?? 0;
-      setToast({ tone: 'success', text: `Found ${top} high-leverage task${top === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total` });
+      toast.success(`Found ${top} high-leverage task${top === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total.`);
     } catch (err) {
-      setToast({ tone: 'error', text: err instanceof Error ? err.message : 'Analysis failed.' });
+      toast.error(err instanceof Error ? withPeriod(err.message) : 'Analysis failed.');
     } finally {
       setAnalyzeLoading(false);
-      setTimeout(() => setToast(null), 4000);
     }
   };
 
@@ -160,22 +158,6 @@ export default function SmartTodo({ model }: SmartTodoProps) {
 
   return (
     <div className="flex flex-col h-full gap-[1.75rem]">
-      {/* 80/20 Analyze result toast */}
-      {toast && (
-        <div
-          role="status"
-          className="todo-popover fixed top-20 right-4 sm:right-[1.5rem] z-[200] flex max-w-[calc(100vw-2rem)] items-center gap-2 px-3.5 py-2.5 text-sm font-medium animate-fade-in"
-        >
-          <Icon
-            name={toast.tone === 'success' ? 'StarIcon' : 'ExclamationTriangleIcon'}
-            size={16}
-            variant="solid"
-            className={toast.tone === 'success' ? 'text-amber-500 shrink-0' : 'text-error shrink-0'}
-          />
-          <span>{toast.text}</span>
-        </div>
-      )}
-
       {/* AI Fast Capture — natural language in, structured task out */}
       <form onSubmit={handleNlpSubmit} aria-label="Add a task with AI" className="w-full">
         <div className="todo-capture todo-lit">
@@ -212,7 +194,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
             <span className="sr-only sm:hidden">{nlpLoading ? 'Adding' : 'Parse and add task'}</span>
           </button>
         </div>
-        <div id="todo-fast-capture-hint" aria-live="polite" className="mt-2 min-h-[18px] px-4 text-[11px] leading-snug">
+        <div id="todo-fast-capture-hint" aria-live="polite" className="mt-2 min-h-[18px] px-4 text-xs leading-snug">
           {nlpError ? (
             <p className="flex items-start gap-1.5 text-error">
               <Icon name="ExclamationCircleIcon" size={14} className="mt-px shrink-0" />

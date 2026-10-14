@@ -53,6 +53,25 @@ The bare `/todo` URL is *not* an API path: it redirects to the `/ai-todo` page.
 - AI requests: `aiSettings(body)` (or `aiSettings(ctx.query)` for GET) → `callAi(prompt, settings)`;
   prompts are copied verbatim from Python so both backends answer alike.
 - Auth (401/403 for missing token / unapproved account) is done by the dispatcher for every route.
+- **PATCH bodies** go through `patchUpdates(sent, NULLABLE)` (`_shared.ts`, port of `shared/patch.py`):
+  a field the client left out is untouched; a field sent as `null` is written as NULL only if it is in
+  the endpoint's nullable set (`TASK_NULLABLE`, `QUICK_TASK_NULLABLE`, `GOAL_NULLABLE`, `PROJECT_NULLABLE`,
+  `NODE_NULLABLE` — the same sets as the Python routers), otherwise ignored. That is how a due date is cleared.
+  Keep the sets identical in both languages; a column that reads back with a default (a node's quadrant
+  reads as `'schedule'`) must **not** be nullable.
+
+- **Quick tasks start `unsorted`.** `createQuickTask` (and so `POST /quick-tasks`, bulk-create, and every
+  *move to Quick*) defaults `quadrant` to the string `'unsorted'` — not NULL — exactly like `UNSORTED` in
+  `backend/modules/ai_todo/quick/auto_sort.py`; the two files share their rules for `POST /quick-tasks/eisenhower-auto`
+  (`quick/autoSort.ts`: only unsorted tasks are sorted unless none are; only real quadrants and asked-about ids are written
+  back). Keep the Python and TypeScript copies identical.
+
+## Testing it locally
+
+Run `next dev` with `LABNINJA_DB_DIR=<scratch dir holding a copy named lab_ninja.sqlite3>` and
+`DATABASE_URL` unset. `LABNINJA_TEST_DB_PATH` (the Python backend's switch) is **ignored** here: without
+`LABNINJA_DB_DIR` the todo handlers write straight into the tracked `backend/data/lab_ninja.sqlite3`.
+Auth always uses `/tmp/lab_ninja.sqlite3` (approve test users there). Check `git status backend/data` after.
 
 ## Known, intentional differences from FastAPI
 

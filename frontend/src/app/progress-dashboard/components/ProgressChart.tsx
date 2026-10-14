@@ -70,17 +70,17 @@ export default function ProgressChart({ data, chartType }: ProgressChartProps) {
             <XAxis
               dataKey="date"
               stroke="#94A3B8"
-              style={{ fontSize: '12px', fontFamily: 'Source Sans Pro, sans-serif' }}
+              style={{ fontSize: '12px', fontFamily: 'inherit' }}
             />
             <YAxis
               stroke="#94A3B8"
-              style={{ fontSize: '12px', fontFamily: 'Source Sans Pro, sans-serif' }}
+              style={{ fontSize: '12px', fontFamily: 'inherit' }}
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend
               wrapperStyle={{
                 fontSize: '12px',
-                fontFamily: 'Source Sans Pro, sans-serif',
+                fontFamily: 'inherit',
               }}
             />
             <Line
@@ -114,17 +114,17 @@ export default function ProgressChart({ data, chartType }: ProgressChartProps) {
             <XAxis
               dataKey="date"
               stroke="#94A3B8"
-              style={{ fontSize: '12px', fontFamily: 'Source Sans Pro, sans-serif' }}
+              style={{ fontSize: '12px', fontFamily: 'inherit' }}
             />
             <YAxis
               stroke="#94A3B8"
-              style={{ fontSize: '12px', fontFamily: 'Source Sans Pro, sans-serif' }}
+              style={{ fontSize: '12px', fontFamily: 'inherit' }}
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend
               wrapperStyle={{
                 fontSize: '12px',
-                fontFamily: 'Source Sans Pro, sans-serif',
+                fontFamily: 'inherit',
               }}
             />
             <Area

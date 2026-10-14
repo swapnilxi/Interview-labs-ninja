@@ -131,7 +131,7 @@ export default function GoalTimelineBoard({
           >
             <div className="flex items-center justify-between px-[1.25rem] py-4 border-b border-border shrink-0" style={{ background: 'color-mix(in srgb, var(--color-foreground) 4%, transparent)' }}>
               <span className="font-heading text-sm font-bold text-foreground">{col.label}</span>
-              <span className="copilot-tint rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+              <span className="copilot-tint rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums">
                 {col.count}
               </span>
             </div>
@@ -149,7 +149,7 @@ export default function GoalTimelineBoard({
                   <div key={group.root.id} className="space-y-1.5">
                     <button
                       onClick={() => toggleRoot(group.root.id)}
-                      className="w-full flex items-center gap-1 px-1.5 py-1 rounded-md bg-muted/40 hover:bg-muted/70 transition-smooth text-left"
+                      className="w-full flex items-center gap-1 px-1.5 py-1 rounded-md mix-bg-muted/40 hover:mix-bg-muted/70 transition-smooth text-left"
                       title={`${collapsed ? 'Expand' : 'Collapse'} everything under "${group.root.title}"`}
                     >
                       <Icon
@@ -159,16 +159,16 @@ export default function GoalTimelineBoard({
                           collapsed ? '' : 'rotate-90'
                         }`}
                       />
-                      <span className="text-[10px] font-bold text-muted-foreground truncate flex-1">
+                      <span className="text-xs font-bold text-muted-foreground truncate flex-1">
                         ↳ {group.root.title}
                       </span>
-                      <span className="text-[9px] text-muted-foreground bg-muted px-1 rounded-sm shrink-0">
+                      <span className="text-xs text-muted-foreground bg-muted px-1 rounded-sm shrink-0">
                         {group.items.length}
                       </span>
                     </button>
 
                     {!collapsed && (
-                      <div className="space-y-2 pl-1.5 border-l border-border/50 ml-1">
+                      <div className="space-y-2 pl-1.5 border-l mix-border-border/50 ml-1">
                         {group.items.map((item) => renderCard(item, true))}
                       </div>
                     )}

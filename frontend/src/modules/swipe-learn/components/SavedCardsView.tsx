@@ -44,7 +44,7 @@ export default function SavedCardsView({
           <span>Back to Feed</span>
         </button>
 
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Icon name="BookmarkIcon" size={15} variant="solid" className="text-blue-600" />
           <span>{cards.length} Saved Cards</span>
         </div>

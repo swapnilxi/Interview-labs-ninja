@@ -221,7 +221,7 @@ export default function ContinueLearningBanner({
                 }}
               />
             </div>
-            <span className="font-mono font-semibold tabular-nums text-foreground">{progressPercent}%</span>
+            <span className="font-semibold tabular-nums text-foreground">{progressPercent}%</span>
           </div>
         </div>
 

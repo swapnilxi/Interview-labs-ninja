@@ -100,7 +100,7 @@ export default function SubjectCard({
               </div>
 
               {orderIndex !== undefined && (
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
+                <span className="tabular-nums text-xs font-bold px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
                   #{orderIndex + 1}
                 </span>
               )}
@@ -201,7 +201,7 @@ export default function SubjectCard({
             </p>
             {subject.ai_context && (
               <div
-                className="mt-2.5 flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-lg border"
+                className="mt-2.5 flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border"
                 style={{
                   backgroundColor: `color-mix(in srgb, ${accent} 8%, transparent)`,
                   borderColor: `color-mix(in srgb, ${accent} 22%, transparent)`,

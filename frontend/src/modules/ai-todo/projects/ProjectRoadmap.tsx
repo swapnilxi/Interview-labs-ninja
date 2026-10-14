@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import FlatIcon from '@/components/ui/FlatIcon';
 import { Project, projectService } from '@/lib/services/projectService';
 import { todoService } from '@/lib/services/todoService';
 import { quickTaskService } from '@/lib/services/quickTaskService';
@@ -60,12 +61,12 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border border-border/80 rounded-xl p-4 shadow-sm overflow-hidden">
+    <div className="flex flex-col h-full bg-card border mix-border-border/80 rounded-xl p-4 shadow-sm overflow-hidden">
       {/* Header and Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-[1.5rem]">
         <div>
           <h2 className="font-heading font-semibold text-lg flex items-center gap-2">
-            🗺️ AI Project Roadmap
+            <FlatIcon name="roadmap" size={24} /> AI Project Roadmap
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
             Generate a phased execution plan for any project.
@@ -94,7 +95,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
           >
             {loading ? (
               <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-            ) : '🤖'}
+            ) : <FlatIcon name="ai" size={16} />}
             Generate Roadmap
           </button>
         </div>
@@ -103,8 +104,8 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
       {/* AI action error */}
       {error && (
         <div className="mb-4 p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-          <span className="text-xs shrink-0">⚠️</span>
-          <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{error}</p>
+          <FlatIcon name="warning" size={16} className="mt-px" />
+          <p className="text-xs text-red-600 dark:text-red-400 flex-1 leading-relaxed">{error}</p>
           <button onClick={() => setError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
             <Icon name="XMarkIcon" size={12} />
           </button>
@@ -114,7 +115,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
       {/* Content Area */}
       {!project && (
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground space-y-4 opacity-70">
-          <span className="text-5xl">🔭</span>
+          <FlatIcon name="explore" size={52} />
           <p className="text-sm font-medium">Select a project to view its roadmap.</p>
         </div>
       )}
@@ -128,7 +129,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
 
       {project && !loading && !roadmap && (
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground space-y-4 opacity-70">
-          <span className="text-5xl">🗺️</span>
+          <FlatIcon name="roadmap" size={52} />
           <p className="text-sm font-medium">No roadmap generated yet. Click generate to start.</p>
         </div>
       )}
@@ -155,11 +156,11 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                   {/* Header */}
                   <div className="p-3 bg-emerald-500/10 border-b border-emerald-500/20">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
                         Phase {index + 1}
                       </span>
                       {phase.duration && (
-                        <span className="text-[9px] font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        <span className="text-xs font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                           {phase.duration}
                         </span>
                       )}
@@ -170,12 +171,12 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                   </div>
 
                   {/* Body */}
-                  <div className="p-3 space-y-3 bg-muted/10">
+                  <div className="p-3 space-y-3 mix-bg-muted/10">
                     {/* Milestone */}
                     {phase.milestone && (
                       <div className="flex items-start gap-1.5 p-2 rounded bg-amber-500/10 border border-amber-500/20">
-                        <span className="text-xs shrink-0">🏆</span>
-                        <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 leading-snug">
+                        <FlatIcon name="trophy" size={16} className="mt-px" />
+                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 leading-snug">
                           {phase.milestone}
                         </p>
                       </div>
@@ -183,7 +184,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
 
                     {/* Tasks */}
                     <div>
-                      <h4 className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Key Tasks</h4>
+                      <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Key Tasks</h4>
                       <ul className="space-y-1.5">
                         {phase.key_tasks?.map((task: string, tIndex: number) => {
                           const key = `${index}-${tIndex}`;
@@ -192,13 +193,13 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                           return (
                             <li key={tIndex} className="group flex items-start gap-2 p-1.5 rounded-md hover:bg-muted transition-smooth">
                               <div className="w-3 h-3 rounded-sm border border-border mt-0.5 shrink-0" />
-                              <span className={`text-[11px] font-medium leading-tight ${moved ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                              <span className={`text-xs font-medium leading-tight ${moved ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
                                 {task}
                               </span>
 
                               {/* Actions (Hidden until hover) */}
                               {moved ? (
-                                <span className="ml-auto shrink-0 text-[9px] font-bold text-emerald-500">✓ moved</span>
+                                <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-bold text-emerald-500"><FlatIcon name="check" size={14} /> moved</span>
                               ) : (
                                 <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 ml-auto shrink-0 transition-opacity">
                                   <button
@@ -208,7 +209,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                                     onClick={() => handleMoveTask(key, phase, task, 'smart')}
                                     className="p-1 rounded text-muted-foreground hover:bg-blue-500/10 hover:text-blue-500 transition-smooth disabled:opacity-50"
                                   >
-                                    <span className="text-[10px]">🧠</span>
+                                    <FlatIcon name="brain" size={18} />
                                   </button>
                                   <button
                                     type="button"
@@ -217,7 +218,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                                     onClick={() => handleMoveTask(key, phase, task, 'quick')}
                                     className="p-1 rounded text-muted-foreground hover:bg-amber-500/10 hover:text-amber-500 transition-smooth disabled:opacity-50"
                                   >
-                                    <span className="text-[10px]">⚡</span>
+                                    <FlatIcon name="quick" size={18} />
                                   </button>
                                 </div>
                               )}

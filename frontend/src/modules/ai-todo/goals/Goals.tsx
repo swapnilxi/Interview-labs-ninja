@@ -6,6 +6,7 @@ import GoalTimelineBoard from './GoalTimelineBoard';
 import CreateGoalModal from './CreateGoalModal';
 import GoalDetailModal from './GoalDetailModal';
 import { GoalNode, GoalLevel, goalService } from '@/lib/services/goalService';
+import { confirmDialog } from '@/lib/ui/confirm';
 
 interface GoalsProps {
   model: 'ollama' | 'gemini';
@@ -83,7 +84,13 @@ export default function Goals({ model }: GoalsProps) {
   };
 
   const handleDelete = async (node: GoalNode) => {
-    if (!confirm(`Delete "${node.title}" and everything chunked under it?`)) return;
+    const confirmed = await confirmDialog({
+      title: `Delete "${node.title}"?`,
+      message: 'This also deletes everything chunked under it. It can\'t be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await goalService.deleteGoal(node.id);
       if (selectedId === node.id) setSelectedId(null);
@@ -122,10 +129,14 @@ export default function Goals({ model }: GoalsProps) {
   const handleMove = async (node: GoalNode, dest: 'smart' | 'quick' | 'plan') => {
     setNodeBusy(node.id, `move-${dest}`);
     try {
+      // These return null on failure (and the service toasts why), so there is nothing to
+      // catch for a rejected request — but an unexpected throw shouldn't escape unhandled.
       if (dest === 'smart') await goalService.moveToSmart(node.id);
       else if (dest === 'quick') await goalService.moveToQuick(node.id);
       else await goalService.moveToPlan(node.id);
       await loadTree();
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : `Couldn't move "${node.title}".`);
     } finally {
       setNodeBusy(node.id, undefined);
     }
@@ -158,7 +169,7 @@ export default function Goals({ model }: GoalsProps) {
       {aiError && (
         <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
           <Icon name="ExclamationTriangleIcon" size={14} className="text-red-500 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
+          <p className="text-xs text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
           <button onClick={() => setAiError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
             <Icon name="XMarkIcon" size={12} />
           </button>
@@ -169,7 +180,7 @@ export default function Goals({ model }: GoalsProps) {
       <div>
         {loading ? (
           <div className="flex flex-col items-center justify-center text-muted-foreground py-16">
-            <span className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+            <span className="w-[1.5rem] h-[1.5rem] border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
           </div>
         ) : (
           <GoalTimelineBoard

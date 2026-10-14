@@ -398,7 +398,7 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
                       </button>
 
                       {isPersonaExpanded && (
-                        <div className="mt-2 p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 text-xs text-foreground/90 font-mono leading-relaxed space-y-1.5 animate-fadeIn">
+                        <div className="mt-2 p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 text-xs text-foreground/90 leading-relaxed space-y-1.5 animate-fadeIn">
                           <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider font-sans">
                             AI Persona & Chatbot Directives:
                           </div>

@@ -156,7 +156,7 @@ export default function LessonList({
               {/* Left: Sequence Number & Info */}
               <div className="flex items-center gap-4 min-w-0 flex-1">
                 <span
-                  className={`font-mono text-sm font-bold w-8 flex-shrink-0 transition-colors ${
+                  className={`tabular-nums text-sm font-bold w-8 flex-shrink-0 transition-colors ${
                     isOrganizeMode
                       ? 'text-primary'
                       : 'text-muted-foreground group-hover:text-primary'

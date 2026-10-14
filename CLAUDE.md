@@ -54,6 +54,22 @@ further down in `README.md` — check there before assuming a module's shape.
   `LABNINJA_TEST_DB_PATH` — copy the real file somewhere first, set that env var, and
   test against the copy. This is the established pattern for all backend verification
   in this repo; use it, don't invent a new one.
+  **That variable only protects the Python backend.** The Next.js side (`fe-apis`,
+  `nextjs-api` mode) ignores it: in local dev `src/lib/server/sqliteReader.ts` opens
+  `backend/data/lab_ninja.sqlite3` *directly* (Next.js and FastAPI share one file), so a
+  `next dev` run in that mode writes test rows into the tracked DB (this happened once and
+  had to be restored from git). To test it, point `LABNINJA_DB_DIR` at a scratch folder
+  that holds a copy named `lab_ninja.sqlite3`, and unset `DATABASE_URL` (set, it pushes
+  snapshots to Neon). Auth in that mode always uses `/tmp/lab_ninja.sqlite3` (seeded from
+  the repo DB, never written back). Run `git status backend/data` afterwards.
+- **Two silent Tailwind traps** (`frontend/tailwind.config.js` is shared — don't change it to "fix" them, it would
+  restyle every module). (1) The theme colours (`primary`, `muted`, `border`, `card`, …) are bare `var(--color-x)`
+  strings, so an opacity modifier on them — `bg-muted/20`, `border-border/60`, `hover:bg-primary/90` — compiles to
+  *nothing*, no warning. Use the `mix-*` utilities from `frontend/tailwind/mix-colors.js`: `mix-bg-muted/20`,
+  `hover:mix-bg-primary/90`, `mix-border-*`, `mix-text-*`, `mix-ring-*`. Palette colours (`bg-amber-500/10`) are fine.
+  (2) The spacing keys 6, 12, 18, 24, 36, 48, 72, 96, 144 are redefined in **pixels** (`px-6` = 6px, `w-12` = 12px):
+  write `px-[1.5rem]`. The To-Do area is clean and `npm run check:tailwind` (from `frontend/`) keeps it so; `-- --all`
+  lists the rest of the app, which still has both.
 - **`backend/modules/todo/` and `frontend/src/modules/todo/` are dead leftovers from
   the rename to `ai_todo`/`ai-todo`.** Nothing imports from either (check with grep
   before assuming otherwise) — `backend/main.py` only wires up `modules.ai_todo.*`, and

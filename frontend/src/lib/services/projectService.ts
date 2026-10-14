@@ -1,10 +1,11 @@
 'use client';
 
-import { parseApiError } from './todoService';
+import { isAlreadyGone, parseApiError, todoApiError, todoFetch } from './todoService';
 import { aiRequestFields } from './settingsService';
 import { apiFetch } from '../http/apiClient';
 import { isLoggedIn } from '../auth/tokenStore';
 import { localProjectAdapter } from './local/localProjectAdapter';
+import { reportFailure } from './mutationFeedback';
 
 export interface Project {
   id: number;
@@ -75,16 +76,17 @@ export const projectService = {
   async createProject(data: Partial<Project>): Promise<Project | null> {
     if (!isLoggedIn()) return localProjectAdapter.createProject(data);
     try {
-      const res = await apiFetch('/todo/projects', {
+      const res = await todoFetch('/todo/projects', {
         method: 'POST',
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       const resData = await res.json();
       // Backend returns project directly (flat) or wrapped in {project:{...}}
       return (resData.project ?? resData) as Project;
     } catch (err) {
       console.error('Failed to create project', err);
+      reportFailure('create the project', err);
       return null;
     }
   },
@@ -92,15 +94,16 @@ export const projectService = {
   async updateProject(id: number, data: Partial<Project>): Promise<Project | null> {
     if (!isLoggedIn()) return localProjectAdapter.updateProject(id, data);
     try {
-      const res = await apiFetch(`/todo/projects/${id}`, {
+      const res = await todoFetch(`/todo/projects/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       const resData = await res.json();
       return resData.project || resData || null;
     } catch (err) {
       console.error(`Failed to update project ${id}`, err);
+      reportFailure('save that change', err);
       return null;
     }
   },
@@ -108,10 +111,12 @@ export const projectService = {
   async deleteProject(id: number): Promise<boolean> {
     if (!isLoggedIn()) return localProjectAdapter.deleteProject(id);
     try {
-      const res = await apiFetch(`/todo/projects/${id}`, { method: 'DELETE' });
-      return res.ok;
+      const res = await todoFetch(`/todo/projects/${id}`, { method: 'DELETE' });
+      if (!res.ok && !isAlreadyGone(res)) throw new Error(await todoApiError(res));
+      return true;
     } catch (err) {
       console.error(`Failed to delete project ${id}`, err);
+      reportFailure('delete the project', err);
       return false;
     }
   },
@@ -132,15 +137,16 @@ export const projectService = {
   async createNode(projectId: number, data: Partial<ProjectNode>): Promise<ProjectNode | null> {
     if (!isLoggedIn()) return localProjectAdapter.createNode(projectId, data);
     try {
-      const res = await apiFetch(`/todo/projects/${projectId}/nodes`, {
+      const res = await todoFetch(`/todo/projects/${projectId}/nodes`, {
         method: 'POST',
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       const resData = await res.json();
       return (resData.node ?? resData) as ProjectNode;
     } catch (err) {
       console.error(`Failed to create node in project ${projectId}`, err);
+      reportFailure('add that item', err);
       return null;
     }
   },
@@ -148,10 +154,12 @@ export const projectService = {
   async deleteNode(nodeId: number): Promise<boolean> {
     if (!isLoggedIn()) return localProjectAdapter.deleteNode(nodeId);
     try {
-      const res = await apiFetch(`/todo/project-nodes/${nodeId}`, { method: 'DELETE' });
-      return res.ok;
+      const res = await todoFetch(`/todo/project-nodes/${nodeId}`, { method: 'DELETE' });
+      if (!res.ok && !isAlreadyGone(res)) throw new Error(await todoApiError(res));
+      return true;
     } catch (err) {
       console.error(`Failed to delete node ${nodeId}`, err);
+      reportFailure('delete that item', err);
       return false;
     }
   },
@@ -179,11 +187,12 @@ export const projectService = {
   async moveToSmart(nodeId: number): Promise<any> {
     if (!isLoggedIn()) return localProjectAdapter.moveToSmart(nodeId);
     try {
-      const res = await apiFetch(`/todo/project-nodes/${nodeId}/move-to-smart`, { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await todoFetch(`/todo/project-nodes/${nodeId}/move-to-smart`, { method: 'POST' });
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error(`Failed to move node ${nodeId} to smart`, err);
+      reportFailure('send that item to Smart To-Do', err);
       return null;
     }
   },
@@ -191,11 +200,12 @@ export const projectService = {
   async moveToQuick(nodeId: number): Promise<any> {
     if (!isLoggedIn()) return localProjectAdapter.moveToQuick(nodeId);
     try {
-      const res = await apiFetch(`/todo/project-nodes/${nodeId}/move-to-quick`, { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await todoFetch(`/todo/project-nodes/${nodeId}/move-to-quick`, { method: 'POST' });
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error(`Failed to move node ${nodeId} to quick`, err);
+      reportFailure('send that item to Quick Daily', err);
       return null;
     }
   },
@@ -215,14 +225,15 @@ export const projectService = {
   async updateProjectNode(nodeId: number, data: Partial<ProjectNode>): Promise<ProjectNode | null> {
     if (!isLoggedIn()) return localProjectAdapter.updateProjectNode(nodeId, data);
     try {
-      const res = await apiFetch(`/todo/project-nodes/${nodeId}`, {
+      const res = await todoFetch(`/todo/project-nodes/${nodeId}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await todoApiError(res));
       return await res.json();
     } catch (err) {
       console.error(`Failed to update node ${nodeId}`, err);
+      reportFailure('save that change', err);
       return null;
     }
   },

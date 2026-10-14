@@ -81,7 +81,7 @@ export default function ClassCard({
               </div>
 
               {orderIndex !== undefined && (
-                <span className="font-mono text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md border"
+                <span className="text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md border"
                   style={{ color: `color-mix(in srgb, ${accent} 70%, var(--color-foreground))`, borderColor: `color-mix(in srgb, ${accent} 22%, transparent)`, background: `color-mix(in srgb, ${accent} 8%, transparent)` }}>
                   #{orderIndex + 1}
                 </span>

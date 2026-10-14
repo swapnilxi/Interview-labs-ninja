@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import ProjectIcon from './ProjectIcon';
 import { Project } from '@/lib/services/projectService';
 
 interface ProjectCardProps {
@@ -71,9 +72,10 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
       style={{ '--lit': color } as React.CSSProperties}
       className={`todo-lit flex flex-col bg-card border border-border rounded-xl overflow-hidden ${paretoClasses} ${project.status === 'completed' || project.status === 'archived' ? 'opacity-60' : ''}`}
     >
-      {/* Clickable main body */}
-      <div
-        className="p-[1.5rem] flex-1 cursor-pointer"
+      {/* Clickable main body — a real button, so it is reachable and operable from the keyboard */}
+      <button
+        type="button"
+        className="todo-focus block w-full flex-1 cursor-pointer p-[1.5rem] text-left"
         onClick={() => onClick(project)}
       >
         <div className="flex items-start justify-between gap-4">
@@ -82,28 +84,28 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
               className="todo-icon-chip w-[2.75rem] h-[2.75rem] rounded-xl flex items-center justify-center text-xl shadow-sm shrink-0"
               style={{ backgroundColor: `${color}20`, border: `1px solid ${color}40` }}
             >
-              {project.icon || '📁'}
+              <ProjectIcon icon={project.icon} size={26} />
             </div>
             <div className="min-w-0 flex flex-col">
               <h3 className="font-heading font-semibold text-foreground truncate text-base">
                 {project.title}
               </h3>
               <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-                <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${statusColors[project.status] || 'bg-muted text-muted-foreground'}`}>
+                <span className={`text-[11px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${statusColors[project.status] || 'bg-muted text-muted-foreground'}`}>
                   {project.status}
                 </span>
-                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <div className={`w-2 h-2 rounded-full ${priorityColors[project.priority] || priorityColors.p3}`} />
                   {project.priority.toUpperCase()}
                 </span>
                 {project.due_date && (
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <Icon name="CalendarIcon" size={10} />
                     {project.due_date}
                   </span>
                 )}
                 {project.node_count !== undefined && (
-                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 rounded-sm">
+                  <span className="text-xs text-muted-foreground bg-muted px-1.5 rounded-sm">
                     {project.node_count} nodes
                   </span>
                 )}
@@ -114,16 +116,16 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
           {/* Right: badges */}
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             {project.is_top_20 && (
-              <span className="copilot-tint px-2 py-0.5 text-[10px] font-bold">
+              <span className="copilot-tint px-2 py-0.5 text-xs font-bold">
                 <Icon name="StarIcon" size={10} variant="solid" /> Top 20%
               </span>
             )}
             <div className="relative w-8 h-8 flex items-center justify-center" title={`${exportedCount}/${nodeCount} plan nodes exported to action`}>
               <svg className="w-full h-full transform -rotate-90">
-                <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="3" fill="transparent" className="text-muted/30" />
+                <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="3" fill="transparent" className="mix-text-muted/30" />
                 <circle cx="16" cy="16" r="14" stroke={color} strokeWidth="3" fill="transparent" strokeDasharray={ringCircumference} strokeDashoffset={ringOffset} className="transition-all duration-1000" />
               </svg>
-              <span className="absolute text-[8px] font-bold text-foreground">{progressPct}%</span>
+              <span className="absolute text-xs font-bold text-foreground">{progressPct}%</span>
             </div>
           </div>
         </div>
@@ -133,7 +135,7 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
             {project.description}
           </p>
         )}
-      </div>
+      </button>
 
       {/* ── Action footer — always visible, NOT part of the clickable area ── */}
       {!isCompact && (
@@ -144,13 +146,13 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
               <>
                 <button
                   onClick={(e) => { e.stopPropagation(); onActionClick(project, 'dive'); }}
-                  className="copilot-tint px-2.5 py-1.5 text-[11px] font-semibold"
+                  className="copilot-tint px-2.5 py-1.5 text-xs font-semibold"
                 >
                   <Icon name="MagnifyingGlassIcon" size={12} /> Explore
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onActionClick(project, 'roadmap'); }}
-                  className="copilot-tint px-2.5 py-1.5 text-[11px] font-semibold"
+                  className="copilot-tint px-2.5 py-1.5 text-xs font-semibold"
                 >
                   <Icon name="MapIcon" size={12} /> Roadmap
                 </button>
@@ -163,16 +165,16 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
             <div className="flex items-center gap-1.5">
               {confirmDelete ? (
                 <>
-                  <span className="text-[10px] text-red-500 font-semibold">Sure?</span>
+                  <span className="text-xs text-red-500 font-semibold">Sure?</span>
                   <button
                     onClick={handleConfirmDelete}
-                    className="text-[10px] font-bold px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600 transition-smooth"
+                    className="text-xs font-bold px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600 transition-smooth"
                   >
                     Yes, delete
                   </button>
                   <button
                     onClick={handleCancelDelete}
-                    className="text-[10px] font-semibold px-2 py-1 rounded bg-muted text-muted-foreground hover:bg-muted/80 transition-smooth"
+                    className="text-xs font-semibold px-2 py-1 rounded bg-muted text-muted-foreground hover:mix-bg-muted/80 transition-smooth"
                   >
                     Cancel
                   </button>
@@ -180,7 +182,7 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
               ) : (
                 <button
                   onClick={handleDeleteClick}
-                  className="text-[10px] font-semibold px-2 py-1 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-smooth flex items-center gap-1"
+                  className="text-xs font-semibold px-2 py-1 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-smooth flex items-center gap-1"
                 >
                   <Icon name="TrashIcon" size={10} /> Delete
                 </button>

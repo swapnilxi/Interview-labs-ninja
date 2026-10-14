@@ -156,7 +156,7 @@ export default function OnDemandSection({
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-400/60" />
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/60" />
                     </div>
-                    <span className="text-xs font-code text-muted-foreground ml-1">{lang || 'python'}</span>
+                    <span className="text-xs text-muted-foreground ml-1">{lang || 'python'}</span>
                   </div>
                   <Icon name="CodeBracketIcon" size={13} className="text-muted-foreground/60" />
                 </div>

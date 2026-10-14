@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import ParetoModal from '@/components/ui/ParetoModal';
+import Popover from '@/components/ui/Popover';
 import TaskDetailModal from './TaskDetailModal';
 import { projectService, type Project } from '@/lib/services/projectService';
 import {
@@ -34,6 +35,8 @@ interface TaskNodeProps {
   onDelete: (taskId: number) => void;
   onChildrenGenerated: (parentId: number, children: Task[], generationType: string) => void;
   onUndoAvailable: (parentId: number, previousChildren: Task[]) => void;
+  /** A subtask was added by hand (e.g. from the details dialog); the owner appends it to the tree. */
+  onChildAdded?: (parentId: number, child: Task) => void;
   searchQuery?: string;
   onResumeTask?: (task: Task) => void;
   revealDelays?: Record<number, number>;
@@ -50,6 +53,7 @@ export default function TaskNode({
   onDelete,
   onChildrenGenerated,
   onUndoAvailable,
+  onChildAdded,
   searchQuery = '',
   onResumeTask,
   flat = false,
@@ -58,6 +62,7 @@ export default function TaskNode({
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [loading, setLoading] = useState<'dive' | 'chunk' | 'regen' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showContext, setShowContext] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -67,6 +72,11 @@ export default function TaskNode({
   const [showDepthWarning, setShowDepthWarning] = useState<'dive' | 'chunk' | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  // Triggers the menus anchor to (the menus render through a portal; see components/ui/Popover.tsx)
+  const statusBtnRef = useRef<HTMLButtonElement>(null);
+  const priorityBtnRef = useRef<HTMLButtonElement>(null);
+  const moveBtnRef = useRef<HTMLButtonElement>(null);
+  const deleteBtnRef = useRef<HTMLButtonElement>(null);
 
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -184,11 +194,12 @@ export default function TaskNode({
 
   const handleCheckbox = async (e: React.MouseEvent) => {
     const newStatus = task.status === 'done' ? 'backlog' : 'done';
-    if (newStatus === 'done') {
-      triggerConfetti(e.clientX, e.clientY);
-    }
+    const { clientX, clientY } = e;
     const updated = await todoService.updateTask(task.id, { status: newStatus as TaskStatus });
-    if (updated) onUpdate(task.id, { status: newStatus as TaskStatus });
+    // Not saved: the service already toasted why, and a failed save gets no celebration.
+    if (!updated) return;
+    if (newStatus === 'done') triggerConfetti(clientX, clientY);
+    onUpdate(task.id, { status: newStatus as TaskStatus });
   };
 
   // ── AI breakdown handlers ────────────────────────────────────────────────
@@ -241,8 +252,11 @@ export default function TaskNode({
   // ── Delete handler ───────────────────────────────────────────────────────
 
   const handleDelete = async () => {
+    if (deleting) return; // a double-click must not send two DELETEs
+    setDeleting(true);
     const deleted = await todoService.deleteTask(task.id);
     if (deleted) onDelete(task.id);
+    setDeleting(false);
     setShowDeleteConfirm(false);
   };
 
@@ -285,7 +299,7 @@ export default function TaskNode({
 
   return (
     <div
-      className={`task-node relative ${matchesSearch ? 'ring-2 ring-primary/40 rounded-lg' : ''}`}
+      className={`task-node relative ${matchesSearch ? 'ring-2 mix-ring-primary/40 rounded-lg' : ''}`}
       style={{ paddingLeft: depth > 1 ? '24px' : '0' }}
     >
       {/* Vertical connector line */}
@@ -301,7 +315,7 @@ export default function TaskNode({
            style={{ borderLeftWidth: '3px', borderLeftColor: depthColor }}>
 
         {/* Row 1: checkbox + title + status + priority + details toggle — the compact, always-visible row */}
-        <div className="flex items-start gap-1.5">
+        <div className="flex flex-wrap items-start gap-x-1.5 gap-y-1">
           {/* Children chevron (separate from the details toggle) */}
           {hasChildren && !flat ? (
             <button
@@ -318,7 +332,7 @@ export default function TaskNode({
               />
             </button>
           ) : (
-            <span className="w-3 shrink-0" />
+            <span className="w-3 shrink-0 [@media(pointer:coarse)]:w-10" />
           )}
 
           {/* Checkbox — padded hit area around the 16px box */}
@@ -342,7 +356,7 @@ export default function TaskNode({
 
           {/* Step number for chunk subtasks */}
           {task.generation_type === 'chunk' && chunkIndex !== undefined && (
-            <span className="mt-[2px] flex-shrink-0 text-[10px] font-bold text-success w-4 text-center">
+            <span className="mt-[2px] flex-shrink-0 text-xs font-bold text-success w-4 text-center">
               {chunkIndex + 1}.
             </span>
           )}
@@ -351,7 +365,7 @@ export default function TaskNode({
           {editingField === 'title' ? (
             <input
               ref={titleRef}
-              className="flex-1 min-w-0 text-sm font-medium bg-input border border-border rounded px-2 py-0.5 focus-ring"
+              className="min-w-[9rem] flex-1 basis-[9rem] text-sm font-medium bg-input border border-border rounded px-2 py-0.5 focus-ring"
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               onBlur={() => saveEdit('title')}
@@ -360,7 +374,7 @@ export default function TaskNode({
             />
           ) : (
             <button
-              className={`todo-focus flex-1 min-w-0 rounded text-left text-sm font-medium leading-snug transition-smooth hover:text-primary line-clamp-2 break-words ${
+              className={`todo-focus min-w-[9rem] flex-1 basis-[9rem] rounded text-left text-sm font-medium leading-snug transition-smooth hover:text-primary line-clamp-2 break-words ${
                 task.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'
               }`}
               onClick={() => setShowDetailModal(true)}
@@ -371,6 +385,9 @@ export default function TaskNode({
             </button>
           )}
 
+          {/* Badges, status, priority and the details toggle: one group, so on a narrow screen they wrap
+              together under the title instead of squeezing it */}
+          <div className="ml-auto flex shrink-0 flex-wrap items-start gap-1.5">
           {/* Top 20% badge */}
           {task.is_top_20 && (
             <span
@@ -398,38 +415,44 @@ export default function TaskNode({
           )}
 
           {/* Status badge (inline dropdown) */}
-          <div className="relative flex-shrink-0">
+          <div className="flex-shrink-0">
             <button
+              ref={statusBtnRef}
               onClick={() => { setShowStatusMenu(!showStatusMenu); setShowPriorityMenu(false); }}
-              className={`todo-focus text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap transition-smooth hover:opacity-80 ${statusConf.bgClass}`}
+              className={`todo-focus text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap transition-smooth hover:opacity-80 ${statusConf.bgClass}`}
               aria-haspopup="menu"
               aria-expanded={showStatusMenu}
               aria-label={`Status: ${statusConf.label}. Change status`}
             >
               {statusConf.label}
             </button>
-            {showStatusMenu && (
-              <div role="menu" className="todo-popover absolute top-full right-0 mt-1 z-50 p-1 min-w-[130px]">
-                {(Object.entries(STATUS_CONFIG) as [TaskStatus, typeof statusConf][]).map(([key, conf]) => (
-                  <button
-                    key={key}
-                    role="menuitem"
-                    onClick={() => handleStatusChange(key)}
-                    className={`w-full text-left text-[11px] px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted flex items-center gap-2 ${
-                      task.status === key ? 'font-semibold' : ''
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: conf.color }} />
-                    {conf.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            <Popover
+              open={showStatusMenu}
+              anchorRef={statusBtnRef}
+              onClose={() => setShowStatusMenu(false)}
+              label="Change status"
+              className="todo-popover p-1 min-w-[130px]"
+            >
+              {(Object.entries(STATUS_CONFIG) as [TaskStatus, typeof statusConf][]).map(([key, conf]) => (
+                <button
+                  key={key}
+                  role="menuitem"
+                  onClick={() => handleStatusChange(key)}
+                  className={`w-full text-left text-xs px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted flex items-center gap-2 ${
+                    task.status === key ? 'font-semibold' : ''
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: conf.color }} />
+                  {conf.label}
+                </button>
+              ))}
+            </Popover>
           </div>
 
           {/* Priority dot (inline dropdown) */}
-          <div className="relative flex-shrink-0">
+          <div className="flex-shrink-0">
             <button
+              ref={priorityBtnRef}
               onClick={() => { setShowPriorityMenu(!showPriorityMenu); setShowStatusMenu(false); }}
               className="todo-focus todo-chip border border-border text-muted-foreground hover:text-foreground transition-smooth"
               title={priorityConf.label}
@@ -440,23 +463,27 @@ export default function TaskNode({
               <span className={`block w-2 h-2 rounded-full ${priorityConf.dotClass}`} aria-hidden="true" />
               {task.priority.toUpperCase()}
             </button>
-            {showPriorityMenu && (
-              <div role="menu" className="todo-popover absolute top-full right-0 mt-1 z-50 p-1 min-w-[120px]">
-                {(Object.entries(PRIORITY_CONFIG) as [TaskPriority, typeof priorityConf][]).map(([key, conf]) => (
-                  <button
-                    key={key}
-                    role="menuitem"
-                    onClick={() => handlePriorityChange(key)}
-                    className={`w-full text-left text-[11px] px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted flex items-center gap-2 ${
-                      task.priority === key ? 'font-semibold' : ''
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${conf.dotClass}`} />
-                    {conf.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            <Popover
+              open={showPriorityMenu}
+              anchorRef={priorityBtnRef}
+              onClose={() => setShowPriorityMenu(false)}
+              label="Change priority"
+              className="todo-popover p-1 min-w-[120px]"
+            >
+              {(Object.entries(PRIORITY_CONFIG) as [TaskPriority, typeof priorityConf][]).map(([key, conf]) => (
+                <button
+                  key={key}
+                  role="menuitem"
+                  onClick={() => handlePriorityChange(key)}
+                  className={`w-full text-left text-xs px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted flex items-center gap-2 ${
+                    task.priority === key ? 'font-semibold' : ''
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${conf.dotClass}`} />
+                  {conf.label}
+                </button>
+              ))}
+            </Popover>
           </div>
 
           {/* Details & actions toggle — reveals everything below without cluttering the default view */}
@@ -471,13 +498,14 @@ export default function TaskNode({
           >
             <Icon name="EllipsisHorizontalIcon" size={14} />
           </button>
+          </div>
         </div>
 
         {/* Row 2: compact meta strip — badges & chips only, always visible but tiny */}
         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap pl-[22px]">
           {/* Depth badge */}
           <span
-            className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+            className="flex-shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-full"
             style={{ backgroundColor: `${depthColor}20`, color: depthColor }}
           >
             L{depth}
@@ -485,13 +513,13 @@ export default function TaskNode({
 
           {/* Generation type badge */}
           {task.generation_type === 'dive_deeper' && (
-            <span className="todo-chip bg-purple-500/15 text-purple-600 dark:text-purple-400 text-[9px]">
+            <span className="todo-chip bg-purple-500/15 text-purple-600 dark:text-purple-400 text-xs">
               <Icon name="MagnifyingGlassIcon" size={9} />
               Deep
             </span>
           )}
           {task.generation_type === 'chunk' && (
-            <span className="todo-chip bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px]">
+            <span className="todo-chip bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs">
               <Icon name="ScissorsIcon" size={9} />
               Chunk
             </span>
@@ -500,7 +528,7 @@ export default function TaskNode({
           {/* Recurrence badge (Feature 4) */}
           {task.is_recurring ? (
             <span
-              className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-0.5"
+              className="flex-shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-0.5"
               title={`Recurring: ${task.recurrence_interval}${task.recurrence_interval === 'custom_days' ? ` (${task.recurrence_custom_days})` : ''}`}
             >
               <Icon name="ArrowPathIcon" size={9} />
@@ -511,7 +539,7 @@ export default function TaskNode({
           {/* Time estimate (click to edit) */}
           {editingField === 'time_estimate' ? (
             <input
-              className="text-[10px] bg-input border border-border rounded px-2 py-0.5 w-20 focus-ring"
+              className="text-xs bg-input border border-border rounded px-2 py-0.5 w-20 focus-ring"
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               onBlur={() => saveEdit('time_estimate')}
@@ -522,7 +550,7 @@ export default function TaskNode({
           ) : (
             <button
               onClick={() => startEdit('time_estimate', task.time_estimate || '')}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-smooth flex items-center gap-1"
+              className="text-xs text-muted-foreground hover:text-foreground transition-smooth flex items-center gap-1"
             >
               <Icon name="ClockIcon" size={10} />
               {task.time_estimate || 'Add time'}
@@ -533,7 +561,7 @@ export default function TaskNode({
           {editingField === 'due_date' ? (
             <input
               type="date"
-              className="text-[10px] bg-input border border-border rounded px-2 py-0.5 focus-ring"
+              className="text-xs bg-input border border-border rounded px-2 py-0.5 focus-ring"
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               onBlur={() => saveEdit('due_date')}
@@ -542,7 +570,7 @@ export default function TaskNode({
           ) : (
             <button
               onClick={() => startEdit('due_date', task.due_date || '')}
-              className={`text-[10px] flex items-center gap-1 transition-smooth ${
+              className={`text-xs flex items-center gap-1 transition-smooth ${
                 dueInfo?.isOverdue ? 'text-red-500 font-semibold' :
                 dueInfo?.isDueToday ? 'text-amber-500 font-semibold' :
                 'text-muted-foreground hover:text-foreground'
@@ -562,7 +590,7 @@ export default function TaskNode({
                   style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#22c55e' : depthColor }}
                 />
               </div>
-              <span className="text-[9px] text-muted-foreground font-medium">{progress}%</span>
+              <span className="text-xs text-muted-foreground font-medium">{progress}%</span>
             </div>
           )}
 
@@ -583,8 +611,8 @@ export default function TaskNode({
           {/* Notes count chip */}
           <button
             onClick={() => { setDetailsExpanded(true); setShowNotes(true); }}
-            className={`text-[10px] flex items-center gap-1 transition-smooth px-1 py-0.5 rounded ${
-              notesCount > 0 ? 'text-foreground' : 'text-muted-foreground/50'
+            className={`text-xs flex items-center gap-1 transition-smooth px-1 py-0.5 rounded ${
+              notesCount > 0 ? 'text-foreground' : 'mix-text-muted-foreground/50'
             } hover:text-foreground`}
             title="View Notes & Journal"
           >
@@ -601,12 +629,12 @@ export default function TaskNode({
               <div className="relative group">
                 <button
                   onClick={() => setShowDetailModal(true)}
-                  className="text-[10px] text-muted-foreground hover:text-foreground transition-smooth text-left flex items-start gap-1 min-w-0 w-full"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-smooth text-left flex items-start gap-1 min-w-0 w-full"
                 >
                   <Icon name="FlagIcon" size={11} className="mt-px shrink-0" />
                   <span className="truncate italic">{truncateWords(task.intention, 10)}</span>
                 </button>
-                <div className="todo-popover absolute bottom-full left-0 mb-1.5 hidden group-hover:block text-[10px] p-2 whitespace-normal min-w-[220px] max-w-[320px] z-50 leading-normal">
+                <div className="todo-popover absolute bottom-full left-0 mb-1.5 hidden group-hover:block text-xs p-2 whitespace-normal min-w-[220px] max-w-[320px] z-50 leading-normal">
                   <p className="font-semibold text-primary mb-1">Intention</p>
                   <p>{task.intention}</p>
                 </div>
@@ -616,12 +644,12 @@ export default function TaskNode({
               <div className="relative group">
                 <button
                   onClick={() => setShowDetailModal(true)}
-                  className="text-[10px] text-muted-foreground hover:text-foreground transition-smooth text-left flex items-start gap-1 min-w-0 w-full"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-smooth text-left flex items-start gap-1 min-w-0 w-full"
                 >
                   <Icon name="CheckCircleIcon" size={11} className="mt-px shrink-0" />
                   <span className="truncate italic">{truncateWords(task.definition_of_done, 10)}</span>
                 </button>
-                <div className="todo-popover absolute bottom-full left-0 mb-1.5 hidden group-hover:block text-[10px] p-2 whitespace-normal min-w-[220px] max-w-[320px] z-50 leading-normal">
+                <div className="todo-popover absolute bottom-full left-0 mb-1.5 hidden group-hover:block text-xs p-2 whitespace-normal min-w-[220px] max-w-[320px] z-50 leading-normal">
                   <p className="font-semibold text-success mb-1">Definition of Done</p>
                   <p>{task.definition_of_done}</p>
                 </div>
@@ -635,7 +663,7 @@ export default function TaskNode({
           <button
             onClick={() => handleAIAction('dive')}
             disabled={loading !== null}
-            className="todo-btn todo-btn-ghost px-2 py-1 text-[11px] font-medium"
+            className="todo-btn todo-btn-ghost px-2 py-1 text-xs font-medium"
             title="Break into strategic subtasks"
           >
             {loading === 'dive' ? (
@@ -648,7 +676,7 @@ export default function TaskNode({
           <button
             onClick={() => handleAIAction('chunk')}
             disabled={loading !== null}
-            className="todo-btn todo-btn-ghost px-2 py-1 text-[11px] font-medium"
+            className="todo-btn todo-btn-ghost px-2 py-1 text-xs font-medium"
             title="Break into actionable steps"
           >
             {loading === 'chunk' ? (
@@ -663,7 +691,7 @@ export default function TaskNode({
         {aiError && (
           <div role="alert" className="todo-alert todo-alert-error mt-2 ml-[22px] py-1.5">
             <Icon name="ExclamationTriangleIcon" size={13} className="mt-px shrink-0" />
-            <p className="flex-1 text-[11px] leading-relaxed">{aiError}</p>
+            <p className="flex-1 text-xs leading-relaxed">{aiError}</p>
             <button onClick={() => setAiError(null)} className="todo-focus shrink-0 rounded opacity-70 hover:opacity-100" aria-label="Dismiss error">
               <Icon name="XMarkIcon" size={12} />
             </button>
@@ -674,18 +702,18 @@ export default function TaskNode({
         {showDepthWarning && (
           <div className="mt-2 ml-[22px] p-2.5 rounded-md bg-amber-500/10 border border-amber-500/20 flex flex-wrap items-center gap-2">
             <Icon name="ExclamationTriangleIcon" size={14} className="shrink-0 text-amber-500" />
-            <p className="text-[11px] text-amber-600 dark:text-amber-400 flex-1">
+            <p className="text-xs text-amber-600 dark:text-amber-400 flex-1">
               You&apos;re at L{depth} depth — AI subtasks may become too granular. Continue?
             </p>
             <button
               onClick={() => handleAIAction(showDepthWarning)}
-              className="text-[10px] px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600 transition-smooth"
+              className="text-xs px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600 transition-smooth"
             >
               Yes, continue
             </button>
             <button
               onClick={() => setShowDepthWarning(null)}
-              className="text-[10px] px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted transition-smooth"
+              className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted transition-smooth"
             >
               Cancel
             </button>
@@ -699,6 +727,10 @@ export default function TaskNode({
           isOpen={showDetailModal}
           onClose={() => setShowDetailModal(false)}
           onUpdate={(updates) => onUpdate(task.id, updates || {})}
+          onSubtaskCreated={(child) => {
+            onChildAdded?.(task.id, child);
+            setChildrenExpanded(true);
+          }}
           model={model}
         />
         <ParetoModal
@@ -718,12 +750,12 @@ export default function TaskNode({
 
         {/* Detail panel — actions, context, recurrence & notes. Hidden until the "···" toggle is used. */}
         {detailsExpanded && (
-          <div className="mt-2.5 pt-2.5 border-t border-border/60 space-y-2.5 pl-[22px]">
+          <div className="mt-2.5 pt-2.5 border-t mix-border-border/60 space-y-2.5 pl-[22px]">
           <div className="flex items-center gap-1 flex-wrap">
             {/* Open Task Page / Details Modal */}
             <button
               onClick={() => setShowDetailModal(true)}
-              className="text-[10px] px-2 py-1 rounded-md border border-primary/30 text-primary hover:bg-primary/10 transition-smooth flex items-center gap-1 font-semibold"
+              className="text-xs px-2 py-1 rounded-md border mix-border-primary/30 text-primary hover:mix-bg-primary/10 transition-smooth flex items-center gap-1 font-semibold"
               title="Open full task page for context, notes, due date & details"
             >
               <Icon name="DocumentTextIcon" size={12} />
@@ -733,7 +765,7 @@ export default function TaskNode({
             {/* Pareto 80/20 Action */}
             <button
               onClick={() => setShowParetoModal(true)}
-              className={`todo-focus text-[10px] px-1.5 py-1 rounded-md transition-smooth flex items-center gap-1 ${
+              className={`todo-focus text-xs px-1.5 py-1 rounded-md transition-smooth flex items-center gap-1 ${
                 task.is_top_20 ? 'bg-amber-400/10 text-amber-500 font-bold' : 'text-muted-foreground hover:bg-muted'
               }`}
               title="80/20 Pareto Analysis"
@@ -763,7 +795,7 @@ export default function TaskNode({
                 }
               }}
               disabled={loading !== null}
-              className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-500 hover:bg-amber-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1 font-medium"
+              className="text-xs px-2 py-1 rounded-md border border-amber-500/30 text-amber-500 hover:bg-amber-500/10 transition-smooth disabled:opacity-40 flex items-center gap-1 font-medium"
               title="Generate Definition of Done & Subtasks with AI"
             >
               {loading === ('dod' as any) ? (
@@ -777,7 +809,7 @@ export default function TaskNode({
               <button
                 onClick={handleRegenerate}
                 disabled={loading !== null}
-                className="text-[10px] px-1.5 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-smooth disabled:opacity-40"
+                className="text-xs px-1.5 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-smooth disabled:opacity-40"
                 title="Regenerate subtasks"
                 aria-label="Regenerate subtasks"
               >
@@ -788,8 +820,9 @@ export default function TaskNode({
             )}
 
             {/* Move Menu */}
-            <div className="relative">
+            <div>
               <button
+                ref={moveBtnRef}
                 onClick={() => {
                   const next = !showMoveMenu;
                   setShowMoveMenu(next);
@@ -797,121 +830,148 @@ export default function TaskNode({
                   setShowDeleteConfirm(false);
                   setShowParetoModal(false);
                 }}
-                className="text-[10px] p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-smooth flex items-center gap-0.5"
+                className="todo-focus text-xs p-1 rounded-md text-muted-foreground hover:text-primary hover:mix-bg-primary/10 transition-smooth flex items-center gap-0.5"
                 title="Move Task"
                 aria-label="Move task"
+                aria-haspopup="menu"
+                aria-expanded={showMoveMenu}
               >
                 <Icon name="ArrowRightIcon" size={11} />
               </button>
-              {showMoveMenu && !movePlanOpen && (
-                <div className="absolute top-full right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-1 min-w-[170px]">
-                  <button
-                    onClick={async () => {
-                      setShowMoveMenu(false);
-                      const res = await todoService.moveToQuick(task.id);
-                      if (res) onDelete(task.id); // Moved for good — remove from Smart To-Do view
-                    }}
-                    className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
-                  >
-                    <Icon name="BoltIcon" size={12} /> Move to Quick Daily
-                  </button>
-                  <button
-                    onClick={handleOpenMovePlan}
-                    className="w-full text-left text-[10px] px-2.5 py-2 rounded-md hover:bg-muted transition-smooth flex items-center gap-2"
-                  >
-                    <Icon name="MapIcon" size={12} /> Move to Plan & Project
-                  </button>
-                </div>
-              )}
-              {showMoveMenu && movePlanOpen && (
-                <div className="absolute top-full right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-1.5 min-w-[210px] max-h-[260px] overflow-y-auto scrollbar-clean">
-                  <div className="flex items-center gap-1.5 px-1.5 pb-1.5 mb-1 border-b border-border/60">
+              <Popover
+                open={showMoveMenu}
+                anchorRef={moveBtnRef}
+                onClose={() => { setShowMoveMenu(false); setMovePlanOpen(false); }}
+                label={movePlanOpen ? 'Move into a project' : 'Move task'}
+                className={`todo-popover ${
+                  movePlanOpen ? 'p-1.5 min-w-[210px] max-h-[260px] overflow-y-auto scrollbar-clean' : 'p-1 min-w-[170px]'
+                }`}
+              >
+                {!movePlanOpen ? (
+                  <>
                     <button
-                      onClick={() => setMovePlanOpen(false)}
-                      className="text-muted-foreground hover:text-foreground transition-smooth"
-                      title="Back"
+                      role="menuitem"
+                      onClick={async () => {
+                        setShowMoveMenu(false);
+                        const res = await todoService.moveToQuick(task.id);
+                        if (res) onDelete(task.id); // Moved for good — remove from Smart To-Do view
+                      }}
+                      className="w-full text-left text-xs px-2.5 py-2 rounded-md hover:bg-muted focus:outline-none focus-visible:bg-muted transition-smooth flex items-center gap-2"
                     >
-                      <Icon name="ArrowLeftIcon" size={10} />
+                      <Icon name="BoltIcon" size={12} /> Move to Quick Daily
                     </button>
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Move into a project
-                    </span>
-                  </div>
-
-                  {moveProjectsLoading ? (
-                    <div className="px-2.5 py-2 text-[10px] text-muted-foreground flex items-center gap-2">
-                      <span className="w-3 h-3 border border-border border-t-foreground rounded-full animate-spin" />
-                      Loading projects...
+                    <button
+                      role="menuitem"
+                      onClick={handleOpenMovePlan}
+                      className="w-full text-left text-xs px-2.5 py-2 rounded-md hover:bg-muted focus:outline-none focus-visible:bg-muted transition-smooth flex items-center gap-2"
+                    >
+                      <Icon name="MapIcon" size={12} /> Move to Plan & Project
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 px-1.5 pb-1.5 mb-1 border-b mix-border-border/60">
+                      <button
+                        role="menuitem"
+                        onClick={() => setMovePlanOpen(false)}
+                        className="text-muted-foreground hover:text-foreground focus:outline-none focus-visible:text-foreground transition-smooth"
+                        title="Back"
+                        aria-label="Back"
+                      >
+                        <Icon name="ArrowLeftIcon" size={10} />
+                      </button>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Move into a project
+                      </span>
                     </div>
-                  ) : (
-                    <>
-                      {(moveProjects || []).map((p) => (
-                        <button
-                          key={p.id}
-                          disabled={moving}
-                          onClick={() => handleMoveToProject(p.id)}
-                          className="w-full text-left text-[10px] px-2.5 py-1.5 rounded-md hover:bg-muted transition-smooth flex items-center gap-2 disabled:opacity-50"
-                        >
-                          {p.icon ? <span className="text-xs">{p.icon}</span> : <Icon name="FolderIcon" size={12} />}
-                          <span className="truncate flex-1">{p.title}</span>
-                        </button>
-                      ))}
-                      {(moveProjects || []).length === 0 && (
-                        <p className="px-2.5 py-1.5 text-[10px] text-muted-foreground/80 italic">
-                          No existing projects yet.
-                        </p>
-                      )}
-                      <div className="mt-1 pt-1 border-t border-border/60">
-                        <button
-                          disabled={moving}
-                          onClick={() => handleMoveToProject(null)}
-                          className="w-full text-left text-[10px] px-2.5 py-1.5 rounded-md hover:bg-primary/10 text-primary font-semibold transition-smooth flex items-center gap-2 disabled:opacity-50"
-                        >
-                          <Icon name="PlusIcon" size={10} /> New Project from this Task
-                        </button>
+
+                    {moveProjectsLoading ? (
+                      <div className="px-2.5 py-2 text-xs text-muted-foreground flex items-center gap-2">
+                        <span className="w-3 h-3 border border-border border-t-foreground rounded-full animate-spin" />
+                        Loading projects...
                       </div>
-                    </>
-                  )}
-                </div>
-              )}
+                    ) : (
+                      <>
+                        {(moveProjects || []).map((p) => (
+                          <button
+                            key={p.id}
+                            role="menuitem"
+                            disabled={moving}
+                            onClick={() => handleMoveToProject(p.id)}
+                            className="w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-muted focus:outline-none focus-visible:bg-muted transition-smooth flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {p.icon ? <span className="text-xs">{p.icon}</span> : <Icon name="FolderIcon" size={12} />}
+                            <span className="truncate flex-1">{p.title}</span>
+                          </button>
+                        ))}
+                        {(moveProjects || []).length === 0 && (
+                          <p className="px-2.5 py-1.5 text-xs mix-text-muted-foreground/80 italic">
+                            No existing projects yet.
+                          </p>
+                        )}
+                        <div className="mt-1 pt-1 border-t mix-border-border/60">
+                          <button
+                            role="menuitem"
+                            disabled={moving}
+                            onClick={() => handleMoveToProject(null)}
+                            className="w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:mix-bg-primary/10 text-primary font-semibold transition-smooth flex items-center gap-2 disabled:opacity-50"
+                          >
+                            <Icon name="PlusIcon" size={10} /> New Project from this Task
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </Popover>
             </div>
 
             {/* Delete */}
-            <div className="relative">
+            <div>
               <button
+                ref={deleteBtnRef}
                 onClick={() => { setShowDeleteConfirm(!showDeleteConfirm); setShowMoveMenu(false); setShowParetoModal(false); }}
-                className="text-[10px] px-1.5 py-1 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-smooth"
+                className="todo-focus text-xs px-1.5 py-1 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-smooth"
                 title="Delete task"
                 aria-label="Delete task"
+                aria-haspopup="dialog"
+                aria-expanded={showDeleteConfirm}
               >
                 <Icon name="TrashIcon" size={12} />
               </button>
-              {showDeleteConfirm && (
-                <div className="absolute top-full right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-3 min-w-[180px]">
-                  <p className="text-xs text-foreground font-medium mb-2">Delete this task{hasChildren ? ' and all subtasks' : ''}?</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleDelete}
-                      className="text-[11px] px-3 py-1.5 rounded-md bg-red-500 text-white hover:bg-red-600 transition-smooth font-medium"
-                    >
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="text-[11px] px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted transition-smooth"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+              <Popover
+                open={showDeleteConfirm}
+                anchorRef={deleteBtnRef}
+                onClose={() => setShowDeleteConfirm(false)}
+                role="alertdialog"
+                label="Confirm delete"
+                className="todo-popover p-3 min-w-[180px]"
+              >
+                <p className="text-xs text-foreground font-medium mb-2">Delete this task{hasChildren ? ' and all subtasks' : ''}?</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="todo-focus text-xs px-3 py-1.5 rounded-md bg-red-500 text-white hover:bg-red-600 transition-smooth font-medium disabled:opacity-60"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    data-autofocus
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="todo-focus text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted transition-smooth"
+                  >
+                    Cancel
+                  </button>
                 </div>
-              )}
+              </Popover>
             </div>
           </div>
 
         {/* Context display */}
         {showContext && task.context && (
-          <div className="mt-2 p-2.5 rounded-md bg-muted/50 border border-border">
-            <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-wrap">
+          <div className="mt-2 p-2.5 rounded-md mix-bg-muted/50 border border-border">
+            <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
               {task.context}
             </p>
           </div>
@@ -919,7 +979,7 @@ export default function TaskNode({
 
         {/* Recurrence — compact inline control (intention/DoD editing lives in the Details modal) */}
         <div className="flex items-center gap-2 flex-wrap">
-              <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer font-semibold">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer font-semibold [@media(pointer:coarse)]:min-h-10">
                 <input
                   type="checkbox"
                   checked={!!task.is_recurring}
@@ -952,7 +1012,7 @@ export default function TaskNode({
                         onUpdate(task.id, { recurrence_interval: val });
                       }
                     }}
-                    className="bg-input border border-border rounded px-1.5 py-0.5 text-[10px] text-foreground focus-ring font-semibold"
+                    className="bg-input border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus-ring font-semibold"
                   >
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
@@ -980,7 +1040,7 @@ export default function TaskNode({
                           e.currentTarget.blur();
                         }
                       }}
-                      className="bg-input border border-border rounded px-1.5 py-0.5 text-[10px] text-foreground focus-ring w-24 placeholder:text-muted-foreground/60"
+                      className="bg-input border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus-ring w-[6rem] placeholder:mix-text-muted-foreground/60"
                     />
                   )}
                 </div>
@@ -989,15 +1049,15 @@ export default function TaskNode({
 
         {/* Notes display */}
         {showNotes && (
-          <div className="mt-3 p-3 rounded-lg bg-card border border-border/80 shadow-inner space-y-3">
+          <div className="mt-3 p-3 rounded-lg bg-card border mix-border-border/80 shadow-inner space-y-3">
             {/* AI Action Buttons */}
             <div className="flex items-center gap-2 flex-wrap border-b border-border pb-2">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">AI Journal:</span>
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">AI Journal:</span>
               <button
                 type="button"
                 onClick={handleExplainTask}
                 disabled={aiActionLoading !== null}
-                className="text-[10px] px-2 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 font-medium transition-smooth flex items-center gap-1 disabled:opacity-50"
+                className="text-xs px-2 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 font-medium transition-smooth flex items-center gap-1 disabled:opacity-50"
               >
                 {aiActionLoading === 'explain' ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : <Icon name="SparklesIcon" size={11} variant="solid" />} Explain Task
               </button>
@@ -1005,7 +1065,7 @@ export default function TaskNode({
                 type="button"
                 onClick={handleSummarizeNotes}
                 disabled={aiActionLoading !== null || notes.length === 0}
-                className="text-[10px] px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium transition-smooth flex items-center gap-1 disabled:opacity-50"
+                className="text-xs px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium transition-smooth flex items-center gap-1 disabled:opacity-50"
               >
                 {aiActionLoading === 'summarize' ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : <Icon name="ClipboardDocumentListIcon" size={11} />} Summarize Journal
               </button>
@@ -1037,7 +1097,7 @@ export default function TaskNode({
               />
               <button
                 type="submit"
-                className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs hover:bg-primary/95 transition-smooth"
+                className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs hover:mix-bg-primary/95 transition-smooth"
               >
                 Add Note
               </button>
@@ -1046,11 +1106,11 @@ export default function TaskNode({
             {/* Notes list (timeline) */}
             <div className="space-y-2 max-h-[220px] overflow-y-auto scrollbar-clean pr-1">
               {notes.length === 0 ? (
-                <p className="text-[10px] text-muted-foreground text-center py-2">No notes logged yet.</p>
+                <p className="text-xs text-muted-foreground text-center py-2">No notes logged yet.</p>
               ) : (
                 notes.map(note => (
-                  <div key={note.id} className="p-2 rounded bg-muted/40 border border-border/60 flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-[9px] text-muted-foreground">
+                  <div key={note.id} className="p-2 rounded mix-bg-muted/40 border mix-border-border/60 flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span className="capitalize px-1 py-0.5 rounded bg-muted font-semibold text-foreground">
                         {note.note_type.replace('ai_', 'AI ').replace('manual', 'Manual')}
                       </span>
@@ -1064,7 +1124,7 @@ export default function TaskNode({
                         type="button"
                         onClick={() => handleExpandNote(note.id)}
                         disabled={aiActionLoading !== null}
-                        className="text-[9px] text-primary hover:underline font-semibold mt-1 self-start flex items-center gap-0.5 disabled:opacity-50"
+                        className="text-xs text-primary hover:underline font-semibold mt-1 self-start flex items-center gap-0.5 disabled:opacity-50"
                       >
                         {aiActionLoading === `expand-${note.id}` ? 'Expanding...' : <><Icon name="ArrowsPointingOutIcon" size={10} /> Expand decision</>}
                       </button>
@@ -1093,6 +1153,7 @@ export default function TaskNode({
               onDelete={onDelete}
               onChildrenGenerated={onChildrenGenerated}
               onUndoAvailable={onUndoAvailable}
+              onChildAdded={onChildAdded}
               searchQuery={searchQuery}
               onResumeTask={onResumeTask}
             />
@@ -1102,7 +1163,7 @@ export default function TaskNode({
 
       {/* Loading skeleton for AI generation */}
       {loading && loading !== 'regen' && (
-        <div className="ml-6 space-y-2 mt-1">
+        <div className="ml-[1.5rem] space-y-2 mt-1">
           {[1, 2, 3].map(i => (
             <div key={i} className="h-10 rounded-lg bg-muted motion-safe:animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
           ))}

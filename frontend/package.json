@@ -49,7 +49,8 @@
     "lint:fix": "next lint --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,md,json}\"",
     "serve": "next start",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "check:tailwind": "node scripts/check-tailwind-traps.mjs"
   },
   "dependencies": {
     "@dhiwise/component-tagger": "^1.0.16",
@@ -69,6 +70,7 @@
     "pdfjs-dist": "^6.3.289",
     "react": "19.0.3",
     "react-dom": "19.0.3",
+    "react-icons": "^5.7.0",
     "recharts": "^2.15.2",
     "three": "^0.185.1",
     "zustand": "^5.0.14"

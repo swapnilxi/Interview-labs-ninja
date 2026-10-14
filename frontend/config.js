@@ -2,14 +2,22 @@
  * LabNinja frontend design system.
  *
  * Keep shared visual decisions here first, then consume them from Tailwind and
- * global CSS. The UI uses clean sans fonts for long reading and avoids mono
- * fonts except inside code blocks.
+ * global CSS. The UI is set in Montserrat — a clean, geometric sans — everywhere:
+ * headings, body text, labels, numbers (use `tabular-nums` where digits must line
+ * up), badges and form fields. Monospace (`code`) is reserved for real code: <code>,
+ * <pre>, and editors for code / JSON / HTML. Never use mono or script faces for
+ * UI text. The AI LMS has its own editorial pairing (ab-theme) and the career-studio
+ * templates ship their own fonts; both are left alone.
+ *
+ * Icons (To-Do area): illustrations are flat colour icons from react-icons (`FlatIcon`, named by
+ * meaning); plain controls — chevron, close, plus, trash, arrows — are the outline Heroicons (`Icon`).
+ * No emoji, except an icon the user picked for a project. `npm run check:tailwind` enforces this.
  */
 
 const designSystem = {
   fonts: {
-    sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-    display: ['Plus Jakarta Sans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+    sans: ['Montserrat', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+    display: ['Montserrat', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
     code: ['Fira Code', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
   },
 

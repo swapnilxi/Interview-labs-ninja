@@ -68,6 +68,7 @@ from ..shared.ai_helpers import (
     extract_json_array as _extract_json_array,
     image_to_base64_jpeg as _image_to_base64_jpeg,
 )
+from ..shared.patch import patch_updates
 from .db import (
     create_subtasks_batch,
     create_task,
@@ -135,6 +136,14 @@ class TaskUpdate(BaseModel):
     is_top_20: Optional[bool] = None
     pareto_score: Optional[float] = None
     pareto_reason: Optional[str] = None
+
+
+# Columns a PATCH can empty by sending `null` (see shared/patch.py). Not title / status / priority /
+# is_recurring / is_top_20: a required column has no empty state, so `null` there still means "no change".
+TASK_NULLABLE = frozenset({
+    "time_estimate", "due_date", "context", "attachments", "recurrence_interval", "recurrence_custom_days",
+    "intention", "definition_of_done", "eisenhower_quadrant", "pareto_score", "pareto_reason",
+})
 
 
 class AIBreakdownRequest(AISettings):
@@ -247,7 +256,7 @@ async def get_children_endpoint(task_id: int, user_id: int = Depends(get_current
 
 @router.patch("/tasks/{task_id}")
 async def update_task_endpoint(task_id: int, payload: TaskUpdate, user_id: int = Depends(get_current_user_id)) -> dict:
-    updates = payload.model_dump(exclude_none=True)
+    updates = patch_updates(payload, TASK_NULLABLE)
     if "is_top_20" in updates:
         # A human explicitly toggled this via the Pareto modal — lock it so the
         # bulk /pareto/analyze sweep never silently overwrites the override.

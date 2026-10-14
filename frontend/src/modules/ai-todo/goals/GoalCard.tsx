@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import Popover from '@/components/ui/Popover';
 import { GoalNode } from '@/lib/services/goalService';
 import { STATUS_CONFIG, PRIORITY_CONFIG, TaskStatus, TaskPriority } from '@/lib/services/todoService';
 import { exportGoalTreeToCsv } from './exportGoalTree';
@@ -49,16 +50,9 @@ export default function GoalCard({
 }: GoalCardProps) {
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   const [actionsExpanded, setActionsExpanded] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!showMoveMenu) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMoveMenu(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showMoveMenu]);
+  // The menu renders through a portal (components/ui/Popover.tsx): inside the card, the next card
+  // painted over it. The Popover also handles outside-click and Escape.
+  const moveBtnRef = useRef<HTMLButtonElement>(null);
 
   const fullChain = ancestorChain(node, byId);
   // Inside a group the root is already in the header above; keep only the
@@ -76,13 +70,21 @@ export default function GoalCard({
       } ${isDimmed ? 'opacity-35' : ''}`}
     >
       {breadcrumb.length > 0 && (
-        <div className="mb-1.5 truncate text-[10px] text-muted-foreground" title={breadcrumb.map((b) => b.title).join(' › ')}>
+        <div className="mb-1.5 truncate text-xs text-muted-foreground" title={breadcrumb.map((b) => b.title).join(' › ')}>
           ↳ {breadcrumb.map((b) => b.title).join(' › ')}
         </div>
       )}
 
       <div className="flex items-start justify-between gap-1.5">
-        <p className="flex-1 text-[13px] font-semibold leading-snug text-foreground">{node.title}</p>
+        {/* The keyboard way to select: a real button. It has no handler of its own — its click bubbles to the
+            card, whose handler (the pointer way, anywhere on the card) does the work. */}
+        <button
+          type="button"
+          aria-pressed={isSelected}
+          className="todo-focus -m-0.5 flex-1 rounded p-0.5 text-left text-sm font-semibold leading-snug text-foreground"
+        >
+          {node.title}
+        </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -102,29 +104,29 @@ export default function GoalCard({
       </div>
 
       {node.description && (
-        <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{node.description}</p>
+        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{node.description}</p>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusCfg.bgClass}`}>{statusCfg.label}</span>
-        <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${statusCfg.bgClass}`}>{statusCfg.label}</span>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <div className={`w-1.5 h-1.5 rounded-full ${priorityCfg.dotClass}`} />
           {node.priority.toUpperCase()}
         </span>
         {node.due_date && (
-          <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+          <span className="text-xs text-muted-foreground flex items-center gap-0.5">
             <Icon name="CalendarIcon" size={9} /> {node.due_date}
           </span>
         )}
         {node.generation_type !== 'manual' && (
-          <span className="text-[9px] uppercase tracking-wider font-semibold text-blue-500 bg-blue-500/10 px-1 rounded-sm">
+          <span className="text-[11px] uppercase tracking-wider font-semibold text-blue-500 bg-blue-500/10 px-1 rounded-sm">
             AI {node.generation_type.replace('_', ' ')}
           </span>
         )}
       </div>
 
       {hasExports && (
-        <div className="flex items-center gap-1.5 flex-wrap mt-1.5 text-[9px] font-bold">
+        <div className="flex items-center gap-1.5 flex-wrap mt-1.5 text-xs font-bold">
           {node.exported_to_smart_todo && (
             <span className="text-emerald-500 flex items-center gap-0.5">
               <Icon name="CpuChipIcon" size={10} /> Smart
@@ -148,7 +150,7 @@ export default function GoalCard({
           <button
             onClick={() => onDiveDeeper(node)}
             disabled={!!busy}
-            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
+            className="text-xs font-semibold px-2 py-1 rounded-md bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
             title="AI: break into strategic sub-goals at the next level down"
           >
             {busy === 'dive-deeper' ? (
@@ -161,7 +163,7 @@ export default function GoalCard({
           <button
             onClick={() => onChunk(node)}
             disabled={!!busy}
-            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
+            className="text-xs font-semibold px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
             title="AI: break into small, concrete daily action steps"
           >
             {busy === 'chunk' ? (
@@ -173,7 +175,7 @@ export default function GoalCard({
           </button>
           <button
             onClick={() => onEdit(node)}
-            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-smooth flex items-center gap-0.5"
+            className="text-xs font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground hover:text-foreground hover:mix-bg-muted/80 transition-smooth flex items-center gap-0.5"
             title="Edit"
           >
             <Icon name="PencilSquareIcon" size={10} />
@@ -182,57 +184,69 @@ export default function GoalCard({
           {!node.parent_id && (
             <button
               onClick={() => exportGoalTreeToCsv(node, byId)}
-              className="text-[10px] font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-smooth flex items-center gap-0.5"
+              className="text-xs font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground hover:text-foreground hover:mix-bg-muted/80 transition-smooth flex items-center gap-0.5"
               title="Export this goal's full breakdown (all levels) as CSV — opens in Excel or Google Sheets"
             >
               <Icon name="ArrowDownTrayIcon" size={10} /> Export
             </button>
           )}
 
-          <div className="relative ml-auto" ref={menuRef}>
+          <div className="ml-auto">
             <button
+              ref={moveBtnRef}
               onClick={() => setShowMoveMenu((v) => !v)}
               disabled={!!busy}
-              className="text-[10px] font-semibold px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
+              aria-haspopup="menu"
+              aria-expanded={showMoveMenu}
+              className="todo-focus text-xs font-semibold px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
             >
               Move to <Icon name="ChevronDownIcon" size={9} />
             </button>
-            {showMoveMenu && (
-              <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-xl overflow-hidden w-36">
-                <button
-                  onClick={() => {
-                    setShowMoveMenu(false);
-                    onMove(node, 'smart');
-                  }}
-                  className="w-full text-left px-2.5 py-1.5 text-[10px] font-medium hover:bg-muted transition-smooth flex items-center gap-1.5"
-                >
-                  <Icon name="CpuChipIcon" size={11} className="text-emerald-500" /> Smart To-Do
-                </button>
-                <button
-                  onClick={() => {
-                    setShowMoveMenu(false);
-                    onMove(node, 'quick');
-                  }}
-                  className="w-full text-left px-2.5 py-1.5 text-[10px] font-medium hover:bg-muted transition-smooth flex items-center gap-1.5"
-                >
-                  <Icon name="BoltIcon" size={11} className="text-amber-500" /> Quick Daily
-                </button>
-                <button
-                  onClick={() => {
-                    setShowMoveMenu(false);
-                    onMove(node, 'plan');
-                  }}
-                  className="w-full text-left px-2.5 py-1.5 text-[10px] font-medium hover:bg-muted transition-smooth flex items-center gap-1.5"
-                >
-                  <Icon name="MapIcon" size={11} className="text-blue-500" /> Plan & Project
-                </button>
-              </div>
-            )}
+            <Popover
+              open={showMoveMenu}
+              anchorRef={moveBtnRef}
+              onClose={() => setShowMoveMenu(false)}
+              label="Move goal to"
+              className="todo-popover overflow-hidden w-[9rem]"
+            >
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowMoveMenu(false);
+                  onMove(node, 'smart');
+                }}
+                className="w-full text-left px-2.5 py-1.5 text-xs font-medium hover:bg-muted focus:outline-none focus-visible:bg-muted transition-smooth flex items-center gap-1.5"
+              >
+                <Icon name="CpuChipIcon" size={11} className="text-emerald-500" /> Smart To-Do
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowMoveMenu(false);
+                  onMove(node, 'quick');
+                }}
+                className="w-full text-left px-2.5 py-1.5 text-xs font-medium hover:bg-muted focus:outline-none focus-visible:bg-muted transition-smooth flex items-center gap-1.5"
+              >
+                <Icon name="BoltIcon" size={11} className="text-amber-500" /> Quick Daily
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowMoveMenu(false);
+                  onMove(node, 'plan');
+                }}
+                className="w-full text-left px-2.5 py-1.5 text-xs font-medium hover:bg-muted focus:outline-none focus-visible:bg-muted transition-smooth flex items-center gap-1.5"
+              >
+                <Icon name="MapIcon" size={11} className="text-blue-500" /> Plan & Project
+              </button>
+            </Popover>
           </div>
 
           <button
             onClick={() => onDelete(node)}
-            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-smooth"
+            aria-label="Delete goal"
+            title="Delete goal"
+            className="text-xs font-semibold px-2 py-1 rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-smooth"
           >
             <Icon name="TrashIcon" size={10} />
           </button>

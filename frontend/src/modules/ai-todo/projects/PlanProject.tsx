@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import FlatIcon from '@/components/ui/FlatIcon';
+import ProjectIcon from './ProjectIcon';
 import EisenhowerMatrix, { MatrixItem } from '@/components/ui/EisenhowerMatrix';
 import ProjectCard from './ProjectCard';
 import ProjectExplorer from './ProjectExplorer';
@@ -10,6 +12,8 @@ import ProjectRoadmap from './ProjectRoadmap';
 import CreateProjectModal from './CreateProjectModal';
 import { Project, ProjectNodeFlat, projectService } from '@/lib/services/projectService';
 import { paretoService } from '@/lib/services/paretoService';
+import { toast } from '@/lib/ui/toast';
+import { confirmParetoRun } from '../shared/confirmPareto';
 
 type PlanSubView = 'projects' | 'matrix' | 'roadmap';
 const VALID_VIEWS: PlanSubView[] = ['projects', 'matrix', 'roadmap'];
@@ -20,40 +24,37 @@ interface PlanProjectProps {
 
 // ── Tab instructions ──────────────────────────────────────────────────────────
 
-const TAB_GUIDE: Record<PlanSubView, { icon: string; title: string; steps: string[] }> = {
+const TAB_GUIDE: Record<PlanSubView, { title: string; steps: string[] }> = {
   projects: {
-    icon: '📁',
     title: 'Projects — Your Planning Hub',
     steps: [
       'Click a project card body to open its Explorer and add/AI-generate topics.',
-      'Use 🔍 Explore to build the node tree, or 🗺️ Roadmap for an AI phase plan.',
-      'Inside Explorer: use 🔍 Dive Deeper (strategic subtopics) or ⚡ Chunk It (actionable tasks) on any node.',
-      'Push nodes to Smart To-Do (🧠) or Quick Daily (⚡) with a single click.',
-      'Click 🗑️ Delete on any card footer to permanently remove the project and all its nodes.',
+      'Use Explore to build the node tree, or Roadmap for an AI phase plan.',
+      'Inside Explorer: use Dive Deeper (strategic subtopics) or Chunk It (actionable tasks) on any node.',
+      'Push nodes to Smart To-Do or Quick Daily with a single click.',
+      'Click Delete on any card footer to permanently remove the project and all its nodes.',
     ],
   },
   matrix: {
-    icon: '🟦',
     title: 'Eisenhower Matrix — Project Tasks & Subtasks',
     steps: [
       'Drag tasks & subtasks from across all active projects between the four quadrants.',
       'Each card shows the task title, project name, node type, and export status.',
       'Click any task card to jump straight into its Project Explorer.',
-      '✅ Do Now — urgent + important: tackle these first.',
-      '📅 Schedule — important, not urgent: plan dedicated time.',
-      '🤝 Delegate — urgent, not important: hand off if possible.',
-      '🗑️ Eliminate — neither: consider dropping.',
-      'Click 🤖 AI Auto-Sort to let AI categorize all project tasks & subtasks into quadrants.',
+      'Do Now — urgent + important: tackle these first.',
+      'Schedule — important, not urgent: plan dedicated time.',
+      'Delegate — urgent, not important: hand off if possible.',
+      'Eliminate — neither: consider dropping.',
+      'Click AI Auto-Sort to let AI categorize all project tasks & subtasks into quadrants.',
     ],
   },
   roadmap: {
-    icon: '🗺️',
     title: 'Roadmap — AI-Generated Phase Plan',
     steps: [
       'Select a project from the dropdown.',
-      'Click 🤖 Generate Roadmap — AI creates 3-5 structured phases with tasks & milestones.',
+      'Click Generate Roadmap — AI creates 3-5 structured phases with tasks & milestones.',
       'Each phase card shows duration, key tasks, and a milestone target.',
-      'Hover a task row to push it directly to Smart To-Do (🧠) or Quick Daily (⚡).',
+      'Hover a task row to push it directly to Smart To-Do or Quick Daily.',
     ],
   },
 };
@@ -63,24 +64,24 @@ const TAB_GUIDE: Record<PlanSubView, { icon: string; title: string; steps: strin
 function ProjectNodeMatrixCard({ node }: { node: ProjectNodeFlat }) {
   const color = node.project_color || '#3b82f6';
   return (
-    <div className="bg-card border border-border/70 rounded-xl p-3 shadow-sm hover:shadow-md transition-smooth flex flex-col gap-2 cursor-pointer group">
+    <div className="bg-card border mix-border-border/70 rounded-xl p-3 shadow-sm hover:shadow-md transition-smooth flex flex-col gap-2 cursor-pointer group">
       {/* Project Pill Header */}
       <div className="flex items-center justify-between gap-2">
         <div
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold truncate max-w-[200px]"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold truncate max-w-[200px]"
           style={{
             backgroundColor: `${color}15`,
             border: `1px solid ${color}35`,
             color: color,
           }}
         >
-          <span>{node.project_icon || '📁'}</span>
+          <span className="inline-flex"><ProjectIcon icon={node.project_icon} size={14} /></span>
           <span className="truncate">{node.project_title}</span>
         </div>
 
         {node.is_top_20 && (
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 shrink-0 flex items-center gap-0.5">
-            ⭐ 20%
+          <span className="text-xs font-bold px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 shrink-0 flex items-center gap-0.5">
+            <FlatIcon name="star" size={12} /> 20%
           </span>
         )}
       </div>
@@ -91,21 +92,21 @@ function ProjectNodeMatrixCard({ node }: { node: ProjectNodeFlat }) {
       </div>
 
       {/* Footer Badges */}
-      <div className="flex items-center gap-1.5 flex-wrap text-[9px] font-medium text-muted-foreground pt-1.5 border-t border-border/40">
-        <span className="uppercase tracking-wider font-bold bg-muted px-1.5 py-0.5 rounded text-[8px]">
+      <div className="flex items-center gap-1.5 flex-wrap text-xs font-medium text-muted-foreground pt-1.5 border-t mix-border-border/40">
+        <span className="uppercase tracking-wider font-bold bg-muted px-1.5 py-0.5 rounded text-[11px]">
           {node.node_type}
         </span>
-        <span className="bg-muted/70 px-1.5 py-0.5 rounded text-[8px]">
+        <span className="mix-bg-muted/70 px-1.5 py-0.5 rounded text-xs">
           L{node.depth_level}
         </span>
         {node.exported_to_smart_todo && (
-          <span className="text-emerald-500 font-bold flex items-center gap-0.5 ml-auto text-[8px]">
-            🧠 Smart
+          <span className="text-emerald-500 font-bold flex items-center gap-0.5 ml-auto text-xs">
+            <FlatIcon name="brain" size={14} /> Smart
           </span>
         )}
         {node.exported_to_quick && (
-          <span className="text-amber-500 font-bold flex items-center gap-0.5 ml-auto text-[8px]">
-            ⚡ Quick
+          <span className="text-amber-500 font-bold flex items-center gap-0.5 ml-auto text-xs">
+            <FlatIcon name="quick" size={14} /> Quick
           </span>
         )}
       </div>
@@ -138,7 +139,6 @@ export default function PlanProject({ model }: PlanProjectProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
-  const [analyzeToast, setAnalyzeToast] = useState<string | null>(null);
 
   const loadProjects = async () => {
     setLoading(true);
@@ -172,10 +172,15 @@ export default function PlanProject({ model }: PlanProjectProps) {
 
   const handleNodeQuadrantChange = async (itemId: string | number, newQuadrant: any) => {
     const id = typeof itemId === 'string' ? parseInt(itemId) : itemId;
+    const previous = projectNodes.find(n => n.id === id)?.eisenhower_quadrant ?? null;
     setProjectNodes(prev =>
       prev.map(n => (n.id === id ? { ...n, eisenhower_quadrant: newQuadrant } : n))
     );
-    await projectService.updateProjectNode(id, { eisenhower_quadrant: newQuadrant });
+    const updated = await projectService.updateProjectNode(id, { eisenhower_quadrant: newQuadrant });
+    // Not saved (the service already toasted why): move the card back.
+    if (!updated) {
+      setProjectNodes(prev => prev.map(n => (n.id === id ? { ...n, eisenhower_quadrant: previous } : n)));
+    }
   };
 
   const handleNodeAutoSort = async () => {
@@ -201,22 +206,18 @@ export default function PlanProject({ model }: PlanProjectProps) {
   };
 
   const handleAnalyze = async () => {
-    if (paretoService.hasAnalyzedToday('plan')) {
-      if (!confirm('You already ran analysis today. Results may be similar. Continue?')) return;
-    }
-    if (!confirm('AI will analyze all your projects and topics and identify the top 20% that will drive 80% of your results. This takes a few seconds.')) return;
+    if (!(await confirmParetoRun('plan', 'all your projects and topics'))) return;
     setAnalyzeLoading(true);
     try {
       const result = await paretoService.analyze('plan', model);
       paretoService.markAnalyzedToday('plan');
       await loadProjects();
       if (activeSubView === 'matrix') await loadProjectNodes();
-      setAnalyzeToast(`⭐ Found ${result.top20_count ?? 0} high-leverage item${(result.top20_count ?? 0) === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total`);
+      toast.success(`Found ${result.top20_count ?? 0} high-leverage item${(result.top20_count ?? 0) === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total.`);
     } catch (err) {
-      setAnalyzeToast(err instanceof Error ? `⚠️ ${err.message}` : '⚠️ Analysis failed.');
+      toast.error(err instanceof Error ? err.message : 'Analysis failed.');
     } finally {
       setAnalyzeLoading(false);
-      setTimeout(() => setAnalyzeToast(null), 4000);
     }
   };
 
@@ -259,7 +260,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
                 key={view}
                 onClick={() => setActiveSubView(view)}
                 aria-pressed={activeSubView === view}
-                className="todo-segment gap-2 px-4 py-2 text-[13px] font-semibold"
+                className="todo-segment gap-2 px-4 py-2 text-sm font-semibold"
               >
                 <Icon name={icons[view]} size={15} variant={activeSubView === view ? 'solid' : 'outline'} /> {labels[view]}
               </button>
@@ -290,18 +291,11 @@ export default function PlanProject({ model }: PlanProjectProps) {
         </div>
       </div>
 
-      {/* 80/20 Analyze toast */}
-      {analyzeToast && (
-        <div className="fixed top-20 right-6 z-[200] px-4 py-2.5 rounded-xl shadow-2xl text-sm font-semibold bg-primary text-primary-foreground animate-slide-up">
-          {analyzeToast}
-        </div>
-      )}
-
       {/* AI action error */}
       {aiError && (
         <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-          <span className="text-xs shrink-0">⚠️</span>
-          <p className="text-[11px] text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
+          <FlatIcon name="warning" size={16} className="mt-px" />
+          <p className="text-xs text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
           <button onClick={() => setAiError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
             <Icon name="XMarkIcon" size={12} />
           </button>
@@ -343,7 +337,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
           <div className="h-full overflow-y-auto scrollbar-clean pr-2">
             {loading ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3">
-                <span className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                <span className="w-[1.5rem] h-[1.5rem] border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
               </div>
             ) : projects.length === 0 ? (
               <div className="todo-glass todo-lit mx-auto mt-4 flex max-w-xl flex-col items-center gap-5 px-[2rem] py-[3rem] text-center text-muted-foreground">
@@ -375,7 +369,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
           <div className="h-full">
             {nodesLoading ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3">
-                <span className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                <span className="w-[1.5rem] h-[1.5rem] border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
                 <span className="text-xs">Loading project tasks & subtasks...</span>
               </div>
             ) : projectNodes.length === 0 ? (
@@ -395,21 +389,33 @@ export default function PlanProject({ model }: PlanProjectProps) {
                 showAutoSort={true}
                 onAutoSort={handleNodeAutoSort}
                 autoSortLoading={autoSortLoading}
-                itemRenderer={(item, isDragging) => (
-                  <div
-                    onClick={() => {
-                      if (!isDragging) {
-                        const proj = projects.find(p => p.id === item.project_id);
-                        if (proj) {
-                          setActiveProject(proj);
-                          setActiveSubView('projects');
+                itemRenderer={(item, isDragging) => {
+                  const openProject = () => {
+                    if (isDragging) return;
+                    const proj = projects.find(p => p.id === item.project_id);
+                    if (proj) {
+                      setActiveProject(proj);
+                      setActiveSubView('projects');
+                    }
+                  };
+                  return (
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open ${item.title} in its project`}
+                      onClick={openProject}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openProject();
                         }
-                      }
-                    }}
-                  >
-                    <ProjectNodeMatrixCard node={item} />
-                  </div>
-                )}
+                      }}
+                      className="todo-focus rounded-xl"
+                    >
+                      <ProjectNodeMatrixCard node={item} />
+                    </div>
+                  );
+                }}
               />
             )}
           </div>

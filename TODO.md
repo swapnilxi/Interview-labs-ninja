@@ -1,14 +1,14 @@
 # 🥷 Lab-Ninja Feature Status & Comprehensive Project TODO Tracker
 
-This document serves as the master tracking board for the entire **Lab-Ninja** platform, covering the Daily Interview Coach, Specialized Engineering Labs, LLM Config System, and the AI To-Do App Productivity Suite.
+This document serves as the master tracking board for the entire **Lab-Ninja** platform, covering the Daily Learning Coach, Specialized Engineering Labs, LLM Config System, and the AI To-Do App Productivity Suite.
 
 *Last Updated: July 2026*
 
 ---
 
-## 1. 🚀 Daily Session Coach & Interview Ninja Track
+## 1. 🚀 Daily Session Coach & Learning Ninja Track
 
-- [x] **Daily Question Generation**: Generates 10 structured questions per session (5 Core Interview Track: DSA, System Design, Scenario, Large-Scale, Behavioral; 5 Computer Vision Excellence Track).
+- [x] **Daily Question Generation**: Generates 10 structured questions per session (5 Core Learning Track: DSA, System Design, Scenario, Large-Scale, Behavioral; 5 Computer Vision Excellence Track).
 - [x] **Resume File Upload Button**: File upload control (`.pdf`, `.docx`, `.txt`) in Daily Session setup form to extract resume text automatically via `pdfplumber` / `python-docx`.
 - [x] **View All Questions View**: Carousel mode and grid "View All" overview toggle for quick scanning of daily questions.
 - [x] **Session ID Format**: Standardized Session ID string format: `[week no.]/[date]/[month of the year]` (e.g., `W30/22/July`).

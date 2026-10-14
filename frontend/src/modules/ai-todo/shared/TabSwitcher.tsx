@@ -30,14 +30,14 @@ export default function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps
             onClick={() => onTabChange(tab.id)}
             aria-current={isActive ? 'page' : undefined}
             title={tab.description}
-            className="todo-segment flex-1 justify-center gap-2 rounded-lg px-2 py-2.5 text-xs font-semibold sm:px-[1.25rem] sm:py-3 sm:text-[13px]"
+            className="todo-segment flex-1 justify-center gap-2 rounded-lg px-2 py-2.5 text-xs font-semibold sm:px-[1.25rem] sm:py-3 sm:text-sm"
           >
             <Icon name={tab.icon} size={16} variant={isActive ? 'solid' : 'outline'} />
             <span className="sm:hidden" aria-hidden="true">{tab.short}</span>
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">{tab.label}</span>
             {/* Secondary description only where there's room for it without wrapping */}
             {isActive && (
-              <span className="hidden text-[11px] font-normal text-muted-foreground xl:inline">
+              <span className="hidden text-xs font-normal text-muted-foreground xl:inline">
                 — {tab.description}
               </span>
             )}

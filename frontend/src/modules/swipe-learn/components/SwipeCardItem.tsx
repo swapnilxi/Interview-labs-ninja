@@ -150,7 +150,7 @@ export default function SwipeCardItem({
         <div className="flex items-center gap-1.5 text-xs font-semibold">
           <span className="swipe-banner-chip flex items-center gap-1">
             {card.type === 'code' ? (
-              <span className="font-mono text-[11px]">&lt;/&gt;</span>
+              <span className="text-[11px] font-semibold">&lt;/&gt;</span>
             ) : card.type === 'quiz' ? (
               <span>?</span>
             ) : (
@@ -332,7 +332,7 @@ export default function SwipeCardItem({
                     <span className="font-bold text-foreground block mb-0.5 flex items-center gap-1.5 text-xs uppercase tracking-wide">
                       🏛️ Architecture
                     </span>
-                    <div className="p-2.5 rounded-xl bg-card border border-border font-mono text-[11px] text-foreground/90 overflow-x-auto">
+                    <div className="p-2.5 rounded-xl bg-card border border-border text-[11px] text-foreground/90 overflow-x-auto">
                       {card.depth.architecture}
                     </div>
                   </div>
@@ -393,13 +393,13 @@ export default function SwipeCardItem({
         <div className="mt-4 pt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <div className="flex flex-wrap items-center gap-1.5">
             {card.tags?.slice(0, 3).map((tag) => (
-              <span key={tag} className="px-2 py-0.5 rounded-md bg-muted/60 text-muted-foreground font-mono">
+              <span key={tag} className="px-2 py-0.5 rounded-md bg-muted/60 text-muted-foreground">
                 #{tag}
               </span>
             ))}
           </div>
           {card.estimatedReadTime && (
-            <span className="font-mono text-muted-foreground/75">
+            <span className="text-muted-foreground/75">
               ⏱️ {card.estimatedReadTime}s read
             </span>
           )}

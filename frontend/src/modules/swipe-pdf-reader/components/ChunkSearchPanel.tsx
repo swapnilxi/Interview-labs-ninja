@@ -186,7 +186,7 @@ export default function ChunkSearchPanel({
         {/* Footer */}
         <div className="px-4 py-2 border-t border-border/50 bg-muted/20 shrink-0 flex items-center justify-between">
           <p className="text-[10px] text-muted-foreground">
-            Press <kbd className="px-1 py-0.5 rounded bg-muted border border-border text-[9px] font-mono">Esc</kbd> to close
+            Press <kbd className="px-1 py-0.5 rounded bg-muted border border-border text-[9px]">Esc</kbd> to close
           </p>
           <p className="text-[10px] text-muted-foreground">{document.totalChunks} chunks in document</p>
         </div>

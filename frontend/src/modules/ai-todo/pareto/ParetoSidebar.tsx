@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { paretoService, Top20Response, TopTask, ParetoTable } from '@/lib/services/paretoService';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/lib/ui/toast';
+import { confirmParetoRun } from '../shared/confirmPareto';
 
 const TAB_LABELS: Record<'smart' | 'quick' | 'plan', string> = {
   smart: 'Smart',
@@ -29,7 +31,6 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
   const [data, setData] = useState<Top20Response | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
-  const [toast, setToast] = useState<string | null>(null);
 
   const fetchTop20 = async () => {
     setLoading(true);
@@ -44,23 +45,16 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
     if (!isGuest) fetchTop20();
   }, [isGuest]);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3500);
-  };
-
   const runAnalysis = async () => {
-    if (paretoService.hasAnalyzedToday('all')) {
-      if (!confirm('You already ran analysis today. Results may be similar. Continue?')) return;
-    }
+    if (!(await confirmParetoRun('all', 'all your tasks and projects', { onlyIfRepeat: true }))) return;
     setLoading(true);
     try {
       const result = await paretoService.analyze('all', model);
       paretoService.markAnalyzedToday('all');
       await fetchTop20();
-      showToast(`⭐ Found ${result.top20_count ?? 0} high-leverage task${result.top20_count === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total`);
+      toast.success(`Found ${result.top20_count ?? 0} high-leverage task${result.top20_count === 1 ? '' : 's'} out of ${result.analyzed_count ?? 0} total.`);
     } catch (err) {
-      showToast(err instanceof Error ? `⚠️ ${err.message}` : '⚠️ Analysis failed.');
+      toast.error(err instanceof Error ? err.message : 'Analysis failed.');
     } finally {
       setLoading(false);
     }
@@ -75,48 +69,54 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
 
   return (
     <div className="border-b border-border bg-surface flex-shrink-0 flex flex-col max-h-[40%] transition-all relative">
-      {toast && (
-        <div className="absolute top-1 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-foreground text-background text-[9px] font-semibold shadow-lg whitespace-nowrap">
-          {toast}
-        </div>
-      )}
-      <div
-        className="flex cursor-pointer items-center justify-between px-4 py-3 transition-colors hover:bg-muted"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between transition-colors hover:bg-muted">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          aria-controls="pareto-sidebar-body"
+          className="todo-focus flex min-w-0 flex-1 items-center gap-1.5 px-4 py-3 text-left"
+        >
           <Icon name="StarIcon" size={14} variant="solid" className="text-primary" />
           <span className="font-heading text-xs font-semibold text-foreground">Your 20%</span>
           {totalTasks > 0 && (
-            <span className="copilot-tint ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold">
+            <span className="copilot-tint ml-1 rounded-full px-2 py-0.5 text-xs font-bold">
               {totalTasks}
             </span>
           )}
-        </div>
-        <div className="flex items-center gap-2">
+        </button>
+        <div className="flex items-center gap-2 pr-4">
           {!isGuest && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={() => {
                 runAnalysis();
               }}
               disabled={loading}
-              className="copilot-tint px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50"
+              className="copilot-tint px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
               title="Re-run AI 80/20 analysis across all tabs"
             >
               <Icon name="ArrowPathIcon" size={12} className={loading ? 'animate-spin' : ''} />
               {loading ? 'Analyzing' : 'Re-analyze'}
             </button>
           )}
-          <Icon name="ChevronDownIcon" size={12} className={`text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            aria-label={expanded ? 'Collapse Your 20%' : 'Expand Your 20%'}
+            aria-expanded={expanded}
+            aria-controls="pareto-sidebar-body"
+            className="todo-focus -mr-1 rounded p-1.5 text-muted-foreground transition-smooth hover:text-foreground"
+          >
+            <Icon name="ChevronDownIcon" size={12} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          </button>
         </div>
       </div>
 
       {expanded && (
-        <div className="overflow-y-auto px-4 pb-4 scrollbar-clean">
+        <div id="pareto-sidebar-body" className="overflow-y-auto px-4 pb-4 scrollbar-clean">
           {isGuest ? (
             <div className="py-3 text-center space-y-2">
-              <p className="text-[10px] text-muted-foreground italic">
+              <p className="text-xs text-muted-foreground italic">
                 Log in to unlock AI-powered 80/20 analysis of your tasks.
               </p>
               <a
@@ -128,7 +128,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
             </div>
           ) : totalTasks === 0 && !loading ? (
             <div className="py-3 text-center space-y-2">
-              <p className="text-[10px] text-muted-foreground italic">
+              <p className="text-xs text-muted-foreground italic">
                 Run 80/20 analysis to discover your highest-leverage tasks.
               </p>
               <button
@@ -145,7 +145,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
               {/* Smart Tasks */}
               {data?.smart && data.smart.length > 0 && (
                 <div>
-                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{TAB_LABELS.smart}</div>
+                  <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{TAB_LABELS.smart}</div>
                   <div className="space-y-1">
                     {data.smart.map(t => (
                       <TaskRow key={`smart-${t.id}`} task={t} onFocus={handleFocus} />
@@ -156,7 +156,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
               {/* Quick Tasks */}
               {data?.quick && data.quick.length > 0 && (
                 <div>
-                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{TAB_LABELS.quick}</div>
+                  <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{TAB_LABELS.quick}</div>
                   <div className="space-y-1">
                     {data.quick.map(t => (
                       <TaskRow key={`quick-${t.id}`} task={t} onFocus={handleFocus} />
@@ -167,7 +167,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
               {/* Plan Nodes/Projects */}
               {data?.plan && data.plan.length > 0 && (
                 <div>
-                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{TAB_LABELS.plan}</div>
+                  <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{TAB_LABELS.plan}</div>
                   <div className="space-y-1">
                     {data.plan.map(t => (
                       <TaskRow key={`plan-${t.table}-${t.id}`} task={t} onFocus={handleFocus} />
@@ -190,18 +190,18 @@ function TaskRow({ task, onFocus }: { task: TopTask; onFocus: (task: TopTask) =>
       title={task.reason || undefined}
     >
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] font-medium text-foreground truncate pr-2 flex items-center gap-1">
+        <span className="text-xs font-medium text-foreground truncate pr-2 flex items-center gap-1">
           {task.locked && <Icon name="MapPinIcon" size={11} variant="solid" className="text-primary" />}
           {task.title}
         </span>
         <button
           onClick={() => onFocus(task)}
-          className="copilot-tint flex-shrink-0 px-2 py-0.5 text-[10px] font-semibold opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          className="copilot-tint flex-shrink-0 px-2 py-0.5 text-xs font-semibold opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         >
           Focus
         </button>
       </div>
-      <div className="w-full h-1 bg-muted/60 rounded-full overflow-hidden">
+      <div className="w-full h-1 mix-bg-muted/60 rounded-full overflow-hidden">
         <div
           className="h-full rounded-full bg-primary"
           style={{ width: `${Math.round((task.pareto_score || 0) * 100)}%` }}

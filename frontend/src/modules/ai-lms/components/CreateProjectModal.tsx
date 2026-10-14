@@ -165,7 +165,7 @@ export default function CreateProjectModal({
               }
               value={projectContext}
               onChange={(e) => setProjectContext(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-indigo-500/30 bg-indigo-500/5 text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 resize-y placeholder:text-muted-foreground/60"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-indigo-500/30 bg-indigo-500/5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 resize-y placeholder:text-muted-foreground/60"
             />
             <div className="mt-2 flex flex-wrap items-center gap-2.5">
               <input

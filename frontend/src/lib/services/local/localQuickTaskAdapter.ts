@@ -11,6 +11,7 @@ import { nextId, getAllByIndex, get, put, remove } from './db';
 import type { QuickTask, QuickTaskCreate, QuickTaskUpdate, ParsedBrainDumpTask } from '../quickTaskService';
 import { localTodoAdapter } from './localTodoAdapter';
 import { localProjectAdapter } from './localProjectAdapter';
+import { UNSORTED } from '../quickQuadrants';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -28,7 +29,7 @@ export const localQuickTaskAdapter = {
       id,
       title: data.title,
       done: false,
-      quadrant: data.quadrant ?? 'do_now',
+      quadrant: data.quadrant ?? UNSORTED,
       date: today(),
       due_date: data.due_date ?? null,
       time_estimate: data.time_estimate ?? null,

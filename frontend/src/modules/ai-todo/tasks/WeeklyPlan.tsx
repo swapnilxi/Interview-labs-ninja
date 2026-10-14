@@ -77,7 +77,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
 
       {loading && (
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground space-y-4">
-          <span className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+          <span className="w-8 h-8 border-4 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
           <p className="text-xs font-bold animate-pulse">AI is planning your week...</p>
         </div>
       )}
@@ -86,12 +86,12 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
         <div className="flex-1 min-h-0 overflow-x-auto pb-2 scrollbar-clean">
           <div className="flex gap-4 min-w-max h-full">
             {days.map(day => (
-              <div key={day} className="w-[280px] flex flex-col bg-muted/30 border border-border/50 rounded-xl overflow-hidden shrink-0">
-                <div className="px-3 py-2 bg-black/5 dark:bg-white/5 border-b border-border/50">
+              <div key={day} className="w-[280px] flex flex-col mix-bg-muted/30 border mix-border-border/50 rounded-xl overflow-hidden shrink-0">
+                <div className="px-3 py-2 bg-black/5 dark:bg-white/5 border-b mix-border-border/50">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
                     {day}
                   </h3>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {plan[day]?.length || 0} tasks
                   </p>
                 </div>
@@ -109,7 +109,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
                           {task.is_top_20 ? (
                             <Icon name="StarIcon" size={12} variant="solid" className="text-amber-500" aria-label="Top 20% task" />
                           ) : (
-                            <div className="w-3 h-3 rounded-full border-2 border-primary/40" />
+                            <div className="w-3 h-3 rounded-full border-2 mix-border-primary/40" />
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
@@ -118,11 +118,11 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
                           </p>
                           <div className="flex items-center gap-2 mt-2">
                             {task.time_estimate && task.time_estimate !== 'unknown' && (
-                              <span className="text-[9px] font-semibold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded">
+                              <span className="text-xs font-semibold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded">
                                 {task.time_estimate}
                               </span>
                             )}
-                            <span className="text-[9px] text-muted-foreground uppercase">
+                            <span className="text-[11px] text-muted-foreground uppercase">
                               {task.priority || 'P3'}
                             </span>
                           </div>
@@ -132,7 +132,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
                   ))}
                   {(!plan[day] || plan[day].length === 0) && (
                     <div className="h-full flex items-center justify-center opacity-50">
-                      <p className="text-[10px] font-medium italic text-muted-foreground">No tasks scheduled</p>
+                      <p className="text-xs font-medium italic text-muted-foreground">No tasks scheduled</p>
                     </div>
                   )}
                 </div>

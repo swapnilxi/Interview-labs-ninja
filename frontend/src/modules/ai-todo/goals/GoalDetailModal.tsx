@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import Modal from '@/components/ui/Modal';
+import { toast } from '@/lib/ui/toast';
 import { GoalNode, GoalLevel, GoalStatus, GOAL_LEVELS, goalService } from '@/lib/services/goalService';
 import { todoService } from '@/lib/services/todoService';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
@@ -49,13 +51,25 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
   excluded.add(goal.id);
   const parentOptions = allGoals.filter((g) => !excluded.has(g.id));
 
+  // A stray click outside shouldn't throw away edits.
+  const dirty =
+    title !== goal.title ||
+    description !== (goal.description || '') ||
+    level !== goal.level ||
+    status !== goal.status ||
+    priority !== goal.priority ||
+    dueDate !== (goal.due_date || '') ||
+    parentId !== goal.parent_id ||
+    attachments.length !== (goal.attachments || []).length;
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['txt', 'pdf', 'docx'].includes(ext || '')) {
-      alert('Only .txt, .pdf, .docx files are supported');
+      toast.error('Only .txt, .pdf, .docx files are supported.');
+      e.target.value = '';
       return;
     }
 
@@ -99,216 +113,221 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-md mx-4 animate-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between p-4 border-b border-border/50">
-          <h2 className="font-heading font-semibold text-lg flex items-center gap-2 text-foreground">
-            <Icon name="PencilSquareIcon" size={18} className="text-primary" /> Edit Goal
-          </h2>
-          <button onClick={onClose} className="p-1 rounded-md text-muted-foreground hover:bg-muted transition-smooth">
-            <Icon name="XMarkIcon" size={16} />
-          </button>
+    <Modal
+      isOpen
+      onClose={onClose}
+      labelledBy="edit-goal-title"
+      closeOnEscape={!loading}
+      closeOnBackdrop={!loading && !dirty}
+      className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-md"
+    >
+      <div className="flex items-center justify-between p-4 border-b mix-border-border/50">
+        <h2 id="edit-goal-title" className="font-heading font-semibold text-lg flex items-center gap-2 text-foreground">
+          <Icon name="PencilSquareIcon" size={18} className="text-primary" /> Edit Goal
+        </h2>
+        <button onClick={onClose} aria-label="Close" className="p-1 rounded-md text-muted-foreground hover:bg-muted transition-smooth">
+          <Icon name="XMarkIcon" size={16} />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-clean">
+        <div>
+          <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            Goal Title *
+          </label>
+          <input
+            type="text"
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-smooth"
+          />
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-clean">
-          <div>
-            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-              Goal Title *
-            </label>
-            <input
-              type="text"
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-smooth"
-            />
-          </div>
-
-          <div>
-            {isLoggedIn() ? (
-              <div className="grid grid-cols-2 gap-1 p-1 bg-muted rounded-lg mb-2">
-                <button
-                  type="button"
-                  onClick={() => setContextTab('description')}
-                  className={`rounded-md py-1.5 text-[10px] font-bold uppercase tracking-wider transition-smooth ${
-                    contextTab === 'description' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-                  }`}
-                >
-                  Description
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setContextTab('attachments')}
-                  className={`rounded-md py-1.5 text-[10px] font-bold uppercase tracking-wider transition-smooth ${
-                    contextTab === 'attachments' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-                  }`}
-                >
-                  Attachments{attachments.length > 0 ? ` (${attachments.length})` : ''}
-                </button>
-              </div>
-            ) : (
-              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+        <div>
+          {isLoggedIn() ? (
+            <div className="grid grid-cols-2 gap-1 p-1 bg-muted rounded-lg mb-2">
+              <button
+                type="button"
+                onClick={() => setContextTab('description')}
+                className={`rounded-md py-1.5 text-[11px] font-bold uppercase tracking-wider transition-smooth ${
+                  contextTab === 'description' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                }`}
+              >
                 Description
-              </label>
-            )}
-
-            {contextTab === 'description' || !isLoggedIn() ? (
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full h-16 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-smooth resize-none"
-              />
-            ) : (
-              <div>
-                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-smooth">
-                  <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
-                    {uploading ? 'Extracting text...' : 'Choose file (.txt, .pdf, .docx)'}
-                  </span>
-                  <input
-                    type="file"
-                    accept=".txt,.pdf,.docx"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    disabled={uploading}
-                  />
-                  {uploading && <span className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />}
-                </label>
-
-                {attachments.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {attachments.map((name) => (
-                      <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs text-foreground">
-                        <Icon name="DocumentIcon" size={12} className="text-muted-foreground" />
-                        {name}
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(name)}
-                          className="text-muted-foreground hover:text-red-500 transition-smooth"
-                        >
-                          <Icon name="XMarkIcon" size={12} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-muted-foreground mt-2">
-                    Extracted text gets appended into the Description tab so AI breakdowns can use it as context.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                Time Horizon
-              </label>
-              <select
-                value={level}
-                onChange={(e) => setLevel(e.target.value as GoalLevel)}
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
+              </button>
+              <button
+                type="button"
+                onClick={() => setContextTab('attachments')}
+                className={`rounded-md py-1.5 text-[11px] font-bold uppercase tracking-wider transition-smooth ${
+                  contextTab === 'attachments' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                }`}
               >
-                {GOAL_LEVELS.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
+                Attachments{attachments.length > 0 ? ` (${attachments.length})` : ''}
+              </button>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as GoalStatus)}
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
-              >
-                <option value="backlog">Backlog</option>
-                <option value="in_progress">In Progress</option>
-                <option value="delayed">Delayed</option>
-                <option value="done">Done</option>
-                <option value="not_done">Not Done</option>
-              </select>
-            </div>
-          </div>
+          ) : (
+            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+              Description
+            </label>
+          )}
 
-          <div className="grid grid-cols-2 gap-4">
+          {contextTab === 'description' || !isLoggedIn() ? (
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full h-16 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-smooth resize-none"
+            />
+          ) : (
             <div>
-              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                Priority
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:mix-border-primary/40 hover:mix-bg-primary/5 transition-smooth">
+                <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  {uploading ? 'Extracting text...' : 'Choose file (.txt, .pdf, .docx)'}
+                </span>
+                <input
+                  type="file"
+                  accept=".txt,.pdf,.docx"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  disabled={uploading}
+                />
+                {uploading && <span className="w-3 h-3 border-2 mix-border-primary/30 border-t-primary rounded-full animate-spin" />}
               </label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
-              >
-                <option value="p1">P1 (Highest)</option>
-                <option value="p2">P2 (High)</option>
-                <option value="p3">P3 (Normal)</option>
-                <option value="p4">P4 (Low)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                Due Date
-              </label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
-              />
-            </div>
-          </div>
 
+              {attachments.length > 0 ? (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {attachments.map((name) => (
+                    <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs text-foreground">
+                      <Icon name="DocumentIcon" size={12} className="text-muted-foreground" />
+                      {name}
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(name)}
+                        className="text-muted-foreground hover:text-red-500 transition-smooth"
+                      >
+                        <Icon name="XMarkIcon" size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Extracted text gets appended into the Description tab so AI breakdowns can use it as context.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-              Parent Goal
+            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+              Time Horizon
             </label>
             <select
-              value={parentId ?? ''}
-              onChange={(e) => setParentId(e.target.value ? Number(e.target.value) : null)}
+              value={level}
+              onChange={(e) => setLevel(e.target.value as GoalLevel)}
               className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
             >
-              <option value="">No parent</option>
-              {parentOptions.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {levelLabel(g.level)} — {g.title}
+              {GOAL_LEVELS.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
                 </option>
               ))}
             </select>
           </div>
-
-          {error && (
-            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20">
-              <Icon name="ExclamationTriangleIcon" size={14} className="text-red-500 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-red-600 dark:text-red-400 leading-relaxed flex-1">{error}</p>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2 mt-4 border-t border-border/50">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-smooth"
+          <div>
+            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+              Status
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as GoalStatus)}
+              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!title.trim() || loading}
-              className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
-            >
-              {loading && <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />}
-              Save Changes
-            </button>
+              <option value="backlog">Backlog</option>
+              <option value="in_progress">In Progress</option>
+              <option value="delayed">Delayed</option>
+              <option value="done">Done</option>
+              <option value="not_done">Not Done</option>
+            </select>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+              Priority
+            </label>
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
+            >
+              <option value="p1">P1 (Highest)</option>
+              <option value="p2">P2 (High)</option>
+              <option value="p3">P3 (Normal)</option>
+              <option value="p4">P4 (Low)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+              Due Date
+            </label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            Parent Goal
+          </label>
+          <select
+            value={parentId ?? ''}
+            onChange={(e) => setParentId(e.target.value ? Number(e.target.value) : null)}
+            className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
+          >
+            <option value="">No parent</option>
+            {parentOptions.map((g) => (
+              <option key={g.id} value={g.id}>
+                {levelLabel(g.level)} — {g.title}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {error && (
+          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20">
+            <Icon name="ExclamationTriangleIcon" size={14} className="text-red-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed flex-1">{error}</p>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2 mt-4 border-t mix-border-border/50">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-smooth"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!title.trim() || loading}
+            className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:mix-bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
+          >
+            {loading && <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />}
+            Save Changes
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from modules.common.db import get_db_path
+from .auto_sort import QUADRANTS, UNSORTED  # noqa: F401  (re-exported for the router)
 
 
 def _quick_task_row_to_dict(row: tuple) -> Dict[str, Any]:
@@ -45,7 +46,7 @@ def create_quick_task(
     user_id: int,
     title: str,
     task_date: Optional[str] = None,
-    quadrant: str = "do_now",
+    quadrant: str = UNSORTED,
     source: str = "manual",
     original_task_id: Optional[int] = None,
     order_index: int = 0,
