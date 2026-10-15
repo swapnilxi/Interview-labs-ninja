@@ -28,6 +28,9 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
+import { toast } from '@/lib/ui/toast';
+import { useUrlState } from '@/lib/navigation/urlState';
 import { careerService } from '@/lib/services/careerService';
 import { viewsService } from '@/lib/services/viewsService';
 import { templatesService } from '@/lib/services/templatesService';
@@ -46,6 +49,7 @@ import PortfolioWidgetsView from '../portfolio/PortfolioWidgetsView';
 import { useResumeStore } from '../resume/store/resumeStore';
 import ResumeEditor from '../resume/ResumeEditor';
 import { setActiveProfile } from '../shared/activeProfileStore';
+import { useDesignerParam } from '../shared/screenParams';
 
 const SECTION_LABEL: Record<string, string> = {
   personal_info: 'Personal Info', summary: 'Summary', experience: 'Experience', education: 'Education',
@@ -97,10 +101,16 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [tailorOpen, setTailorOpen] = useState(false);
   const [customTemplates, setCustomTemplates] = useState<CareerTemplate[]>([]);
-  const [designerTemplate, setDesignerTemplate] = useState<CareerTemplate | null>(null);
+  const [templatesReady, setTemplatesReady] = useState(false);
+  // The Template Designer is a screen of its own: ?design=<templateId> on this page.
+  const { designId, openDesigner, closeDesigner, dropDesigner } = useDesignerParam();
+  const designerTemplate = designId ? customTemplates.find((t) => t.id === designId) ?? null : null;
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  // Edit / Preview is a section of this screen, so it lives in the URL (?mode=preview); anything else is Edit.
+  const { get, update } = useUrlState();
+  const mode: 'edit' | 'preview' = get('mode') === 'preview' ? 'preview' : 'edit';
   const lastUrl = useRef<string | null>(null);
+  const loadedViewId = useRef<string | null>(null); // the view this editor has successfully loaded at least once
 
   const isPortfolio = view?.kind === 'portfolio';
   const fallbackTemplates = isPortfolio ? PORTFOLIO_STYLE_TEMPLATES.map((t) => ({ id: t.id, name: t.name })) : RESUME_TEMPLATES;
@@ -155,22 +165,30 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
       const [v, ps] = await Promise.all([viewsService.get(viewId), careerService.listProfiles()]);
       setView(v);
       setProfiles(ps);
+      loadedViewId.current = viewId;
       // The template picker offers the user's own templates for this kind
       // (built-in presets are seeded there too); best-effort.
       templatesService
         .list(v.kind)
         .then(setCustomTemplates)
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setTemplatesReady(true));
       await refreshPreview(viewId, v.kind);
       const st = (await viewsService.getPublishStatus(viewId)) as any;
       setPublishInfo(st && st.slug ? st : null);
       setSlugInput(st?.slug || '');
     } catch (e: any) {
+      if (loadedViewId.current !== viewId) {
+        // The address names a resume/portfolio that cannot be opened (deleted, someone else's, signed out, a typo):
+        // fall back to the list it would have been opened from. replace, so Back doesn't land on the dead address.
+        toast.error(e?.message || 'That resume or portfolio could not be opened.');
+        router.replace('/career');
+        return; // keep the spinner up until the list takes over
+      }
       setError(e?.message || 'Failed to load');
-    } finally {
-      setLoading(false);
     }
-  }, [viewId, refreshPreview]);
+    setLoading(false);
+  }, [viewId, refreshPreview, router]);
 
   useEffect(() => {
     void load();
@@ -321,8 +339,13 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
 
   const onTemplateSaved = (saved: CareerTemplate) => {
     setCustomTemplates((ts) => (ts.some((x) => x.id === saved.id) ? ts.map((x) => (x.id === saved.id ? saved : x)) : [...ts, saved]));
-    setDesignerTemplate(null);
+    closeDesigner();
   };
+
+  // ?design= naming a template this view's list does not have (deleted, the other kind, a typo) falls back to the editor.
+  useEffect(() => {
+    if (designId && templatesReady && !designerTemplate) dropDesigner();
+  }, [designId, templatesReady, designerTemplate, dropDesigner]);
 
   const toggleHistory = async () => {
     setShowHistory((v) => !v);
@@ -379,17 +402,6 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
   };
 
   if (loading && !view) return <div className="pt-[60px] h-screen flex items-center justify-center bg-background"><span className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /></div>;
-  if (error && !view) {
-    return (
-      <div className="pt-[60px] min-h-screen flex items-center justify-center p-6 bg-background">
-        <div className="lab-card p-8 text-center max-w-md">
-          <Icon name="ExclamationTriangleIcon" size={30} className="text-error mx-auto mb-2" />
-          <p className="text-sm text-foreground mb-4">{error}</p>
-          <button onClick={() => router.push('/career')} className="px-4 py-2 rounded-lg border border-border text-sm text-foreground hover:bg-muted">Back to Career Studio</button>
-        </div>
-      </div>
-    );
-  }
   if (!view) return null;
 
   const backTab = isPortfolio ? 'portfolios' : 'resumes';
@@ -398,7 +410,8 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
     <div className="pt-[60px] h-screen flex flex-col bg-background">
       {/* Toolbar */}
       <div className="h-[52px] flex items-center gap-2 px-3 sm:px-4 border-b border-border bg-card shadow-sm flex-shrink-0">
-        <button onClick={() => router.push(`/career?tab=${backTab}`)} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-smooth" title="Back"><Icon name="ArrowLeftIcon" size={18} /></button>
+        {/* Arrow only on phones (the toolbar is full there); the word shows from `sm` up. */}
+        <BackButton href={`/career?tab=${backTab}`} label="Back" className="shrink-0 [&>span]:sr-only sm:[&>span]:not-sr-only" />
         <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2.5 py-1 rounded-full">
           <Icon name={isPortfolio ? 'GlobeAltIcon' : 'DocumentTextIcon'} size={13} /> {isPortfolio ? 'Portfolio' : 'Resume'}
         </span>
@@ -412,13 +425,13 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
         <div className="ml-auto flex items-center gap-1.5">
           <div className="flex items-center bg-muted rounded-lg p-0.5">
             <button
-              onClick={() => setMode('edit')}
+              onClick={() => update({ mode: null })}
               className={`px-2.5 py-1.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 transition-smooth ${mode === 'edit' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
             >
               <Icon name="PencilSquareIcon" size={14} /> Edit
             </button>
             <button
-              onClick={() => { setMode('preview'); void refreshPreview(viewId, view.kind); }}
+              onClick={() => { update({ mode: 'preview' }); void refreshPreview(viewId, view.kind); }}
               className={`px-2.5 py-1.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 transition-smooth ${mode === 'preview' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
             >
               <Icon name="EyeIcon" size={14} /> Preview
@@ -512,7 +525,7 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
                   spec={(t as any).spec}
                   selected={view.template === t.id}
                   onClick={() => patch({ template: t.id })}
-                  onEdit={customTemplates.length > 0 ? () => setDesignerTemplate(t as CareerTemplate) : undefined}
+                  onEdit={customTemplates.length > 0 ? () => openDesigner(t.id) : undefined}
                 />
               ))}
             </div>
@@ -523,7 +536,7 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
               template={designerTemplate}
               profiles={profiles}
               initialProfileId={view.profile_id}
-              onClose={() => setDesignerTemplate(null)}
+              onClose={closeDesigner}
               onSaved={onTemplateSaved}
             />
           )}

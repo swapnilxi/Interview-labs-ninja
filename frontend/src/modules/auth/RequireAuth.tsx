@@ -1,9 +1,11 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
+import { openLoginModal } from '@/components/auth/LoginModal';
 
 const PERKS = [
   { icon: 'SparklesIcon', text: 'AI-generated questions & feedback' },
@@ -15,11 +17,20 @@ const PERKS = [
  * Gates an interview-prep module behind login. These modules are AI-driven
  * and track per-user history, so — unlike the Todo app, which fully works
  * for guests — they require an account. Wrap a page's module render with
- * this; it shows a lightweight "log in" screen for guests instead of the
- * module, and renders children once logged in.
+ * this; it opens an in-page login popup and shows a lightweight screen for guests.
  */
 export default function RequireAuth({ children, feature }: { children: React.ReactNode; feature: string }) {
   const { isGuest, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && isGuest && !isLoggedIn()) {
+      // Trigger login popup directly on this page
+      const timer = setTimeout(() => {
+        openLoginModal({ feature });
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, isGuest, feature]);
 
   if (loading) {
     return (
@@ -64,15 +75,16 @@ export default function RequireAuth({ children, feature }: { children: React.Rea
             </ul>
 
             <div className="flex flex-col gap-12">
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center gap-6 py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-smooth focus-ring shadow-sm"
+              <button
+                type="button"
+                onClick={() => openLoginModal({ feature })}
+                className="inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-gradient-to-r from-primary to-violet-600 hover:opacity-95 text-white font-bold transition-smooth shadow-md shadow-primary/25"
               >
-                Log in or sign up
-                <Icon name="ArrowRightIcon" size={16} />
-              </Link>
+                <Icon name="LockClosedIcon" size={16} />
+                Open Login Popup
+              </button>
               <Link
-                href="/ai-todo"
+                href="/ai-todo?tab=quick"
                 className="text-center text-xs text-muted-foreground hover:text-foreground transition-smooth"
               >
                 Your to-do lists stay fully usable as a guest →

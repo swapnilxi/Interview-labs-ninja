@@ -3,12 +3,15 @@
 /** Public, unauthenticated shared-portfolio page (/p/[slug]). */
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { portfolioService } from '@/lib/services/portfolioService';
 import { downloadBlob } from '../shared/exportUtils';
 import type { PublicPortfolio } from '../shared/types';
 import PortfolioWidgetsView from '../portfolio/PortfolioWidgetsView';
 
 export default function PublicPortfolioClient({ slug, version }: { slug: string; version?: number }) {
+  const router = useRouter();
   const [data, setData] = useState<PublicPortfolio | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -57,6 +60,11 @@ export default function PublicPortfolioClient({ slug, version }: { slug: string;
         }
       } catch (e: any) {
         if (!cancelled) {
+          // A version that does not exist falls back to the current page (which shows its own "not found" if the slug is wrong too).
+          if (version != null) {
+            router.replace(`/p/${encodeURIComponent(slug)}`);
+            return;
+          }
           setMessage(e?.message || 'This portfolio could not be found.');
           setState('error');
         }
@@ -65,7 +73,7 @@ export default function PublicPortfolioClient({ slug, version }: { slug: string;
     return () => {
       cancelled = true;
     };
-  }, [slug, version]);
+  }, [slug, version, router]);
 
   if (state === 'loading') {
     return (
@@ -90,7 +98,10 @@ export default function PublicPortfolioClient({ slug, version }: { slug: string;
   return (
     <div className="min-h-screen flex flex-col bg-neutral-100">
       {version != null && (
-        <div className="bg-amber-50 text-amber-800 text-xs text-center py-1.5 border-b border-amber-200">Viewing a past version (v{version}) — this may not be the current portfolio.</div>
+        <div className="bg-amber-50 text-amber-800 text-xs text-center py-1.5 border-b border-amber-200">
+          Viewing a past version (v{version}) — this may not be the current portfolio.{' '}
+          <Link href={`/p/${encodeURIComponent(slug)}`} className="font-medium underline">View the current version</Link>
+        </div>
       )}
       <div className="flex justify-end px-4 pt-3">
         <button onClick={download} disabled={downloading} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white shadow-sm ring-1 ring-black/5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50">

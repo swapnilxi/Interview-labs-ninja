@@ -4,16 +4,21 @@ import React, { useState, useMemo } from 'react';
 import { ContentCard, TopicType } from '../types';
 import SwipeCardItem from './SwipeCardItem';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
 
 interface SavedCardsViewProps {
   cards: ContentCard[];
   onRemoveSaved: (cardId: string) => void;
+  /** The feed this screen belongs to (the Back target). */
+  backHref: string;
+  /** "Start Swiping" in the empty state: opens the feed. */
   onBackToFeed: () => void;
 }
 
 export default function SavedCardsView({
   cards,
   onRemoveSaved,
+  backHref,
   onBackToFeed,
 }: SavedCardsViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,14 +40,8 @@ export default function SavedCardsView({
     <div className="w-full max-w-[540px] mx-auto px-4 py-4 space-y-5 pb-20">
       {/* Top Header */}
       <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onBackToFeed}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-        >
-          <Icon name="ArrowLeftIcon" size={16} />
-          <span>Back to Feed</span>
-        </button>
+        {/* Reachable from the header, the bottom bar and every feed: go back to wherever the user came from. */}
+        <BackButton href={backHref} label="Back to Feed" preferHistory />
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Icon name="BookmarkIcon" size={15} variant="solid" className="text-blue-600" />

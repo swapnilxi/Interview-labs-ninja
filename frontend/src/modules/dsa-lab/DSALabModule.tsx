@@ -8,6 +8,14 @@ import OnDemandSection from '@/components/lab/OnDemandSection';
 import QuizCarousel from '@/components/lab/QuizCarousel';
 import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/GenerateQuestionsPanel';
 import MarkdownLite from '@/modules/common/lab/MarkdownLite';
+import { useLabSections, type SectionState } from '@/modules/common/lab/useLabSections';
+import { useLabQuiz } from '@/modules/common/lab/useLabQuiz';
+import { useWeekPlan, type WeekPlanApi } from './useWeekPlan';
+import WeekPlanView from './WeekPlanView';
+import WeekPill from './WeekPill';
+import { useUrlState } from '@/lib/navigation/urlState';
+import { LabBackBar, LabScreenLoading, jumpToAnchor, useLabNav, useScrollToTopOnChange } from '@/modules/common/lab/labNavigation';
+import type { ContextMode } from '@/lib/services/labSectionsService';
 import { apiFetch } from '@/lib/http/apiClient';
 
 /* ─────────────────────────────────────────── types ──────────────────────── */
@@ -23,8 +31,6 @@ export interface DSATopic {
   subtopics: { id: string; name: string; brief: string; content?: string; sourceUrl?: string }[];
   isCustom?: boolean;
 }
-
-interface SectionState { generated: boolean; generating: boolean; content: string }
 
 /* ─────────────────────────────────────────── helpers ─────────────────────── */
 function parseBrief(brief: string) {
@@ -45,9 +51,29 @@ function diffStyle(d: string): { badge: string; bar: string } {
 }
 
 /* ─────────────────────────────── section definitions ────────────────────── */
+// Standing instructions for the AI-written "Approaches" section; the backend (FastAPI or fe-apis)
+// adds them to its prompt, for the first Generate and for any later update/regenerate with context.
+const APPROACHES_GUIDANCE = `Teach this problem as a guided progression of approaches, the way a good mentor walks a learner from a first instinct to the optimal solution. Number the approaches in the order the learner should meet them: 3 or 4 approaches in total, starting with the most naive and ending with the optimal one. The LAST approach MUST be the optimal one and say so.
+
+For EACH approach use exactly this layout:
+**Approach N — <short name>** (append "(optimal)" on the last one)
+- **Idea:** 2-3 plain sentences. For every approach after the first, open by naming the bottleneck of the previous approach and the observation that leads here.
+- **Walkthrough:** trace a tiny concrete example in 4-6 steps.
+- **Complexity:** time and space, each with a one-line reason.
+- **Code:** a short, correct Python solution in a fenced python block.
+- **Why it falls short:** (every approach EXCEPT the last) name the specific bottleneck, show a concrete input size where it breaks down (for example n = 10^5 means about 10^10 operations), and finish with "**The question that leads to Approach N+1:** ..." stating the insight or question that guides the learner forward.
+- **Why this is optimal:** (last approach only) explain why no better time complexity is reachable (the lower bound or the key invariant) and what trade-off it makes.
+
+After the last approach add:
+**Progression at a glance** — a table with columns Approach | Time | Space | Verdict, one row per approach, where the verdict says what that approach taught or why it was replaced.
+**How to say this in an interview** — 2-3 sentences narrating the progression out loud.
+
+Stay specific to this problem, not generic. Never skip the failing step: the learner must understand why each approach is not enough before the next one appears. Aim for roughly 900-1500 words excluding code.`;
+
 const SECTION_DEFS = [
   { id: 'prerequisites',   label: 'Prerequisites',               icon: 'AcademicCapIcon',            subtitle: 'What to know before diving in'            },
   { id: 'theory',          label: 'Core Theory',                 icon: 'CalculatorIcon',             subtitle: 'Mathematical foundations + intuition'      },
+  { id: 'approaches',      label: 'Approaches',                  icon: 'ArrowTrendingUpIcon',        subtitle: 'Brute force → optimal, and why each one gives way', aiGenerated: true, guidance: APPROACHES_GUIDANCE },
   { id: 'visual',          label: 'Visual Architecture',         icon: 'PhotoIcon',                  subtitle: 'Data flow diagrams + architecture'         },
   { id: 'implementation',  label: 'Practical Implementation',    icon: 'CodeBracketIcon',            subtitle: 'Python code, walkthrough, dry-run'         },
   { id: 'hyperparameters', label: 'Design Choices',              icon: 'AdjustmentsHorizontalIcon',  subtitle: 'Patterns, variants, time/space trade-offs' },
@@ -58,38 +84,6 @@ const SECTION_DEFS = [
   { id: 'paper',           label: 'Research Context',            icon: 'DocumentMagnifyingGlassIcon',subtitle: 'References, SOTA, known variants'          },
   { id: 'quiz',            label: 'Quiz',                        icon: 'TrophyIcon',                 subtitle: '4 questions, score tracked, generate more' },
   { id: 'references',      label: 'References & Resources',      icon: 'BookOpenIcon',               subtitle: 'NeetCode, LeetCode, Striver, GFG, MIT OCW' },
-];
-
-function initSections(): Record<string, SectionState> {
-  return Object.fromEntries(SECTION_DEFS.map(s => [s.id, { generated: false, generating: false, content: '' }]));
-}
-
-/* ─────────────────────────────── quiz bank ─────────────────────────────── */
-const QUIZ_BANK = [
-  {
-    q: 'Why does the prefix-sum hashmap start with {0: 1} instead of empty?',
-    options: ['To avoid div by zero', 'To count subarrays starting at index 0 with sum=k', 'To init sum to 1', 'Default dict behaviour'],
-    answer: 1,
-    explanation: 'Without {0:1}, subarrays whose prefix equals k from index 0 would be missed.'
-  },
-  {
-    q: 'In "Container With Most Water", which pointer do you move?',
-    options: ['Always left', 'Always right', 'The shorter one', 'Both'],
-    answer: 2,
-    explanation: 'Moving the shorter pointer is the only way to find a taller boundary.'
-  },
-  {
-    q: 'Time complexity of Longest Substring Without Repeating (sliding window + hashmap)?',
-    options: ['O(n^2)', 'O(n log n)', 'O(n)', 'O(26n)'],
-    answer: 2,
-    explanation: 'Each character enters and leaves the window at most once — O(n) amortised.'
-  },
-  {
-    q: "Floyd's cycle: after fast+slow meet, what is the next step to find cycle start?",
-    options: ['Reset fast to slow', 'Reset one to head, advance both at speed 1', 'Count steps from meeting point', 'Double slow'],
-    answer: 1,
-    explanation: 'Distance from head to entry equals distance from meeting point to entry.'
-  },
 ];
 
 /* ─────────────────────────────── content templates ─────────────────────── */
@@ -115,9 +109,11 @@ function getContent(sectionId: string, topic: DSATopic): string {
 
     visual:
       `**Visual Architecture — ${n}**\n\n` +
+      '```text\n' +
       `Input Array/String\n    ↓  Initialise auxiliary structure\n` +
       `Auxiliary State (HashMap / Stack / Deque / Pointers)\n    ↓  Single linear pass\n` +
-      `Answer / Running Max / Count\n\n` +
+      `Answer / Running Max / Count\n` +
+      '```\n\n' +
       `**Pattern mechanics:**\n- Maintain invariant at each step\n- Update answer on valid state\n- Advance pointer(s) / pop stack / shrink window`,
 
     implementation:
@@ -190,13 +186,14 @@ function getContent(sectionId: string, topic: DSATopic): string {
 ══════════════════════════════════════════════════════════════════════════ */
 export default function DSALabInteractive() {
   const [topics,          setTopics]          = useState<DSATopic[]>([]);
+  const [topicsReady,     setTopicsReady]     = useState(false);
   const [sectionsData,    setSectionsData]    = useState<{ id: number; labName: string; name: string; isCustom: boolean }[]>([]);
-  const [selectedTopicId, setSelectedTopicId] = useState<string>('wiki');
-  const [selectedSubId,   setSelectedSubId]   = useState<string | null>(null);
+  // The open screen lives in the URL (?topic=&sub=), see labNavigation.tsx.
+  const nav = useLabNav(topics, topicsReady);
+  const selectedTopicId = nav.topicId;
+  const selectedSubId   = nav.subId;
   const [expandedSecs,    setExpandedSecs]    = useState<Set<string>>(new Set());
-  const [expandedTopics,  setExpandedTopics]  = useState<Set<string>>(new Set());
-  const [sections,        setSections]        = useState<Record<string, SectionState>>(initSections());
-  const [quizBatch,       setQuizBatch]       = useState(0);
+  const [expandedTopics,  setExpandedTopics]  = useState<Set<string>>(() => new Set(nav.topicParam ? [nav.topicParam] : []));
 
   // add-section
   const [showAddSec,    setShowAddSec]    = useState(false);
@@ -232,28 +229,18 @@ export default function DSALabInteractive() {
 
     apiFetch('/dsa/topics')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then((data: DSATopic[]) => { if (data?.length) { setTopics(data); } else { setTopics(STATIC_DSA_TOPICS); } })
-      .catch(e => { console.error('topics:', e); setTopics(STATIC_DSA_TOPICS); });
+      .then((data: DSATopic[]) => { if (data?.length) { setTopics(data); } else { setTopics(STATIC_DSA_TOPICS); } setTopicsReady(true); })
+      .catch(e => { console.error('topics:', e); setTopics(STATIC_DSA_TOPICS); setTopicsReady(true); });
   }, []);
 
-  // Restore last opened topic from localStorage on mount
+  // Restore the "Recent" chips on mount. Which screen is open is not stored here any more: it lives in the URL.
   useEffect(() => {
-    const savedTopic  = localStorage.getItem('dsa-lab-topic');
-    const savedSub    = localStorage.getItem('dsa-lab-subtopic');
     const savedRecent = localStorage.getItem('dsa-lab-recent-topics');
-    if (savedTopic) {
-      setSelectedTopicId(savedTopic);
-      if (savedTopic !== 'wiki') setExpandedTopics(prev => new Set([...prev, savedTopic]));
-    }
-    if (savedSub) setSelectedSubId(savedSub);
     if (savedRecent) try { setRecentTopics(JSON.parse(savedRecent)); } catch {}
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('dsa-lab-topic', selectedTopicId);
-    if (selectedSubId) localStorage.setItem('dsa-lab-subtopic', selectedSubId);
-    else localStorage.removeItem('dsa-lab-subtopic');
-  }, [selectedTopicId, selectedSubId]);
+  // A different screen opened (also via Back/Forward): the content pane starts at its top.
+  useScrollToTopOnChange(mainRef, `${selectedTopicId}|${selectedSubId ?? ''}`);
 
   /* ── derived ── */
   const allSecNames = Array.from(new Set([
@@ -264,6 +251,20 @@ export default function DSALabInteractive() {
 
   const currentTopic = topics.find(t => t.id === selectedTopicId) ?? null;
   const currentSub   = currentTopic?.subtopics.find(s => s.id === selectedSubId) ?? null;
+  const { sections, generate: generateSection, generateWithContext } = useLabSections({
+    lab: 'dsa', topic: currentTopic, subtopic: currentSub, sectionDefs: SECTION_DEFS,
+    getDefaultContent: id => (currentTopic ? getContent(id, currentTopic) : ''),
+  });
+  const quiz = useLabQuiz({
+    lab: 'dsa', topic: currentTopic, subtopic: currentSub,
+    category: currentTopic?.category ?? '',
+    prerequisites: currentTopic?.prerequisites ?? [],
+    // the other problems in the same pattern family: what the quiz can compare this one against
+    relatedTopics: currentTopic
+      ? topics.filter(t => t.category === currentTopic.category && t.id !== currentTopic.id).map(t => t.name).slice(0, 8)
+      : [],
+  });
+  const weekPlan = useWeekPlan(topics);
   const contextLabel = selectedTopicId === 'wiki' ? 'Wiki Index' : (currentSub?.name ?? currentTopic?.name ?? 'DSA Lab');
 
   const flatItems = [
@@ -279,7 +280,8 @@ export default function DSALabInteractive() {
   const nextItem   = curIdx >= 0 && curIdx < flatItems.length - 1 ? flatItems[curIdx + 1] : null;
 
   /* ── actions ── */
-  const scrollTop = () => mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  // Scrolling the content pane back to the top is done by useScrollToTopOnChange when the screen changes
+  // (a smooth scroll started here would still be running when the new screen appears).
 
   const addToRecent = (topicId: string, topicName: string, subId?: string, subName?: string) => {
     const key = subId ?? topicId;
@@ -300,46 +302,26 @@ export default function DSALabInteractive() {
   };
 
   const selectTopic = (id: string) => {
-    setSelectedTopicId(id);
-    setSelectedSubId(null);
-    setSections(initSections());
-    setQuizBatch(0);
+    nav.openTopic(id);
     if (id !== 'wiki') {
       setExpandedTopics(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
       const t = topics.find(tt => tt.id === id);
       if (t) addToRecent(id, t.name);
     }
-    scrollTop();
   };
 
   const selectSub = (topicId: string, subId: string) => {
-    setSelectedTopicId(topicId);
-    setSelectedSubId(subId);
-    setSections(initSections());
-    setQuizBatch(0);
+    nav.openSub(topicId, subId);
     setExpandedTopics(prev => new Set([...prev, topicId]));
     const t = topics.find(tt => tt.id === topicId);
     const s = t?.subtopics.find(ss => ss.id === subId);
     if (t && s) addToRecent(topicId, t.name, subId, s.name);
-    scrollTop();
   };
 
   const navigateTo = (item: typeof flatItems[0]) => {
-    setSelectedTopicId(item.topicId);
-    setSelectedSubId(item.type === 'subtopic' ? item.id : null);
-    setSections(initSections());
-    setQuizBatch(0);
+    if (item.type === 'subtopic') nav.openSub(item.topicId, item.id);
+    else nav.openTopic(item.topicId);
     setExpandedTopics(prev => new Set([...prev, item.topicId]));
-    scrollTop();
-  };
-
-  const generateSection = (sectionId: string) => {
-    if (!currentTopic) return;
-    setSections(prev => ({ ...prev, [sectionId]: { ...prev[sectionId], generating: true } }));
-    setTimeout(() => {
-      const content = getContent(sectionId, currentTopic);
-      setSections(prev => ({ ...prev, [sectionId]: { generated: true, generating: false, content } }));
-    }, 900 + Math.random() * 700);
   };
 
   const handleAddSection = () => {
@@ -565,6 +547,7 @@ export default function DSALabInteractive() {
                                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                     {lc && <span className="text-[9px] text-muted-foreground/50 leading-none">{lc}</span>}
                                     <span className={`text-[8px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{topic.difficulty}</span>
+                                    <WeekPill week={weekPlan.weekOf(topic.id)} className="!text-[8px]" />
                                     {topic.isCustom && <span className="text-[8px] text-amber-500/80">custom</span>}
                                   </div>
                                 </div>
@@ -625,29 +608,18 @@ export default function DSALabInteractive() {
         {/* ═══════════════════════ CENTER PANEL ═══════════════════════════ */}
         <main ref={mainRef} className="lab-main scrollbar-clean">
           {lab.isMobile && <LabMobileBar title={contextLabel} onTopics={lab.openTopics} onCopilot={lab.openCopilot} />}
-          {selectedTopicId !== 'wiki' && (
-            <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2.5 border-b border-border bg-background/95 backdrop-blur-sm">
-              <button onClick={() => selectTopic('wiki')}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-blue-400 transition-colors group">
-                <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
-                <span>Wiki Index</span>
-              </button>
-              {currentTopic && (
-                <>
-                  <Icon name="ChevronRightIcon" size={10} className="text-muted-foreground/40 flex-shrink-0" />
-                  <span className="text-xs font-medium text-foreground truncate">{currentTopic.name}</span>
-                </>
-              )}
-              {currentSub && (
-                <>
-                  <Icon name="ChevronRightIcon" size={10} className="text-muted-foreground/40 flex-shrink-0" />
-                  <span className="text-xs text-muted-foreground truncate">{currentSub.name}</span>
-                </>
-              )}
-            </div>
+          {/* Back to the parent screen: a topic goes back to the Wiki Index, a subtopic to its topic */}
+          {selectedTopicId !== 'wiki' && currentTopic && (
+            <LabBackBar
+              href={currentSub ? nav.topicHref : nav.wikiHref}
+              parentName={currentSub ? currentTopic.name : 'Wiki Index'}
+              currentName={currentSub ? currentSub.name : currentTopic.name}
+            />
           )}
-          {selectedTopicId === 'wiki' ? (
-            <WikiIndex grouped={grouped} topics={topics} onSelectTopic={selectTopic} onSelectSub={selectSub} />
+          {nav.pending ? (
+            <LabScreenLoading />
+          ) : selectedTopicId === 'wiki' ? (
+            <WikiIndex grouped={grouped} topics={topics} weekPlan={weekPlan} onSelectTopic={selectTopic} onSelectSub={selectSub} />
           ) : !currentTopic ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-8">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
@@ -661,11 +633,11 @@ export default function DSALabInteractive() {
           ) : (
             <TopicDetail
               topic={currentTopic} subtopic={currentSub}
-              sections={sections} quizBatch={quizBatch}
+              sections={sections} quiz={quiz} week={weekPlan.weekOf(currentTopic.id)}
               prevItem={prevItem} nextItem={nextItem}
               onGenerate={generateSection}
+              onGenerateWithContext={generateWithContext}
               onNavigate={navigateTo}
-              onQuizMore={() => setQuizBatch(b => b + 1)}
               onAddGeneratedSubtopic={handleAddGeneratedSubtopic}
             />
           )}
@@ -695,13 +667,17 @@ export default function DSALabInteractive() {
    WIKI INDEX
 ══════════════════════════════════════════════════════════════════════════ */
 function WikiIndex({
-  grouped, topics, onSelectTopic, onSelectSub,
+  grouped, topics, weekPlan, onSelectTopic, onSelectSub,
 }: {
   grouped: { name: string; topics: DSATopic[] }[];
   topics: DSATopic[];
+  weekPlan: WeekPlanApi;
   onSelectTopic: (id: string) => void;
   onSelectSub: (topicId: string, subId: string) => void;
 }) {
+  // ?view=week shows the week-by-week plan; no param is the pattern-wise handbook.
+  const { get: getParam, update: updateUrl } = useUrlState();
+  const view = getParam('view') === 'week' ? 'week' : 'pattern';
   const totalSubs   = topics.reduce((a, t) => a + t.subtopics.length, 0);
   const hardCount   = topics.filter(t => t.difficulty === 'Hard' || t.difficulty === 'Medium-Hard').length;
   const easyCount   = topics.filter(t => t.difficulty === 'Easy' || t.difficulty === 'Easy-Medium').length;
@@ -740,6 +716,20 @@ function WikiIndex({
         </div>
       </div>
 
+      {/* ── View switch: by pattern / by week ── */}
+      <div role="tablist" aria-label="Wiki view" className="flex items-center gap-2">
+        {(['pattern', 'week'] as const).map(v => (
+          <button key={v} type="button" role="tab" aria-selected={view === v}
+            onClick={() => updateUrl({ view: v === 'week' ? 'week' : null }, 'replace')}
+            className={`text-xs font-semibold px-3.5 py-2 rounded-xl border transition-colors ${view === v ? 'border-primary text-primary mix-bg-primary/10' : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+            {v === 'week' ? 'By week' : 'By pattern'}
+          </button>
+        ))}
+      </div>
+
+      {view === 'week' ? (
+        <WeekPlanView topics={topics} weekPlan={weekPlan} onOpen={onSelectTopic} />
+      ) : (<>
       {/* ── Clickable Pattern Index ── */}
       <div className="lab-card overflow-hidden">
         <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
@@ -751,7 +741,7 @@ function WikiIndex({
           <div className="grid grid-cols-2 gap-0.5">
             {grouped.map((section, i) => (
               <a key={section.name}
-                href={`#pattern-${section.name.replace(/[\s&/()]/g, '-')}`}
+                href={`#pattern-${section.name.replace(/[\s&/()]/g, '-')}`} onClick={jumpToAnchor}
                 className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all group">
                 <span className="text-[9px] text-muted-foreground/30 w-4 text-right flex-shrink-0">{i + 1}</span>
                 <span className="flex-1 truncate group-hover:text-blue-400 transition-colors">{section.name}</span>
@@ -790,6 +780,7 @@ function WikiIndex({
                         {lc && (
                           <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-md border border-border">{lc}</span>
                         )}
+                        <WeekPill week={weekPlan.weekOf(t.id)} />
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{t.difficulty}</span>
                       </div>
                     </div>
@@ -814,6 +805,7 @@ function WikiIndex({
           </div>
         </div>
       ))}
+      </>)}
     </div>
   );
 }
@@ -822,24 +814,30 @@ function WikiIndex({
    TOPIC DETAIL
 ══════════════════════════════════════════════════════════════════════════ */
 function TopicDetail({
-  topic, subtopic, sections, quizBatch, prevItem, nextItem,
-  onGenerate, onNavigate, onQuizMore, onAddGeneratedSubtopic,
+  topic, subtopic, sections: baseSections, quiz, week, prevItem, nextItem,
+  onGenerate, onGenerateWithContext, onNavigate, onAddGeneratedSubtopic,
 }: {
   topic: DSATopic;
   subtopic: DSATopic['subtopics'][0] | null;
   sections: Record<string, SectionState>;
-  quizBatch: number;
+  quiz: ReturnType<typeof useLabQuiz>;
+  week: number | null;
   prevItem: { id: string; label: string; topicId: string; type: 'topic' | 'subtopic' } | null;
   nextItem: { id: string; label: string; topicId: string; type: 'topic' | 'subtopic' } | null;
   onGenerate: (id: string) => void;
+  onGenerateWithContext: (id: string, context: string, mode: ContextMode) => Promise<void>;
   onNavigate: (item: any) => void;
-  onQuizMore: () => void;
   onAddGeneratedSubtopic: (topicId: string, generated: GeneratedSubtopic) => void;
 }) {
   const { lc, hint } = parseBrief(topic.brief);
   const ds = diffStyle(topic.difficulty);
   const name = subtopic?.name ?? topic.name;
   const desc = subtopic?.brief ?? hint ?? topic.brief;
+  // The quiz isn't a template section: its state comes from the AI quiz, not from `sections`.
+  const sections: Record<string, SectionState> = {
+    ...baseSections,
+    quiz: { generated: quiz.questions.length > 0, generating: quiz.generating && quiz.questions.length === 0, content: '', context: '', error: quiz.error },
+  };
   const genCount = Object.values(sections).filter(s => s.generated).length;
 
   return (
@@ -854,6 +852,7 @@ function TopicDetail({
             <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium leading-none">
               {topic.category}
             </span>
+            <WeekPill week={week} />
             {lc && (
               <span className="text-xs px-2.5 py-1 rounded-lg bg-muted text-muted-foreground border border-border leading-none">
                 LeetCode {lc}
@@ -929,7 +928,7 @@ function TopicDetail({
           {SECTION_DEFS.map(def => {
             const s = sections[def.id];
             return (
-              <a key={def.id} href={`#sec-${def.id}`}
+              <a key={def.id} href={`#sec-${def.id}`} onClick={jumpToAnchor}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] transition-all leading-tight ${s?.generated ? 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s?.generated ? 'bg-emerald-400' : s?.generating ? 'bg-blue-400 animate-pulse' : 'bg-muted-foreground/20'}`} />
                 <span className="truncate">{def.label}</span>
@@ -951,18 +950,22 @@ function TopicDetail({
       {/* ── On-demand sections ── */}
       <div className="space-y-4">
         {SECTION_DEFS.map((def, idx) => {
-          const s = sections[def.id] ?? { generated: false, generating: false, content: '' };
+          const s = sections[def.id] ?? { generated: false, generating: false, content: '', context: '', error: null };
           return (
             <div key={def.id} id={`sec-${def.id}`} className="scroll-mt-4">
               <OnDemandSection
                 sectionIndex={idx + 1} icon={def.icon} title={def.label} subtitle={def.subtitle}
                 content={s.content} isGenerated={s.generated} isGenerating={s.generating}
-                onGenerate={() => onGenerate(def.id)}>
+                onGenerate={def.id === 'quiz' ? quiz.generateFirst : () => onGenerate(def.id)}
+                onGenerateWithContext={def.id === 'quiz' ? undefined : (context, mode) => onGenerateWithContext(def.id, context, mode)}
+                savedContext={s.context}
+                error={s.error}>
                 {def.id === 'quiz' && s.generated ? (
                   <QuizCarousel
-                    questions={QUIZ_BANK.slice(quizBatch * 4, quizBatch * 4 + 4)}
+                    key={`${topic.id}|${subtopic?.id ?? ''}`}
+                    questions={quiz.questions}
                     hasMore={true}
-                    onGenerateMore={onQuizMore}
+                    generateMore={quiz.generate}
                   />
                 ) : undefined}
               </OnDemandSection>

@@ -26,7 +26,7 @@ const WITH_FOREGROUND = [
   'card',
   'popover',
 ];
-const PLAIN = ['border', 'input', 'ring', 'background', 'foreground', 'surface'];
+const PLAIN = ['border', 'input', 'ring', 'background', 'foreground', 'surface', 'progress', 'info'];
 
 const values = {};
 for (const name of PLAIN) values[name] = `var(--color-${name})`;

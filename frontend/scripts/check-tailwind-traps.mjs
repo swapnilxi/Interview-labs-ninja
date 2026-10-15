@@ -37,7 +37,7 @@ const all = process.argv.includes('--all');
 const roots = all ? ['src'] : TODO_ROOTS;
 
 const THEME =
-  'border|input|ring|background|foreground|surface|(?:primary|secondary|accent|destructive|success|warning|error|muted|card|popover)(?:-foreground)?';
+  'border|input|ring|background|foreground|surface|progress|info|(?:primary|secondary|accent|destructive|success|warning|error|muted|card|popover)(?:-foreground)?';
 const COLOR_PROPS =
   'bg|text|border(?:-[trblxy])?|ring|ring-offset|from|to|via|divide|outline|placeholder|fill|stroke|shadow|decoration|accent|caret';
 const SPACING_PROPS =

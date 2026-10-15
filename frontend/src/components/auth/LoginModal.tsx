@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Modal from '@/components/ui/Modal';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
+import { rememberReturnPath, resolveLoginReturnPath } from './loginReturn';
 
 export const OPEN_LOGIN_MODAL_EVENT = 'open-login-modal';
 
@@ -22,13 +24,31 @@ export function openLoginModal(detail?: OpenLoginModalDetail) {
   );
 }
 
+/**
+ * Remembers the page the user is on, query string included, so /login can send them back to it.
+ * Keyed on the query too, not just the path: the in-page tabs (?tab=…) change only the query.
+ * Its own component because useSearchParams needs a Suspense boundary.
+ */
+function LoginReturnTracker() {
+  const pathname = usePathname();
+  const query = useSearchParams().toString();
+
+  useEffect(() => {
+    if (pathname === '/login' || pathname.startsWith('/login/')) return;
+    rememberReturnPath(query ? `${pathname}?${query}` : pathname);
+  }, [pathname, query]);
+
+  return null;
+}
+
 export default function LoginModal() {
   const router = useRouter();
+  const pathname = usePathname();
   const { login, signup, user } = useAuth();
 
   const [isOpen, setIsOpen] = useState(false);
   const [feature, setFeature] = useState<string | null>(null);
-  const [redirectTo, setRedirectTo] = useState<string>('/ai-todo?tab=quick');
+  const [redirectTo, setRedirectTo] = useState<string>('');
 
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -44,11 +64,8 @@ export default function LoginModal() {
       const customEvent = e as CustomEvent<OpenLoginModalDetail>;
       const detail = customEvent.detail || {};
       setFeature(detail.feature || null);
-      if (detail.redirectTo) {
-        setRedirectTo(detail.redirectTo);
-      } else {
-        setRedirectTo('/ai-todo?tab=quick');
-      }
+      // No redirect by default: log in right where the user is.
+      setRedirectTo(detail.redirectTo || '');
       setError(null);
       setIsOpen(true);
     };
@@ -56,6 +73,19 @@ export default function LoginModal() {
     window.addEventListener(OPEN_LOGIN_MODAL_EVENT, handleOpen);
     return () => window.removeEventListener(OPEN_LOGIN_MODAL_EVENT, handleOpen);
   }, []);
+
+  // /login has no screen of its own. Go back to where the user came from (?next=, else the last page
+  // this tab showed, else the To-Do landing page) and ask for the login there.
+  useEffect(() => {
+    if (pathname !== '/login') return;
+    if (!isLoggedIn()) {
+      setFeature(null);
+      setRedirectTo('');
+      setError(null);
+      setIsOpen(true);
+    }
+    router.replace(resolveLoginReturnPath(new URLSearchParams(window.location.search).get('next')));
+  }, [pathname, router]);
 
   // Close modal if user gets authenticated
   useEffect(() => {
@@ -98,17 +128,21 @@ export default function LoginModal() {
   };
 
   return (
+    <>
+    <Suspense fallback={null}>
+      <LoginReturnTracker />
+    </Suspense>
     <Modal
-      open={isOpen}
+      isOpen={isOpen}
       onClose={() => setIsOpen(false)}
       labelledBy="login-modal-title"
-      size="md"
+      className="max-w-md w-full p-0 overflow-hidden border-0 bg-transparent shadow-none"
     >
       <div className="relative overflow-hidden rounded-2xl bg-card border border-border shadow-2xl">
         {/* Modal Top Header Gradient */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-[#5b5bd6] via-[#6d5be0] to-[#7c3aed] p-6 text-center text-white">
-          <div className="pointer-events-none absolute -top-16 -right-16 w-36 h-36 rounded-full bg-white/10 blur-xl" />
-          <div className="relative mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm shadow-md">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#5b5bd6] via-[#6d5be0] to-[#7c3aed] px-[1.75rem] pt-[2rem] pb-[1.5rem] text-center text-white">
+          <div className="pointer-events-none absolute -top-16 -right-16 w-[9rem] h-[9rem] rounded-full bg-white/10 blur-xl" />
+          <div className="relative mx-auto mb-[0.875rem] flex h-[3.25rem] w-[3.25rem] items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm shadow-md">
             <Icon name="LockClosedIcon" size={24} className="text-white" />
           </div>
           <h2 id="login-modal-title" className="font-heading text-xl font-bold tracking-tight">
@@ -122,18 +156,18 @@ export default function LoginModal() {
         </div>
 
         {/* Form Body */}
-        <div className="p-6">
+        <div className="px-[1.75rem] pt-[1.5rem] pb-[1.75rem]">
           {error && (
-            <div className="mb-4 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2.5 text-xs font-semibold text-rose-500">
+            <div className="mb-[1.125rem] flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2.5 text-xs font-semibold text-rose-500">
               <Icon name="ExclamationCircleIcon" size={16} />
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-[1.125rem]">
             {mode === 'signup' && (
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-[0.375rem]">
                   Full Name
                 </label>
                 <input
@@ -143,13 +177,13 @@ export default function LoginModal() {
                   placeholder="Ninja Candidate"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full rounded-xl border border-border bg-input px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full rounded-xl border border-border bg-input px-[0.875rem] py-[0.75rem] text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-[0.375rem]">
                 Email Address
               </label>
               <input
@@ -159,12 +193,12 @@ export default function LoginModal() {
                 placeholder="ninja@labs.dev"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-border bg-input px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="w-full rounded-xl border border-border bg-input px-[0.875rem] py-[0.75rem] text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-[0.375rem]">
                 Password
               </label>
               <div className="relative">
@@ -174,7 +208,7 @@ export default function LoginModal() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-xl border border-border bg-input px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 pr-10"
+                  className="w-full rounded-xl border border-border bg-input px-[0.875rem] py-[0.75rem] text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 pr-10"
                 />
                 <button
                   type="button"
@@ -189,7 +223,7 @@ export default function LoginModal() {
             <button
               type="submit"
               disabled={submitting}
-              className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-violet-600 py-3 text-sm font-bold text-white shadow-md shadow-primary/25 hover:opacity-95 disabled:opacity-50 transition-opacity"
+              className="mt-[0.5rem] w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-violet-600 py-[0.8rem] text-sm font-bold text-white shadow-md shadow-primary/25 hover:opacity-95 disabled:opacity-50 transition-opacity"
             >
               {submitting ? (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -201,7 +235,7 @@ export default function LoginModal() {
           </form>
 
           {/* Mode switch */}
-          <div className="mt-5 border-t border-border/60 pt-4 text-center">
+          <div className="mt-[1.5rem] border-t border-border/60 pt-[1.125rem] text-center">
             {mode === 'login' ? (
               <p className="text-xs text-muted-foreground">
                 Don&apos;t have an account?{' '}
@@ -229,5 +263,6 @@ export default function LoginModal() {
         </div>
       </div>
     </Modal>
+    </>
   );
 }

@@ -1,8 +1,10 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import CVLabInteractive from '@/modules/cv-lab/CVLabModule';
 
 import Header from '@/components/common/Header';
 import RequireAuth from '@/modules/auth/RequireAuth';
+import { LabScreenLoading } from '@/modules/common/lab/labNavigation';
 
 export const metadata: Metadata = {
   title: 'CV Lab — InterviewNinja',
@@ -14,7 +16,10 @@ export default function CVLabPage() {
     <>
       <Header />
       <RequireAuth feature="the CV Lab">
-        <CVLabInteractive />
+        {/* The open topic/subtopic is read from the URL (useSearchParams), which needs a Suspense boundary */}
+        <Suspense fallback={<LabScreenLoading />}>
+          <CVLabInteractive />
+        </Suspense>
       </RequireAuth>
     </>
   );

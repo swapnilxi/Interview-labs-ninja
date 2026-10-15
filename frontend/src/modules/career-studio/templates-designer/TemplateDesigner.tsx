@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
 import { careerService } from '@/lib/services/careerService';
 import { templatesService } from '@/lib/services/templatesService';
 import { viewsService } from '@/lib/services/viewsService';
@@ -25,6 +26,7 @@ import {
   type ViewKind,
 } from '../shared/types';
 import { portfolioPreviewHtml, resumePreviewHtml, type PreviewSection } from './templatePreview';
+import { useDesignerParam } from '../shared/screenParams';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -75,6 +77,8 @@ export default function TemplateDesigner({ kind, template, profiles, initialProf
   onSaved: (t: CareerTemplate) => void;
 }) {
   const router = useRouter();
+  // The designer is a screen of its own (?design= on the page that opened it); Back returns to that page.
+  const { backHref } = useDesignerParam();
   const isResume = kind === 'resume';
   const [name, setName] = useState(template?.name || (isResume ? 'My Resume Template' : 'My Portfolio Template'));
   const [spec, setSpec] = useState<any>(() =>
@@ -152,7 +156,7 @@ export default function TemplateDesigner({ kind, template, profiles, initialProf
     <div className="fixed inset-0 z-[300] bg-background flex flex-col">
       {/* Toolbar */}
       <div className="h-[56px] flex items-center gap-2 px-4 border-b border-border bg-card flex-shrink-0">
-        <button onClick={onClose} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted" title="Close"><Icon name="XMarkIcon" size={18} /></button>
+        <BackButton href={backHref} label="Back" className="shrink-0 [&>span]:sr-only sm:[&>span]:not-sr-only" />
         <Icon name="SwatchIcon" size={18} className="text-primary" />
         <span className="text-sm font-semibold text-foreground">{template ? 'Edit template' : 'New template'}</span>
         <span className="text-[11px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded ml-1">{kind}</span>

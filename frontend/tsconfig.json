@@ -24,15 +24,21 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "fe-apis/*": ["./fe-apis/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "fe-apis/*": [
+        "./fe-apis/*"
+      ]
     }
   },
   "include": [
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    ".next-e2e/types/**/*.ts",
+    ".next-lint-scratch/types/**/*.ts",
+    ".next/types/**/*.ts",
+    "next-env.d.ts"
   ],
   "exclude": [
     "node_modules",

@@ -1,5 +1,6 @@
 'use client';
 
+import { openLoginModal } from '@/components/auth/LoginModal';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
@@ -45,12 +46,11 @@ export default function RequireAdmin({ children }: { children: React.ReactNode }
               : 'This area is restricted. You can ask an admin to grant you access below.'}
           </p>
           {isGuest ? (
-            <Link
-              href="/login"
+            <button type="button" onClick={() => openLoginModal()}
               className="inline-flex items-center justify-center gap-6 py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-smooth focus-ring"
             >
               Log in
-            </Link>
+            </button>
           ) : (
             <RequestAdminAccess />
           )}

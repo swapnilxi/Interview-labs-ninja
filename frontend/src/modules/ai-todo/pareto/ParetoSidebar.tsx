@@ -1,5 +1,6 @@
 'use client';
 
+import { openLoginModal } from '@/components/auth/LoginModal';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
@@ -68,7 +69,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
   const totalTasks = data ? data.smart.length + data.quick.length + data.plan.length : 0;
 
   return (
-    <div className="border-b border-border bg-surface flex-shrink-0 flex flex-col max-h-[40%] transition-all relative">
+    <div className="border-b mix-border-foreground/10 flex-shrink-0 flex flex-col max-h-[40%] transition-all relative">
       <div className="flex items-center justify-between transition-colors hover:bg-muted">
         <button
           type="button"
@@ -77,10 +78,10 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
           aria-controls="pareto-sidebar-body"
           className="todo-focus flex min-w-0 flex-1 items-center gap-1.5 px-4 py-3 text-left"
         >
-          <Icon name="StarIcon" size={14} variant="solid" className="text-primary" />
+          <Icon name="StarIcon" size={14} variant="solid" className="text-muted-foreground" />
           <span className="font-heading text-xs font-semibold text-foreground">Your 20%</span>
           {totalTasks > 0 && (
-            <span className="copilot-tint ml-1 rounded-full px-2 py-0.5 text-xs font-bold">
+            <span className="ml-1 text-xs font-medium tabular-nums text-muted-foreground">
               {totalTasks}
             </span>
           )}
@@ -92,7 +93,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
                 runAnalysis();
               }}
               disabled={loading}
-              className="copilot-tint px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
+              className="todo-btn todo-btn-ghost px-2 py-1 disabled:opacity-50"
               title="Re-run AI 80/20 analysis across all tabs"
             >
               <Icon name="ArrowPathIcon" size={12} className={loading ? 'animate-spin' : ''} />
@@ -119,12 +120,11 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
               <p className="text-xs text-muted-foreground italic">
                 Log in to unlock AI-powered 80/20 analysis of your tasks.
               </p>
-              <a
-                href="/login"
-                className="todo-btn todo-btn-primary"
+              <button type="button" onClick={() => openLoginModal()}
+                className="todo-btn todo-btn-quiet"
               >
                 Log in
-              </a>
+              </button>
             </div>
           ) : totalTasks === 0 && !loading ? (
             <div className="py-3 text-center space-y-2">
@@ -134,9 +134,9 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
               <button
                 onClick={runAnalysis}
                 disabled={loading}
-                className="todo-btn todo-btn-primary"
+                className="todo-btn todo-btn-quiet"
               >
-                <Icon name="BoltIcon" size={14} variant="solid" />
+                <Icon name="BoltIcon" size={14} />
                 Run 80/20 AI Analysis
               </button>
             </div>
@@ -186,7 +186,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
 function TaskRow({ task, onFocus }: { task: TopTask; onFocus: (task: TopTask) => void }) {
   return (
     <div
-      className="group relative rounded-lg border border-border p-2.5 transition-colors hover:bg-muted"
+      className="group relative rounded-lg p-2.5 transition-colors hover:mix-bg-foreground/[0.06]"
       title={task.reason || undefined}
     >
       <div className="flex items-center justify-between mb-1.5">
@@ -196,7 +196,7 @@ function TaskRow({ task, onFocus }: { task: TopTask; onFocus: (task: TopTask) =>
         </span>
         <button
           onClick={() => onFocus(task)}
-          className="copilot-tint flex-shrink-0 px-2 py-0.5 text-xs font-semibold opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          className="copilot-tint flex-shrink-0 px-2 py-0.5 text-xs font-semibold opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
         >
           Focus
         </button>

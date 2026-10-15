@@ -3,6 +3,7 @@
 import { parseApiError } from './todoService';
 import { aiRequestFields } from './settingsService';
 import { apiFetch } from '../http/apiClient';
+import { toast } from '@/lib/ui/toast';
 
 export type ParetoTable = 'tasks' | 'quick_tasks' | 'project_nodes' | 'projects';
 export type ParetoScope = 'smart' | 'quick' | 'plan' | 'all';
@@ -27,6 +28,8 @@ export interface AnalyzeResult {
   analyzed_count?: number;
   top20_count?: number;
   message?: string;
+  /** The AI's reply covered only some of the items (it was cut off, or skipped some); `message` says how many. */
+  partial?: boolean;
 }
 
 /** Maps a Pareto scope to the tab it lives in — used for "Focus on this" navigation. */
@@ -44,7 +47,11 @@ export const paretoService = {
       body: JSON.stringify({ scope, ...aiRequestFields(model) }),
     });
     if (!res.ok) throw new Error(await parseApiError(res));
-    return await res.json();
+    const data: AnalyzeResult = await res.json();
+    // Not every item got a score: say so here, so each screen that runs an analysis (its own toast reports the counts)
+    // doesn't have to.
+    if (data.partial && data.message) toast.info(data.message);
+    return data;
   },
 
   async getTop20(): Promise<Top20Response> {

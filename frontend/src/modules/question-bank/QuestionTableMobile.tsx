@@ -70,19 +70,21 @@ export default function QuestionTableMobile({
         return (
           <div
             key={question.id}
-            className="bg-card rounded-lg border border-border overflow-hidden"
+            onClick={() => onReview(question.id)}
+            className="bg-card rounded-lg border border-border overflow-hidden cursor-pointer hover:border-primary/50 transition-all group"
           >
             <div className="p-18">
               <div className="flex items-start gap-12 mb-12">
                 <input
                   type="checkbox"
                   checked={isSelected}
+                  onClick={(e) => e.stopPropagation()}
                   onChange={() => onSelect(question.id)}
                   className="w-18 h-18 rounded border-2 border-border bg-input checked:bg-primary checked:border-primary transition-smooth cursor-pointer focus-ring mt-3"
                   aria-label={`Select question ${question.id}`}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground font-medium line-clamp-2 mb-12">
+                  <p className="text-sm text-foreground font-medium line-clamp-2 mb-12 group-hover:text-primary transition-colors">
                     {question.questionText}
                   </p>
                   <div className="flex flex-wrap items-center gap-6">

@@ -1,9 +1,8 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
 import GenerateLessonForm from './components/GenerateLessonForm';
 
 export default function GenerateLessonModule() {
@@ -13,15 +12,10 @@ export default function GenerateLessonModule() {
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8">
-      {/* Navigation link */}
+      {/* Reached from the AI LMS home, a class and a subject: Back returns to whichever of them the user came
+          from, and to the AI LMS home when there is no earlier screen (a refresh, a shared link). */}
       <div>
-        <Link
-          href="/ai-lms"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Icon name="ArrowLeftIcon" size={14} />
-          <span>Back to AI LMS</span>
-        </Link>
+        <BackButton href="/ai-lms" label="Back" preferHistory className="-ml-2.5" />
       </div>
 
       <GenerateLessonForm initialClassSlug={classSlug} initialSubjectSlug={subjectSlug} />

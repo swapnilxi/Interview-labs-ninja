@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { getWritablePath } from './sqliteReader';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -15,27 +14,12 @@ export interface UserRecord {
   updated_at: string;
 }
 
-const TMP_DB = '/tmp/lab_ninja.sqlite3';
-
 /**
- * On cold start, copy the bundled (read-only) DB to /tmp so writes succeed.
- * Vercel mounts git-tracked files as immutable; /tmp is writable per Lambda instance.
+ * Locally this is backend/data/lab_ninja.sqlite3 itself (shared with FastAPI). On Vercel, where the
+ * repo is read-only, it is the writable /tmp copy seeded from that file. See getWritablePath.
  */
-function ensureWritableDb(): void {
-  if (fs.existsSync(TMP_DB)) return;   // already seeded this warm instance
-  const sources = [
-    path.join(process.cwd(), 'backend', 'data', 'lab_ninja.sqlite3'),
-    path.join(process.cwd(), '..', 'backend', 'data', 'lab_ninja.sqlite3'),
-    path.join(process.cwd(), 'data', 'lab_ninja.sqlite3'),
-  ];
-  const src = sources.find(fs.existsSync);
-  if (src) fs.copyFileSync(src, TMP_DB);
-  // If no seed exists, DatabaseSync creates a blank DB at TMP_DB automatically.
-}
-
 export function getDbPath(): string {
-  ensureWritableDb();
-  return TMP_DB;
+  return getWritablePath('lab_ninja');
 }
 
 function getSqliteConn() {

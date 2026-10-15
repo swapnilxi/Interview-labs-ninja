@@ -23,14 +23,19 @@ import { generateGeminiCard } from './services/geminiService';
 import { sounds } from './utils/soundEffects';
 import { useSwipeLearnStorage } from './utils/useSwipeLearnStorage';
 import type { StoredCard, StoredCustomTopic } from './utils/useSwipeLearnStorage';
+import { buildUrl, useUrlState } from '@/lib/navigation/urlState';
+
+/** The topic shown when the URL names none (or one that does not exist). */
+const DEFAULT_TOPIC: FeedMode = 'python';
 
 export default function SwipeLearnModule() {
   const learnStorage = useSwipeLearnStorage();
+  const { get, update, pathname, searchParams } = useUrlState();
 
   const [allCards, setAllCards] = useState<ContentCard[]>(DEFAULT_CONTENT_CARDS);
   const [customTopics, setCustomTopics] = useState<TopicMeta[]>([]);
-  const [feedMode, setFeedMode] = useState<FeedMode>('python');
-  const [currentTab, setCurrentTab] = useState<SwipeLearnNavTab>('feed');
+  // Custom topics come from IndexedDB, so a ?topic= naming one can only be checked once they have loaded.
+  const [topicsReady, setTopicsReady] = useState(false);
   const [savedCardIds, setSavedCardIds] = useState<string[]>([]);
   const [cardIndices, setCardIndices] = useState<Record<string, number>>({});
   const [swipeHistory, setSwipeHistory] = useState<Array<{ card: ContentCard; action: 'save' | 'skip' }>>([]);
@@ -55,6 +60,32 @@ export default function SwipeLearnModule() {
   const allTopics: TopicMeta[] = useMemo(() => {
     return [...DEFAULT_TOPIC_METAS, ...customTopics];
   }, [customTopics]);
+
+  // ── Which screen is showing lives in the URL ─────────────────────────────
+  //   /swipe-learn                    swipe feed, default topic
+  //   /swipe-learn?topic=<id>         swipe feed for a topic
+  //   /swipe-learn?tab=mixed          mixed scroll
+  //   /swipe-learn?tab=saved[&topic]  saved cards (a sub-screen; Back returns to the feed)
+  // A missing or unknown value falls back to the feed. Settings and the other pickers are modals.
+  const tabParam = get('tab');
+  const topicParam = get('topic');
+  const currentTab: SwipeLearnNavTab = tabParam === 'saved' ? 'saved' : tabParam === 'mixed' ? 'mixed' : 'feed';
+  const topicIsKnown = !!topicParam && topicParam !== 'mixed' && allTopics.some((t) => t.id === topicParam);
+  const feedMode: FeedMode = currentTab === 'mixed' ? 'mixed' : topicIsKnown ? topicParam : DEFAULT_TOPIC;
+  // A deep link to a custom topic: hold the deck back until the topics have loaded (no flash of another topic).
+  const waitingForTopic =
+    !topicsReady && currentTab === 'feed' && !!topicParam && !DEFAULT_TOPIC_METAS.some((t) => t.id === topicParam);
+  // Where "Back to Feed" lands: the same URL without the saved/mixed marker.
+  const feedHref = buildUrl(pathname, searchParams, { tab: null });
+
+  // Drop a value that cannot be resolved so the address bar matches what is on screen (replace: no history entry).
+  useEffect(() => {
+    if (tabParam !== null && !['feed', 'mixed', 'saved'].includes(tabParam)) {
+      update({ tab: null }, 'replace');
+    } else if (topicParam !== null && topicsReady && !topicIsKnown) {
+      update({ topic: null }, 'replace');
+    }
+  }, [tabParam, topicParam, topicsReady, topicIsKnown, update]);
 
   // Active topic meta
   const activeTopicMeta = useMemo(() => {
@@ -91,8 +122,10 @@ export default function SwipeLearnModule() {
       if (Object.keys(state.cardIndices).length > 0) {
         setCardIndices(state.cardIndices);
       }
+      setTopicsReady(true);
     }).catch(() => {
       // IDB unavailable — fall back silently (app works with in-memory state)
+      if (!cancelled) setTopicsReady(true);
     });
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,10 +145,9 @@ export default function SwipeLearnModule() {
       return next;
     });
 
-    setFeedMode(newTopic.id);
-    setCurrentTab('feed');
+    update({ tab: null, topic: newTopic.id });
     showToast(`Added topic "${newTopic.label}"!`);
-  }, [learnStorage]);
+  }, [learnStorage, update]);
 
   // Remove custom topic
   const handleRemoveCustomTopic = useCallback((topicId: string) => {
@@ -125,7 +157,7 @@ export default function SwipeLearnModule() {
       return next;
     });
 
-    setFeedMode((prev) => (prev === topicId ? 'python' : prev));
+    // If that topic was on screen, ?topic= no longer resolves and the feed falls back to the default topic.
     showToast('Topic removed.');
   }, [learnStorage]);
 
@@ -277,12 +309,11 @@ export default function SwipeLearnModule() {
 
   // Handle Mode / Topic Selection
   const handleSelectMode = (mode: FeedMode) => {
-    setFeedMode(mode);
     setActiveSubTab('all');
     if (mode === 'mixed') {
-      setCurrentTab('mixed');
+      update({ tab: 'mixed', topic: null });
     } else {
-      setCurrentTab('feed');
+      update({ tab: null, topic: mode === DEFAULT_TOPIC ? null : mode });
     }
   };
 
@@ -304,7 +335,7 @@ export default function SwipeLearnModule() {
         {/* 1. Header with Generate dropdown */}
         <SwipeLearnHeader
           savedCount={savedCardIds.length}
-          onOpenSaved={() => setCurrentTab('saved')}
+          onOpenSaved={() => update({ tab: 'saved' })}
           onOpenSettings={() => setShowSettingsModal(true)}
           onGenerate={() => setShowGenerateOptionsModal(true)}
           isGenerating={isGenerating}
@@ -332,9 +363,14 @@ export default function SwipeLearnModule() {
             <SavedCardsView
               cards={savedCardsList}
               onRemoveSaved={handleRemoveSavedCard}
-              onBackToFeed={() => setCurrentTab('feed')}
+              backHref={feedHref}
+              onBackToFeed={() => update({ tab: null })}
             />
-          ) : feedMode === 'mixed' || currentTab === 'mixed' ? (
+          ) : waitingForTopic ? (
+            <div className="flex-1 flex items-center justify-center py-16" aria-busy="true">
+              <span className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            </div>
+          ) : feedMode === 'mixed' ? (
             <MixedVerticalFeed
               cards={activeDeckCards}
               savedCardIds={savedCardIds}
@@ -370,15 +406,12 @@ export default function SwipeLearnModule() {
             if (tab === 'settings') {
               setShowSettingsModal(true);
             } else if (tab === 'mixed') {
-              setFeedMode('mixed');
-              setCurrentTab('mixed');
+              update({ tab: 'mixed', topic: null });
             } else if (tab === 'feed') {
-              if (feedMode === 'mixed') {
-                setFeedMode('python');
-              }
-              setCurrentTab('feed');
+              // From mixed this lands on the default topic (it has no ?topic=); from saved, on the topic left behind.
+              update({ tab: null });
             } else {
-              setCurrentTab(tab);
+              update({ tab });
             }
           }}
         />

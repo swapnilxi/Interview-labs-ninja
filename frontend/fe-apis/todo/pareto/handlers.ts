@@ -12,7 +12,7 @@ import {
   HttpError,
   aiSettings,
   callAi,
-  extractJsonArray,
+  extractJsonItems,
   todayIso,
   withTodoDb,
   type Row,
@@ -109,6 +109,56 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** One analysis scores at most this many items (a bigger scope is trimmed, as it always was). */
+const BATCH_LIMIT = 60;
+/** If a reply is cut off, the items it never reached are sent again, at most this many calls in all. */
+const MAX_PASSES = 3;
+
+/**
+ * Output budget for scoring `count` items in one reply. A scored item is ~45-60 output tokens (a pretty-printed JSON
+ * object plus a one-line reason). The default 2,048 holds only ~35 of them: past that every provider silently cuts the
+ * reply off mid-array, and the answer used to fail with "No JSON array found in response" although most of the scores
+ * were already there. (Port of `_analysis_max_tokens`.)
+ */
+function analysisMaxTokens(count: number): number {
+  return Math.min(6000, 600 + 80 * count);
+}
+
+/** Port of `_analysis_prompt`. */
+function analysisPrompt(batch: Row[]): string {
+  return `You are a productivity strategist applying the 80/20 Pareto Principle.
+Analyze these tasks and identify which 20% will produce 80% of meaningful results.
+Consider: strategic impact, dependency (other tasks blocked on this), alignment with stated
+intentions, urgency vs importance, and which tasks remove the most friction.
+
+Tasks:
+${pyJsonDumps(batch, 2)}
+
+For each task return a pareto_score between 0.0 and 1.0 and a short reason (at most 12 words).
+is_top_20 should be true ONLY for roughly the top ${Math.max(1, Math.floor(batch.length / 5))} tasks in this list.
+Return ONLY a JSON array with one object per task, no markdown and no extra text:
+[
+  { "table": "tasks", "id": 1, "pareto_score": 0.92, "is_top_20": true, "reason": "Unblocks 4 other tasks" }
+]`;
+}
+
+/**
+ * Port of `_result_key`: the (table, id) a scored result refers to. Models drop or mangle `table`; when the id is
+ * unique in the batch that is enough to tell which item was meant.
+ */
+function resultKey(res: Row, pending: Row[]): [string, number] | null {
+  if (res.id === null || res.id === undefined || res.id === '') return null;
+  const n = Number(res.id);
+  if (!Number.isFinite(n)) return null;
+  const tid = Math.trunc(n);
+  let table = res.table;
+  if (!VALID_TABLES.includes(table)) {
+    const tables = new Set(pending.filter((it) => it.id === tid).map((it) => it.table));
+    table = tables.size === 1 ? [...tables][0] : null;
+  }
+  return table ? [table, tid] : null;
+}
+
 export const routes: TodoRoute[] = [
   /** POST /pareto/analyze — analyze_pareto_endpoint. */
   {
@@ -120,39 +170,50 @@ export const routes: TodoRoute[] = [
       if (!items.length) return { results: [], message: 'No un-locked tasks to analyze in this scope.' };
 
       // Cap to avoid blowing the prompt token budget on very large scopes.
-      const batch = items.slice(0, 60);
-      const prompt = `You are a productivity strategist applying the 80/20 Pareto Principle.
-Analyze these tasks and identify which 20% will produce 80% of meaningful results.
-Consider: strategic impact, dependency (other tasks blocked on this), alignment with stated
-intentions, urgency vs importance, and which tasks remove the most friction.
+      const batch = items.slice(0, BATCH_LIMIT);
+      const keyOf = (table: string, id: number) => `${table}:${id}`;
+      const wanted = new Set(batch.map((it) => keyOf(it.table, it.id)));
+      const scored = new Map<string, Row>();
+      let pending = batch;
+      for (let pass = 0; pass < MAX_PASSES; pass++) {
+        let found: Row[];
+        let complete: boolean;
+        try {
+          ({ items: found, complete } = extractJsonItems(
+            await callAi(analysisPrompt(pending), aiSettings(body), analysisMaxTokens(pending.length))
+          ));
+        } catch (err) {
+          if (scored.size) break; // keep what the earlier passes scored; the gap is reported in the response
+          throw new HttpError(500, `AI Pareto Analysis failed: ${errorText(err)}`);
+        }
+        const before = scored.size;
+        for (const res of found) {
+          const key = resultKey(res, pending);
+          if (!key) continue;
+          const id = keyOf(key[0], key[1]);
+          if (wanted.has(id) && !scored.has(id)) scored.set(id, { ...res, table: key[0], id: key[1] });
+        }
+        pending = pending.filter((it) => !scored.has(keyOf(it.table, it.id)));
+        // Go again only for a reply that was cut off and still got somewhere.
+        if (complete || !pending.length || scored.size === before) break;
+      }
 
-Tasks:
-${pyJsonDumps(batch, 2)}
-
-For each task return a pareto_score between 0.0 and 1.0 and a one-line reason.
-is_top_20 should be true ONLY for roughly the top ${Math.max(1, Math.floor(batch.length / 5))} tasks in this list.
-Return ONLY JSON:
-[
-  { "table": "tasks", "id": 1, "pareto_score": 0.92, "is_top_20": true, "reason": "Unblocks 4 other tasks" }
-]
-No extra text.`;
-
-      let results: any[];
-      try {
-        results = extractJsonArray(await callAi(prompt, aiSettings(body)));
-      } catch (err) {
-        throw new HttpError(500, `AI Pareto Analysis failed: ${errorText(err)}`);
+      const results: Row[] = batch.filter((it) => scored.has(keyOf(it.table, it.id))).map((it) => scored.get(keyOf(it.table, it.id))!);
+      if (!results.length) {
+        throw new HttpError(500, "AI Pareto Analysis failed: the AI's reply had no score for any of these tasks");
       }
 
       withTodoDb((db) =>
         db.transaction(() => {
-          for (const res of results as Row[]) {
+          for (const res of results) {
             const table = res.table;
             const tid = res.id;
-            const score = res.pareto_score;
+            if (res.pareto_score === null || res.pareto_score === undefined) continue;
+            const score = Number(res.pareto_score);
+            if (!Number.isFinite(score)) continue;
             const top20 = res.is_top_20 ? 1 : 0;
             const reason = res.reason;
-            if (VALID_TABLES.includes(table) && tid && score !== undefined && score !== null) {
+            if (VALID_TABLES.includes(table) && tid) {
               // table is re-checked against VALID_TABLES right before interpolation —
               // never build this query from an unvalidated table name.
               db.run(
@@ -169,8 +230,14 @@ No extra text.`;
         })
       );
 
-      const top20Count = (results as Row[]).filter((r) => r.is_top_20).length;
-      return { results, analyzed_count: results.length, top20_count: top20Count };
+      const top20Count = results.filter((r) => r.is_top_20).length;
+      const response: Row = { results, analyzed_count: results.length, top20_count: top20Count };
+      const missed = batch.length - results.length;
+      if (missed > 0) {
+        response.partial = true;
+        response.message = `The AI scored ${results.length} of ${batch.length} items; run the analysis again to retry the other ${missed}.`;
+      }
+      return response;
     },
   },
 
@@ -242,9 +309,10 @@ No extra text.`;
 
       let res: Row;
       try {
-        const results = extractJsonArray(await callAi(prompt, aiSettings(body)));
+        const { items: results } = extractJsonItems(await callAi(prompt, aiSettings(body), 600));
         if (!results.length) throw new Error('No result returned');
         res = results[0];
+        if (res.pareto_score === undefined || res.pareto_score === null) throw new Error("the AI's answer had no pareto_score");
       } catch (err) {
         throw new HttpError(500, `AI Pareto Analysis failed: ${errorText(err)}`);
       }

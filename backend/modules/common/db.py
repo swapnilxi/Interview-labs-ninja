@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from dataclasses import dataclass
@@ -29,26 +30,24 @@ class QuestionRecord:
     user_performance: Optional[int] = None
     last_reviewed: Optional[str] = None
     question_type: Optional[str] = None
+    raw_json: Optional[str] = None
 
 
 def get_db_path() -> str:
-    """Resolve the path to lab_ninja.sqlite3 (located in backend/data/)."""
+    """The one real database: backend/data/lab_ninja.sqlite3.
+
+    Only the explicit test overrides below can point elsewhere (see CLAUDE.md: copy the DB, set the
+    env var, test against the copy). There is deliberately no fallback to any other location.
+    """
     override = os.environ.get("LABNINJA_TEST_DB_PATH")
     if override:
         return override
-        
+
     env_dir = os.environ.get("LABNINJA_DB_DIR")
     if env_dir:
         return str(Path(env_dir) / "lab_ninja.sqlite3")
 
-    path_data = Path(__file__).resolve().parent.parent.parent / "data" / "lab_ninja.sqlite3"
-    if path_data.exists():
-        return str(path_data)
-    path_modules = Path(__file__).resolve().parent.parent / "lab_ninja.sqlite3"
-    if path_modules.exists():
-        return str(path_modules)
-    os.makedirs(path_data.parent, exist_ok=True)
-    return str(path_data)
+    return str(Path(__file__).resolve().parent.parent.parent / "data" / "lab_ninja.sqlite3")
 
 
 def init_db() -> None:
@@ -72,9 +71,29 @@ def init_db() -> None:
             )
         """)
         cursor.execute("PRAGMA table_info(sessions);")
-        if "user_id" not in [row[1] for row in cursor.fetchall()]:
+        session_cols = [row[1] for row in cursor.fetchall()]
+        if "user_id" not in session_cols:
             cursor.execute("ALTER TABLE sessions ADD COLUMN user_id INTEGER DEFAULT NULL;")
+        if "deck_json" not in session_cols:
+            cursor.execute("ALTER TABLE sessions ADD COLUMN deck_json TEXT DEFAULT NULL;")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);")
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS uploaded_decks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NULL,
+                user_id INTEGER DEFAULT NULL,
+                deck_date TEXT NOT NULL,
+                session_name TEXT,
+                deck_format TEXT,
+                question_count INTEGER NOT NULL DEFAULT 0,
+                raw_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE SET NULL
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_uploaded_decks_user_id ON uploaded_decks(user_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_uploaded_decks_date ON uploaded_decks(deck_date);")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS questions (
@@ -103,7 +122,10 @@ def init_db() -> None:
             cursor.execute("ALTER TABLE questions ADD COLUMN question_type TEXT DEFAULT NULL;")
         if "user_id" not in columns:
             cursor.execute("ALTER TABLE questions ADD COLUMN user_id INTEGER DEFAULT NULL;")
+        if "raw_json" not in columns:
+            cursor.execute("ALTER TABLE questions ADD COLUMN raw_json TEXT DEFAULT NULL;")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_questions_user_id ON questions(user_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_questions_text ON questions(question_text);")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS session_progress (
@@ -203,6 +225,7 @@ def init_db() -> None:
         from modules.system_design_lab.schema import register as sd_register
         from modules.cv_lab.schema import register as cv_register
         from modules.dsa_lab.schema import register as dsa_register
+        from modules.lab_sections.schema import register as lab_sections_register
         from modules.linkedin_post_generator.templates.schema import register as linkedin_register
         from modules.ai_todo.shared.schema import register as todo_register
         from modules.common.rag.storage import register as rag_register
@@ -210,6 +233,7 @@ def init_db() -> None:
         sd_register(cursor)
         cv_register(cursor)
         dsa_register(cursor)
+        lab_sections_register(cursor)
         linkedin_register(cursor)
         todo_register(cursor)
         # Shared RAG chunk storage (modules.common.rag) -- registered centrally, like
@@ -280,6 +304,50 @@ def create_session(
         conn.close()
 
 
+def fetch_recent_sessions(user_id: int, limit: int = 10) -> List[dict]:
+    """The caller's latest sessions that have questions, newest first, with question/answer counts."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT s.id, s.session_date, s.difficulty_hint, s.created_at, COUNT(q.id) AS n_questions
+            FROM sessions s
+            JOIN questions q ON q.session_id = s.id
+            WHERE s.user_id = ?
+            GROUP BY s.id
+            ORDER BY s.id DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        )
+        rows = cursor.fetchall()
+        out = []
+        for sid, sdate, hint, created, n in rows:
+            cursor.execute(
+                """
+                SELECT COUNT(*) FROM session_progress sp
+                WHERE sp.user_id = ? AND sp.session_date = ? AND sp.is_completed = 1
+                  AND sp.question_text IN (SELECT question_text FROM questions WHERE session_id = ?)
+                """,
+                (user_id, sdate, sid),
+            )
+            answered = cursor.fetchone()[0]
+            out.append(
+                {
+                    "session_id": sid,
+                    "session_date": sdate,
+                    "difficulty_hint": hint,
+                    "created_at": created,
+                    "question_count": n,
+                    "answered_count": answered,
+                }
+            )
+        return out
+    finally:
+        conn.close()
+
+
 def insert_questions(user_id: int, session_id: int, questions: List[dict]) -> Optional[List[int]]:
     """Insert a batch of questions under a specific session ID and return their database IDs.
 
@@ -297,6 +365,27 @@ def insert_questions(user_id: int, session_id: int, questions: List[dict]) -> Op
 
         inserted_ids = []
         for q in questions:
+            question_text = (q.get("question_text") or "").strip()
+            if not question_text:
+                continue
+
+            # A session owns its questions. Only skip a repeat *within this same session*; never
+            # point a session at another session's (or another user's) row, or it would load
+            # fewer questions than it generated. Cross-session repeats are the generator's job
+            # to avoid and the Question Bank's "Clear Duplicates" job to clean up.
+            cursor.execute(
+                """
+                SELECT id FROM questions
+                WHERE session_id = ? AND trim(lower(question_text)) = trim(lower(?))
+                ORDER BY id ASC LIMIT 1
+                """,
+                (session_id, question_text),
+            )
+            existing_row = cursor.fetchone()
+            if existing_row:
+                inserted_ids.append(existing_row[0])
+                continue
+
             topics_val = q.get("topics", [])
             if isinstance(topics_val, list):
                 topics_str = ",".join(topics_val)
@@ -323,7 +412,7 @@ def insert_questions(user_id: int, session_id: int, questions: List[dict]) -> Op
                     q["sub_type"],
                     q["difficulty"],
                     topics_str,
-                    q["question_text"],
+                    question_text,
                     q.get("question_type", q["sub_type"]),
                     user_id,
                 ),
@@ -335,13 +424,338 @@ def insert_questions(user_id: int, session_id: int, questions: List[dict]) -> Op
         conn.close()
 
 
+def clear_duplicate_questions() -> int:
+    """Find duplicate questions using SQL and delete duplicate records,
+    keeping the earliest record (MIN id). Re-links any session_progress
+    entries to the surviving question id.
+    Returns the count of deleted duplicate records.
+    """
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id FROM questions
+            WHERE id NOT IN (
+                SELECT MIN(id) FROM questions GROUP BY trim(lower(question_text))
+            )
+            """
+        )
+        dup_rows = cursor.fetchall()
+        dup_ids = [r[0] for r in dup_rows]
+        if not dup_ids:
+            return 0
+
+        cursor.execute(
+            """
+            UPDATE session_progress
+            SET question_id = (
+                SELECT MIN(q.id)
+                FROM questions q
+                JOIN questions q2 ON trim(lower(q.question_text)) = trim(lower(q2.question_text))
+                WHERE q2.id = session_progress.question_id
+            )
+            WHERE question_id IN (
+                SELECT id FROM questions WHERE id NOT IN (
+                    SELECT MIN(id) FROM questions GROUP BY trim(lower(question_text))
+                )
+            );
+            """
+        )
+        cursor.execute(
+            """
+            DELETE FROM questions
+            WHERE id NOT IN (
+                SELECT MIN(id) FROM questions GROUP BY trim(lower(question_text))
+            );
+            """
+        )
+        conn.commit()
+        return len(dup_ids)
+    finally:
+        conn.close()
+
+
+def import_quick_practice_questions(
+    questions: List[dict],
+    user_id: Optional[int] = None,
+    session_date: Optional[str] = None,
+    session_title: Optional[str] = None,
+    raw_payload: Optional[dict] = None,
+) -> dict:
+    """Import questions from Quick Practice deck into questions and session_progress tables.
+    Also saves the entire raw JSON into the uploaded_decks table and sessions table in SQLite,
+    and each question's raw JSON into questions.raw_json.
+    Uses SQL deduplication to avoid adding duplicate questions.
+    """
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.cursor()
+        effective_user_id = user_id if user_id is not None else 8
+        target_date = session_date or date.today().isoformat()
+        deck_format = (raw_payload.get("format") if isinstance(raw_payload, dict) else None) or "2-minute quick learning"
+
+        # Reconstruct or serialize complete raw JSON payload
+        full_payload = raw_payload if raw_payload is not None else {
+            "date": target_date,
+            "session": session_title or "Daily Interview Revision",
+            "format": deck_format,
+            "questions": questions,
+        }
+        raw_json_str = json.dumps(full_payload, ensure_ascii=False)
+
+        # Find or create a session for this date & user
+        cursor.execute(
+            """
+            SELECT id FROM sessions
+            WHERE session_date = ? AND (user_id = ? OR user_id = 8)
+            ORDER BY id DESC LIMIT 1
+            """,
+            (target_date, effective_user_id),
+        )
+        row = cursor.fetchone()
+        if row:
+            session_id = row[0]
+            cursor.execute(
+                "UPDATE sessions SET deck_json = ? WHERE id = ?",
+                (raw_json_str, session_id),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO sessions (session_date, difficulty_hint, user_id, deck_json)
+                VALUES (?, ?, ?, ?)
+                """,
+                (target_date, session_title or "quick-practice", effective_user_id, raw_json_str),
+            )
+            session_id = cursor.lastrowid
+
+        # Save full deck JSON into uploaded_decks table in SQLite
+        cursor.execute(
+            """
+            INSERT INTO uploaded_decks (
+                session_id, user_id, deck_date, session_name, deck_format, question_count, raw_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_id,
+                effective_user_id,
+                target_date,
+                session_title or "Daily Interview Revision",
+                deck_format,
+                len(questions),
+                raw_json_str,
+            ),
+        )
+        deck_id = cursor.lastrowid
+
+        inserted_ids = []
+        duplicate_count = 0
+
+        for i, q in enumerate(questions):
+            q_text = (q.get("question") or q.get("question_text") or "").strip()
+            if not q_text:
+                continue
+
+            # SQL deduplication check
+            cursor.execute(
+                """
+                SELECT id FROM questions
+                WHERE trim(lower(question_text)) = trim(lower(?))
+                ORDER BY id ASC LIMIT 1
+                """,
+                (q_text,),
+            )
+            existing = cursor.fetchone()
+            if existing:
+                duplicate_count += 1
+                continue
+
+            topic_raw = q.get("topic") or q.get("sub_type") or q.get("subType") or "General"
+            topic_str = str(topic_raw).strip()
+            title_str = str(q.get("title") or "").strip()
+
+            is_cv = "vision" in topic_str.lower() or "cv" in topic_str.lower()
+            category = "cv_skill" if is_cv else "interview"
+
+            diff_raw = str(q.get("difficulty") or "Medium").capitalize()
+            difficulty = diff_raw if diff_raw in ["Easy", "Medium", "Hard"] else "Medium"
+
+            q_num = q.get("id") or (i + 1)
+            try:
+                q_num = int(q_num)
+            except Exception:
+                q_num = i + 1
+
+            topics_field = topic_str
+            if title_str and title_str.lower() not in topic_str.lower():
+                topics_field = f"{topic_str},{title_str}"
+
+            # Store individual question raw JSON in questions table
+            single_question_json = json.dumps(q, ensure_ascii=False)
+
+            cursor.execute(
+                """
+                INSERT INTO questions (
+                    session_id, question_date, section, number,
+                    category, sub_type, difficulty, topics, question_text,
+                    question_type, user_id, raw_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id,
+                    target_date,
+                    "Quick Practice",
+                    q_num,
+                    category,
+                    topic_str,
+                    difficulty,
+                    topics_field,
+                    q_text,
+                    title_str or topic_str,
+                    effective_user_id,
+                    single_question_json,
+                ),
+            )
+            new_qid = cursor.lastrowid
+            inserted_ids.append(new_qid)
+
+            # Store answer, formula, example, remember tips in session_progress
+            ans_text = (q.get("answer") or q.get("model_answer") or "").strip()
+            if ans_text:
+                extra_parts = []
+                if q.get("example"):
+                    extra_parts.append(f"Example: {q['example']}")
+                if q.get("formula"):
+                    form_val = q["formula"]
+                    if isinstance(form_val, dict):
+                        form_lines = "\n".join(f"{k}: {v}" for k, v in form_val.items())
+                        extra_parts.append(f"Formula:\n{form_lines}")
+                    else:
+                        extra_parts.append(f"Formula: {form_val}")
+                if q.get("remember"):
+                    rem = q["remember"]
+                    if isinstance(rem, list) and rem:
+                        extra_parts.append("Key takeaways:\n" + "\n".join(f"- {x}" for x in rem))
+                tip = q.get("interview_tip") or q.get("interviewTip")
+                if tip:
+                    extra_parts.append(f"Interview Tip: {tip}")
+                troff = q.get("tradeoffs")
+                if isinstance(troff, list) and troff:
+                    extra_parts.append("Trade-offs:\n" + "\n".join(f"- {x}" for x in troff))
+                chk = q.get("checklist")
+                if isinstance(chk, list) and chk:
+                    extra_parts.append("Checklist:\n" + "\n".join(f"- {x}" for x in chk))
+                stps = q.get("steps")
+                if isinstance(stps, list) and stps:
+                    extra_parts.append("Steps:\n" + "\n".join(f"- {x}" for x in stps))
+
+                full_answer = ans_text
+                if extra_parts:
+                    full_answer += "\n\n" + "\n\n".join(extra_parts)
+
+                cursor.execute(
+                    """
+                    INSERT INTO session_progress (
+                        session_date, question_id, question_text, answer_text,
+                        category, difficulty, question_type, is_completed, user_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        target_date,
+                        new_qid,
+                        q_text,
+                        full_answer,
+                        category,
+                        difficulty,
+                        title_str or topic_str,
+                        0,
+                        effective_user_id,
+                    ),
+                )
+
+        conn.commit()
+        return {
+            "deck_id": deck_id,
+            "total": len(questions),
+            "inserted": len(inserted_ids),
+            "duplicates": duplicate_count,
+            "inserted_ids": inserted_ids,
+            "session_id": session_id,
+            "session_date": target_date,
+        }
+    finally:
+        conn.close()
+
+
+def fetch_uploaded_decks(user_id: Optional[int] = None) -> List[dict]:
+    """Retrieve list of uploaded JSON decks saved in SQLite."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        query = "SELECT id, session_id, user_id, deck_date, session_name, deck_format, question_count, created_at FROM uploaded_decks"
+        params: list = []
+        if user_id is not None:
+            query += " WHERE (user_id = ? OR user_id = 8 OR user_id IS NULL)"
+            params.append(user_id)
+        query += " ORDER BY id DESC"
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": r[0],
+                "session_id": r[1],
+                "user_id": r[2],
+                "deck_date": r[3],
+                "session_name": r[4],
+                "deck_format": r[5],
+                "question_count": r[6],
+                "created_at": r[7],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def fetch_uploaded_deck_by_id(deck_id: int, user_id: Optional[int] = None) -> Optional[dict]:
+    """Retrieve full saved JSON deck from SQLite by ID."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        query = "SELECT id, session_id, user_id, deck_date, session_name, deck_format, question_count, raw_json, created_at FROM uploaded_decks WHERE id = ?"
+        params: list = [deck_id]
+        if user_id is not None:
+            query += " AND (user_id = ? OR user_id = 8 OR user_id IS NULL)"
+            params.append(user_id)
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "session_id": row[1],
+            "user_id": row[2],
+            "deck_date": row[3],
+            "session_name": row[4],
+            "deck_format": row[5],
+            "question_count": row[6],
+            "raw_json": json.loads(row[7]) if row[7] else {},
+            "created_at": row[8],
+        }
+    finally:
+        conn.close()
+
+
 def fetch_questions(
-    user_id: int,
+    user_id: Optional[int] = None,
     category: Optional[Category] = None,
     session_date: Optional[str] = None,
     topic: Optional[str] = None,
 ) -> List[QuestionRecord]:
-    """Query the questions table with optional filters, scoped to the caller."""
+    """Query the questions table with optional filters, scoped to the caller or shared repository."""
     db_path = get_db_path()
     conn = sqlite3.connect(db_path)
     try:
@@ -351,9 +765,12 @@ def fetch_questions(
                    category, sub_type, difficulty, topics, question_text,
                    user_performance, last_reviewed, question_type
             FROM questions
-            WHERE user_id = ?
+            WHERE 1=1
         """
-        params = [user_id]
+        params = []
+        if user_id is not None:
+            query += " AND (user_id = ? OR user_id = 8 OR user_id IS NULL)"
+            params.append(user_id)
         if category is not None:
             category_str = category.value if hasattr(category, "value") else str(category)
             query += " AND category = ?"
@@ -395,6 +812,48 @@ def fetch_questions(
                 )
             )
         return records
+    finally:
+        conn.close()
+
+
+def fetch_question_by_id(question_id: int) -> Optional[QuestionRecord]:
+    """Fetch a single question by primary key ID."""
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.cursor()
+        query = """
+            SELECT id, session_id, question_date, section, number,
+                   category, sub_type, difficulty, topics, question_text,
+                   user_performance, last_reviewed, question_type
+            FROM questions
+            WHERE id = ?
+        """
+        cursor.execute(query, (question_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        cat_str = row[5]
+        try:
+            cat_val = Category(cat_str)
+        except ValueError:
+            cat_val = cat_str
+
+        return QuestionRecord(
+            id=row[0],
+            session_id=row[1],
+            question_date=row[2],
+            section=row[3],
+            number=row[4],
+            category=cat_val,
+            sub_type=row[6],
+            difficulty=row[7],
+            topics=row[8],
+            question_text=row[9],
+            user_performance=row[10],
+            last_reviewed=row[11],
+            question_type=row[12],
+        )
     finally:
         conn.close()
 
@@ -527,6 +986,13 @@ def fetch_progress_stats(user_id: int) -> dict:
         cursor.execute("SELECT session_date, is_completed FROM session_progress WHERE user_id = ?", (user_id,))
         rows = cursor.fetchall()
 
+        per_date: dict = {}
+        for d, done in rows:
+            agg = per_date.setdefault(d, {"date": d, "answered": 0, "completed": 0})
+            agg["answered"] += 1
+            agg["completed"] += 1 if done == 1 else 0
+        recent_sessions = sorted(per_date.values(), key=lambda a: a["date"], reverse=True)[:10]
+
         unique_dates = list(set(r[0] for r in rows))
         completed = sum(1 for r in rows if r[1] == 1)
 
@@ -538,6 +1004,7 @@ def fetch_progress_stats(user_id: int) -> dict:
             "totalAnswered": len(rows),
             "completedAnswers": completed,
             "recentDates": recent_dates,
+            "recentSessions": recent_sessions,
         }
     finally:
         conn.close()

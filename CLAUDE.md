@@ -45,9 +45,8 @@ further down in `README.md` — check there before assuming a module's shape.
 ## Critical gotchas
 
 - **The live SQLite database is `backend/data/lab_ninja.sqlite3`** (`get_db_path()` in
-  `backend/modules/common/db.py`; falls back to the legacy `backend/modules/`
-  location if `backend/data/` doesn't exist, so don't be surprised if you see both
-  paths referenced in old code/history). It's tracked in git — `.gitignore` blanket-
+  `backend/modules/common/db.py`; there is no fallback to any other location, only the
+  test overrides below). It's tracked in git — `.gitignore` blanket-
   ignores `*.sqlite3` but re-includes this file and `career_studio.sqlite3` with `!`
   negation so the shipped DBs deploy with the app on Vercel.
 - **Never run ad-hoc test scripts against the real DB.** `get_db_path()` honors
@@ -60,8 +59,8 @@ further down in `README.md` — check there before assuming a module's shape.
   `next dev` run in that mode writes test rows into the tracked DB (this happened once and
   had to be restored from git). To test it, point `LABNINJA_DB_DIR` at a scratch folder
   that holds a copy named `lab_ninja.sqlite3`, and unset `DATABASE_URL` (set, it pushes
-  snapshots to Neon). Auth in that mode always uses `/tmp/lab_ninja.sqlite3` (seeded from
-  the repo DB, never written back). Run `git status backend/data` afterwards.
+  snapshots to Neon). Auth in that mode uses the same file (so `LABNINJA_DB_DIR`
+  protects it too); only on Vercel, where the repo is read-only, is a `/tmp` copy used. Run `git status backend/data` afterwards.
 - **Two silent Tailwind traps** (`frontend/tailwind.config.js` is shared — don't change it to "fix" them, it would
   restyle every module). (1) The theme colours (`primary`, `muted`, `border`, `card`, …) are bare `var(--color-x)`
   strings, so an opacity modifier on them — `bg-muted/20`, `border-border/60`, `hover:bg-primary/90` — compiles to
@@ -75,7 +74,7 @@ further down in `README.md` — check there before assuming a module's shape.
   before assuming otherwise) — `backend/main.py` only wires up `modules.ai_todo.*`, and
   every page under `frontend/src/app/ai-todo/` imports from `@/modules/ai-todo/*`. Edit
   `ai_todo` / `ai-todo`, not `todo`.
-- **`career_studio` has its own separate database — `backend/modules/career_studio/career_studio.sqlite3`, not `lab_ninja.sqlite3`.** `get_career_db_path()` in
+- **`career_studio` has its own separate database — `backend/data/career_studio.sqlite3`, not `lab_ninja.sqlite3`.** `get_career_db_path()` in
   `backend/modules/career_studio/shared/db.py` honors `CAREER_STUDIO_DB_PATH` (mirrors
   `LABNINJA_TEST_DB_PATH`'s pattern above, but it's a distinct env var for a distinct
   file). Testing any resume/portfolio/views/templates flow by copying only
@@ -183,8 +182,14 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   the `fe-apis/` equivalent needs the matching change too, or the two modes will silently
   diverge. `ai_todo`'s twin is `frontend/fe-apis/todo/` (one catch-all route per prefix,
   `src/app/api/{todo,pareto}/[...path]`); its README maps each Python file to its TS port.
-- Most other modules (`career_studio`, the interview labs, `daily_session`,
-  `linkedin_post_generator`) have **no** `fe-apis` equivalent — they only work in
+- **The labs have two small twins**, nothing else of theirs does: `backend/modules/lab_sections/`
+  (AI-written lab sections like DSA "Approaches", context regenerate, AI quizzes; `/lab-sections/*`)
+  ↔ `frontend/fe-apis/labSections/`, and the DSA week plan (`/dsa/week-plan`, in `dsa_lab/`) ↔
+  `frontend/fe-apis/dsaLab/`. Prompts, limits and error texts are copied verbatim, so change both. To
+  check them: point both at a mock OpenAI-compatible provider (`customBaseUrl`), send the same requests
+  to each, and diff statuses, bodies and the prompts the mock received.
+- Most other modules (`career_studio`, the rest of the interview labs — topics/sections —,
+  `daily_session`, `linkedin_post_generator`) have **no** `fe-apis` equivalent — they only work in
   `fastapi` mode. Don't assume feature parity between modes without checking whether a
   module has a `frontend/src/app/api/**` + `frontend/fe-apis/**` counterpart.
 

@@ -6,7 +6,7 @@
  */
 
 import { getSQLiteDatabase, getUserFromAuthHeader, getDbPath } from '../_shared/db';
-import { callAIText, extractJsonObject, type AISettingsPayload } from '../ai';
+import { callAIText, extractJsonItems, extractJsonObject, type AISettingsPayload } from '../ai';
 import { resolveModel } from '../ai';
 import { ensureTodoSchema } from './schema';
 
@@ -215,7 +215,7 @@ export function extractJsonArray(text: string): any[] {
   return JSON.parse(t.slice(start, end + 1));
 }
 
-export { extractJsonObject };
+export { extractJsonItems, extractJsonObject };
 
 /** MIME type for an uploaded image's extension (what Gemini's inline_data needs). */
 export function imageMimeType(ext: string): string {

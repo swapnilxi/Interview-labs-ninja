@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import LabCopilot from '@/components/common/LabCopilot';
 import { LabMobileBar, LabSheetBackdrop, useLabSheets } from '@/modules/common/lab/LabMobile';
@@ -8,6 +8,8 @@ import OnDemandSection from '@/components/lab/OnDemandSection';
 import QuizCarousel from '@/components/lab/QuizCarousel';
 import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/GenerateQuestionsPanel';
 import MarkdownLite from '@/modules/common/lab/MarkdownLite';
+import { useLabSections } from '@/modules/common/lab/useLabSections';
+import { LabBackBar, LabScreenLoading, jumpToAnchor, useLabNav, useScrollToTopOnChange } from '@/modules/common/lab/labNavigation';
 import { apiFetch } from '@/lib/http/apiClient';
 
 interface CVTopic {
@@ -19,12 +21,6 @@ interface CVTopic {
   prerequisites: string[];
   subtopics: { id: string; name: string; brief: string; content?: string; sourceUrl?: string }[];
   isCustom?: boolean;
-}
-
-interface SectionState {
-  generated: boolean;
-  generating: boolean;
-  content: string;
 }
 
 const TOPICS: CVTopic[] = [
@@ -611,7 +607,7 @@ function CVWikiIndex({
           <div className="grid grid-cols-2 gap-0.5">
             {groupedSections.map((section, i) => (
               <a key={section.name}
-                href={`#cv-cat-${section.name.replace(/[\s&/()']/g, '-')}`}
+                href={`#cv-cat-${section.name.replace(/[\s&/()']/g, '-')}`} onClick={jumpToAnchor}
                 className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all group">
                 <span className="text-[9px] text-muted-foreground/30 w-4 text-right flex-shrink-0">{i + 1}</span>
                 <span className="flex-1 truncate group-hover:text-teal-400 transition-colors">{section.name}</span>
@@ -684,16 +680,15 @@ function CVWikiIndex({
   );
 }
 
-function initSections(): Record<string, SectionState> {
-  return Object.fromEntries(SECTION_DEFS.map(s => [s.id, { generated: false, generating: false, content: '' }]));
-}
-
 export default function CVLabInteractive() {
   const [topics, setTopics] = useState<CVTopic[]>(TOPICS);
-  const [selectedTopicId, setSelectedTopicId] = useState('wiki');
-  const [selectedSubtopicId, setSelectedSubtopicId] = useState<string | null>(null);
-  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
-  const [sections, setSections] = useState<Record<string, SectionState>>(initSections());
+  const [topicsReady, setTopicsReady] = useState(false);
+  // The open screen lives in the URL (?topic=&sub=), see labNavigation.tsx.
+  const nav = useLabNav(topics.length > 0 ? topics : TOPICS, topicsReady);
+  const selectedTopicId = nav.topicId;
+  const selectedSubtopicId = nav.subId;
+  const mainRef = useRef<HTMLElement>(null);
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(() => new Set(nav.topicParam ? [nav.topicParam] : []));
   const [newTopicInput, setNewTopicInput] = useState('');
   const [addingTopic, setAddingTopic] = useState(false);
   const [addingSubtopicTo, setAddingSubtopicTo] = useState<string | null>(null);
@@ -729,24 +724,14 @@ export default function CVLabInteractive() {
       .catch(err => console.error("Error fetching sections:", err));
   }, []);
 
-  // Restore last opened topic from localStorage on mount
+  // Restore the "Recent" chips on mount. Which screen is open is not stored here any more: it lives in the URL.
   useEffect(() => {
-    const savedTopic  = localStorage.getItem('cv-lab-topic');
-    const savedSub    = localStorage.getItem('cv-lab-subtopic');
     const savedRecent = localStorage.getItem('cv-lab-recent-topics');
-    if (savedTopic) {
-      setSelectedTopicId(savedTopic);
-      if (savedTopic !== 'wiki') setExpandedTopics(prev => new Set([...prev, savedTopic]));
-    }
-    if (savedSub) setSelectedSubtopicId(savedSub);
     if (savedRecent) try { setRecentTopics(JSON.parse(savedRecent)); } catch {}
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('cv-lab-topic', selectedTopicId);
-    if (selectedSubtopicId) localStorage.setItem('cv-lab-subtopic', selectedSubtopicId);
-    else localStorage.removeItem('cv-lab-subtopic');
-  }, [selectedTopicId, selectedSubtopicId]);
+  // A different screen opened (also via Back/Forward): the content pane starts at its top.
+  useScrollToTopOnChange(mainRef, `${selectedTopicId}|${selectedSubtopicId ?? ''}`);
 
   const handleAddCustomSection = () => {
     if (!customSectionInput.trim()) return;
@@ -820,10 +805,12 @@ export default function CVLabInteractive() {
         } else {
           setTopics(TOPICS);
         }
+        setTopicsReady(true);
       })
       .catch(err => {
         console.error("Error fetching CV topics, falling back to static list:", err);
         setTopics(TOPICS);
+        setTopicsReady(true);
       });
   }, []);
 
@@ -905,6 +892,10 @@ export default function CVLabInteractive() {
   }));
   const currentTopic = allTopics.find(t => t.id === selectedTopicId) ?? null;
   const currentSubtopic = currentTopic?.subtopics.find(s => s.id === selectedSubtopicId) ?? null;
+  const { sections, generate: generateSection, generateWithContext } = useLabSections({
+    lab: 'cv', topic: currentTopic, subtopic: currentSubtopic, sectionDefs: SECTION_DEFS,
+    getDefaultContent: id => (currentTopic ? getContent(id, currentTopic) : ''),
+  });
   const contextLabel = selectedTopicId === 'wiki' ? 'Wiki Index' : (currentSubtopic?.name ?? currentTopic?.name ?? 'Computer Vision');
 
   const flatItems = [
@@ -920,9 +911,8 @@ export default function CVLabInteractive() {
   const nextItem = currentIdx >= 0 && currentIdx < flatItems.length - 1 ? flatItems[currentIdx + 1] : null;
 
   const navigateTo = (item: typeof flatItems[0]) => {
-    setSelectedTopicId(item.topicId);
-    setSelectedSubtopicId(item.type === 'subtopic' ? item.id : null);
-    setSections(initSections());
+    if (item.type === 'subtopic') nav.openSub(item.topicId, item.id);
+    else nav.openTopic(item.topicId);
     setQuizBatch(0);
     setExpandedTopics(prev => new Set([...prev, item.topicId]));
   };
@@ -946,9 +936,7 @@ export default function CVLabInteractive() {
   };
 
   const selectTopic = (id: string) => {
-    setSelectedTopicId(id);
-    setSelectedSubtopicId(null);
-    setSections(initSections());
+    nav.openTopic(id);
     setQuizBatch(0);
     if (id !== 'wiki') {
       setExpandedTopics(prev => {
@@ -962,23 +950,12 @@ export default function CVLabInteractive() {
   };
 
   const selectSubtopic = (topicId: string, subId: string) => {
-    setSelectedTopicId(topicId);
-    setSelectedSubtopicId(subId);
-    setSections(initSections());
+    nav.openSub(topicId, subId);
     setQuizBatch(0);
     setExpandedTopics(prev => new Set([...prev, topicId]));
     const t = topics.find(tt => tt.id === topicId);
     const s = t?.subtopics.find(ss => ss.id === subId);
     if (t && s) addToRecent(topicId, t.name, subId, s.name);
-  };
-
-  const generateSection = (sectionId: string) => {
-    if (!currentTopic) return;
-    setSections(prev => ({ ...prev, [sectionId]: { ...prev[sectionId], generating: true } }));
-    setTimeout(() => {
-      const content = getContent(sectionId, currentTopic);
-      setSections(prev => ({ ...prev, [sectionId]: { generated: true, generating: false, content } }));
-    }, 1500);
   };
 
   const handleAddTopic = () => {
@@ -1232,30 +1209,19 @@ export default function CVLabInteractive() {
         </aside>
 
         {/* ── CENTER ────────────────────────────────────────────────────────── */}
-        <main className="lab-main scrollbar-clean">
+        <main ref={mainRef} className="lab-main scrollbar-clean">
           {lab.isMobile && <LabMobileBar title={contextLabel} onTopics={lab.openTopics} onCopilot={lab.openCopilot} />}
-          {selectedTopicId !== 'wiki' && (
-            <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2.5 border-b border-border bg-background/95 backdrop-blur-sm">
-              <button onClick={() => selectTopic('wiki')}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-teal-400 transition-colors group">
-                <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
-                <span>Wiki Index</span>
-              </button>
-              {currentTopic && (
-                <>
-                  <Icon name="ChevronRightIcon" size={10} className="text-muted-foreground/40 flex-shrink-0" />
-                  <span className="text-xs font-medium text-foreground truncate">{currentTopic.name}</span>
-                </>
-              )}
-              {currentSubtopic && (
-                <>
-                  <Icon name="ChevronRightIcon" size={10} className="text-muted-foreground/40 flex-shrink-0" />
-                  <span className="text-xs text-muted-foreground truncate">{currentSubtopic.name}</span>
-                </>
-              )}
-            </div>
+          {/* Back to the parent screen: a topic goes back to the Wiki Index, a subtopic to its topic */}
+          {selectedTopicId !== 'wiki' && currentTopic && (
+            <LabBackBar
+              href={currentSubtopic ? nav.topicHref : nav.wikiHref}
+              parentName={currentSubtopic ? currentTopic.name : 'Wiki Index'}
+              currentName={currentSubtopic ? currentSubtopic.name : currentTopic.name}
+            />
           )}
-          {selectedTopicId === 'wiki' ? (
+          {nav.pending ? (
+            <LabScreenLoading />
+          ) : selectedTopicId === 'wiki' ? (
             <CVWikiIndex
               groupedSections={groupedSections}
               allTopics={allTopics}
@@ -1356,7 +1322,7 @@ export default function CVLabInteractive() {
                   {SECTION_DEFS.map(def => {
                     const s = sections[def.id];
                     return (
-                      <a key={def.id} href={`#sec-${def.id}`}
+                      <a key={def.id} href={`#sec-${def.id}`} onClick={jumpToAnchor}
                         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] transition-all leading-tight ${s?.generated ? 'text-teal-400 bg-teal-500/10 hover:bg-teal-500/15' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}>
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s?.generated ? 'bg-teal-400' : s?.generating ? 'bg-blue-400 animate-pulse' : 'bg-muted-foreground/20'}`} />
                         <span className="truncate">{def.label}</span>
@@ -1378,13 +1344,15 @@ export default function CVLabInteractive() {
               {/* ── On-demand sections ── */}
               <div className="space-y-4">
                 {SECTION_DEFS.map((def, idx) => {
-                  const s = sections[def.id] ?? { generated: false, generating: false, content: '' };
+                  const s = sections[def.id] ?? { generated: false, generating: false, content: '', context: '' };
                   return (
                     <div key={def.id} id={`sec-${def.id}`} className="scroll-mt-4">
                       <OnDemandSection sectionIndex={idx + 1} icon={def.icon} title={def.label} subtitle={def.subtitle}
-                        content={s.content} isGenerated={s.generated} isGenerating={s.generating} onGenerate={() => generateSection(def.id)}>
+                        content={s.content} isGenerated={s.generated} isGenerating={s.generating} onGenerate={() => generateSection(def.id)}
+                        onGenerateWithContext={def.id === 'quiz' ? undefined : (context, mode) => generateWithContext(def.id, context, mode)}
+                        savedContext={s.context}>
                         {def.id === 'quiz' && s.generated ? (
-                          <QuizCarousel questions={QUIZ_BANK.slice(quizBatch * 4, quizBatch * 4 + 4)} hasMore={true}
+                          <QuizCarousel questions={QUIZ_BANK.slice(quizBatch * 4, quizBatch * 4 + 4)} hasMore={(quizBatch + 1) * 4 < QUIZ_BANK.length}
                             onGenerateMore={() => setQuizBatch(b => b + 1)} />
                         ) : undefined}
                       </OnDemandSection>

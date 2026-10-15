@@ -11,7 +11,12 @@ import PerformanceMetricsCard from './PerformanceMetricsCard';
 import ActionButtonsPanel from './ActionButtonsPanel';
 import InterviewerPerspectiveCard from './InterviewerPerspectiveCard';
 import AILabChat from './AILabChat';
+import BackButton from '@/components/ui/BackButton';
 import { questionsService, Question as ServiceQuestion } from '@/lib/services/questionsService';
+import { toast } from '@/lib/ui/toast';
+
+/** The review page is opened from the daily quiz, the question bank and other reviews; this is its parent. */
+const QUESTION_BANK_URL = '/daily-session?tab=question-bank';
 
 interface ReviewQuestion {
   id: string;
@@ -119,38 +124,78 @@ function QuestionReviewContent() {
   const [loading, setLoading] = useState(true);
   const [liveResponse, setLiveResponse] = useState('');
 
+  // Each question is its own screen: the answer box, feedback and chat below start empty when the address moves to
+  // another question (related question, browser Back/Forward) instead of carrying the previous question's text.
+  const currentId = currentQuestion?.id;
+  useEffect(() => {
+    setLiveResponse('');
+  }, [currentId]);
+
   useEffect(() => {
     setIsHydrated(true);
+    let cancelled = false; // the address changed or the page was left while we were still loading
     async function load() {
+      let redirecting = false;
       try {
+        const questionId = searchParams.get('id');
         const backendQs = await questionsService.getAll();
         const reviewQs = backendQs.map(mapBackendQuestionToReview);
+        if (cancelled) return;
         setQuestions(reviewQs);
-        
-        const questionId = searchParams.get('id');
+
+        let targetQuestion: ReviewQuestion | null = null;
         if (questionId) {
-          const found = reviewQs.find((q) => q.id === questionId);
-          if (found) {
-            setCurrentQuestion(found);
-          } else if (reviewQs.length > 0) {
-            setCurrentQuestion(reviewQs[0]);
+          targetQuestion = reviewQs.find((q) => String(q.id) === String(questionId)) || null;
+          // Ids are whole numbers: anything else cannot exist, so don't ask the server (it would only answer 422).
+          if (!targetQuestion && /^\d+$/.test(questionId)) {
+            const direct = await questionsService.getById(questionId);
+            if (direct) {
+              targetQuestion = mapBackendQuestionToReview(direct);
+            }
           }
-        } else if (reviewQs.length > 0) {
-          setCurrentQuestion(reviewQs[0]);
+        }
+        if (cancelled) return;
+
+        if (!targetQuestion && reviewQs.length > 0) {
+          // A missing or unknown id must not show some other question under this address: the question bank
+          // is the parent screen, so fall back to it (replace: the bad address does not stay in history).
+          redirecting = true;
+          toast.info(questionId ? `Question ${questionId.slice(0, 40)} was not found.` : 'Pick a question to review it.');
+          router.replace(QUESTION_BANK_URL);
+          return;
+        }
+
+        if (targetQuestion) {
+          if (targetQuestion.relatedQuestions.length === 0 && reviewQs.length > 1) {
+            targetQuestion.relatedQuestions = reviewQs
+              .filter((rq) => rq.id !== targetQuestion!.id)
+              .slice(0, 3)
+              .map((rq) => ({
+                id: rq.id,
+                title: rq.title,
+                category: rq.category,
+                difficulty: rq.difficulty,
+                similarity: 85,
+              }));
+          }
+          setCurrentQuestion(targetQuestion);
         }
       } catch (err) {
         console.error('Failed to load questions in review:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled && !redirecting) setLoading(false);
       }
     }
     load();
-  }, [searchParams]);
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, router]);
 
   const handleResponseUpdate = (response: string) => {
     setLiveResponse(response);
     setCurrentQuestion((prev) => ({
-      ...prev,
+      ...prev!,
       userResponse: response,
     }));
   };
@@ -165,8 +210,8 @@ function QuestionReviewContent() {
 
   const handleToggleReviewList = () => {
     setCurrentQuestion((prev) => ({
-      ...prev,
-      isInReviewList: !prev.isInReviewList,
+      ...prev!,
+      isInReviewList: !prev!.isInReviewList,
     }));
   };
 
@@ -195,12 +240,36 @@ function QuestionReviewContent() {
     }
   };
 
-  if (!isHydrated || loading || !currentQuestion) {
+  if (!isHydrated || loading) {
     return (
       <div className="min-h-screen bg-background pt-[60px]">
         <div className="max-w-[1400px] mx-auto px-24 py-36">
           <div className="flex items-center justify-center h-[400px]">
-            <div className="w-48 h-48 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+            <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentQuestion) {
+    return (
+      <div className="min-h-screen bg-background pt-[60px]">
+        <div className="max-w-[1400px] mx-auto px-24 py-36 text-center">
+          <div className="mb-[1.5rem] text-left">
+            <BackButton href={QUESTION_BANK_URL} preferHistory />
+          </div>
+          <div className="max-w-md mx-auto p-8 rounded-2xl border border-border bg-card">
+            <h2 className="text-xl font-bold mb-2">Question Not Found</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Could not find question #{searchParams.get('id') || ''}. It may have been deleted or the ID is invalid.
+            </p>
+            <button
+              onClick={() => router.push(QUESTION_BANK_URL)}
+              className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-smooth"
+            >
+              Browse Question Bank
+            </button>
           </div>
         </div>
       </div>
@@ -211,33 +280,12 @@ function QuestionReviewContent() {
     <div className="min-h-screen bg-background pt-[60px]">
       <div className="max-w-[1400px] mx-auto px-24 py-36">
         <div className="mb-24">
-          <button
-            onClick={() => router.push('/question-bank')}
-            className="
-              flex items-center gap-6 text-sm text-muted-foreground
-              hover:text-foreground transition-smooth
-            "
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M10 12L6 8L10 4"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Back to Question Bank
-          </button>
+          {/* Reachable from the daily quiz, the question bank and other reviews: Back returns to wherever the
+              user came from, and to the question bank when there is no history (a refresh, a shared link). */}
+          <BackButton href={QUESTION_BANK_URL} preferHistory />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-24">
+        <div key={currentQuestion.id} className="grid grid-cols-1 lg:grid-cols-3 gap-24">
           <div className="lg:col-span-2 space-y-24">
             <QuestionDetailCard question={currentQuestion} />
             <ResponseEditor

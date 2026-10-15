@@ -7,8 +7,9 @@
  * every view built from it.
  */
 
+import { openLoginModal } from '@/components/auth/LoginModal';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
@@ -23,6 +24,8 @@ import ProfileSelector from '../profile/ProfileSelector';
 import ProfileEditorModal from '../profile/ProfileEditorModal';
 import { openProfileEditor } from '../profile/profileEditorStore';
 import { getActiveProfile } from '../shared/activeProfileStore';
+import { useDesignerParam } from '../shared/screenParams';
+import { useUrlState } from '@/lib/navigation/urlState';
 import TemplateDesigner from '../templates-designer/TemplateDesigner';
 import { TemplatePickerCard, TemplatePreviewThumb } from '../templates-designer/TemplatePreviewThumb';
 import GapAnalysisResult from '../job-match/GapAnalysisResult';
@@ -31,7 +34,9 @@ import AnalyzerPanel from '../resume/AnalyzerPanel';
 import CoverLetterPanel from '../cover-letter/CoverLetterPanel';
 import { LIST as RESUME_TEMPLATES } from '../resume/templates';
 
-type Tab = 'profiles' | 'analyzer' | 'generate' | 'match' | 'coverletters' | 'resumes' | 'portfolios' | 'templates';
+const TAB_IDS = ['profiles', 'analyzer', 'generate', 'match', 'coverletters', 'resumes', 'portfolios', 'templates'] as const;
+type Tab = (typeof TAB_IDS)[number];
+const isTab = (v: string | null): v is Tab => !!v && (TAB_IDS as readonly string[]).includes(v);
 type Toast = { message: string; type: 'success' | 'error' } | null;
 
 function fmt(v?: string) {
@@ -42,8 +47,14 @@ function fmt(v?: string) {
 
 export default function CareerStudioTabs() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [tab, setTab] = useState<Tab>('resumes');
+  const { get, update } = useUrlState();
+  // The tab is the URL's ?tab= (Back/Forward, a refresh and a shared link keep it); a missing or unknown value is Resumes.
+  const tabParam = get('tab');
+  const tab: Tab = isTab(tabParam) ? tabParam : 'resumes';
+  // Sub-screens (?letter=, ?design=, ?profile= with its &pane=) belong to the tab they were opened on, so a tab change drops them.
+  const goToTab = (next: Tab) => {
+    if (next !== tab) update({ tab: next, letter: null, design: null, profile: null, pane: null });
+  };
   const [authed, setAuthed] = useState(true);
   const [profiles, setProfiles] = useState<Resume[]>([]);
   const [profilesLoaded, setProfilesLoaded] = useState(false);
@@ -54,8 +65,6 @@ export default function CareerStudioTabs() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
-
-  const tabParam = searchParams.get('tab');
 
   const loadProfiles = useCallback(async () => {
     try {
@@ -72,11 +81,13 @@ export default function CareerStudioTabs() {
       setAuthed(false);
       return;
     }
-    if (tabParam && ['profiles', 'analyzer', 'generate', 'match', 'coverletters', 'resumes', 'portfolios', 'templates'].includes(tabParam)) {
-      setTab(tabParam as Tab);
-    }
     void loadProfiles();
-  }, [tabParam, loadProfiles]);
+  }, [loadProfiles]);
+
+  // An unknown ?tab= shows Resumes; drop it so the address matches what is on screen (replace: no history entry).
+  useEffect(() => {
+    if (tabParam !== null && !isTab(tabParam)) update({ tab: null }, 'replace');
+  }, [tabParam, update]);
 
   const createProfile = async () => {
     try {
@@ -90,7 +101,7 @@ export default function CareerStudioTabs() {
   const startCreateView = (kind: ViewKind, template?: string) => {
     if (profiles.length === 0) {
       showToast('Create a data profile first', 'error');
-      setTab('profiles');
+      goToTab('profiles');
       return;
     }
     setCreator({ kind, template });
@@ -102,7 +113,7 @@ export default function CareerStudioTabs() {
         <Icon name="LockClosedIcon" size={32} variant="outline" className="text-muted-foreground mx-auto mb-3" />
         <h3 className="font-heading text-lg font-semibold text-foreground mb-1">Log in to use Career Studio</h3>
         <p className="text-sm text-muted-foreground mb-5">Your profiles, resumes, and portfolios are saved to your account.</p>
-        <Link href="/login" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90"><Icon name="UserCircleIcon" size={16} /> Log in</Link>
+        <button type="button" onClick={() => openLoginModal()} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90"><Icon name="UserCircleIcon" size={16} /> Log in</button>
       </div>
     );
   }
@@ -126,17 +137,17 @@ export default function CareerStudioTabs() {
 
       <div className="cs-tabbar">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} className={`cs-tab ${tab === t.id ? 'cs-tab-active' : ''}`}>
+          <button key={t.id} onClick={() => goToTab(t.id)} className={`cs-tab ${tab === t.id ? 'cs-tab-active' : ''}`}>
             <Icon name={t.icon as any} size={16} /> {t.label}
           </button>
         ))}
       </div>
 
       {tab === 'profiles' && <ProfilesTab profiles={profiles} loaded={profilesLoaded} onCreate={createProfile} onChanged={loadProfiles} showToast={showToast} />}
-      {tab === 'analyzer' && <AnalyzerPanel profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => setTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
-      {tab === 'generate' && <GenerateTab profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => setTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
-      {tab === 'match' && <JobMatchPanel profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => setTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
-      {tab === 'coverletters' && <CoverLetterPanel profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => setTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
+      {tab === 'analyzer' && <AnalyzerPanel profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => goToTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
+      {tab === 'generate' && <GenerateTab profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => goToTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
+      {tab === 'match' && <JobMatchPanel profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => goToTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
+      {tab === 'coverletters' && <CoverLetterPanel profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => goToTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
       {tab === 'resumes' && <ViewsTab kind="resume" profiles={profiles} onProfilesChanged={loadProfiles} showToast={showToast} />}
       {tab === 'portfolios' && <ViewsTab kind="portfolio" profiles={profiles} onProfilesChanged={loadProfiles} showToast={showToast} />}
       {tab === 'templates' && <TemplatesTab profiles={profiles} onUse={startCreateView} showToast={showToast} />}
@@ -504,8 +515,11 @@ function ViewsTab({ kind, profiles, onProfilesChanged, showToast }: { kind: View
   const label = kind === 'portfolio' ? 'Portfolio' : 'Resume';
   const fallbackTemplates = (kind === 'portfolio' ? PORTFOLIO_STYLE_TEMPLATES : RESUME_TEMPLATES).map((t) => ({ id: t.id, name: t.name }));
   const [loadedTemplates, setLoadedTemplates] = useState<CareerTemplate[]>([]);
+  const [templatesReady, setTemplatesReady] = useState(false);
   const templates: Array<{ id: string; name: string; spec?: any }> = loadedTemplates.length ? loadedTemplates : fallbackTemplates;
-  const [designerTemplate, setDesignerTemplate] = useState<CareerTemplate | null>(null);
+  // The Template Designer is a screen of its own: ?design=<templateId> on this page.
+  const { designId, openDesigner, closeDesigner, dropDesigner } = useDesignerParam();
+  const designerTemplate = designId ? loadedTemplates.find((t) => t.id === designId) ?? null : null;
   const [profileId, setProfileId] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [creatingTemplate, setCreatingTemplate] = useState<string | null>(null);
@@ -524,14 +538,19 @@ function ViewsTab({ kind, profiles, onProfilesChanged, showToast }: { kind: View
   useEffect(() => { void load(); }, [load]);
 
   const loadTemplates = useCallback(() => {
-    templatesService.list(kind).then(setLoadedTemplates).catch(() => setLoadedTemplates([]));
+    templatesService.list(kind).then(setLoadedTemplates).catch(() => setLoadedTemplates([])).finally(() => setTemplatesReady(true));
   }, [kind]);
 
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
+  // ?design= naming a template this list does not have (deleted, the other kind, a typo) falls back to the list.
+  useEffect(() => {
+    if (designId && templatesReady && !designerTemplate) dropDesigner();
+  }, [designId, templatesReady, designerTemplate, dropDesigner]);
+
   const onTemplateSaved = (saved: CareerTemplate) => {
     setLoadedTemplates((ts) => (ts.some((x) => x.id === saved.id) ? ts.map((x) => (x.id === saved.id ? saved : x)) : [...ts, saved]));
-    setDesignerTemplate(null);
+    closeDesigner();
     showToast('Template saved');
   };
 
@@ -661,14 +680,14 @@ function ViewsTab({ kind, profiles, onProfilesChanged, showToast }: { kind: View
                 busy={creatingTemplate === t.id}
                 disabled={!!creatingTemplate && creatingTemplate !== t.id}
                 onClick={() => quickCreate(t.id)}
-                onEdit={loadedTemplates.length > 0 ? () => setDesignerTemplate(t as CareerTemplate) : undefined}
+                onEdit={loadedTemplates.length > 0 ? () => openDesigner(t.id) : undefined}
               />
             ))}
           </div>
         </div>
       )}
       {designerTemplate && (
-        <TemplateDesigner kind={kind} template={designerTemplate} profiles={profiles} initialProfileId={profileId} onClose={() => setDesignerTemplate(null)} onSaved={onTemplateSaved} />
+        <TemplateDesigner kind={kind} template={designerTemplate} profiles={profiles} initialProfileId={profileId} onClose={closeDesigner} onSaved={onTemplateSaved} />
       )}
     </div>
   );
@@ -703,7 +722,14 @@ function TemplateCard({ tpl, onUse, onEdit, onDuplicate, onDelete }: {
 function TemplatesTab({ profiles, onUse, showToast }: { profiles: Resume[]; onUse: (kind: ViewKind, template: string) => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [templates, setTemplates] = useState<CareerTemplate[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [designer, setDesigner] = useState<{ kind: ViewKind; template: CareerTemplate | null } | null>(null);
+  // The Template Designer is a screen of its own: ?design=<templateId>, or ?design=new-resume / new-portfolio.
+  const { designId, openDesigner, closeDesigner, dropDesigner } = useDesignerParam();
+  const designer = useMemo((): { kind: ViewKind; template: CareerTemplate | null } | null => {
+    if (!designId) return null;
+    if (designId === 'new-resume' || designId === 'new-portfolio') return { kind: designId === 'new-resume' ? 'resume' : 'portfolio', template: null };
+    const found = templates.find((x) => x.id === designId);
+    return found ? { kind: found.kind, template: found } : null;
+  }, [designId, templates]);
 
   const load = useCallback(async () => {
     try {
@@ -718,6 +744,11 @@ function TemplatesTab({ profiles, onUse, showToast }: { profiles: Resume[]; onUs
   useEffect(() => {
     void load();
   }, [load]);
+
+  // ?design= naming a template that does not exist (deleted, a typo) falls back to the list.
+  useEffect(() => {
+    if (designId && loaded && !designer) dropDesigner();
+  }, [designId, loaded, designer, dropDesigner]);
 
   const del = async (t: CareerTemplate) => {
     if (!window.confirm(`Delete template "${t.name}"? Views already using it keep their current look until re-rendered.`)) return;
@@ -742,7 +773,7 @@ function TemplatesTab({ profiles, onUse, showToast }: { profiles: Resume[]; onUs
 
   const onSaved = (saved: CareerTemplate) => {
     setTemplates((ts) => (ts.some((x) => x.id === saved.id) ? ts.map((x) => (x.id === saved.id ? saved : x)) : [...ts, saved]));
-    setDesigner(null);
+    closeDesigner();
     showToast('Template saved');
   };
 
@@ -755,14 +786,14 @@ function TemplatesTab({ profiles, onUse, showToast }: { profiles: Resume[]; onUs
             <Icon name={kind === 'portfolio' ? 'GlobeAltIcon' : 'DocumentTextIcon'} size={16} className="text-muted-foreground" /> {title}
             <span className="text-xs font-normal text-muted-foreground">({items.length})</span>
           </h3>
-          <button onClick={() => setDesigner({ kind, template: null })} className="px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth inline-flex items-center gap-1.5"><Icon name="PlusIcon" size={14} /> New {kind}</button>
+          <button onClick={() => openDesigner(`new-${kind}`)} className="px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth inline-flex items-center gap-1.5"><Icon name="PlusIcon" size={14} /> New {kind}</button>
         </div>
         {items.length === 0 ? (
           <p className="text-xs text-muted-foreground py-4">No {kind} templates yet. Click “New {kind}” to design one.</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {items.map((t) => (
-              <TemplateCard key={t.id} tpl={t} onUse={() => onUse(kind, t.id)} onEdit={() => setDesigner({ kind, template: t })} onDuplicate={() => duplicate(t)} onDelete={() => del(t)} />
+              <TemplateCard key={t.id} tpl={t} onUse={() => onUse(kind, t.id)} onEdit={() => openDesigner(t.id)} onDuplicate={() => duplicate(t)} onDelete={() => del(t)} />
             ))}
           </div>
         )}
@@ -784,7 +815,7 @@ function TemplatesTab({ profiles, onUse, showToast }: { profiles: Resume[]; onUs
           <Section kind="portfolio" title="Portfolio templates" />
         </>
       )}
-      {designer && <TemplateDesigner kind={designer.kind} template={designer.template} profiles={profiles} onClose={() => setDesigner(null)} onSaved={onSaved} />}
+      {designer && <TemplateDesigner kind={designer.kind} template={designer.template} profiles={profiles} onClose={closeDesigner} onSaved={onSaved} />}
     </div>
   );
 }

@@ -42,6 +42,7 @@ export default function TodoCopilot({ model, onModelChange, onCollapse }: TodoCo
 
   return (
     <CopilotChat
+      variant="quiet"
       title="Task Copilot"
       subtitle="AI-powered productivity assistant"
       welcome="I'm your productivity copilot. I can see all your tasks, priorities, and deadlines. Ask me anything about your workload, or tap a quick prompt below!"
@@ -51,7 +52,7 @@ export default function TodoCopilot({ model, onModelChange, onCollapse }: TodoCo
       onCollapse={onCollapse}
       subscribe={subscribeTopTask}
       headerExtra={
-        <div className="todo-segmented flex w-full">
+        <div className="todo-segmented todo-segmented-quiet flex w-full">
           {modelButton('ollama', 'Local', 'ComputerDesktopIcon')}
           {modelButton('gemini', 'Online', 'CloudIcon')}
         </div>

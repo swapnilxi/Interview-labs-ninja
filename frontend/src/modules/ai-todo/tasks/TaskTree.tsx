@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import TaskNode from './TaskNode';
 import FilterBar, { type TaskFilters } from './FilterBar';
@@ -11,7 +11,8 @@ import {
   type Task,
   type TodoStats,
   DEPTH_COLORS,
-  DEPTH_LABELS,
+  DEPTH_NAMES,
+  buildDepthMap,
   flattenTree,
   getRelativeDueDate,
   todoService,
@@ -65,6 +66,18 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [resumeTask, setResumeTask] = useState<Task | null>(null);
   const [stats, setStats] = useState<TodoStats | null>(null);
+  // The "Due today & overdue" list starts folded: those tasks already show their date in the list below.
+  const [showDue, setShowDue] = useState(false);
+  // The floating "+" is a stand-in for the header's "New Todo": it only shows once that button has scrolled out of view.
+  const newTodoRef = useRef<HTMLButtonElement>(null);
+  const [newTodoInView, setNewTodoInView] = useState(true);
+  useEffect(() => {
+    const el = newTodoRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => setNewTodoInView(entry.isIntersecting));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const loadStats = useCallback(async () => {
     const data = await todoService.getStats();
@@ -336,6 +349,9 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
   const filteredTasks = filterTasks(tasks);
   const allTasks = flattenTree(tasks);
+  // Level of each task (root = 1), from the full tree: the flat List / Focus layouts and filtered views show subsets, so
+  // a row's level can't be read from where it happens to be drawn.
+  const depthById = useMemo(() => buildDepthMap(tasks), [tasks]);
   const openCount = allTasks.filter(t => t.status !== 'done').length;
   const hasNarrowingFilter =
     filters.status !== 'all' || filters.priority !== 'all' || filters.time !== 'all' ||
@@ -351,15 +367,18 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
   const planDone = activePlan?.tasks ? activePlan.tasks.filter((t: any) => t.status === 'done').length : 0;
 
+  const dueStripShown = todayTasks.length > 0 && filters.view !== 'focus';
+  const showLegend = !loading && !loadError && filteredTasks.length > 0;
+
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col gap-[1.75rem]">
-      {/* Progress overview — only real numbers; hidden if stats couldn't load */}
-      {stats && <StatsRow stats={stats} />}
+    <div className="flex flex-col gap-[1.5rem] sm:gap-[2rem]">
+      {/* Progress — one quiet line; only real numbers, hidden if stats couldn't load */}
+      {stats && <ProgressStrip stats={stats} />}
 
-      <section aria-labelledby="todo-tasks-heading" className="flex flex-col gap-[1.25rem]">
-        {/* Section header + primary actions */}
+      <section aria-labelledby="todo-tasks-heading" className="flex flex-col gap-[1rem]">
+        {/* Workspace header: the one section heading on the page, with its actions */}
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div className="flex items-baseline gap-2">
             <h2 id="todo-tasks-heading" className="font-heading text-base font-semibold leading-tight text-foreground">
@@ -367,48 +386,52 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
             </h2>
             {!loading && !loadError && allTasks.length > 0 && (
               <span className="text-xs text-muted-foreground">
-                {openCount} open · {allTasks.length} total
+                {openCount} open<span className="hidden sm:inline"> · {allTasks.length} total</span>
               </span>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={() => setShowBrainDumpModal(true)}
               title="Paste a text dump and let AI turn it into structured tasks"
-              className="todo-btn todo-btn-secondary"
+              className="todo-btn todo-btn-ghost"
             >
               <Icon name="LightBulbIcon" size={14} />
-              Brain Dump
+              <span className="hidden sm:inline">Brain Dump</span>
+              <span className="sr-only sm:hidden">Brain Dump</span>
             </button>
             {!activePlan ? (
               <button
                 type="button"
                 onClick={() => setShowStartDayModal(true)}
                 title="Let AI pick today's focus tasks for the hours you have"
-                className="todo-btn todo-btn-secondary"
+                className="todo-btn todo-btn-ghost"
               >
                 <Icon name="SunIcon" size={14} />
-                Start Day
+                <span className="hidden sm:inline">Start Day</span>
+                <span className="sr-only sm:hidden">Start Day</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => setShowEndDayModal(true)}
                 title="Reschedule what's left and reflect on today"
-                className="todo-btn todo-btn-secondary"
+                className="todo-btn todo-btn-ghost"
               >
                 <Icon name="MoonIcon" size={14} />
-                End Day
+                <span className="hidden sm:inline">End Day</span>
+                <span className="sr-only sm:hidden">End Day</span>
               </button>
             )}
             <button
+              ref={newTodoRef}
               type="button"
               onClick={openQuickAdd}
               aria-expanded={showQuickAdd}
               aria-controls="todo-quick-add"
               title="Add a task without opening a form"
-              className="todo-btn todo-btn-primary"
+              className="todo-btn todo-btn-primary ml-1"
             >
               <Icon name="PlusIcon" size={14} variant="solid" />
               New Todo
@@ -421,7 +444,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
           <div id="todo-quick-add" className="animate-fade-in">
             <form
               onSubmit={e => { e.preventDefault(); handleQuickAdd(); }}
-              className="todo-capture todo-lit"
+              className="todo-capture"
               aria-label="Quick add task"
             >
               <label htmlFor="todo-quick-add-input" className="sr-only">New task title</label>
@@ -480,21 +503,18 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
         {/* Pinned Today's Focus Plan (Feature 1) */}
         {activePlan && activePlan.tasks && activePlan.tasks.length > 0 && (
-          <div className="todo-glass todo-lit p-[1.5rem]">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="todo-icon-chip h-7 w-7">
-                  <Icon name="FlagIcon" size={14} variant="solid" />
-                </span>
+          <div className="todo-surface px-[1.25rem] py-4">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <div className="flex items-baseline gap-2">
                 <h3 className="font-heading text-sm font-semibold leading-tight text-foreground">Today&apos;s Focus</h3>
                 <span className="text-xs text-muted-foreground">{activePlan.plan_date}</span>
               </div>
-              <span className="text-xs font-semibold text-foreground">
+              <span className="text-xs font-medium tabular-nums text-muted-foreground">
                 {planDone} / {activePlan.tasks.length} done
               </span>
             </div>
             <div
-              className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted"
+              className="mb-2 h-1 w-full overflow-hidden rounded-full mix-bg-foreground/10"
               role="progressbar"
               aria-label="Today's focus progress"
               aria-valuemin={0}
@@ -506,11 +526,11 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                 style={{ width: `${(planDone / activePlan.tasks.length) * 100}%` }}
               />
             </div>
-            <ul className="space-y-1.5">
+            <ul>
               {activePlan.tasks.map((task: any) => (
                 <li
                   key={task.id}
-                  className="todo-task-card flex items-center justify-between gap-3 px-3 py-2"
+                  className="flex items-center justify-between gap-3 border-t py-2.5 first:border-t-0 mix-border-foreground/[0.08]"
                 >
                   <label className="flex min-w-0 cursor-pointer items-center gap-2.5">
                     <input
@@ -535,7 +555,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                       </span>
                     )}
                   </label>
-                  <span className="todo-chip bg-muted text-muted-foreground">
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                     {task.time_estimate || 'no est'}
                   </span>
                 </li>
@@ -563,43 +583,42 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
           </div>
         )}
 
-        {/* Today section (feedback #6) */}
-        {todayTasks.length > 0 && filters.view !== 'focus' && (
-          <div className="todo-alert todo-alert-warning flex-col gap-1.5 py-2.5">
-            <div className="flex items-center gap-1.5 font-semibold">
-              <Icon name="ExclamationTriangleIcon" size={14} className="shrink-0" />
-              Due today &amp; overdue ({todayTasks.length})
+        {/* Today section (feedback #6) and the depth legend: one quiet line; the due list unfolds beneath it */}
+        {(dueStripShown || showLegend) && (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              {dueStripShown ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDue(open => !open)}
+                  aria-expanded={showDue}
+                  aria-controls="todo-due-list"
+                  className="todo-focus -ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium text-warning transition-smooth hover:mix-bg-warning/10"
+                >
+                  <Icon name="ExclamationTriangleIcon" size={14} className="shrink-0" />
+                  Due today &amp; overdue ({todayTasks.length})
+                  <Icon name="ChevronDownIcon" size={12} className={`shrink-0 transition-transform ${showDue ? 'rotate-180' : ''}`} />
+                </button>
+              ) : (
+                <span />
+              )}
+              {showLegend && <DepthLegend />}
             </div>
-            <ul className="w-full space-y-1 pl-5">
-              {todayTasks.map(t => {
-                const due = getRelativeDueDate(t.due_date);
-                return (
-                  <li key={t.id} className="flex min-w-0 items-center gap-2">
-                    <span className={`shrink-0 font-semibold ${due?.isOverdue ? 'text-error' : ''}`}>
-                      {due?.text}
-                    </span>
-                    <span className="truncate text-foreground">{t.title}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-
-        {/* Depth legend — only meaningful in the nested tree layout */}
-        {!loading && !loadError && filters.view === 'tree' && filteredTasks.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span className="font-semibold uppercase tracking-wider">Depth</span>
-            {DEPTH_COLORS.map((color, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1"
-                title={`Level ${i + 1}${i === 4 ? ' and deeper' : ''} (${DEPTH_LABELS[i]})`}
-              >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
-                L{i + 1}{i === 4 ? '+' : ''}
-              </span>
-            ))}
+            {dueStripShown && showDue && (
+              <ul id="todo-due-list" className="space-y-1.5 pl-[1.5rem] text-xs animate-fade-in">
+                {todayTasks.map(t => {
+                  const due = getRelativeDueDate(t.due_date);
+                  return (
+                    <li key={t.id} className="flex min-w-0 items-center gap-3">
+                      <span className={`w-[5.5rem] shrink-0 font-medium ${due?.isOverdue ? 'text-error' : 'text-warning'}`}>
+                        {due?.text}
+                      </span>
+                      <span className="truncate text-foreground">{t.title}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         )}
 
@@ -607,22 +626,22 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
         {loading && (
           <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading tasks">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-14 rounded-lg bg-muted motion-safe:animate-pulse" />
+              <div key={i} className="h-[3.75rem] rounded-xl mix-bg-foreground/[0.05] motion-safe:animate-pulse" />
             ))}
           </div>
         )}
 
         {/* Load failure — never disguised as an empty list */}
         {!loading && loadError && (
-          <div role="alert" className="todo-glass flex flex-col items-center gap-3 px-5 py-10 text-center">
-            <span className="todo-alert-error flex h-11 w-11 items-center justify-center rounded-full border">
-              <Icon name="ExclamationTriangleIcon" size={22} />
+          <div role="alert" className="flex flex-col items-center gap-3 px-5 py-10 text-center">
+            <span className="todo-alert-error flex h-10 w-10 items-center justify-center rounded-full border">
+              <Icon name="ExclamationTriangleIcon" size={20} />
             </span>
             <div>
               <h3 className="font-heading text-sm font-semibold leading-tight text-foreground">Couldn&apos;t load your tasks</h3>
               <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">{loadError}</p>
             </div>
-            <button type="button" onClick={() => loadTasks()} className="todo-btn todo-btn-secondary">
+            <button type="button" onClick={() => loadTasks()} className="todo-btn todo-btn-quiet">
               <Icon name="ArrowPathIcon" size={14} />
               Try again
             </button>
@@ -637,7 +656,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
               <TaskNode
                 key={task.id}
                 task={task}
-                depth={1}
+                depth={depthById.get(task.id) ?? 1}
                 model={model}
                 onUpdate={updateTaskInTree}
                 onDelete={deleteTaskFromTree}
@@ -654,10 +673,8 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
         {/* First-run empty state */}
         {!loading && !loadError && tasks.length === 0 && (
-          <div className="todo-glass flex flex-col items-center gap-4 px-5 py-10 text-center sm:py-[3rem]">
-            <span className="todo-icon-chip h-[3rem] w-[3rem] rounded-xl">
-              <Icon name="ClipboardDocumentCheckIcon" size={24} />
-            </span>
+          <div className="flex flex-col items-center gap-4 px-5 py-10 text-center sm:py-[3rem]">
+            <Icon name="ClipboardDocumentCheckIcon" size={28} className="text-muted-foreground" />
             <div>
               <h3 className="font-heading text-base font-semibold leading-tight text-foreground">
                 Your next accomplishment starts here
@@ -671,7 +688,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                 <Icon name="PlusIcon" size={16} variant="solid" />
                 Add First Task
               </button>
-              <button type="button" onClick={() => setShowBrainDumpModal(true)} className="todo-btn todo-btn-secondary px-4 py-2 text-sm">
+              <button type="button" onClick={() => setShowBrainDumpModal(true)} className="todo-btn todo-btn-quiet px-4 py-2 text-sm">
                 <Icon name="LightBulbIcon" size={16} />
                 Brain Dump
               </button>
@@ -681,13 +698,12 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
         {/* Nothing matches the current search / filters / layout */}
         {!loading && !loadError && tasks.length > 0 && filteredTasks.length === 0 && (
-          <div className="todo-glass flex flex-col items-center gap-3 px-5 py-8 text-center">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <Icon
-                name={filters.view === 'focus' ? 'PlayCircleIcon' : filters.search ? 'MagnifyingGlassIcon' : 'FunnelIcon'}
-                size={20}
-              />
-            </span>
+          <div className="flex flex-col items-center gap-3 px-5 py-8 text-center">
+            <Icon
+              name={filters.view === 'focus' ? 'PlayCircleIcon' : filters.search ? 'MagnifyingGlassIcon' : 'FunnelIcon'}
+              size={22}
+              className="text-muted-foreground"
+            />
             <div>
               <h3 className="font-heading text-sm font-semibold leading-tight text-foreground">
                 {filters.search
@@ -710,7 +726,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
             </div>
             <div className="flex flex-wrap justify-center gap-2">
               {filters.search && (
-                <button type="button" onClick={() => setFilters({ ...filters, search: '' })} className="todo-btn todo-btn-secondary">
+                <button type="button" onClick={() => setFilters({ ...filters, search: '' })} className="todo-btn todo-btn-quiet">
                   Clear search
                 </button>
               )}
@@ -718,13 +734,13 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                 <button
                   type="button"
                   onClick={() => setFilters({ ...filters, status: 'all', priority: 'all', time: 'all', genType: 'all', top20: false })}
-                  className="todo-btn todo-btn-secondary"
+                  className="todo-btn todo-btn-quiet"
                 >
                   Clear filters
                 </button>
               )}
               {filters.view === 'focus' && (
-                <button type="button" onClick={() => setFilters({ ...filters, view: 'tree' })} className="todo-btn todo-btn-secondary">
+                <button type="button" onClick={() => setFilters({ ...filters, view: 'tree' })} className="todo-btn todo-btn-quiet">
                   Show all tasks
                 </button>
               )}
@@ -733,16 +749,18 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
         )}
       </section>
 
-      {/* Add Task FAB — always-reachable shortcut to the full form while scrolling a long list */}
-      <button
-        type="button"
-        onClick={() => openAddModal()}
-        className="todo-fab todo-fab-right bg-primary text-primary-foreground"
-        aria-label="Add task with details"
-        title="Add task with details"
-      >
-        <Icon name="PlusIcon" size={24} variant="solid" />
-      </button>
+      {/* Add Task FAB — a shortcut to the full form while scrolling a long list; hidden while "New Todo" is on screen */}
+      {!newTodoInView && (
+        <button
+          type="button"
+          onClick={() => openAddModal()}
+          className="todo-fab todo-fab-right bg-primary text-primary-foreground"
+          aria-label="Add task with details"
+          title="Add task with details"
+        >
+          <Icon name="PlusIcon" size={20} variant="solid" />
+        </button>
+      )}
 
       {/* Add Task Modal */}
       {showAddModal && (
@@ -817,49 +835,79 @@ function hasNarrowingFilterBesidesTop20(f: TaskFilters): boolean {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Progress overview (Feature 8) — real stats only
+// Depth legend — the key to the coloured rail on the left edge of every row
 // ────────────────────────────────────────────────────────────────────────────
 
-function StatCard({ icon, iconClassName = 'text-muted-foreground', label, shortLabel, children }: {
-  icon: string;
-  iconClassName?: string;
-  label: string;
-  /** Phones show three compact tiles side by side, so the label must fit ~100px. */
-  shortLabel: string;
-  children: React.ReactNode;
-}) {
+/** Draws each level with the same token the rails use (DEPTH_COLORS), so legend and rails can never drift apart. */
+function DepthLegend() {
   return (
-    <div className="todo-glass todo-lit flex min-w-0 flex-col p-4 sm:p-[1.5rem]">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground sm:text-xs">
-        <Icon name={icon} size={14} variant="solid" className={`shrink-0 ${iconClassName}`} />
-        <span className="truncate sm:hidden" aria-hidden="true">{shortLabel}</span>
-        <span className="sr-only sm:not-sr-only sm:truncate sm:whitespace-nowrap">{label}</span>
-      </div>
-      <div className="mt-3 flex flex-1 flex-col">{children}</div>
+    <div role="group" aria-label="Task depth" className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-muted-foreground">
+      <span className="text-[11px] font-semibold uppercase tracking-wider">Depth</span>
+      {DEPTH_COLORS.map((color, i) => (
+        <span
+          key={i}
+          className="inline-flex items-center gap-1.5"
+          title={`Level ${i + 1}${i === 4 ? ' and deeper' : ''} — ${DEPTH_NAMES[i]}`}
+        >
+          <span className="h-3 w-[3px] shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+          <span>L{i + 1}{i === 4 ? '+' : ''}</span>
+          <span className="hidden mix-text-muted-foreground/85 xl:inline">{DEPTH_NAMES[i]}</span>
+        </span>
+      ))}
     </div>
   );
 }
 
-function StatsRow({ stats }: { stats: TodoStats }) {
+// ────────────────────────────────────────────────────────────────────────────
+// Progress (Feature 8) — real stats only: three small, softly tinted metrics (blue = today's progress, green = streak,
+// cyan = the week). A coloured figure and a thin indicator, no outline, so none of them competes with the task list.
+// ────────────────────────────────────────────────────────────────────────────
+
+const METRIC_TONE = {
+  progress: { tile: 'mix-bg-progress/10', figure: 'mix-text-progress', track: 'mix-bg-progress/20', fill: 'mix-bg-progress' },
+  success: { tile: 'mix-bg-success/10', figure: 'text-success', track: 'mix-bg-success/20', fill: 'bg-success' },
+  info: { tile: 'mix-bg-info/10', figure: 'mix-text-info', track: 'mix-bg-info/20', fill: 'mix-bg-info' },
+} as const;
+type MetricTone = keyof typeof METRIC_TONE;
+
+function MetricTile({ tone, label, title, children }: {
+  tone: MetricTone;
+  label: string;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`inline-flex items-center gap-2.5 rounded-xl px-3 py-2 sm:gap-3 sm:px-3.5 ${METRIC_TONE[tone].tile}`} title={title}>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function ProgressStrip({ stats }: { stats: TodoStats }) {
   const completed = stats.completed_today;
   const targetHit = completed >= DAILY_TARGET;
   const week = stats.last_7_days || [];
   const weekTotal = week.reduce((sum, n) => sum + n, 0);
+  // Blue while the day is in progress; green once the target is reached.
+  const todayTone: MetricTone = targetHit ? 'success' : 'progress';
+
+  const figure = 'font-heading text-base font-semibold leading-none tabular-nums';
+  const caption = 'text-xs text-muted-foreground';
 
   return (
-    <div className="todo-stagger grid grid-cols-3 gap-3 sm:gap-[1.25rem]">
-      <StatCard
-        icon="CheckCircleIcon"
-        iconClassName={targetHit ? 'text-success' : 'text-muted-foreground'}
-        label="Today's completions"
-        shortLabel="Today"
+    <div role="group" aria-label="Your progress" className="flex flex-wrap items-center gap-2 sm:gap-3">
+      <MetricTile
+        tone={todayTone}
+        label="Today"
+        title={targetHit ? 'Daily target reached — nice work.' : `${DAILY_TARGET - completed} more to hit your daily goal`}
       >
-        <div className="flex flex-wrap items-baseline gap-x-1.5">
-          <span className="font-heading text-3xl font-semibold leading-none text-foreground">{completed}</span>
-          <span className="text-xs text-muted-foreground">/ {DAILY_TARGET} target</span>
-        </div>
+        <span className="flex items-baseline gap-1">
+          <span className={`${figure} ${METRIC_TONE[todayTone].figure}`}>{completed}</span>
+          <span className={caption}>/ {DAILY_TARGET}</span>
+        </span>
         <div
-          className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
+          className={`hidden h-1 w-[4.5rem] overflow-hidden rounded-full sm:block ${METRIC_TONE[todayTone].track}`}
           role="progressbar"
           aria-label="Daily target progress"
           aria-valuemin={0}
@@ -867,95 +915,74 @@ function StatsRow({ stats }: { stats: TodoStats }) {
           aria-valuenow={Math.min(completed, DAILY_TARGET)}
         >
           <div
-            className={`h-full rounded-full transition-all duration-500 ${targetHit ? 'bg-success' : 'bg-primary'}`}
+            className={`h-full rounded-full transition-all duration-500 ${METRIC_TONE[todayTone].fill}`}
             style={{ width: `${Math.min(100, (completed / DAILY_TARGET) * 100)}%` }}
           />
         </div>
-        <p className="mt-2 hidden text-xs text-muted-foreground sm:block">
-          {targetHit ? 'Daily target reached — nice work.' : `${DAILY_TARGET - completed} more to hit your daily goal`}
-        </p>
-      </StatCard>
+        {targetHit && (
+          <Icon name="CheckCircleIcon" size={16} variant="solid" className="shrink-0 text-success" aria-label="Daily target reached" />
+        )}
+      </MetricTile>
 
-      <StatCard
-        icon="FireIcon"
-        iconClassName={stats.streak > 0 ? 'text-amber-500' : 'text-muted-foreground'}
-        label="Active streak"
-        shortLabel="Streak"
-      >
-        <div className="flex flex-wrap items-baseline gap-x-1.5">
-          <span className="font-heading text-3xl font-semibold leading-none text-foreground">{stats.streak}</span>
-          <span className="text-xs text-muted-foreground">{stats.streak === 1 ? 'day' : 'days'}</span>
-        </div>
-        <p className="mt-auto hidden pt-3 text-xs text-muted-foreground sm:block">
-          {stats.streak === 0
+      <MetricTile
+        tone="success"
+        label="Streak"
+        title={
+          stats.streak === 0
             ? 'Complete a task today to start a streak.'
             : completed > 0
               ? "You're on track today — keep it going."
-              : 'Complete a task today to keep your streak alive.'}
-        </p>
-      </StatCard>
+              : 'Complete a task today to keep your streak alive.'
+        }
+      >
+        <span className="flex items-baseline gap-1">
+          <span className={`${figure} ${METRIC_TONE.success.figure}`}>{stats.streak}</span>
+          <span className={caption}>{stats.streak === 1 ? 'day' : 'days'}</span>
+        </span>
+      </MetricTile>
 
-      <StatCard icon="ChartBarIcon" label="Last 7 days" shortLabel="7 days">
-        <div className="flex flex-wrap items-baseline gap-x-1.5">
-          <span className="font-heading text-3xl font-semibold leading-none text-foreground">{weekTotal}</span>
-          <span className="text-xs text-muted-foreground">completed</span>
-        </div>
+      <MetricTile tone="info" label="7 days">
+        <span className="flex items-baseline gap-1">
+          <span className={`${figure} ${METRIC_TONE.info.figure}`}>{weekTotal}</span>
+          <span className={`${caption} hidden sm:inline`}>done</span>
+        </span>
         <div className="hidden sm:block">
           <WeekBars counts={week} labels={stats.last_7_dates || []} />
         </div>
-      </StatCard>
+      </MetricTile>
     </div>
   );
 }
 
-/** Seven daily-completion bars; today (the last entry) in the accent, earlier days recessive. */
+/** Seven daily-completion bars in the info cyan; today (the last entry) full strength, earlier days recessive. */
 function WeekBars({ counts, labels }: { counts: number[]; labels: string[] }) {
   const max = Math.max(...counts, 1);
-  const total = counts.reduce((sum, n) => sum + n, 0);
   const summary = counts.map((n, i) => `${labels[i] || `Day ${i + 1}`}: ${n}`).join(', ');
 
   return (
-    <div className="mt-3">
-      <div className="relative" role="img" aria-label={`Tasks completed per day, oldest to today. ${summary}`}>
-        <div className="flex h-10 items-end gap-[2px] border-b border-border">
-          {counts.map((count, i) => {
-            const isToday = i === counts.length - 1;
-            return (
-              <div key={i} className="group relative flex h-full flex-1 items-end justify-center">
-                {count > 0 && (
-                  <div
-                    className="w-full max-w-[22px] rounded-t-[4px] transition-colors"
-                    style={{
-                      height: `${Math.max(12, (count / max) * 100)}%`,
-                      background: isToday
-                        ? 'var(--color-primary)'
-                        : 'color-mix(in srgb, var(--color-muted-foreground) 45%, transparent)',
-                    }}
-                  />
-                )}
-                <div className="todo-popover pointer-events-none absolute bottom-full z-10 mb-1 hidden whitespace-nowrap px-1.5 py-0.5 text-xs font-medium group-hover:block">
-                  {labels[i] || `Day ${i + 1}`}: {count} done
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {total === 0 && (
-          <p className="absolute inset-x-0 top-2 text-center text-xs text-muted-foreground">
-            No completions in the last 7 days yet
-          </p>
-        )}
-      </div>
-      <div className="mt-1 flex gap-[2px]" aria-hidden="true">
-        {counts.map((_, i) => (
-          <span
-            key={i}
-            className={`flex-1 text-center text-xs ${i === counts.length - 1 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
-          >
-            {i === counts.length - 1 ? 'Today' : (labels[i] || '').slice(0, 2)}
-          </span>
-        ))}
-      </div>
+    <div className="flex h-5 items-end gap-[3px]" role="img" aria-label={`Tasks completed per day, oldest to today. ${summary}`}>
+      {counts.map((count, i) => {
+        const isToday = i === counts.length - 1;
+        return (
+          <div key={i} className="group relative flex h-full w-[5px] items-end">
+            <div
+              className="w-full rounded-[2px] transition-colors"
+              style={{
+                height: count > 0 ? `${Math.max(25, (count / max) * 100)}%` : '2px',
+                background:
+                  count === 0
+                    ? 'color-mix(in srgb, var(--color-foreground) 14%, transparent)'
+                    : isToday
+                      ? 'var(--color-info)'
+                      : 'color-mix(in srgb, var(--color-info) 45%, transparent)',
+              }}
+            />
+            <div className="todo-popover pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 text-xs font-medium group-hover:block">
+              {labels[i] || `Day ${i + 1}`}: {count} done
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

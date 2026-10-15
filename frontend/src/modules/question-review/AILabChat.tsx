@@ -25,9 +25,13 @@ export default function AILabChat({ questionId, questionText }: AILabChatProps) 
   const [inputValue, setInputValue] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
+  // Scroll the chat's own list, never the page: scrollIntoView() also scrolled the whole review page down to the
+  // chat on load, so the Back control at the top was out of sight.
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const box = scrollerRef.current;
+    if (box) box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -71,7 +75,7 @@ export default function AILabChat({ questionId, questionText }: AILabChatProps) 
         </div>
       </div>
       
-      <div className="flex-1 min-h-0 overflow-y-auto p-18 space-y-18 scrollbar-clean">
+      <div ref={scrollerRef} className="flex-1 min-h-0 overflow-y-auto p-18 space-y-18 scrollbar-clean">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-12 rounded-lg text-sm leading-relaxed ${

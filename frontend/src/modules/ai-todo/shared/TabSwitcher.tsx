@@ -1,9 +1,5 @@
 'use client';
 
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useCallback } from 'react';
-import Icon from '@/components/ui/AppIcon';
-
 export type TodoTab = 'quick' | 'smart' | 'plan' | 'goals';
 
 interface TabSwitcherProps {
@@ -11,16 +7,17 @@ interface TabSwitcherProps {
   onTabChange: (tab: TodoTab) => void;
 }
 
-const TABS: { id: TodoTab; label: string; short: string; icon: string; description: string }[] = [
-  { id: 'quick', label: 'Quick Daily', short: 'Quick', icon: 'BoltIcon', description: 'Fast daily execution' },
-  { id: 'smart', label: 'Smart To-Do', short: 'Smart', icon: 'CpuChipIcon', description: 'Full task manager' },
-  { id: 'plan', label: 'Plan & Project', short: 'Plan', icon: 'MapIcon', description: 'Projects & roadmaps' },
-  { id: 'goals', label: 'Goals', short: 'Goals', icon: 'ViewfinderCircleIcon', description: 'Big-picture planning' },
+const TABS: { id: TodoTab; label: string; short: string; description: string }[] = [
+  { id: 'quick', label: 'Quick Daily', short: 'Quick', description: 'Fast daily execution' },
+  { id: 'smart', label: 'Smart To-Do', short: 'Smart', description: 'Full task manager' },
+  { id: 'plan', label: 'Plan & Project', short: 'Plan', description: 'Projects & roadmaps' },
+  { id: 'goals', label: 'Goals', short: 'Goals', description: 'Big-picture planning' },
 ];
 
+/** Page-level navigation: plain text tabs over a hairline, the current one marked by an underline. */
 export default function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps) {
   return (
-    <nav aria-label="To-Do sections" className="todo-segmented flex w-full gap-1 rounded-xl p-1.5">
+    <nav aria-label="To-Do sections" className="flex w-full items-end gap-[1.5rem] border-b mix-border-foreground/10 sm:gap-[2rem]">
       {TABS.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
@@ -30,17 +27,10 @@ export default function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps
             onClick={() => onTabChange(tab.id)}
             aria-current={isActive ? 'page' : undefined}
             title={tab.description}
-            className="todo-segment flex-1 justify-center gap-2 rounded-lg px-2 py-2.5 text-xs font-semibold sm:px-[1.25rem] sm:py-3 sm:text-sm"
+            className="todo-focus relative -mb-px whitespace-nowrap rounded-md py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity aria-[current=page]:after:opacity-100 forced-colors:after:bg-[Highlight]"
           >
-            <Icon name={tab.icon} size={16} variant={isActive ? 'solid' : 'outline'} />
             <span className="sm:hidden" aria-hidden="true">{tab.short}</span>
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">{tab.label}</span>
-            {/* Secondary description only where there's room for it without wrapping */}
-            {isActive && (
-              <span className="hidden text-xs font-normal text-muted-foreground xl:inline">
-                — {tab.description}
-              </span>
-            )}
           </button>
         );
       })}

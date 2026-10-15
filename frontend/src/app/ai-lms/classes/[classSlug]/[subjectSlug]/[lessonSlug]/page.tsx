@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import Header from '@/components/common/Header';
 import LessonViewerModule from '@/modules/ai-lms/LessonViewerModule';
+import RouteSpinner from '@/modules/ai-lms/components/RouteSpinner';
 import RequireAuth from '@/modules/auth/RequireAuth';
 
 interface PageProps {
@@ -28,11 +30,13 @@ export default async function LessonViewerPage({ params }: PageProps) {
       <Header />
       <RequireAuth feature="AI LMS">
         <main className="min-h-screen bg-background pt-[60px]">
-          <LessonViewerModule
-            classSlug={classSlug}
-            subjectSlug={subjectSlug}
-            lessonSlug={lessonSlug}
-          />
+          <Suspense fallback={<RouteSpinner />}>
+            <LessonViewerModule
+              classSlug={classSlug}
+              subjectSlug={subjectSlug}
+              lessonSlug={lessonSlug}
+            />
+          </Suspense>
         </main>
       </RequireAuth>
     </>

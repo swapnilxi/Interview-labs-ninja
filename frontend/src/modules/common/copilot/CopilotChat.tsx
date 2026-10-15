@@ -31,6 +31,11 @@ export interface CopilotChatProps {
   /** Subscribe to proactive AI messages; return an unsubscribe fn. */
   subscribe?: (push: (content: string) => void) => () => void;
   errorMessage?: string;
+  /**
+   * `default`: header band with an icon badge, outlined bubbles and suggestion chips (AI LMS).
+   * `quiet` (the To-Do panel): a plain header, bubbles without an outline, suggestions as plain rows.
+   */
+  variant?: 'default' | 'quiet';
 }
 
 /** Bold / inline code / "- " bullets — enough for assistant replies without a markdown dependency. */
@@ -69,7 +74,9 @@ export default function CopilotChat({
   topSlot,
   subscribe,
   errorMessage = 'Sorry, something went wrong. Please make sure the backend is running and try again.',
+  variant = 'default',
 }: CopilotChatProps) {
+  const quiet = variant === 'quiet';
   const [messages, setMessages] = useState<CopilotMessage[]>([{ id: 'welcome', role: 'ai', content: welcome }]);
   const [input, setInput] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -105,11 +112,15 @@ export default function CopilotChat({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex-shrink-0 border-b border-border bg-surface px-4 py-4">
+      <div className={quiet ? 'flex-shrink-0 px-4 pb-3 pt-4' : 'flex-shrink-0 border-b border-border bg-surface px-4 py-4'}>
         <div className="flex items-center gap-3">
-          <span className="copilot-icon">
-            <Icon name="SparklesIcon" size={15} variant="solid" />
-          </span>
+          {quiet ? (
+            <Icon name="SparklesIcon" size={16} variant="solid" className="flex-shrink-0 text-primary" />
+          ) : (
+            <span className="copilot-icon">
+              <Icon name="SparklesIcon" size={15} variant="solid" />
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <span className="font-heading text-sm font-semibold text-foreground">{title}</span>
             <p className="mt-0.5 text-xs leading-none text-muted-foreground">{subtitle}</p>
@@ -136,7 +147,7 @@ export default function CopilotChat({
           <div key={msg.id} className={`flex animate-fade-in ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`max-w-[92%] px-3.5 py-2.5 text-xs leading-relaxed ${
-                msg.role === 'user' ? 'copilot-bubble-user' : 'copilot-bubble-ai'
+                msg.role === 'user' ? 'copilot-bubble-user' : quiet ? 'copilot-bubble-ai-quiet' : 'copilot-bubble-ai'
               }`}
             >
               {renderContent(msg.content)}
@@ -146,7 +157,7 @@ export default function CopilotChat({
 
         {generating && (
           <div className="flex justify-start" role="status" aria-label="Copilot is thinking">
-            <div className="copilot-bubble-ai flex gap-1 px-3.5 py-3">
+            <div className={`${quiet ? 'copilot-bubble-ai-quiet' : 'copilot-bubble-ai'} flex gap-1 px-3.5 py-3`}>
               {[0, 150, 300].map((d) => (
                 <span key={d} className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary" style={{ animationDelay: `${d}ms` }} />
               ))}
@@ -156,11 +167,17 @@ export default function CopilotChat({
         <div ref={endRef} />
       </div>
 
-      <div className="flex-shrink-0 border-t border-border bg-card p-4">
-        <div className="mb-4 grid grid-cols-2 gap-2">
+      <div className={quiet ? 'flex-shrink-0 px-4 pb-4 pt-2' : 'flex-shrink-0 border-t border-border bg-card p-4'}>
+        <div className={quiet ? 'mb-3 flex flex-col gap-0.5' : 'mb-4 grid grid-cols-2 gap-2'}>
           {prompts.slice(0, 6).map((p) => (
-            <button key={p.text} type="button" onClick={() => sendMessage(p.text)} disabled={generating} className="copilot-chip">
-              <Icon name={p.icon} size={13} className="mt-px flex-shrink-0 text-primary" />
+            <button
+              key={p.text}
+              type="button"
+              onClick={() => sendMessage(p.text)}
+              disabled={generating}
+              className={quiet ? 'copilot-chip-quiet' : 'copilot-chip'}
+            >
+              <Icon name={p.icon} size={13} className={`mt-px flex-shrink-0 ${quiet ? 'text-muted-foreground' : 'text-primary'}`} />
               <span>{p.text}</span>
             </button>
           ))}

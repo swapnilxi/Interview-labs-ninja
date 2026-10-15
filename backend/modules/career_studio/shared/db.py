@@ -20,23 +20,20 @@ from .schema import register
 
 
 def get_career_db_path() -> str:
-    """Resolve career_studio.sqlite3 (env override wins). Priority: backend/data/ then module dir."""
+    """The one career database: backend/data/career_studio.sqlite3.
+
+    Only the explicit test overrides can point elsewhere (CAREER_STUDIO_DB_PATH / LABNINJA_DB_DIR);
+    there is deliberately no fallback to any other location.
+    """
     override = os.environ.get("CAREER_STUDIO_DB_PATH")
     if override:
         return override
-        
+
     env_dir = os.environ.get("LABNINJA_DB_DIR")
     if env_dir:
         return str(Path(env_dir) / "career_studio.sqlite3")
 
-    path_data = Path(__file__).resolve().parent.parent.parent.parent / "data" / "career_studio.sqlite3"
-    if path_data.exists():
-        return str(path_data)
-    path_module = Path(__file__).resolve().parent.parent / "career_studio.sqlite3"
-    if path_module.exists():
-        return str(path_module)
-    os.makedirs(path_data.parent, exist_ok=True)
-    return str(path_data)
+    return str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "career_studio.sqlite3")
 
 
 def _connect() -> sqlite3.Connection:

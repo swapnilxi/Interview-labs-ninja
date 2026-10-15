@@ -67,14 +67,12 @@ export default function GenerateLessonForm({
         const clsList = await lmsService.getClasses();
         setClasses(clsList);
 
-        if (initialClassSlug) {
-          const match = clsList.find(
-            (c) => c.slug === initialClassSlug || c.id === initialClassSlug
-          );
-          if (match) setSelectedClassId(match.id);
-        } else if (clsList.length > 0) {
-          setSelectedClassId(clsList[0].id);
-        }
+        // ?class= picks the class; a missing or unknown one falls back to the first class.
+        const match = initialClassSlug
+          ? clsList.find((c) => c.slug === initialClassSlug || c.id === initialClassSlug)
+          : undefined;
+        if (match) setSelectedClassId(match.id);
+        else if (clsList.length > 0) setSelectedClassId(clsList[0].id);
       } catch (err) {
         console.error('Failed to load classes', err);
       }

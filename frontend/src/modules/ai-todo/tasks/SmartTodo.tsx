@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import TaskTree from './TaskTree';
 import EisenhowerMatrix, { MatrixItem } from '@/components/ui/EisenhowerMatrix';
 import WeeklyPlan from './WeeklyPlan';
-import { todoService, withPeriod, Task } from '@/lib/services/todoService';
+import { todoService, withPeriod, getRelativeDueDate, Task } from '@/lib/services/todoService';
 import { paretoService } from '@/lib/services/paretoService';
 import TaskNode from './TaskNode';
 import Icon from '@/components/ui/AppIcon';
@@ -24,6 +24,24 @@ const SUB_VIEWS: { id: SmartSubView; label: string; short: string; icon: string 
   { id: 'weekly', label: 'Weekly Plan', short: 'Weekly', icon: 'CalendarDaysIcon' },
 ];
 
+/** What the capture box checks before anything is sent: it needs a title, and a priority tag alone is not a task. */
+function validateCapture(raw: string): string | null {
+  const text = raw.trim();
+  if (!text) return 'Type a task to add.';
+  if (!text.replace(/#p[1-4]\b/gi, '').trim()) return 'Add a title too: a priority tag on its own is not a task.';
+  return null;
+}
+
+/** The parts of a new task worth confirming at a glance ("P1", "Due tomorrow", "30m"). P3 is the default, so it stays quiet. */
+function describeCreated(task: Task): string[] {
+  const details: string[] = [];
+  if (task.priority && task.priority !== 'p3') details.push(task.priority.toUpperCase());
+  const due = getRelativeDueDate(task.due_date);
+  if (due) details.push(/^due|overdue/i.test(due.text) ? due.text : `Due ${due.text}`);
+  if (task.time_estimate) details.push(task.time_estimate);
+  return details;
+}
+
 export default function SmartTodo({ model }: SmartTodoProps) {
   const { isGuest } = useAuth();
   const [activeSubView, setActiveSubView] = useState<SmartSubView>('tree');
@@ -37,9 +55,13 @@ export default function SmartTodo({ model }: SmartTodoProps) {
   // NLP Capture state
   const [nlpInput, setNlpInput] = useState('');
   const [nlpLoading, setNlpLoading] = useState(false);
-  const [nlpError, setNlpError] = useState<string | null>(null);
-  const [nlpAdded, setNlpAdded] = useState<string | null>(null);
+  // `validation` = nothing was sent (empty box, a tag with no title); `request` = the parse or the save failed.
+  const [nlpError, setNlpError] = useState<{ kind: 'validation' | 'request'; message: string } | null>(null);
+  const [nlpAdded, setNlpAdded] = useState<{ title: string; details: string[] } | null>(null);
+  const nlpInputRef = useRef<HTMLInputElement>(null);
   const nlpSubmittingRef = useRef(false);
+  // On a phone the box is too narrow for an example sentence; the hint line under it carries the details there.
+  const [compactPlaceholder, setCompactPlaceholder] = useState(false);
   const nlpAddedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [treeRefreshSignal, setTreeRefreshSignal] = useState(0);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
@@ -61,11 +83,27 @@ export default function SmartTodo({ model }: SmartTodoProps) {
     if (nlpAddedTimerRef.current) clearTimeout(nlpAddedTimerRef.current);
   }, []);
 
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 639px)');
+    const sync = () => setCompactPlaceholder(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+
   const handleNlpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const raw = nlpInput.trim();
     // The ref (not just nlpLoading) blocks a second Enter landing before the re-render.
-    if (!raw || nlpSubmittingRef.current) return;
+    if (nlpSubmittingRef.current) return;
+    const raw = nlpInput.trim();
+    const invalid = validateCapture(raw);
+    if (invalid) {
+      // Said inline, next to the box, and the box keeps focus: no toast, no silent no-op.
+      setNlpAdded(null);
+      setNlpError({ kind: 'validation', message: invalid });
+      nlpInputRef.current?.focus();
+      return;
+    }
     nlpSubmittingRef.current = true;
     setNlpLoading(true);
     setNlpError(null);
@@ -97,17 +135,19 @@ export default function SmartTodo({ model }: SmartTodoProps) {
         }
       }
       setNlpInput('');
-      setNlpAdded(created.title);
+      setNlpAdded({ title: created.title, details: describeCreated(created) });
       if (nlpAddedTimerRef.current) clearTimeout(nlpAddedTimerRef.current);
       nlpAddedTimerRef.current = setTimeout(() => setNlpAdded(null), 4000);
       setTreeRefreshSignal(prev => prev + 1);
       if (activeSubView === 'matrix') loadMatrixTasks();
     } catch (err) {
       // Input is left untouched so nothing the user typed is lost.
-      setNlpError(err instanceof Error ? err.message : "Couldn't add the task.");
+      setNlpError({ kind: 'request', message: err instanceof Error ? err.message : "Couldn't add the task." });
     } finally {
       nlpSubmittingRef.current = false;
       setNlpLoading(false);
+      // Straight back into the box: add the next one, or fix and retry this one.
+      nlpInputRef.current?.focus({ preventScroll: true });
     }
   };
 
@@ -157,106 +197,123 @@ export default function SmartTodo({ model }: SmartTodoProps) {
   })) as unknown as (MatrixItem & Task)[];
 
   return (
-    <div className="flex flex-col h-full gap-[1.75rem]">
-      {/* AI Fast Capture — natural language in, structured task out */}
-      <form onSubmit={handleNlpSubmit} aria-label="Add a task with AI" className="w-full">
-        <div className="todo-capture todo-lit">
-          <label
-            htmlFor="todo-fast-capture"
-            className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-primary"
-          >
-            <Icon name="SparklesIcon" size={16} variant="solid" />
-            <span className="hidden sm:inline">AI Fast Capture</span>
-            <span className="sr-only sm:hidden">AI Fast Capture</span>
-          </label>
-          <input
-            id="todo-fast-capture"
-            type="text"
-            value={nlpInput}
-            onChange={(e) => { setNlpInput(e.target.value); if (nlpError) setNlpError(null); }}
-            placeholder={isGuest ? 'Try "Draft system design notes #p1"' : 'Try "Draft system design notes tomorrow #p1"'}
-            aria-describedby="todo-fast-capture-hint"
-            aria-invalid={nlpError ? true : undefined}
-            autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-          />
+    <div className="flex flex-col h-full gap-[1.5rem] sm:gap-[2rem]">
+      {/* Capture + views: the two things you reach for first, kept together */}
+      <div className="flex flex-col gap-[1.25rem]">
+        {/* AI Fast Capture — natural language in, structured task out */}
+        <form onSubmit={handleNlpSubmit} aria-label="Add a task with AI" aria-busy={nlpLoading} noValidate className="w-full">
+          <div className="todo-capture" data-invalid={nlpError ? 'true' : undefined}>
+            <Icon name="SparklesIcon" size={18} variant="solid" className="shrink-0 text-primary" aria-hidden="true" />
+            <label htmlFor="todo-fast-capture" className="sr-only">AI Fast Capture</label>
+            <input
+              ref={nlpInputRef}
+              id="todo-fast-capture"
+              type="text"
+              value={nlpInput}
+              onChange={(e) => { setNlpInput(e.target.value); if (nlpError) setNlpError(null); }}
+              // A held-down Enter repeats keydown; without this it would submit again and again.
+              onKeyDown={(e) => { if (e.key === 'Enter' && e.repeat) e.preventDefault(); }}
+              // Read-only (not disabled) while adding: the text can't change under the request and focus stays put.
+              readOnly={nlpLoading}
+              placeholder={compactPlaceholder ? 'Add a task…' : isGuest ? 'Add a task, e.g. "Review PR #p1"' : 'Add a task, e.g. "Review PR tomorrow 30m #p1"'}
+              aria-describedby="todo-fast-capture-hint"
+              aria-invalid={nlpError ? true : undefined}
+              enterKeyHint="send"
+              autoComplete="off"
+              className="min-w-0 flex-1 truncate bg-transparent px-1 py-2 text-base text-foreground placeholder:text-muted-foreground focus:outline-none sm:text-sm"
+            />
+            {/* Soft until there is something to add, then the one filled button on the row. Never disabled just for
+                being empty: clicking it then says what is missing instead of doing nothing. */}
+            <button
+              type="submit"
+              disabled={nlpLoading}
+              className={`todo-btn shrink-0 px-3 py-2 sm:px-4 ${nlpInput.trim() || nlpLoading ? 'todo-btn-primary' : 'todo-btn-quiet'}`}
+            >
+              {nlpLoading ? (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
+              ) : (
+                <Icon name="PlusIcon" size={14} variant="solid" />
+              )}
+              <span className="hidden sm:inline">{nlpLoading ? 'Adding…' : 'Parse & Add'}</span>
+              <span className="sr-only sm:hidden">{nlpLoading ? 'Adding' : 'Parse and add task'}</span>
+            </button>
+          </div>
+          <div id="todo-fast-capture-hint" aria-live="polite" className="mt-2 min-h-[1.125rem] px-1 text-xs leading-snug">
+            {nlpError ? (
+              <p className="flex items-start gap-1.5 text-error">
+                <Icon name="ExclamationCircleIcon" size={14} className="mt-px shrink-0" />
+                <span>
+                  {withPeriod(nlpError.message)}
+                  {nlpError.kind === 'request' && ' Your text is still in the box, so you can try again.'}
+                </span>
+              </p>
+            ) : nlpAdded ? (
+              <p className="flex items-center gap-1.5 text-success">
+                <Icon name="CheckCircleIcon" size={14} variant="solid" className="shrink-0" />
+                <span className="truncate">
+                  Added “{nlpAdded.title}”
+                  {nlpAdded.details.length > 0 && (
+                    <span className="text-muted-foreground"> · {nlpAdded.details.join(' · ')}</span>
+                  )}
+                </span>
+              </p>
+            ) : (
+              <p className="text-muted-foreground">
+                <span className="sm:hidden">Press Enter to add. Tags #p1–#p4 set priority.</span>
+                <span className="hidden sm:inline">
+                  {isGuest
+                    ? 'Press Enter to add. Priority tags #p1–#p4 work offline; log in for AI due-date and estimate parsing.'
+                    : 'Press Enter to add. AI picks up due dates, time estimates and priority tags (#p1–#p4).'}
+                </span>
+              </p>
+            )}
+          </div>
+        </form>
+
+        {/* AI action error */}
+        {aiError && (
+          <div role="alert" className="todo-alert todo-alert-error">
+            <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
+            <p className="flex-1 leading-relaxed">{aiError}</p>
+            <button onClick={() => setAiError(null)} className="todo-focus shrink-0 rounded opacity-70 hover:opacity-100" aria-label="Dismiss error">
+              <Icon name="XMarkIcon" size={12} />
+            </button>
+          </div>
+        )}
+
+        {/* Task intelligence: planning views + 80/20 analysis (applies to every view) */}
+        <div className="flex items-center justify-between gap-x-3 gap-y-2">
+          <div className="todo-segmented todo-segmented-quiet min-w-0 flex-1 sm:flex-none" role="group" aria-label="Planning view">
+            {SUB_VIEWS.map(view => (
+              <button
+                key={view.id}
+                type="button"
+                aria-pressed={activeSubView === view.id}
+                onClick={() => setActiveSubView(view.id)}
+                className="todo-segment flex-1 justify-center sm:flex-none"
+              >
+                <Icon name={view.icon} size={15} />
+                <span className="sm:hidden" aria-hidden="true">{view.short}</span>
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">{view.label}</span>
+              </button>
+            ))}
+          </div>
           <button
-            type="submit"
-            disabled={nlpLoading || !nlpInput.trim()}
-            className="todo-btn todo-btn-primary shrink-0 px-3 sm:px-4 py-2.5"
+            type="button"
+            onClick={handleAnalyze}
+            disabled={analyzeLoading}
+            className="todo-btn todo-btn-ghost shrink-0"
+            title="Run AI 80/20 analysis on all tasks"
           >
-            {nlpLoading ? (
+            {analyzeLoading ? (
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
             ) : (
-              <Icon name="PlusIcon" size={14} variant="solid" />
+              <Icon name="StarIcon" size={14} />
             )}
-            <span className="hidden sm:inline">{nlpLoading ? 'Adding…' : 'Parse & Add'}</span>
-            <span className="sr-only sm:hidden">{nlpLoading ? 'Adding' : 'Parse and add task'}</span>
+            <span className="hidden sm:inline">{analyzeLoading ? 'Analyzing…' : '80/20 Analyze'}</span>
+            <span className="sr-only sm:hidden">{analyzeLoading ? 'Analyzing' : '80/20 Analyze'}</span>
           </button>
         </div>
-        <div id="todo-fast-capture-hint" aria-live="polite" className="mt-2 min-h-[18px] px-4 text-xs leading-snug">
-          {nlpError ? (
-            <p className="flex items-start gap-1.5 text-error">
-              <Icon name="ExclamationCircleIcon" size={14} className="mt-px shrink-0" />
-              <span>{withPeriod(nlpError)} Your text is still in the box, so you can try again.</span>
-            </p>
-          ) : nlpAdded ? (
-            <p className="flex items-center gap-1.5 text-success">
-              <Icon name="CheckCircleIcon" size={14} variant="solid" className="shrink-0" />
-              <span className="truncate">Added “{nlpAdded}”</span>
-            </p>
-          ) : (
-            <p className="text-muted-foreground">
-              {isGuest
-                ? 'Press Enter to add. Priority tags #p1–#p4 work offline; log in for AI due-date and estimate parsing.'
-                : 'Press Enter to add. AI picks up due dates, time estimates and priority tags (#p1–#p4).'}
-            </p>
-          )}
-        </div>
-      </form>
-
-      {/* AI action error */}
-      {aiError && (
-        <div role="alert" className="todo-alert todo-alert-error">
-          <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
-          <p className="flex-1 leading-relaxed">{aiError}</p>
-          <button onClick={() => setAiError(null)} className="todo-focus shrink-0 rounded opacity-70 hover:opacity-100" aria-label="Dismiss error">
-            <Icon name="XMarkIcon" size={12} />
-          </button>
-        </div>
-      )}
-
-      {/* Task intelligence: planning views + 80/20 analysis (applies to every view) */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="todo-segmented w-full sm:w-auto" role="group" aria-label="Planning view">
-          {SUB_VIEWS.map(view => (
-            <button
-              key={view.id}
-              type="button"
-              aria-pressed={activeSubView === view.id}
-              onClick={() => setActiveSubView(view.id)}
-              className="todo-segment flex-1 justify-center sm:flex-none"
-            >
-              <Icon name={view.icon} size={15} />
-              <span className="sm:hidden" aria-hidden="true">{view.short}</span>
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">{view.label}</span>
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={handleAnalyze}
-          disabled={analyzeLoading}
-          className="todo-btn todo-btn-secondary"
-          title="Run AI 80/20 analysis on all tasks"
-        >
-          {analyzeLoading ? (
-            <span className="w-3.5 h-3.5 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" aria-hidden="true" />
-          ) : (
-            <Icon name="StarIcon" size={14} variant="solid" className="text-amber-500" />
-          )}
-          {analyzeLoading ? 'Analyzing…' : '80/20 Analyze'}
-        </button>
       </div>
 
       {/* Content */}
@@ -265,6 +322,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
 
         {activeSubView === 'matrix' && (
           <EisenhowerMatrix
+            tone="calm"
             items={matrixItems}
             onQuadrantChange={handleQuadrantChange}
             showAutoSort={true}
@@ -273,6 +331,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
             itemRenderer={(item) => (
               <div className="pointer-events-none">
                 <TaskNode
+                  variant="card"
                   task={item}
                   depth={1}
                   model={model}

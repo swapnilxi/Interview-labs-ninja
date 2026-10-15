@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUrlState } from '@/lib/navigation/urlState';
 import { useLmsViewMode } from './context/LmsViewModeContext';
 import { lmsService } from './services/lmsService';
 import type { ContinueLearningItem, LmsClass } from './types';
@@ -33,26 +34,15 @@ export default function LmsHomeModule() {
     selectActiveTrack,
   } = useLearningProgress();
 
-  // Sub-tabs: 'classes' | 'instructors'
-  const [activeTab, setActiveTab] = useState<'classes' | 'instructors'>('classes');
-
-  // Sync tab with URL search parameter if present
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
-      if (tabParam === 'instructors' || tabParam === 'instructor') {
-        setActiveTab('instructors');
-      }
-    }
-  }, []);
+  // Sub-tabs: 'classes' | 'instructors'. The URL (?tab=) is the source of truth, so browser Back/Forward,
+  // a refresh and a shared link all land on the same tab; a missing or unknown value is the Classes tab.
+  const { get: getParam, update: updateParams } = useUrlState();
+  const tabParam = getParam('tab');
+  const activeTab: 'classes' | 'instructors' =
+    tabParam === 'instructors' || tabParam === 'instructor' ? 'instructors' : 'classes';
 
   const handleTabChange = (tab: 'classes' | 'instructors') => {
-    setActiveTab(tab);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('tab', tab);
-      window.history.pushState({}, '', url.toString());
-    }
+    if (tab !== activeTab) updateParams({ tab });
   };
 
   // Modals

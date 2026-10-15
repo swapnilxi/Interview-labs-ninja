@@ -24,7 +24,32 @@ export interface SessionProgressRow {
   isCompleted: boolean;
 }
 
+export interface RecentSession {
+  sessionId: string;
+  sessionDate: string;
+  questionCount: number;
+  answeredCount: number;
+}
+
 export const sessionService = {
+  /** The caller's latest sessions (newest first) with how many questions each has and how many are answered. */
+  async getRecentSessions(limit = 10): Promise<RecentSession[]> {
+    try {
+      const res = await apiFetch(`/sessions/recent?limit=${limit}`);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const rows = await res.json();
+      return rows.map((r: any) => ({
+        sessionId: String(r.session_id),
+        sessionDate: r.session_date,
+        questionCount: r.question_count,
+        answeredCount: r.answered_count,
+      }));
+    } catch (error) {
+      console.error('Failed to get recent sessions:', error);
+      return [];
+    }
+  },
+
   async saveSessionAnswers(answers: SessionAnswer[]): Promise<void> {
     try {
       const res = await apiFetch('/session-progress', {
@@ -57,6 +82,7 @@ export const sessionService = {
     totalAnswered: number;
     completedAnswers: number;
     recentDates: string[];
+    recentSessions?: { date: string; answered: number; completed: number }[];
   }> {
     try {
       const res = await apiFetch('/session-progress/stats');
@@ -66,7 +92,7 @@ export const sessionService = {
       return await res.json();
     } catch (error) {
       console.error('Failed to get progress stats:', error);
-      return { totalSessions: 0, totalAnswered: 0, completedAnswers: 0, recentDates: [] };
+      return { totalSessions: 0, totalAnswered: 0, completedAnswers: 0, recentDates: [], recentSessions: [] };
     }
   },
 };

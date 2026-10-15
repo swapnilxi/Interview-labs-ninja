@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import SwipeLearnModule from '@/modules/swipe-learn/SwipeLearnModule';
@@ -12,7 +13,16 @@ export default function SwipeLearnPage() {
     <>
       <Header />
       <div className="min-h-screen bg-background pt-[60px]">
-        <SwipeLearnModule />
+        {/* The module keeps the open screen in the URL (?tab=, ?topic=), which needs a Suspense boundary above it. */}
+        <Suspense
+          fallback={
+            <div className="flex h-[calc(100dvh-60px)] items-center justify-center text-sm text-muted-foreground">
+              Loading…
+            </div>
+          }
+        >
+          <SwipeLearnModule />
+        </Suspense>
       </div>
     </>
   );

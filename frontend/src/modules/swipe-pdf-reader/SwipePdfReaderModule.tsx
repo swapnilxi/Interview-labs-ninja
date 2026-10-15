@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { PdfDocument, ProcessingState } from './types';
 import DocumentInputPanel from './components/DocumentInputPanel';
@@ -9,11 +9,23 @@ import StorageManagerPanel from './components/StorageManagerPanel';
 import { DEMO_PDF_DOCUMENTS } from './data/sampleDocs';
 import { useReaderStorage } from './utils/useReaderStorage';
 import type { ReaderDocMeta } from './utils/readerDb';
+import { buildUrl, useUrlState } from '@/lib/navigation/urlState';
+import { useSmartBack } from '@/lib/navigation/smartBack';
+import { toast } from '@/lib/ui/toast';
 
 export default function SwipePdfReaderModule() {
   const storage = useReaderStorage();
+  const { get, update, pathname, searchParams } = useUrlState();
+  const goBack = useSmartBack();
 
-  const [activeDocument, setActiveDocument] = useState<PdfDocument | null>(null);
+  // Which screen is showing lives in the URL:
+  //   /swipe-pdf-reader                     the library (upload / paste / samples / recent)
+  //   /swipe-pdf-reader?doc=<id>            a document being read; the reader itself keeps &card=<n> up to date
+  // An unknown ?doc= falls back to the library. (Replaces the old "last open document" localStorage key.)
+  const docParam = get('doc');
+  const [loadedDoc, setLoadedDoc] = useState<PdfDocument | null>(null);
+  const activeDocument = docParam && loadedDoc?.id === docParam ? loadedDoc : null;
+  const libraryHref = buildUrl(pathname, searchParams, { doc: null, card: null });
   const [processingState, setProcessingState] = useState<ProcessingState>({
     status: 'idle',
     progress: 0,
@@ -23,32 +35,92 @@ export default function SwipePdfReaderModule() {
   const [loadingDocId, setLoadingDocId] = useState<string | null>(null);
   const [showStorageManager, setShowStorageManager] = useState(false);
 
-  // Load recent docs + progress + restore active document on mount
+  // Newest `update` / loader for the async effects below (their identities change with every URL change).
+  const latest = useRef({ update, loadDocument: null as null | ((id: string, source?: string) => Promise<PdfDocument | null>) });
+  latest.current.update = update;
+
+  /** A document by id: bundled sample, then this device (IndexedDB), then — for cloud documents — the API. */
+  const loadDocument = async (id: string, source?: string): Promise<PdfDocument | null> => {
+    const demo = DEMO_PDF_DOCUMENTS.find((d) => d.id === id);
+    if (demo) {
+      // Demo docs have their chunks in memory; persist them to IDB too
+      storage.saveFullDocument(demo);
+      return demo;
+    }
+    let doc: PdfDocument | null = null;
+    try {
+      doc = (await storage.getFullDocumentAsync(id)) as PdfDocument | null;
+    } catch {
+      doc = null;
+    }
+    if ((!doc || doc.chunks.length === 0) && source !== 'local') {
+      try {
+        const res = await fetch(`/api/pdf/documents/${encodeURIComponent(id)}`);
+        if (res.ok) {
+          doc = await res.json();
+          if (doc) await storage.saveFullDocument(doc, undefined, 'cloud');
+        }
+      } catch {
+        // offline / backend unavailable: handled as "not found" below
+      }
+    }
+    return doc && doc.chunks?.length > 0 ? doc : null;
+  };
+  latest.current.loadDocument = loadDocument;
+
+  // Open the document named by ?doc= (a link, a refresh, Back/Forward). Documents opened from this page are already
+  // in memory (see openDocument), so this only loads when the URL arrives first.
+  const loadedDocId = useRef<string | null>(null);
+  loadedDocId.current = loadedDoc?.id ?? null;
+  useEffect(() => {
+    if (!docParam) {
+      setLoadedDoc(null);
+      return;
+    }
+    if (loadedDocId.current === docParam) return;
+    let cancelled = false;
+    (async () => {
+      const doc = await latest.current.loadDocument!(docParam);
+      if (cancelled) return;
+      if (doc) {
+        setLoadedDoc(doc);
+      } else {
+        toast.error('That document is not on this device any more.');
+        latest.current.update({ doc: null, card: null }, 'replace');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [docParam]);
+
+  // Back on the library after reading: forget the finished upload, and show the new progress.
+  const wasReading = useRef(false);
+  useEffect(() => {
+    if (docParam) {
+      wasReading.current = true;
+      return;
+    }
+    if (!wasReading.current) return;
+    wasReading.current = false;
+    setProcessingState({ status: 'idle', progress: 0 });
+    refreshRecent();
+  }, [docParam]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Show a document: keep it in memory so the reader opens at once, then move the URL to it. */
+  const openDocument = (doc: PdfDocument) => {
+    setLoadedDoc(doc);
+    update({ doc: doc.id, card: null });
+  };
+
+  // Load recent docs + progress on mount
   useEffect(() => {
     let cancelled = false;
     async function loadRecent() {
-      // 1. Check if user was reading a document before reload
-      const lastActiveId = typeof window !== 'undefined' ? localStorage.getItem('swipe-reader:active-doc-id') : null;
-      if (lastActiveId) {
-        const demo = DEMO_PDF_DOCUMENTS.find((d) => d.id === lastActiveId);
-        if (demo) {
-          setActiveDocument(demo);
-        } else {
-          try {
-            const restored = await storage.getFullDocumentAsync(lastActiveId);
-            if (!cancelled && restored && restored.chunks.length > 0) {
-              setActiveDocument(restored);
-            }
-          } catch {
-            // Ignore error, show input screen
-          }
-        }
-      }
-
-      // 2. Load recent docs metadata from IndexedDB
+      // 1. Load recent docs metadata from IndexedDB
       const docs = await storage.getRecentDocsAsync();
 
-      // 3. Fetch cloud documents from backend
+      // 2. Fetch cloud documents from backend
       try {
         const res = await fetch('/api/pdf/documents');
         if (res.ok) {
@@ -67,7 +139,7 @@ export default function SwipePdfReaderModule() {
       if (cancelled) return;
       setRecentDocs(docs);
 
-      // 4. Load reading progress for each doc
+      // 3. Load reading progress for each doc
       const pmap: Record<string, number> = {};
       await Promise.all(
         docs.map(async (d) => {
@@ -83,24 +155,8 @@ export default function SwipePdfReaderModule() {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDocumentReady = (doc: PdfDocument) => {
-    try {
-      localStorage.setItem('swipe-reader:active-doc-id', doc.id);
-    } catch {}
-    // Refresh recent docs after a new doc is processed
-    storage.getRecentDocsAsync().then((docs) => {
-      setRecentDocs(docs);
-    });
-    setActiveDocument(doc);
-  };
-
-  const handleBackToInput = () => {
-    try {
-      localStorage.removeItem('swipe-reader:active-doc-id');
-    } catch {}
-    setActiveDocument(null);
-    setProcessingState({ status: 'idle', progress: 0 });
-    // Refresh recent docs + progress when returning to input
+  /** Reload the recent list and the reading progress from this device. */
+  function refreshRecent() {
     storage.getRecentDocsAsync().then(async (docs) => {
       setRecentDocs(docs);
       const pmap: Record<string, number> = {};
@@ -114,16 +170,24 @@ export default function SwipePdfReaderModule() {
       );
       setProgressMap(pmap);
     });
+  }
+
+  const handleDocumentReady = (doc: PdfDocument) => {
+    // Refresh recent docs after a new doc is processed
+    storage.getRecentDocsAsync().then((docs) => {
+      setRecentDocs(docs);
+    });
+    openDocument(doc);
   };
 
+  // "Upload Different Document" on the finished screen: back to the library (history Back when it is the previous screen)
+  const handleBackToInput = () => goBack(libraryHref);
+
   const handleLoadDemoDoc = (doc: PdfDocument) => {
-    try {
-      localStorage.setItem('swipe-reader:active-doc-id', doc.id);
-    } catch {}
     // Demo docs have their chunks in memory; persist them to IDB too
     storage.saveFullDocument(doc);
     storage.getRecentDocsAsync().then(setRecentDocs);
-    setActiveDocument(doc);
+    openDocument(doc);
   };
 
   /**
@@ -139,26 +203,9 @@ export default function SwipePdfReaderModule() {
 
     setLoadingDocId(meta.id);
     try {
-      // 1. Try loading from IndexedDB
-      let doc = await storage.getFullDocumentAsync(meta.id);
-
-      // 2. If not in IDB and source is cloud, fetch from API
-      if ((!doc || doc.chunks.length === 0) && meta.source === 'cloud') {
-        const res = await fetch(`/api/pdf/documents/${meta.id}`);
-        if (res.ok) {
-          doc = await res.json();
-          if (doc) {
-            await storage.saveFullDocument(doc, undefined, 'cloud');
-          }
-        }
-      }
-
-      if (doc && doc.chunks.length > 0) {
-        try {
-          localStorage.setItem('swipe-reader:active-doc-id', doc.id);
-        } catch {}
-        setActiveDocument(doc);
-      }
+      // IndexedDB first; only a cloud document may be fetched from the API
+      const doc = await loadDocument(meta.id, meta.source === 'cloud' ? 'cloud' : 'local');
+      if (doc) openDocument(doc);
     } catch (err) {
       console.error('Error loading recent doc:', err);
     } finally {
@@ -170,9 +217,6 @@ export default function SwipePdfReaderModule() {
     e.stopPropagation();
     try {
       await storage.deleteDocument(docId);
-      if (localStorage.getItem('swipe-reader:active-doc-id') === docId) {
-        localStorage.removeItem('swipe-reader:active-doc-id');
-      }
       setRecentDocs((prev) => prev.filter((d) => d.id !== docId));
       setProgressMap((prev) => {
         const next = { ...prev };
@@ -216,7 +260,12 @@ export default function SwipePdfReaderModule() {
         </div>
       )}
 
-      {!activeDocument ? (
+      {docParam && !activeDocument ? (
+        // ?doc= names a document that is still being opened (a link or a refresh)
+        <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-label="Opening document">
+          <Icon name="ArrowPathIcon" size={24} className="animate-spin text-muted-foreground" />
+        </div>
+      ) : !activeDocument ? (
         <div className="space-y-6">
           <DocumentInputPanel
             onDocumentReady={handleDocumentReady}
@@ -379,7 +428,9 @@ export default function SwipePdfReaderModule() {
         </div>
       ) : (
         <PdfDeckReaderView
+          key={activeDocument.id}
           document={activeDocument}
+          routed={{ backHref: libraryHref, card: get('card') }}
           onBackToInput={handleBackToInput}
         />
       )}

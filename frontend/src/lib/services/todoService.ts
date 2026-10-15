@@ -109,11 +109,49 @@ export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: strin
   p4: { label: 'P4 Low',      color: '#9ca3af', dotClass: 'bg-gray-400' },
 };
 
-export const DEPTH_COLORS = ['#3b82f6', '#a855f7', '#14b8a6', '#f59e0b', '#ec4899'];
-export const DEPTH_LABELS = ['blue', 'purple', 'teal', 'amber', 'pink'];
+/**
+ * Task-tree depth. Level 1 is a root task (no parent); each parent → child link adds one; anything from level 5 down
+ * shares the last entry ("L5+"). The colours are CSS tokens (--color-depth-1 … -5 in styles/tailwind.css) so the
+ * rails, branch lines and the depth legend draw exactly the same colours, in light and dark.
+ */
+export const DEPTH_COLORS = [
+  'var(--color-depth-1)',
+  'var(--color-depth-2)',
+  'var(--color-depth-3)',
+  'var(--color-depth-4)',
+  'var(--color-depth-5)',
+];
+export const DEPTH_LABELS = ['blue', 'violet', 'cyan', 'amber', 'pink'];
+/** What each level is called in tooltips and for screen readers: the colour is never the only cue. */
+export const DEPTH_NAMES = ['Parent', 'Breakdown', 'Subtask', 'Nested subtask', 'Deep task'];
+
+function depthIndex(depth: number): number {
+  return Math.min(Math.max(Math.floor(depth) || 1, 1) - 1, DEPTH_COLORS.length - 1);
+}
 
 export function getDepthColor(depth: number): string {
-  return DEPTH_COLORS[Math.min(depth - 1, DEPTH_COLORS.length - 1)];
+  return DEPTH_COLORS[depthIndex(depth)];
+}
+
+export function getDepthName(depth: number): string {
+  return DEPTH_NAMES[depthIndex(depth)];
+}
+
+/**
+ * Level of every task in a nested tree, keyed by id: roots are 1, each child is its parent + 1. Read from the real
+ * parent → child structure (the same value as the backend's `depth_level`), so it stays right when a view shows a
+ * filtered or flattened subset of the tree.
+ */
+export function buildDepthMap(tasks: Task[]): Map<number, number> {
+  const depths = new Map<number, number>();
+  const walk = (nodes: Task[], depth: number) => {
+    for (const node of nodes) {
+      depths.set(node.id, depth);
+      if (node.children?.length) walk(node.children, depth + 1);
+    }
+  };
+  walk(tasks, 1);
+  return depths;
 }
 
 // ── Due date helpers ─────────────────────────────────────────────────────────

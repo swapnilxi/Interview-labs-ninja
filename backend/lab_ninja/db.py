@@ -32,15 +32,8 @@ class QuestionRecord:
 
 
 def get_db_path() -> str:
-    """Resolve the path to lab_ninja.sqlite3 (located in backend/data/)."""
-    path_data = Path(__file__).resolve().parent.parent / "data" / "lab_ninja.sqlite3"
-    if path_data.exists():
-        return str(path_data)
-    path_rel = Path(__file__).resolve().parent.parent / "lab_ninja.sqlite3"
-    if path_rel.exists():
-        return str(path_rel)
-    os.makedirs(path_data.parent, exist_ok=True)
-    return str(path_data)
+    """The one real database: backend/data/lab_ninja.sqlite3 (no fallback to any other location)."""
+    return str(Path(__file__).resolve().parent.parent / "data" / "lab_ninja.sqlite3")
 
 
 def init_db() -> None:
@@ -191,6 +184,24 @@ def insert_questions(session_id: int, questions: List[dict]) -> List[int]:
 
         inserted_ids = []
         for q in questions:
+            question_text = (q.get("question_text") or "").strip()
+            if not question_text:
+                continue
+
+            # Use SQL to find if question already exists in question bank
+            cursor.execute(
+                """
+                SELECT id FROM questions
+                WHERE trim(lower(question_text)) = trim(lower(?))
+                ORDER BY id ASC LIMIT 1
+                """,
+                (question_text,),
+            )
+            existing_row = cursor.fetchone()
+            if existing_row:
+                inserted_ids.append(existing_row[0])
+                continue
+
             topics_val = q.get("topics", [])
             if isinstance(topics_val, list):
                 topics_str = ",".join(topics_val)
@@ -217,13 +228,66 @@ def insert_questions(session_id: int, questions: List[dict]) -> List[int]:
                     q["sub_type"],
                     q["difficulty"],
                     topics_str,
-                    q["question_text"],
+                    question_text,
                     q.get("question_type", q["sub_type"]),
                 ),
             )
             inserted_ids.append(cursor.lastrowid)
         conn.commit()
         return inserted_ids
+    finally:
+        conn.close()
+
+
+def clear_duplicate_questions() -> int:
+    """Find duplicate questions using SQL and delete duplicate records,
+    keeping the earliest record (MIN id). Re-links any session_progress
+    entries to the surviving question id.
+    Returns the count of deleted duplicate records.
+    """
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id FROM questions
+            WHERE id NOT IN (
+                SELECT MIN(id) FROM questions GROUP BY trim(lower(question_text))
+            )
+            """
+        )
+        dup_rows = cursor.fetchall()
+        dup_ids = [r[0] for r in dup_rows]
+        if not dup_ids:
+            return 0
+
+        cursor.execute(
+            """
+            UPDATE session_progress
+            SET question_id = (
+                SELECT MIN(q.id)
+                FROM questions q
+                JOIN questions q2 ON trim(lower(q.question_text)) = trim(lower(q2.question_text))
+                WHERE q2.id = session_progress.question_id
+            )
+            WHERE question_id IN (
+                SELECT id FROM questions WHERE id NOT IN (
+                    SELECT MIN(id) FROM questions GROUP BY trim(lower(question_text))
+                )
+            );
+            """
+        )
+        cursor.execute(
+            """
+            DELETE FROM questions
+            WHERE id NOT IN (
+                SELECT MIN(id) FROM questions GROUP BY trim(lower(question_text))
+            );
+            """
+        )
+        conn.commit()
+        return len(dup_ids)
     finally:
         conn.close()
 

@@ -3,7 +3,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUrlState } from '@/lib/navigation/urlState';
+import { useSmartBack } from '@/lib/navigation/smartBack';
 import { useLmsViewMode } from './context/LmsViewModeContext';
 import { lmsService } from './services/lmsService';
 import type { LmsClass, LmsLesson, LmsSubject } from './types';
@@ -33,9 +36,14 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // A project's two screens live in the URL (?tab=edit opens the project editor; no tab, an unknown tab, or no
+  // editor role is the module outline), so Back/Forward, a refresh and a shared link land on the same screen.
+  const { get: getParam, update: updateParams } = useUrlState();
+  const goBack = useSmartBack();
+  const projectTab: 'modules' | 'edit' = canEdit && getParam('tab') === 'edit' ? 'edit' : 'modules';
+
   // Modals
   const [isSubjectEditOpen, setIsSubjectEditOpen] = useState(false);
-  const [projectTab, setProjectTab] = useState<'modules' | 'edit'>('modules');
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [lessonToEdit, setLessonToEdit] = useState<LmsLesson | null>(null);
   const [lessonToDelete, setLessonToDelete] = useState<LmsLesson | null>(null);
@@ -122,6 +130,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
 
   const isProject = subject.kind === 'project';
   const subjectAccent = subject.accent_color || (isProject ? '#8b5cf6' : '#38bdf8');
+  const projectHref = `/ai-lms/classes/${lmsClass.slug}/${subject.slug}`;
 
   if (isProject) {
     return (
@@ -129,14 +138,12 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
         {/* Breadcrumbs & Header */}
         <div className="space-y-4 pb-6 border-b border-border">
           <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
-            <Link
-              href={`/ai-lms/classes/${lmsClass.slug}`}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-2xs group"
-              title={`Back to ${lmsClass.name}`}
-            >
-              <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
-              <span>Back</span>
-            </Link>
+            {/* On the project editor Back returns to the module outline; on the outline it goes up to the class. */}
+            <BackButton
+              href={projectTab === 'edit' ? projectHref : `/ai-lms/classes/${lmsClass.slug}`}
+              label="Back"
+              className="-ml-2.5"
+            />
             <div className="h-3.5 w-px bg-border/80" />
             <Link href="/ai-lms" className="hover:text-foreground transition-colors">
               AI LMS
@@ -181,7 +188,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
             {canEdit && <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
               <button
                 type="button"
-                onClick={() => setProjectTab((t) => (t === 'edit' ? 'modules' : 'edit'))}
+                onClick={() => updateParams({ tab: projectTab === 'edit' ? null : 'edit' })}
                 className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border font-medium text-xs transition-colors shadow-sm ${
                   projectTab === 'edit'
                     ? 'border-primary bg-primary/10 text-primary'
@@ -200,7 +207,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
           lmsClass={lmsClass}
           onReload={() => loadSubject()}
           mode={projectTab}
-          onDone={() => setProjectTab('modules')}
+          onDone={() => goBack(projectHref)}
         />
       </div>
     );
@@ -211,14 +218,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
       {/* Breadcrumbs & Header */}
       <div className="space-y-4 pb-6 border-b border-border">
         <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
-          <Link
-            href={`/ai-lms/classes/${lmsClass.slug}`}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-2xs group"
-            title={`Back to ${lmsClass.name}`}
-          >
-            <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back</span>
-          </Link>
+          <BackButton href={`/ai-lms/classes/${lmsClass.slug}`} label="Back" className="-ml-2.5" />
           <div className="h-3.5 w-px bg-border/80" />
           <Link href="/ai-lms" className="hover:text-foreground transition-colors">
             AI LMS

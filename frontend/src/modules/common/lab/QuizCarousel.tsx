@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import AiError from '@/modules/common/lab/AiError';
 
 interface QuizQuestion {
   q: string;
@@ -12,15 +13,31 @@ interface QuizQuestion {
 
 interface QuizCarouselProps {
   questions: QuizQuestion[];
+  /** Static question banks: swap in the next batch. The carousel supplies the "generating" pause. */
   onGenerateMore?: () => void;
+  /**
+   * Real generation: append more questions to `questions` and resolve (reject with a readable message
+   * to show an error). When this is set the carousel jumps to the first new question once it arrives,
+   * keeping earlier answers and the running score, since the list only ever grows.
+   */
+  generateMore?: () => Promise<void>;
   hasMore?: boolean;
 }
 
-export default function QuizCarousel({ questions, onGenerateMore, hasMore = true }: QuizCarouselProps) {
+export default function QuizCarousel({ questions, onGenerateMore, generateMore, hasMore = true }: QuizCarouselProps) {
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [showExplanation, setShowExplanation] = useState<Record<number, boolean>>({});
   const [generatingMore, setGeneratingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const advanceFrom = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (advanceFrom.current !== null && questions.length > advanceFrom.current) {
+      setIdx(advanceFrom.current);
+      advanceFrom.current = null;
+    }
+  }, [questions.length]);
 
   const current = questions[idx];
   const hasAnswered = answers[idx] !== undefined;
@@ -33,12 +50,25 @@ export default function QuizCarousel({ questions, onGenerateMore, hasMore = true
     setShowExplanation(prev => ({ ...prev, [idx]: true }));
   };
 
-  const handleGenerateMore = () => {
+  const handleGenerateMore = async () => {
+    setMoreError(null);
     setGeneratingMore(true);
-    setTimeout(() => {
+    if (!generateMore) {
+      setTimeout(() => {
+        setGeneratingMore(false);
+        onGenerateMore?.();
+      }, 1600);
+      return;
+    }
+    advanceFrom.current = questions.length;
+    try {
+      await generateMore();
+    } catch (e) {
+      advanceFrom.current = null;
+      setMoreError(e instanceof Error ? e.message : 'Could not generate more questions.');
+    } finally {
       setGeneratingMore(false);
-      onGenerateMore?.();
-    }, 1600);
+    }
   };
 
   return (
@@ -154,6 +184,7 @@ export default function QuizCarousel({ questions, onGenerateMore, hasMore = true
           </span>
         )}
       </div>
+      {moreError && <AiError message={moreError} className="text-right" />}
     </div>
   );
 }

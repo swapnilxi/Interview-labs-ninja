@@ -1,7 +1,9 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import DSALabInteractive from '@/modules/dsa-lab/DSALabModule';
 import Header from '@/components/common/Header';
 import RequireAuth from '@/modules/auth/RequireAuth';
+import { LabScreenLoading } from '@/modules/common/lab/labNavigation';
 
 export const metadata: Metadata = {
   title: 'DSA Lab — InterviewNinja',
@@ -13,7 +15,10 @@ export default function DSALabPage() {
     <>
       <Header />
       <RequireAuth feature="the DSA Lab">
-        <DSALabInteractive />
+        {/* The open topic/subtopic is read from the URL (useSearchParams), which needs a Suspense boundary */}
+        <Suspense fallback={<LabScreenLoading />}>
+          <DSALabInteractive />
+        </Suspense>
       </RequireAuth>
     </>
   );

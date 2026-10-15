@@ -2,8 +2,16 @@
 
 import React from 'react';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
-export type DailySessionTab = 'session' | 'practice' | 'quick-practice' | 'progress' | 'question-bank';
+export type DailySessionTab =
+  | 'session'
+  | 'practice'
+  | 'quick-practice'
+  | 'progress'
+  | 'question-bank'
+  | 'myspace'
+  | 'swapnilxi-space';
 
 export interface TabConfig {
   id: DailySessionTab;
@@ -63,13 +71,30 @@ export default function DailySessionTabSwitcher({
   activeTab,
   onTabChange,
 }: DailySessionTabSwitcherProps) {
+  const { user } = useAuth();
+  const isSwapnilxi = user?.email?.toLowerCase() === 'swapnilgupta.xi@gmail.com';
+
+  const mySpaceTab: TabConfig = {
+    id: isSwapnilxi ? 'swapnilxi-space' : 'myspace',
+    label: isSwapnilxi ? 'swapnilxi space' : 'MySpace',
+    short: isSwapnilxi ? 'swapnilxi' : 'MySpace',
+    icon: isSwapnilxi ? 'ShieldCheckIcon' : 'SparklesIcon',
+    description: isSwapnilxi
+      ? 'Private creator command deck & controls'
+      : 'Personal private workspace & scratchpad',
+    badge: isSwapnilxi ? 'VIP' : 'Private',
+  };
+
+  const visibleTabs = [...DAILY_SESSION_TABS, mySpaceTab];
+
   return (
     <nav
       aria-label="Daily Session sections"
       className="flex w-full items-center gap-1.5 overflow-x-auto scrollbar-none rounded-2xl border border-border bg-card/80 p-1.5 backdrop-blur-md shadow-sm"
     >
-      {DAILY_SESSION_TABS.map((tab) => {
-        const isActive = activeTab === tab.id;
+      {visibleTabs.map((tab) => {
+        const isMySpaceTab = tab.id === 'myspace' || tab.id === 'swapnilxi-space';
+        const isActive = activeTab === tab.id || (isMySpaceTab && (activeTab === 'myspace' || activeTab === 'swapnilxi-space'));
         return (
           <button
             key={tab.id}

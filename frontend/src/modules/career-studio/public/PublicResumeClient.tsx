@@ -7,11 +7,14 @@
  * preview already works. */
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { viewsService } from '@/lib/services/viewsService';
 import { downloadBlob } from '../shared/exportUtils';
 import type { PublicResume } from '../shared/types';
 
 export default function PublicResumeClient({ slug, version }: { slug: string; version?: number }) {
+  const router = useRouter();
   const [data, setData] = useState<PublicResume | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -38,6 +41,11 @@ export default function PublicResumeClient({ slug, version }: { slug: string; ve
         }
       } catch (e: any) {
         if (!cancelled) {
+          // A version that does not exist falls back to the current page (which shows its own "not found" if the slug is wrong too).
+          if (version != null) {
+            router.replace(`/r/${encodeURIComponent(slug)}`);
+            return;
+          }
           setMessage(e?.message || 'This resume could not be found.');
           setState('error');
         }
@@ -46,7 +54,7 @@ export default function PublicResumeClient({ slug, version }: { slug: string; ve
     return () => {
       cancelled = true;
     };
-  }, [slug, version]);
+  }, [slug, version, router]);
 
   if (state === 'loading') {
     return (
@@ -71,7 +79,10 @@ export default function PublicResumeClient({ slug, version }: { slug: string; ve
   return (
     <div className="min-h-screen flex flex-col bg-neutral-100">
       {version != null && (
-        <div className="bg-amber-50 text-amber-800 text-xs text-center py-1.5 border-b border-amber-200">Viewing a past version (v{version}) — this may not be the current resume.</div>
+        <div className="bg-amber-50 text-amber-800 text-xs text-center py-1.5 border-b border-amber-200">
+          Viewing a past version (v{version}) — this may not be the current resume.{' '}
+          <Link href={`/r/${encodeURIComponent(slug)}`} className="font-medium underline">View the current version</Link>
+        </div>
       )}
       <div className="flex justify-end px-4 pt-3">
         <button onClick={download} disabled={downloading} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white shadow-sm ring-1 ring-black/5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50">

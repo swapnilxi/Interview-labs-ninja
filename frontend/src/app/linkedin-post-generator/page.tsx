@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import Icon from '@/components/ui/AppIcon';
@@ -29,7 +30,10 @@ export default function LinkedInPostGeneratorPage() {
               </div>
             </div>
           </div>
-          <LinkedInPostGeneratorInteractive />
+          {/* The module reads ?tab= from the URL, which needs a Suspense boundary above it. */}
+          <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>}>
+            <LinkedInPostGeneratorInteractive />
+          </Suspense>
         </div>
       </div>
     </>

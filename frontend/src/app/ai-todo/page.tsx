@@ -23,13 +23,15 @@ function TodoPageInner() {
   const router = useRouter();
 
   const rawTab = searchParams.get('tab') as TodoTab | null;
-  const activeTab: TodoTab = rawTab && VALID_TABS.includes(rawTab) ? rawTab : 'smart';
+  const activeTab: TodoTab = rawTab && VALID_TABS.includes(rawTab) ? rawTab : 'quick';
 
   const setActiveTab = useCallback((tab: TodoTab) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', tab);
-    router.push(`/ai-todo?${params.toString()}`);
-  }, [router, searchParams]);
+    // A section opens at its own top: the sub-view params of the section you are leaving (view=...) must not
+    // follow you into the next one. Clicking the tab you are already on only does something if you are
+    // deeper inside it (then it takes you back to its top).
+    if (tab === activeTab && !searchParams.has('view')) return;
+    router.push(`/ai-todo?tab=${tab}`);
+  }, [router, activeTab, searchParams]);
 
   const [model, setModel] = useState<'ollama' | 'gemini'>('gemini');
   const [copilotOpen, setCopilotOpen] = useState(true);
@@ -80,22 +82,23 @@ function TodoPageInner() {
         <div className="todo-shell flex h-full" data-copilot={copilotOpen ? 'open' : 'collapsed'}>
           {/* Main content area */}
           <div className="flex-1 min-w-0 overflow-y-auto scrollbar-clean">
-            <div className="max-w-[1440px] mx-auto px-4 sm:px-[2rem] lg:px-[2.5rem] pt-[2rem] pb-[7rem]">
-              {/* Page header */}
-              <div className="mb-[1.75rem] flex items-center gap-4">
-                <span className="todo-icon-chip h-[2.75rem] w-[2.75rem]">
-                  <Icon name="ClipboardDocumentCheckIcon" size={22} />
-                </span>
-                <div className="min-w-0">
-                  <h1 className="font-heading text-xl font-bold leading-tight text-foreground sm:text-2xl">AI To-Do</h1>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Break tasks infinitely deep with AI · Track progress · Stay productive
-                  </p>
-                </div>
-              </div>
+            <div className="max-w-[1440px] mx-auto px-4 sm:px-[2rem] lg:pl-[2.5rem] lg:pr-[3.5rem] pt-[1rem] sm:pt-[1.5rem] pb-[7rem]">
+              {/* Page header: a title and one quiet line — no tile, no tagline. The faint violet wash behind it is the
+                  only gradient on the page: it fades to nothing before any edge, so there is no box and no glow. */}
+              <header className="relative mb-[1rem]">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -top-[2rem] left-[-1rem] right-[-1rem] h-[10rem] sm:left-[-2rem] sm:right-[-2rem] lg:left-[-2.5rem] lg:right-[-3.5rem]"
+                  style={{ background: 'radial-gradient(ellipse 42% 78% at 22% 0%, color-mix(in srgb, var(--color-primary) 9%, transparent), transparent)' }}
+                />
+                <h1 className="relative font-heading text-2xl font-semibold leading-tight tracking-tight text-foreground">AI To-Do</h1>
+                <p className="relative mt-1 text-sm text-muted-foreground">
+                  Capture, plan and finish tasks with AI.
+                </p>
+              </header>
 
               {/* Tab Switcher */}
-              <div className="mb-[2rem]">
+              <div className="mb-[1.25rem] sm:mb-[1.5rem]">
                 <TabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
               </div>
 
@@ -122,14 +125,12 @@ function TodoPageInner() {
           {!copilotOpen && (
             <button
               onClick={() => setCopilotOpen(true)}
-              className="todo-focus hidden lg:flex flex-shrink-0 w-[48px] h-full border-l border-border bg-card flex-col items-center pt-4 gap-2 hover:bg-muted transition-smooth"
+              className="todo-focus hidden lg:flex flex-shrink-0 w-[48px] h-full border-l mix-border-foreground/10 bg-card flex-col items-center pt-4 gap-3 text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
               title="Open Copilot"
               aria-label="Open Task Copilot"
             >
-              <span className="todo-icon-chip h-8 w-8 rounded-full">
-                <Icon name="SparklesIcon" size={14} variant="solid" />
-              </span>
-              <span className="text-xs font-medium text-muted-foreground writing-mode-vertical" style={{ writingMode: 'vertical-rl' }}>
+              <Icon name="SparklesIcon" size={16} variant="solid" className="text-primary" />
+              <span className="text-xs font-medium writing-mode-vertical" style={{ writingMode: 'vertical-rl' }}>
                 Copilot
               </span>
             </button>
@@ -137,7 +138,7 @@ function TodoPageInner() {
 
           {/* Copilot sidebar */}
           {copilotOpen && (
-            <div className="flex-shrink-0 w-[320px] border-l border-border bg-card hidden lg:block">
+            <div className="flex-shrink-0 w-[320px] border-l mix-border-foreground/10 bg-card hidden lg:block">
               <TodoCopilot
                 model={model}
                 onModelChange={setModel}
@@ -151,12 +152,12 @@ function TodoPageInner() {
       {/* Floating Distraction Button (bottom-left, Feature 6) — kept inside the main column */}
       <button
         onClick={() => { setCaptureOpen(prev => !prev); setCaptureError(null); }}
-        className="todo-fab todo-fab-left bg-accent text-accent-foreground"
+        className="todo-fab todo-fab-left border mix-border-foreground/15 bg-card text-muted-foreground hover:text-foreground"
         title={`Capture distraction (${shortcutLabel})`}
         aria-label={`Capture a distraction (${shortcutLabel})${inboxItems.length ? `, ${inboxItems.length} in inbox` : ''}`}
         aria-expanded={captureOpen}
       >
-        <Icon name="InboxArrowDownIcon" size={22} />
+        <Icon name="InboxArrowDownIcon" size={20} />
         {inboxItems.length > 0 && (
           <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-error text-xs font-bold text-error-foreground flex items-center justify-center" aria-hidden="true">
             {inboxItems.length}
@@ -169,7 +170,7 @@ function TodoPageInner() {
         <div className="todo-fab-popover todo-popover p-4 animate-fade-in" role="dialog" aria-label="Capture distraction">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Icon name="InboxArrowDownIcon" size={14} className="text-accent" />
+              <Icon name="InboxArrowDownIcon" size={14} className="text-muted-foreground" />
               <span>Capture Distraction</span>
               <span className="text-xs text-muted-foreground font-normal">({shortcutLabel})</span>
             </span>
@@ -243,7 +244,7 @@ function TodoPageInner() {
         {/* Header */}
         <div className="p-4 border-b border-border flex items-center justify-between mix-bg-muted/30">
           <div className="flex items-center gap-2">
-            <Icon name="InboxIcon" size={18} className="text-accent" variant="solid" />
+            <Icon name="InboxIcon" size={18} className="text-muted-foreground" variant="solid" />
             <span id="todo-inbox-title" className="font-heading text-sm font-semibold text-foreground">Distraction Inbox</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold">
               {inboxItems.length} Unprocessed

@@ -38,7 +38,7 @@ You can integrate this package into any agent runtime or UI stack
 - Collecting job descriptions (pasted or uploaded).
 - Letting the user select or edit topics in the Curate Questions tab.
 - Calling the agent with those inputs and then saving questions via
-  `interview_ninja.db`.
+  `backend/data/lab_ninja.sqlite3`.
 - Using `lab_ninja.export_md.render_markdown_for_day` to
   generate Markdown when the user opts to export.
 
@@ -369,7 +369,7 @@ analysis, and a floating Distraction Inbox for capturing off-task thoughts.
 | `router.py` | Smart Todo: task CRUD, AI breakdown (dive/chunk/regenerate/DoD), notes, daily plan kickstart/save/end, brain-dump, inbox, stats, Eisenhower/weekly-plan, NLP task parsing, cross-module moves. Mounted at `/todo`. |
 | `quick_router.py` | Quick Daily: quick-task CRUD, brain-dump image/handwriting upload, bulk create, AI day plan, Eisenhower auto-sort, end-of-day. Mounted at `/todo/quick-tasks`. |
 | `projects_router.py` | Plan & Project: project CRUD, project-node tree CRUD, AI dive/chunk on nodes, AI roadmap generation, cross-module moves. Mounted at `/todo`. |
-| `pareto_router.py` | 80/20 scoring shared across all three tabs (`analyze`, `top20`, `reanalyze`). Mounted at `/pareto` (note: **not** under `/todo`). |
+| `pareto_router.py` | 80/20 scoring shared across all three tabs (`analyze`, `top20`, `reanalyze`). Mounted at `/pareto` (note: **not** under `/todo`). `analyze` sizes the AI's output budget to the item count (the shared 2,048-token default cuts a ~35+ item reply off mid-array), keeps the whole objects of a cut-off reply (`extract_json_items`), re-asks for the unscored rest (≤3 calls), and answers `partial: true` + `message` when some items still have no score. Ported to `fe-apis/todo/pareto/handlers.ts` — keep the two in step. |
 | `db.py`, `quick_db.py`, `projects_db.py` | Raw SQLite access for `tasks`, `quick_tasks`/`quick_tasks_archive`, `projects`/`project_nodes` respectively. |
 | `schema.py` | Shared Pydantic request models (`TaskCreate`/`TaskUpdate`/AI request shapes). |
 
@@ -517,7 +517,7 @@ the AI copilot. **Share & Export** — **publish** a frozen public snapshot to a
 identically across the live preview, the public page, and the export; pattern backgrounds gracefully
 degrade to a flat fill in server PDFs (xhtml2pdf has no gradient support).
 
-It owns a **separate SQLite database** (`backend/modules/career_studio/career_studio.sqlite3`, raw
+It owns a **separate SQLite database** (`backend/data/career_studio.sqlite3`, raw
 `sqlite3` — no ORM) so the module is lift-and-shift portable; see
 `backend/modules/career_studio/ARCHITECTURE_NOTES.md` for the extraction guide and the full
 "spec-vs-repo" translation table. It's **login-required** (mirrors the `todo` module's auth +

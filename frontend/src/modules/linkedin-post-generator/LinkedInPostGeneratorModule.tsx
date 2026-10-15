@@ -3,11 +3,20 @@
 import { useEffect, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { linkedinService, type LinkedInTemplate } from '@/lib/services/linkedinService';
+import { useUrlState } from '@/lib/navigation/urlState';
 import GeneratorPanel from './generator/GeneratorPanel';
 import TemplateLibrary from './templates/TemplateLibrary';
 
+type PageTab = 'generate' | 'templates';
+
 export default function LinkedInPostGeneratorModule() {
-  const [pageTab, setPageTab] = useState<'generate' | 'templates'>('generate');
+  // The tab lives in the URL (?tab=templates) so Back/Forward, a refresh and a shared link keep it.
+  // The generator is the default screen, so a missing or unknown value falls back to it.
+  const { get, update } = useUrlState();
+  const pageTab: PageTab = get('tab') === 'templates' ? 'templates' : 'generate';
+  const setPageTab = (tab: PageTab) => {
+    if (tab !== pageTab) update({ tab: tab === 'generate' ? null : tab });
+  };
   const [templates, setTemplates] = useState<LinkedInTemplate[]>([]);
 
   const refreshTemplates = () => {

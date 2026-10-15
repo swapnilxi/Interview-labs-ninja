@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLmsViewMode } from './context/LmsViewModeContext';
 import { lmsService } from './services/lmsService';
@@ -62,13 +61,7 @@ export default function ModuleLandingModule() {
   return (
     <div className="flex flex-col h-[calc(100vh-60px)]">
       <div className="flex flex-wrap items-center gap-3 px-4 sm:px-6 py-2 border-b border-border bg-card text-xs flex-shrink-0">
-        <Link
-          href="/ai-lms"
-          className="inline-flex items-center gap-1.5 font-medium text-foreground hover:text-primary transition-colors"
-        >
-          <Icon name="ArrowLeftIcon" size={12} />
-          <span>Back to AI LMS</span>
-        </Link>
+        <BackButton href="/ai-lms" label="Back to AI LMS" className="-ml-2.5" />
         {landing?.file_sync && (
           <span
             className="hidden md:inline min-w-0 truncate text-muted-foreground"

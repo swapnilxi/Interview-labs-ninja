@@ -4,7 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
 import { useAuth } from '@/contexts/AuthContext';
+import { buildUrl, useUrlState } from '@/lib/navigation/urlState';
+import { useSmartBack } from '@/lib/navigation/smartBack';
 import { useLmsViewMode } from '../context/LmsViewModeContext';
 import { LmsConflictError, lmsService } from '../services/lmsService';
 import { getStoredCompletedLessonIds, toggleLessonCompletion } from '../services/learningStateManager';
@@ -86,7 +89,17 @@ export default function LessonViewer({
   const { isPreviewingAsStudent } = useLmsViewMode();
   const canEdit = canEditReal && !isPreviewingAsStudent;
   const [currentLesson, setCurrentLesson] = useState<LmsLesson>(initialLesson);
-  const [viewMode, setViewMode] = useState<ViewMode>('read');
+  // The reading mode lives in the URL (?tab=easy, ?tab=swipe, ...; no tab = Read), so Back/Forward, a refresh
+  // and a shared link land on the same mode. An unknown value, or `update` without the editor role, is Read.
+  const { get: getParam, update: updateParams, pathname, searchParams } = useUrlState();
+  const goBack = useSmartBack();
+  const modeParam = getParam('tab');
+  const viewMode: ViewMode = VIEW_MODES.some(
+    (v) => v.mode === modeParam && (canEdit || v.mode !== 'update')
+  )
+    ? (modeParam as ViewMode)
+    : 'read';
+  const setViewMode = (mode: ViewMode) => updateParams({ tab: mode === 'read' ? null : mode });
   // Lifted out of VisualizerPanel/EasyReadPanel so the generated content survives a
   // mode toggle -- switching tabs mounts/unmounts those panels below, which used to
   // reset and silently re-trigger a fresh (costly) AI call every time.
@@ -302,14 +315,7 @@ export default function LessonViewer({
         <div className="rounded-2xl border border-border bg-card shadow-sm p-4 sm:p-5 mb-4 flex-shrink-0 space-y-4">
           {/* Breadcrumbs */}
           <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground min-w-0">
-            <Link
-              href={backHref}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-muted/60 hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-2xs group flex-shrink-0"
-              title={subject ? `Back to ${subject.name}` : `Back to ${lmsClass.name}`}
-            >
-              <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
-              <span>Back</span>
-            </Link>
+            <BackButton href={backHref} label="Back" className="-ml-2.5 flex-shrink-0" />
             <div className="h-3.5 w-px bg-border/80 flex-shrink-0" />
             <Link
               href="/ai-lms"
@@ -571,7 +577,11 @@ export default function LessonViewer({
             />
           </div>
         ) : viewMode === 'swipe' ? (
-          <SwipeReadPanel lesson={currentLesson} onExit={() => setViewMode('read')} />
+          // The deck's own "Back" leaves Swipe for Read: step back in history when Read is the previous screen.
+          <SwipeReadPanel
+            lesson={currentLesson}
+            onExit={() => goBack(buildUrl(pathname, searchParams.toString(), { tab: null }))}
+          />
         ) : viewMode === 'deeper' ? (
           <div className="flex-1 w-full">
             <DeeperExplanationPanel

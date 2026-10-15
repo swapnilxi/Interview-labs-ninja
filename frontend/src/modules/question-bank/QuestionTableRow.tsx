@@ -59,8 +59,11 @@ export default function QuestionTableRow({
 
   return (
     <>
-      <tr className="border-b border-border hover:bg-muted/50 transition-smooth">
-        <td className="px-18 py-12">
+      <tr 
+        onClick={() => onReview(question.id)}
+        className="border-b border-border hover:bg-muted/50 transition-smooth cursor-pointer group"
+      >
+        <td className="px-18 py-12" onClick={(e) => e.stopPropagation()}>
           <input
             type="checkbox"
             checked={isSelected}
@@ -148,7 +151,7 @@ export default function QuestionTableRow({
             {question.lastReviewed ? formatDate(question.lastReviewed) : 'Never'}
           </span>
         </td>
-        <td className="px-18 py-12">
+        <td className="px-18 py-12" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center gap-6">
             <button
               onClick={() => onReview(question.id)}

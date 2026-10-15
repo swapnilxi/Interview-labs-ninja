@@ -75,6 +75,19 @@ export const localDailySessionAdapter = {
     return { session_id: sessionId, session_date: sessionDate, session_code: sessionCode };
   },
 
+  /** Offline sessions, newest first, for the "recent sessions" list. */
+  listRecent(limit = 10): { date: string; total: number; answered: number; completed: number }[] {
+    const all = readAll();
+    return Object.keys(all)
+      .sort()
+      .reverse()
+      .slice(0, limit)
+      .map((date) => {
+        const rows = Object.values(all[date]?.answers ?? {});
+        return { date, total: all[date]?.questions?.length ?? 0, answered: rows.length, completed: rows.filter((r) => r.isCompleted).length };
+      });
+  },
+
   getQuestions(sessionDate: string): Question[] {
     return readAll()[sessionDate]?.questions ?? [];
   },

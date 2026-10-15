@@ -24,7 +24,7 @@
     --color-border: rgba(64, 55, 45, 0.18);
     --color-input: #fffdf8;
     --color-ring: #6d6be8;
-    --color-success: #14845f;
+    --color-success: #0d7050;
     --color-success-foreground: #ffffff;
     --color-warning: #a45d12;
     --color-warning-foreground: #fffaf2;
@@ -37,6 +37,17 @@
     --color-elevated: #ffffff;
     --color-subtle: #e7dfd2;
     --color-glow: rgba(91, 91, 214, 0.16);
+    /* Multicolor accents (To-Do). The set reads: violet = --color-primary (AI action, focus, selected), green =
+       --color-success, coral = --color-error, amber = --color-warning, plus two roles that had no token before:
+       blue = daily progress / active work, cyan = informational metrics / weekly summaries. */
+    --color-progress: #1a5fc0;
+    --color-info: #06677a;
+    /* Task-tree depth, L1 … L5+ (to-do tree rails, branch lines and the depth legend all read these). */
+    --color-depth-1: #2b7de9;
+    --color-depth-2: #8a63f0;
+    --color-depth-3: #0891a5;
+    --color-depth-4: #cc7400;
+    --color-depth-5: #d9559f;
     /* Lab accent colors – light */
     --lab-dsa: #6d6be8;
     --lab-cv: #1a9d8f;
@@ -76,19 +87,26 @@
     --color-border: rgba(255, 246, 235, 0.17);
     --color-input: #29231c;
     --color-ring: #a9a5ff;
-    --color-success: #54c79a;
+    --color-success: #31dca4;
     --color-success-foreground: #0e2119;
     --color-warning: #f4b75e;
     --color-warning-foreground: #25190b;
-    --color-error: #fb7185;
+    --color-error: #ff6475;
     --color-error-foreground: #2b1015;
-    --color-destructive: #fb7185;
+    --color-destructive: #ff6475;
     --color-destructive-foreground: #2b1015;
     --color-sidebar: #1d1914;
     --color-surface: #211d18;
     --color-elevated: #29231c;
     --color-subtle: #383026;
     --color-glow: rgba(143, 140, 247, 0.22);
+    --color-progress: #5ca6ff;
+    --color-info: #2cd6e5;
+    --color-depth-1: #5ca6ff;
+    --color-depth-2: #a889ff;
+    --color-depth-3: #2cd6e5;
+    --color-depth-4: #ffb547;
+    --color-depth-5: #e879b9;
     /* Lab accent colors – dark */
     --lab-dsa: #8f8cf7;
     --lab-cv: #5fc6bd;
@@ -835,25 +853,14 @@
     @apply todo-focus inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-smooth disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /* Flat at rest. The glow belongs to an interaction (hover), not to the button sitting there. */
   .todo-btn-primary {
     @apply bg-primary text-primary-foreground;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--color-primary) 40%, transparent),
-      0 0 14px -2px color-mix(in srgb, var(--color-primary) 55%, transparent),
-      inset 0 1px 0 color-mix(in srgb, white 22%, transparent);
-  }
-
-  /* Disabled primary (e.g. empty Parse & Add): dimmed but still visibly lit. */
-  .todo-btn.todo-btn-primary:disabled {
-    opacity: 0.75;
   }
 
   .todo-btn-primary:not(:disabled):hover {
     background: color-mix(in srgb, var(--color-primary) 88%, var(--color-foreground));
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--color-primary) 60%, transparent),
-      0 0 22px -1px color-mix(in srgb, var(--color-primary) 70%, transparent),
-      inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+    box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--color-primary) 65%, transparent);
   }
 
   .todo-btn-secondary {
@@ -864,6 +871,17 @@
   .todo-btn-secondary:not(:disabled):hover {
     background: var(--color-muted);
     border-color: color-mix(in srgb, var(--color-foreground) 22%, transparent);
+  }
+
+  /* Quiet secondary: a soft fill instead of an outline. Opt-in (Smart To-Do and the page frame); declared
+     before .todo-btn-active so a pressed toggle (`todo-btn-quiet todo-btn-active`) keeps its tint. */
+  .todo-btn-quiet {
+    @apply text-foreground;
+    background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
+  }
+
+  .todo-btn-quiet:not(:disabled):not(.todo-btn-active):hover {
+    background: color-mix(in srgb, var(--color-foreground) 11%, transparent);
   }
 
   .todo-btn-ghost {
@@ -881,6 +899,10 @@
     background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   }
 
+  .todo-btn-quiet.todo-btn-active:not(:disabled):hover {
+    background: color-mix(in srgb, var(--color-primary) 19%, transparent);
+  }
+
   .todo-icon-chip {
     @apply flex flex-shrink-0 items-center justify-center rounded-lg text-primary;
     background: color-mix(in srgb, var(--color-primary) 14%, transparent);
@@ -895,10 +917,32 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 22%, transparent);
   }
 
+  /* Quiet field: a soft fill that only gains an edge (and the focus ring) while you are typing in it. */
+  .todo-input-quiet {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--color-foreground) 5%, transparent);
+  }
+
+  .todo-input-quiet:hover:not(:focus) {
+    background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  }
+
+  .todo-input-quiet:focus {
+    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+    background: color-mix(in srgb, var(--color-foreground) 3%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 18%, transparent);
+  }
+
   /* Segmented control: views, sub-views. Selected state comes from aria-pressed. */
   .todo-segmented {
     @apply inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border p-0.5 scrollbar-none;
     background: color-mix(in srgb, var(--color-muted) 55%, transparent);
+  }
+
+  /* Same box (the border stays, so nothing shifts) with the outline taken out. */
+  .todo-segmented-quiet {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--color-foreground) 5%, transparent);
   }
 
   .todo-segment {
@@ -931,21 +975,33 @@
     }
   }
 
-  /* Fast-capture bar: the one AI entry point that should read as "type here". */
+  /* Fast-capture bar: the one entry point that should read as "type here". A plain surface with a
+     hairline edge; the violet ring appears only while you are typing in it. */
   .todo-capture {
-    @apply flex items-center gap-3 rounded-xl border py-2 pl-4 pr-2 transition-smooth;
-    border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
-    background: color-mix(in srgb, var(--color-input) 88%, transparent);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 5%, transparent),
-      0 8px 24px -16px var(--color-glow);
+    @apply flex items-center gap-3 rounded-xl border py-1.5 pl-4 pr-1.5 transition-smooth;
+    border-color: color-mix(in srgb, var(--color-foreground) 15%, transparent);
+    background: var(--color-card);
+  }
+
+  .todo-capture:hover:not(:focus-within) {
+    border-color: color-mix(in srgb, var(--color-foreground) 24%, transparent);
   }
 
   .todo-capture:focus-within {
     border-color: color-mix(in srgb, var(--color-primary) 65%, transparent);
-    box-shadow:
-      0 0 0 3px color-mix(in srgb, var(--color-ring) 20%, transparent),
-      0 10px 28px -14px var(--color-glow);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 20%, transparent);
+  }
+
+  /* A rejected or failed entry (`data-invalid`): the edge turns to the error colour, and the focus ring with it,
+     until the text is edited. The message itself sits under the bar, inline. */
+  .todo-capture[data-invalid='true'],
+  .todo-capture[data-invalid='true']:hover:not(:focus-within) {
+    border-color: color-mix(in srgb, var(--color-error) 60%, transparent);
+  }
+
+  .todo-capture[data-invalid='true']:focus-within {
+    border-color: color-mix(in srgb, var(--color-error) 70%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 18%, transparent);
   }
 
   .todo-task-card {
@@ -1102,14 +1158,6 @@
     opacity: 0.4;
   }
 
-  /* Capture bar: stays put while typing (focus keeps the ring + glow, no lift). */
-  .todo-capture.todo-lit:focus-within {
-    transform: none;
-    box-shadow:
-      0 0 0 3px color-mix(in srgb, var(--color-ring) 22%, transparent),
-      0 0 34px -4px color-mix(in srgb, var(--lit) 48%, transparent);
-  }
-
   .todo-task-card:hover {
     transform: translateY(-2px);
     border-color: color-mix(in srgb, var(--lit) 50%, transparent);
@@ -1135,6 +1183,114 @@
     }
   }
 
+  /*
+   * AI To-Do — calm vocabulary (Smart To-Do refinement, phase 1).
+   *
+   * Structure comes from spacing and hairlines, not from boxes: a task is a plain row separated from the
+   * next by a faint divider, and only things that need to read as one object (a draggable matrix card, a
+   * transient panel) get a soft fill. No glow at rest, no lift on hover, no orbiting highlight. These are
+   * NEW class names on purpose — `.todo-lit` / `.todo-task-card` are still used by Daily Session, Swipe
+   * Learn and the other To-Do tabs, and keep their look until those get their own pass.
+   *
+   * Like `.todo-lit`, never render a menu or dialog as an `absolute`/`fixed` child of these rows:
+   * use components/ui/Modal.tsx and components/ui/Popover.tsx (they portal to <body>).
+   */
+  .todo-row {
+    position: relative;
+    border-radius: 0.75rem;
+    transition: background-color 150ms ease;
+  }
+
+  /* The divider is inset so it clears the rounded hover fill, and it steps aside while the row is lit. */
+  .todo-row::after {
+    content: '';
+    position: absolute;
+    right: 0.25rem;
+    bottom: 0;
+    left: 0.5rem;
+    height: 1px;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+    transition: opacity 150ms ease;
+  }
+
+  @media (min-width: 640px) {
+    .todo-row::after {
+      right: 0.75rem;
+      left: 0.75rem;
+    }
+  }
+
+  .todo-row:hover,
+  .todo-row:focus-within {
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  }
+
+  .todo-row:hover::after,
+  .todo-row:focus-within::after {
+    opacity: 0;
+  }
+
+  /* A search hit: the row itself is tinted (no ring), so it is still obvious on a long list. */
+  .todo-row[data-match='true'] {
+    background: color-mix(in srgb, var(--color-primary) 9%, transparent);
+  }
+
+  /* A card that has to read as one draggable object (Eisenhower matrix). */
+  .todo-row-card {
+    position: relative;
+    border-radius: 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--color-foreground) 10%, transparent);
+    background: var(--color-card);
+  }
+
+  /*
+   * Hierarchy rails. A task row carries a slim rounded bar on its left edge in the colour of its depth (L1 blue …
+   * L5+ pink); an expanded parent also draws a dimmer bar of its own colour down beside its children, so the colours
+   * of the whole ancestry stay visible next to a deep row. They are positioned against the row, so they stretch when a
+   * title wraps, and the tinted bar is the only colour a row gets (no coloured card, border or title).
+   * `--rail` is set inline from the shared depth tokens (todoService DEPTH_COLORS).
+   */
+  .todo-rail,
+  .todo-branch {
+    position: absolute;
+    left: 0.125rem;
+    width: 3px;
+    border-radius: 9999px;
+    background: var(--rail, var(--color-depth-1));
+  }
+
+  .todo-rail {
+    top: 0.75rem;
+    bottom: 0.75rem;
+  }
+
+  /* A hover target wide enough for the tooltip (a 3px bar alone is hard to land on). */
+  .todo-rail::before {
+    content: '';
+    position: absolute;
+    inset: 0 -0.4rem;
+  }
+
+  /* Starts where the parent's rail ends, so rail and branch read as one continuous line. */
+  .todo-branch {
+    top: -0.75rem;
+    bottom: 0.75rem;
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  /* Visible but quieter on a finished task. */
+  .todo-row[data-done='true'] .todo-rail {
+    opacity: 0.55;
+  }
+
+  /* A soft fill for things that group content (filter panel, Today's Focus). No outline, no shadow. */
+  .todo-surface {
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  }
+
   /* Micro-animations */
   .todo-stagger > * {
     animation: todo-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -1156,28 +1312,9 @@
     }
   }
 
-  @keyframes todo-pop {
-    0% { transform: scale(0.7) rotate(-12deg); }
-    60% { transform: scale(1.15) rotate(4deg); }
-    100% { transform: scale(1) rotate(0); }
-  }
-
-  .todo-segment[aria-current='page'] svg,
-  .todo-segment[aria-pressed='true'] svg {
-    animation: todo-pop 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  .todo-btn:not(:disabled):hover {
-    transform: translateY(-1px);
-  }
+  /* Buttons confirm a press, nothing more: no hover lift, no bouncing icons. */
   .todo-btn:not(:disabled):active {
-    transform: scale(0.96);
-  }
-  .todo-btn svg {
-    transition: transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  .todo-btn:not(:disabled):hover svg {
-    transform: scale(1.15);
+    transform: scale(0.97);
   }
 
   .todo-icon-chip {
@@ -1201,12 +1338,10 @@
     .todo-lit:hover,
     .todo-lit:focus-within,
     .todo-task-card:hover,
-    .todo-btn:not(:disabled):hover,
     .todo-btn:not(:disabled):active {
       transform: none;
     }
-    .todo-stagger > *,
-    .todo-segment svg {
+    .todo-stagger > * {
       animation: none;
     }
   }
@@ -1237,6 +1372,12 @@
     @apply rounded-xl rounded-tr-sm bg-primary text-primary-foreground;
   }
 
+  /* `variant="quiet"` of CopilotChat (the To-Do panel): the same bubble without the outline. */
+  .copilot-bubble-ai-quiet {
+    @apply rounded-xl rounded-tl-sm text-foreground;
+    background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
+  }
+
   .copilot-chip {
     @apply flex items-start gap-2 rounded-lg border border-border px-2.5 py-2 text-left text-xs leading-snug text-muted-foreground transition-all disabled:opacity-50;
   }
@@ -1248,6 +1389,15 @@
   }
   .copilot-chip:active:not(:disabled) {
     transform: scale(0.97);
+  }
+
+  /* Quiet suggestion row: no outline, no lift. Just text that brightens and gets a soft fill on hover. */
+  .copilot-chip-quiet {
+    @apply flex w-full items-start gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs leading-snug text-muted-foreground transition-colors disabled:opacity-50;
+  }
+  .copilot-chip-quiet:hover:not(:disabled) {
+    @apply text-foreground;
+    background: color-mix(in srgb, var(--color-foreground) 7%, transparent);
   }
 
   .copilot-input {
@@ -1552,7 +1702,7 @@
    * z-30 so modals (z-50+) always cover them.
    */
   .todo-fab {
-    @apply todo-focus fixed z-30 flex h-[3rem] w-[3rem] items-center justify-center rounded-full shadow-lg transition-smooth sm:h-14 sm:w-14;
+    @apply todo-focus fixed z-30 flex h-[2.5rem] w-[2.5rem] items-center justify-center rounded-full shadow-md transition-smooth;
     bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
   }
 
@@ -1562,13 +1712,13 @@
     }
 
     html.has-mobile-tabs .todo-fab-popover {
-      bottom: calc(4.75rem + var(--mobile-tab-h));
+      bottom: calc(4.25rem + var(--mobile-tab-h));
     }
   }
 
+  /* No lift: it is a fixed control, it should not move under the pointer. */
   .todo-fab:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 28px -8px rgba(15, 12, 8, 0.45);
+    box-shadow: 0 8px 20px -8px rgba(15, 12, 8, 0.5);
   }
 
   .todo-fab-left,
@@ -1583,33 +1733,29 @@
   /* Pop-up anchored above the left FAB (distraction capture). */
   .todo-fab-popover {
     @apply fixed z-40;
-    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
     width: min(20rem, calc(100vw - 2rem));
   }
 
   @media (min-width: 768px) {
     html.has-sidebar-rail .todo-fab-left,
     html.has-sidebar-rail .todo-fab-popover {
-      left: calc(60px + 1.5rem);
+      left: calc(60px + 0.5rem);
     }
   }
 
-  /* The Copilot (320px open / 48px collapsed strip) only exists at lg+. */
+  /* The Copilot (320px open / 48px collapsed strip) only exists at lg+. The "+" sits in the gutter the page keeps free
+     beside it (lg:pr-[3.5rem] in app/ai-todo/page.tsx: 8px gap + 40px button + 8px), so it never covers a task row. */
   @media (min-width: 1024px) {
     .todo-shell[data-copilot='open'] .todo-fab-right {
-      right: calc(320px + 1.5rem);
+      right: calc(320px + 0.5rem);
     }
 
     .todo-shell[data-copilot='collapsed'] .todo-fab-right {
-      right: calc(48px + 1.5rem);
+      right: calc(48px + 0.5rem);
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .todo-fab:hover {
-      transform: none;
-    }
-  }
 }
 
 @layer utilities {

@@ -6,6 +6,7 @@ import { PdfDocument, ProcessingState } from '../types';
 import { extractPdfTextBestEffort, processDocumentChunks } from '../utils/pdfProcessor';
 import { useReaderStorage } from '../utils/useReaderStorage';
 import { QuotaError } from '../utils/readerDb';
+import { useUrlState } from '@/lib/navigation/urlState';
 
 interface DocumentInputPanelProps {
   onDocumentReady: (doc: PdfDocument) => void;
@@ -22,7 +23,13 @@ export default function DocumentInputPanel({
   onOpenStorageManager,
 }: DocumentInputPanelProps) {
   const storage = useReaderStorage();
-  const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
+  // "Open PDF" / "Paste Text" are tabs of the library screen, so they live in the URL (?input=paste); a missing or
+  // unknown value means "Open PDF".
+  const { get, update } = useUrlState();
+  const activeTab: 'upload' | 'paste' = get('input') === 'paste' ? 'paste' : 'upload';
+  const setActiveTab = (tab: 'upload' | 'paste') => {
+    if (tab !== activeTab) update({ input: tab === 'paste' ? 'paste' : null });
+  };
   const [storageMode, setStorageMode] = useState<'local' | 'cloud'>('local');
 
   // PDF state

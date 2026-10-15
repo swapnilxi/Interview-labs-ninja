@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { openLoginModal } from '@/components/auth/LoginModal';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
@@ -38,6 +39,13 @@ const CAREER_LINKS: SidebarLink[] = [
   { label: 'Resumes', path: '/career?tab=resumes', icon: 'DocumentTextIcon' },
   { label: 'Portfolios', path: '/career?tab=portfolios', icon: 'GlobeAltIcon' },
   { label: 'Templates', path: '/career?tab=templates', icon: 'SwatchIcon' },
+];
+
+const AI_TODO_LINKS: SidebarLink[] = [
+  { label: 'Quick Daily', path: '/ai-todo?tab=quick', icon: 'BoltIcon' },
+  { label: 'Smart To-Do', path: '/ai-todo?tab=smart', icon: 'CpuChipIcon' },
+  { label: 'Plan & Project', path: '/ai-todo?tab=plan', icon: 'MapIcon' },
+  { label: 'Goals', path: '/ai-todo?tab=goals', icon: 'ViewfinderCircleIcon' },
 ];
 
 interface SidebarProps {
@@ -96,31 +104,55 @@ export default function Sidebar({
     pathname === '/question-bank';
   const isLabRoute = LAB_LINKS.some((link) => link.path === pathname);
   const isCareerRoute = pathname === '/career' || pathname.startsWith('/career/');
+  const isAiTodoRoute = pathname === '/ai-todo';
+
+  const isSwapnilxi = user?.email?.toLowerCase() === 'swapnilgupta.xi@gmail.com';
+  const mySpaceLabel = isSwapnilxi ? 'swapnilxi space' : 'MySpace';
+  const mySpacePath = isSwapnilxi ? '/daily-session?tab=swapnilxi-space' : '/daily-session?tab=myspace';
+  const dailySessionLinks: SidebarLink[] = [
+    ...DAILY_SESSION_LINKS,
+    {
+      label: mySpaceLabel,
+      path: mySpacePath,
+      icon: isSwapnilxi ? 'ShieldCheckIcon' : 'SparklesIcon',
+    },
+  ];
+
   const [dailySessionOpen, setDailySessionOpen] = useState(true);
   const [labsOpen, setLabsOpen] = useState(true);
   const [careerOpen, setCareerOpen] = useState(true);
+  const [todoOpen, setTodoOpen] = useState(true);
 
-  // Icon-only rail: a group's sub-icons expand inline under its icon (pushing the rest of
-  // the rail down) instead of floating, since the rail's scroll container would clip a popover.
-  const [railOpen, setRailOpen] = useState({ labs: false, career: false, daily: false });
-  const toggleRailGroup = (group: 'labs' | 'career' | 'daily') =>
-    setRailOpen((cur) => ({ ...cur, [group]: !cur[group] }));
+  // Icon rail: which groups are expanded inline (sub-icons render directly under the main icon).
+  const [railOpen, setRailOpen] = useState({ daily: false, labs: false, todo: false, career: false });
+  const setRailGroup = (g: keyof typeof railOpen, open: boolean) => setRailOpen((cur) => ({ ...cur, [g]: open }));
+
+  // Rail tooltip: fixed-position so the scrolling <nav> can't clip it.
+  const [railTip, setRailTip] = useState<{ label: string; top: number } | null>(null);
+  const tip = (label: string) => ({
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      setRailTip({ label, top: r.top + r.height / 2 });
+    },
+    onMouseLeave: () => setRailTip(null),
+    onFocus: (e: React.FocusEvent<HTMLElement>) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      setRailTip({ label, top: r.top + r.height / 2 });
+    },
+    onBlur: () => setRailTip(null),
+  });
 
   useEffect(() => {
-    if (isDailySessionRoute) setRailOpen((cur) => ({ ...cur, daily: true }));
-  }, [isDailySessionRoute]);
+    if (isDailySessionRoute) setRailGroup('daily', true);
+    if (isLabRoute) setRailGroup('labs', true);
+    if (isAiTodoRoute) setRailGroup('todo', true);
+    if (isCareerRoute) setRailGroup('career', true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDailySessionRoute, isLabRoute, isAiTodoRoute, isCareerRoute]);
 
   useEffect(() => {
     if (isDailySessionRoute) setDailySessionOpen(true);
   }, [isDailySessionRoute]);
-
-  useEffect(() => {
-    if (isLabRoute) setRailOpen((cur) => ({ ...cur, labs: true }));
-  }, [isLabRoute]);
-
-  useEffect(() => {
-    if (isCareerRoute) setRailOpen((cur) => ({ ...cur, career: true }));
-  }, [isCareerRoute]);
 
   useEffect(() => {
     if (isLabRoute) setLabsOpen(true);
@@ -129,6 +161,10 @@ export default function Sidebar({
   useEffect(() => {
     if (isCareerRoute) setCareerOpen(true);
   }, [isCareerRoute]);
+
+  useEffect(() => {
+    if (isAiTodoRoute) setTodoOpen(true);
+  }, [isAiTodoRoute]);
 
   const isDailySessionTabActive = (path: string) => {
     if (typeof window === 'undefined') return pathname === path;
@@ -152,6 +188,14 @@ export default function Sidebar({
       return (pathname === '/career' || pathname.startsWith('/career/')) && currentTab === targetTab;
     }
     return pathname === path;
+  };
+
+  const isAiTodoTabActive = (path: string) => {
+    if (pathname !== '/ai-todo') return false;
+    if (typeof window === 'undefined') return false;
+    const currentTab = new URLSearchParams(window.location.search).get('tab') || 'quick';
+    const targetTab = new URLSearchParams(path.split('?')[1] || '').get('tab') || 'quick';
+    return currentTab === targetTab;
   };
 
   useEffect(() => {
@@ -178,9 +222,66 @@ export default function Sidebar({
   const railItemClass = (active: boolean) =>
     `relative group flex items-center justify-center w-9 h-9 rounded-lg transition-smooth ${
       active
-        ? 'bg-primary/15 text-primary border border-primary/25 shadow-sm shadow-primary/10'
+        ? 'mix-bg-primary/15 text-primary border mix-border-primary/25 shadow-sm'
         : 'text-muted-foreground hover:bg-muted hover:text-foreground'
     }`;
+
+
+  /** A rail group: main icon (navigates + expands) with a chevron toggle; sub-icons sit directly below and push the rest down. */
+  const renderRailGroup = (
+    id: keyof typeof railOpen,
+    href: string,
+    icon: string,
+    label: string,
+    links: SidebarLink[],
+    groupActive: boolean,
+    isLinkActive: (path: string) => boolean
+  ) => {
+    const open = railOpen[id];
+    return (
+      <div className="relative flex w-full flex-col items-center gap-1">
+        <div className="relative h-9 w-9">
+          <Link
+            href={href}
+            onClick={() => setRailGroup(id, true)}
+            className={`${railItemClass(groupActive)} !h-9 !w-9`}
+            aria-label={label}
+            {...tip(label)}
+          >
+            <Icon name={icon as any} size={19} variant={groupActive ? 'solid' : 'outline'} />
+            {groupActive && <span className="absolute -left-1 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setRailGroup(id, !open)}
+            aria-expanded={open}
+            aria-label={`${open ? 'Collapse' : 'Expand'} ${label} sub-menu`}
+            className="absolute -bottom-0.5 -right-0.5 flex h-[0.9rem] w-[0.9rem] items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground"
+          >
+            <Icon name="ChevronDownIcon" size={9} variant="solid" className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+        {open && (
+          <div
+            className="flex w-[44px] flex-col items-center gap-1 rounded-xl py-1"
+            style={{ background: 'color-mix(in srgb, var(--color-foreground) 5%, transparent)' }}
+          >
+            {links.map((link) => (
+              <Link
+                key={link.path}
+                href={link.path}
+                aria-label={link.label}
+                className={railItemClass(isLinkActive(link.path))}
+                {...tip(link.label)}
+              >
+                <Icon name={link.icon as any} size={17} variant="outline" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -199,66 +300,26 @@ export default function Sidebar({
               onClick={onOpenDrawer ?? onClose}
               className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
               aria-label="Expand full sidebar"
-              title="Expand full sidebar"
-            >
+            
+              {...tip('Expand sidebar')}>
               <Icon name="ChevronRightIcon" size={19} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                Expand sidebar
-              </span>
             </button>
           </div>
 
           {/* Middle navigation items */}
           <nav className="flex-1 w-full overflow-y-auto overscroll-contain scrollbar-none flex flex-col items-center gap-1 pt-1.5 pb-[4rem] min-h-0">
             {/* Daily Session Group */}
-            <div className="flex w-full flex-col items-center gap-1">
-              <button
-                type="button"
-                onClick={() => toggleRailGroup('daily')}
-                className={railItemClass(isDailySessionRoute)}
-                aria-label="Daily Session & Practice"
-                aria-expanded={railOpen.daily}
-              >
-                <Icon name="AcademicCapIcon" size={19} variant="outline" />
-                <Icon
-                  name="ChevronDownIcon"
-                  size={9}
-                  variant="solid"
-                  className={`absolute bottom-0.5 right-0.5 transition-transform ${railOpen.daily ? 'rotate-180' : ''}`}
-                />
-              </button>
-
-              {railOpen.daily && (
-                <div
-                  className="flex w-[44px] flex-col items-center gap-1 rounded-xl py-1"
-                  style={{ background: 'color-mix(in srgb, var(--color-foreground) 5%, transparent)' }}
-                >
-                  {DAILY_SESSION_LINKS.map((link) => (
-                    <Link
-                      key={link.path}
-                      href={link.path}
-                      title={link.label}
-                      aria-label={link.label}
-                      className={railItemClass(isDailySessionTabActive(link.path))}
-                    >
-                      <Icon name={link.icon as any} size={17} variant="outline" />
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+            {renderRailGroup('daily', '/daily-session', 'AcademicCapIcon', 'Daily Session', dailySessionLinks, isDailySessionRoute, isDailySessionTabActive)}
 
             {/* SwipeLearn */}
             <Link
               href="/swipe-learn"
               className={railItemClass(isActivePath('/swipe-learn'))}
               aria-label="SwipeLearn"
+              {...tip('SwipeLearn · Feed')}
             >
               <Icon name="Square3Stack3DIcon" size={19} variant="outline" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                SwipeLearn <span className="text-[10px] text-blue-500 font-semibold ml-1">FEED</span>
-              </span>
             </Link>
 
             {/* Swipe PDF Reader */}
@@ -266,78 +327,28 @@ export default function Sidebar({
               href="/swipe-pdf-reader"
               className={railItemClass(isActivePath('/swipe-pdf-reader'))}
               aria-label="Swipe PDF Reader"
+              {...tip('Swipe PDF Reader · New')}
             >
               <Icon name="DocumentTextIcon" size={19} variant="outline" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                Swipe PDF Reader <span className="text-[10px] text-emerald-500 font-semibold ml-1">NEW</span>
-              </span>
             </Link>
 
             {/* Labs Popover Group */}
-            <div className="flex w-full flex-col items-center gap-1">
-              <button
-                type="button"
-                onClick={() => toggleRailGroup('labs')}
-                className={railItemClass(isLabRoute)}
-                aria-label="Labs (CV, DSA, System Design)"
-                aria-expanded={railOpen.labs}
-              >
-                <Icon name="RectangleGroupIcon" size={19} variant="outline" />
-                <Icon
-                  name="ChevronDownIcon"
-                  size={9}
-                  variant="solid"
-                  className={`absolute bottom-0.5 right-0.5 transition-transform ${railOpen.labs ? 'rotate-180' : ''}`}
-                />
-              </button>
-
-              {railOpen.labs && (
-                <div
-                  className="flex w-[44px] flex-col items-center gap-1 rounded-xl py-1"
-                  style={{ background: 'color-mix(in srgb, var(--color-foreground) 5%, transparent)' }}
-                >
-                  {LAB_LINKS.map((link) => (
-                    <Link
-                      key={link.path}
-                      href={link.path}
-                      title={link.label}
-                      aria-label={link.label}
-                      className={railItemClass(pathname === link.path)}
-                    >
-                      <Icon name={link.icon as any} size={17} variant="outline" />
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-
+            {renderRailGroup('labs', '/cv-lab', 'RectangleGroupIcon', 'Specialized Labs', LAB_LINKS, isLabRoute, (path) => pathname === path)}
 
             <div className="w-6 h-[1px] bg-border my-1" />
 
-            {/* Personalised To-do */}
-            <Link
-              href="/ai-todo"
-              className={railItemClass(isActivePath('/ai-todo'))}
-              aria-label="Personalised To-do"
-            >
-              <Icon name="ClipboardDocumentCheckIcon" size={19} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                Personalised To-do
-              </span>
-            </Link>
+            {/* Personalised To-do Popover Group */}
+            {renderRailGroup('todo', '/ai-todo', 'ClipboardDocumentCheckIcon', 'Personalised To-Do', AI_TODO_LINKS, isAiTodoRoute, isAiTodoTabActive)}
 
             {/* AI LMS */}
             <Link
               href="/ai-lms"
               className={railItemClass(pathname === '/ai-lms' || pathname.startsWith('/ai-lms/'))}
               aria-label="AI LMS"
+              {...tip('AI LMS')}
             >
               <Icon name="SparklesIcon" size={19} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                AI LMS
-              </span>
             </Link>
 
             {/* LinkedIn Post Generator */}
@@ -345,50 +356,13 @@ export default function Sidebar({
               href="/linkedin-post-generator"
               className={railItemClass(isActivePath('/linkedin-post-generator'))}
               aria-label="LinkedIn Post Generator"
+              {...tip('LinkedIn Post Generator')}
             >
               <Icon name="PencilSquareIcon" size={19} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                LinkedIn Post Generator
-              </span>
             </Link>
 
             {/* Career Studio Popover Group */}
-            <div className="flex w-full flex-col items-center gap-1">
-              <button
-                type="button"
-                onClick={() => toggleRailGroup('career')}
-                className={railItemClass(isCareerRoute)}
-                aria-label="Career Studio"
-                aria-expanded={railOpen.career}
-              >
-                <Icon name="BriefcaseIcon" size={19} variant="outline" />
-                <Icon
-                  name="ChevronDownIcon"
-                  size={9}
-                  variant="solid"
-                  className={`absolute bottom-0.5 right-0.5 transition-transform ${railOpen.career ? 'rotate-180' : ''}`}
-                />
-              </button>
-
-              {railOpen.career && (
-                <div
-                  className="flex w-[44px] flex-col items-center gap-1 rounded-xl py-1"
-                  style={{ background: 'color-mix(in srgb, var(--color-foreground) 5%, transparent)' }}
-                >
-                  {CAREER_LINKS.map((link) => (
-                    <Link
-                      key={link.path}
-                      href={link.path}
-                      title={link.label}
-                      aria-label={link.label}
-                      className={railItemClass(isCareerLinkActive(link.path))}
-                    >
-                      <Icon name={link.icon as any} size={17} variant="outline" />
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+            {renderRailGroup('career', '/career', 'BriefcaseIcon', 'Career Studio', CAREER_LINKS, isCareerRoute, isCareerLinkActive)}
 
             {/* Admin Portal */}
             {isAdmin && (
@@ -396,11 +370,9 @@ export default function Sidebar({
                 href="/admin"
                 className={railItemClass(isActivePath('/admin'))}
                 aria-label="Admin Portal"
+                {...tip('Admin Portal')}
               >
                 <Icon name="ShieldCheckIcon" size={19} variant="outline" />
-                <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                  Admin Portal
-                </span>
               </Link>
             )}
           </nav>
@@ -412,11 +384,9 @@ export default function Sidebar({
               href="/config"
               className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
               aria-label="Settings"
-            >
+            
+              {...tip('Settings')}>
               <Icon name="Cog6ToothIcon" size={18} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                Settings
-              </span>
             </Link>
 
             {/* Theme Toggle */}
@@ -425,37 +395,28 @@ export default function Sidebar({
               onClick={onToggleTheme}
               className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            >
+            
+              {...tip(theme === 'dark' ? 'Light Theme' : 'Dark Theme')}>
               <Icon name={theme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                {theme === 'dark' ? 'Light Theme' : 'Dark Theme'}
-              </span>
             </button>
 
             {/* Auth */}
             {isGuest ? (
-              <Link
-                href="/login"
+              <button type="button" onClick={() => openLoginModal()}
                 className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
                 aria-label="Log in"
-              >
+              
+              {...tip('Log in')}>
                 <Icon name="UserCircleIcon" size={18} variant="outline" />
-                <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                  Log in
-                </span>
-              </Link>
+              </button>
             ) : (
               <button
                 type="button"
                 onClick={logout}
                 className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
                 aria-label="Log out"
-                title={user?.email}
-              >
+              {...tip(`Log out (${user?.email})`)}>
                 <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
-                <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                  Log out ({user?.email})
-                </span>
               </button>
             )}
 
@@ -465,15 +426,23 @@ export default function Sidebar({
               onClick={() => setMode('hidden')}
               className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 transition-smooth"
               aria-label="Hide sidebar menu completely"
-              title="Hide sidebar menu completely"
-            >
+            
+              {...tip('Hide sidebar menu')}>
               <Icon name="EyeSlashIcon" size={18} variant="outline" />
-              <span className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[120]">
-                Hide sidebar menu
-              </span>
             </button>
           </div>
         </aside>
+      )}
+
+      {/* Rail Tooltip - Rendered outside aside */}
+      {mode === 'icon-only' && railTip && (
+        <div
+          role="tooltip"
+          style={{ top: railTip.top }}
+          className="pointer-events-none fixed left-[68px] z-[360] -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md animate-in fade-in-0 duration-100"
+        >
+          {railTip.label}
+        </div>
       )}
 
       {/* ─────────────────────────────────────────────────────────────
@@ -572,15 +541,28 @@ export default function Sidebar({
 
             {dailySessionOpen && (
               <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
-                {DAILY_SESSION_LINKS.map((link) => (
+                {dailySessionLinks.map((link) => (
                   <Link
                     key={link.path}
                     href={link.path}
                     onClick={onClose}
-                    className={navLinkClass(isDailySessionTabActive(link.path) ? pathname : link.path)}
+                    className={`app-nav-link w-full justify-between ${
+                      isDailySessionTabActive(link.path) ? 'app-nav-link-active' : ''
+                    }`}
                   >
-                    <Icon name={link.icon as any} size={17} variant="outline" />
-                    <span>{link.label}</span>
+                    <span className="flex items-center gap-2">
+                      <Icon name={link.icon as any} size={17} variant="outline" />
+                      <span>{link.label}</span>
+                    </span>
+                    {(link.label === 'swapnilxi space' || link.label === 'MySpace') && (
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                        link.label === 'swapnilxi space'
+                          ? 'bg-amber-500/20 text-amber-500'
+                          : 'bg-primary/15 text-primary'
+                      }`}>
+                        {link.label === 'swapnilxi space' ? 'VIP' : 'Private'}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </div>
@@ -640,14 +622,42 @@ export default function Sidebar({
               </div>
             )}
 
-
-
             <div className="my-2 border-t border-border" role="separator" />
 
-            <Link href="/ai-todo" onClick={onClose} className={navLinkClass('/ai-todo')}>
-              <Icon name="ClipboardDocumentCheckIcon" size={18} variant="outline" />
-              <span>Personalised To-do</span>
-            </Link>
+            {/* Personalised To-do Accordion with Subtabs */}
+            <button
+              type="button"
+              onClick={() => setTodoOpen((prev) => !prev)}
+              className={`app-nav-link w-full justify-between ${isAiTodoRoute ? 'app-nav-link-active' : ''}`}
+              aria-expanded={todoOpen}
+            >
+              <span className="flex items-center gap-1.5">
+                <Icon name="ClipboardDocumentCheckIcon" size={18} variant="outline" />
+                <span>Personalised To-do</span>
+              </span>
+              <Icon
+                name="ChevronDownIcon"
+                size={16}
+                variant="outline"
+                className={`transition-smooth ${todoOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {todoOpen && (
+              <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
+                {AI_TODO_LINKS.map((link) => (
+                  <Link
+                    key={link.path}
+                    href={link.path}
+                    onClick={onClose}
+                    className={`app-nav-link w-full ${isAiTodoTabActive(link.path) ? 'app-nav-link-active' : ''}`}
+                  >
+                    <Icon name={link.icon as any} size={17} variant="outline" />
+                    <span>{link.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
 
             <Link href="/ai-lms" onClick={onClose} className={navLinkClass('/ai-lms')}>
               <Icon name="SparklesIcon" size={18} variant="outline" />
@@ -709,10 +719,10 @@ export default function Sidebar({
         {/* Drawer Footer */}
         <div className="flex flex-shrink-0 items-center gap-2 border-t border-border px-3 py-3">
           {isGuest ? (
-            <Link href="/login" onClick={onClose} className="app-nav-link flex-1">
+            <button type="button" onClick={() => { onClose(); openLoginModal(); }} className="app-nav-link flex-1">
               <Icon name="UserCircleIcon" size={18} variant="outline" />
               <span>Log in</span>
-            </Link>
+            </button>
           ) : (
             <button
               type="button"

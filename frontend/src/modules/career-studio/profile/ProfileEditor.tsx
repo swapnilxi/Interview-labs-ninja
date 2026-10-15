@@ -14,6 +14,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
+import { toast } from '@/lib/ui/toast';
+import { useUrlState } from '@/lib/navigation/urlState';
 import { careerService } from '@/lib/services/careerService';
 import { useResumeStore } from '../resume/store/resumeStore';
 import ResumeEditor from '../resume/ResumeEditor';
@@ -36,10 +39,9 @@ function SaveStatusPill() {
   return <span className="text-xs text-muted-foreground">All changes saved</span>;
 }
 
-export default function ProfileEditor({ profileId }: { profileId: string }) {
+export default function ProfileEditor({ profileId, backHref }: { profileId: string; backHref: string }) {
   const resume = useResumeStore((s) => s.resume);
   const loading = useResumeStore((s) => s.loading);
-  const error = useResumeStore((s) => s.error);
   const load = useResumeStore((s) => s.load);
   const setTitle = useResumeStore((s) => s.setTitle);
   const undo = useResumeStore((s) => s.undo);
@@ -49,7 +51,12 @@ export default function ProfileEditor({ profileId }: { profileId: string }) {
   const flushPendingSaves = useResumeStore((s) => s.flushPendingSaves);
   const discardPendingSaves = useResumeStore((s) => s.discardPendingSaves);
 
-  const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
+  // The phone-size Edit / Preview toggle is a section of this screen, so it lives in the URL (?pane=preview; anything else is Edit).
+  const { get, update } = useUrlState();
+  const mobileTab: 'edit' | 'preview' = get('pane') === 'preview' ? 'preview' : 'edit';
+  const setMobileTab = (tab: 'edit' | 'preview') => {
+    if (tab !== mobileTab) update({ pane: tab === 'preview' ? 'preview' : null });
+  };
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [enrichOpen, setEnrichOpen] = useState(false);
@@ -62,9 +69,22 @@ export default function ProfileEditor({ profileId }: { profileId: string }) {
   }, []);
 
   useEffect(() => {
-    if (profileId) void load(profileId);
+    let cancelled = false;
+    if (profileId) {
+      void load(profileId).then(() => {
+        // The URL named a profile that cannot be opened (deleted, someone else's, a typo): fall back to the page
+        // underneath instead of showing a dead end. replace, so Back doesn't land on the bad address again.
+        const { error: loadError, resume: loaded } = useResumeStore.getState();
+        if (cancelled || !loadError || loaded?.id === profileId) return;
+        toast.error(loadError);
+        closeProfileEditor({ replace: true });
+      });
+    }
     setActiveProfile({ id: profileId });
     refreshProfiles();
+    return () => {
+      cancelled = true;
+    };
   }, [profileId, load, refreshProfiles]);
 
   useEffect(() => {
@@ -98,8 +118,6 @@ export default function ProfileEditor({ profileId }: { profileId: string }) {
     }
   }, []);
 
-  const close = useCallback(() => guardedNavigate(() => closeProfileEditor()), [guardedNavigate]);
-
   // Keep the cached active-profile title fresh once the profile itself has loaded.
   useEffect(() => {
     if (resume?.id === profileId && resume.title) setActiveProfile({ id: profileId, title: resume.title });
@@ -111,23 +129,23 @@ export default function ProfileEditor({ profileId }: { profileId: string }) {
   };
 
   if (loading && !resume) return <div className="fixed inset-0 z-[300] flex items-center justify-center bg-background"><span className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /></div>;
-  if (error && !resume) {
-    return (
-      <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-background">
-        <div className="lab-card p-8 text-center max-w-md">
-          <Icon name="ExclamationTriangleIcon" size={30} className="text-error mx-auto mb-2" />
-          <p className="text-sm text-foreground mb-4">{error}</p>
-          <button onClick={close} className="px-4 py-2 rounded-lg border border-border text-sm text-foreground hover:bg-muted">Close</button>
-        </div>
-      </div>
-    );
-  }
   if (!resume) return null;
 
   return (
     <div className="fixed inset-0 z-[300] h-screen flex flex-col bg-background">
       <div className="h-[52px] flex items-center gap-2 px-3 sm:px-4 border-b border-border bg-card shadow-sm flex-shrink-0">
-        <button onClick={close} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-smooth" title="Close" aria-label="Close"><Icon name="XMarkIcon" size={18} /></button>
+        {/* Back to the page underneath. While an edit is still being written, ask first (the dialog below). */}
+        <span
+          className="shrink-0"
+          onClickCapture={(e) => {
+            if (useResumeStore.getState().saveStatus !== 'saving') return;
+            e.preventDefault();
+            e.stopPropagation();
+            guardedNavigate(() => closeProfileEditor());
+          }}
+        >
+          <BackButton href={backHref} label="Back" className="[&>span]:sr-only sm:[&>span]:not-sr-only" />
+        </span>
         <span className="cs-icon-chip w-8 h-8 hidden sm:flex"><Icon name="IdentificationIcon" size={16} className="text-primary" /></span>
         <input value={resume.title} onChange={(e) => setTitle(e.target.value)} className="min-w-0 flex-1 max-w-[220px] bg-transparent text-sm font-semibold text-foreground focus:outline-none focus:bg-muted/50 rounded px-2 py-1 transition-smooth" placeholder="My Profile" />
         {profiles.length > 0 && (

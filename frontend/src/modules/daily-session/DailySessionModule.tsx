@@ -1,11 +1,22 @@
 'use client';
 
 import { notify } from '@/lib/ui/notifications';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useTransition } from 'react';
+import Link from 'next/link';
+import CompanionStrip from './companion/CompanionStrip';
+import { useCompanionVoice } from './companion/useCompanionVoice';
+import { greeting, line } from './companion/content';
+import { playChime, stopSoundscape } from './companion/soundscape';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
+import { useUrlState, buildUrl } from '@/lib/navigation/urlState';
+import { useSmartBack } from '@/lib/navigation/smartBack';
 import { questionsService, Question } from '@/lib/services/questionsService';
 import { sessionService, SessionAnswer } from '@/lib/services/sessionService';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
+import AnswerWorkspace from './coach/AnswerWorkspace';
+import RichText from './coach/RichText';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
 import { backendFetch, isBackendKnownDown, isNetworkFailure, checkBackendHealth } from '@/lib/http/backendAvailability';
 import { parseApiError } from '@/lib/http/apiClient';
@@ -104,61 +115,53 @@ const DEFAULT_QUESTIONS: Omit<Question, 'id'>[] = [
   },
 ];
 
-const EXPLANATIONS: Record<number, { answer: string; detail: string }> = {
-  0: {
-    answer: "Use a Doubly Linked List coupled with a Hash Map. The Hash Map stores node references mapping from key, yielding O(1) search. The Doubly Linked List maintains usage frequency order, allowing node updates or evictions in O(1).",
-    detail: "To code get(key): lookup node in hash map. If it exists, move it to the head of the DLL (most recently used) and return its value. Else, return -1.\nTo code put(key, value): if key exists, update value and move node to head. Else: create a node, insert to head, add to map. If capacity is exceeded, delete the tail node from DLL and delete its key entry from the map."
-  },
-  1: {
-    answer: "Use Token Bucket or Leaky Bucket algorithm backed by Redis. For every request, parse user ID, fetch the active bucket key from Redis, evaluate the timestamp delta to credit tokens, and decrement token count if space permits.",
-    detail: "Redis hash fields `last_updated` (float timestamp) and `tokens` (integer). Rate check pipeline:\n1. tokens_to_add = (current_timestamp - last_updated) * fill_rate\n2. current_tokens = min(bucket_capacity, tokens + tokens_to_add)\n3. If current_tokens >= 1, decrement by 1, save, and return True. Else, return False."
-  },
-  2: {
-    answer: "Adversarial validation or statistical density evaluation. Train a classifier to distinguish training dataset features from production telemetry data. If accuracy is high, covariate shift exists.",
-    detail: "Mitigate by:\n- Importance weighting: calculate the ratio of production-to-training sample density to weight the loss during model training.\n- Data acquisition: continuously sample production queries that have high adversarial validation score, label them, and update training baseline."
-  },
-  3: {
-    answer: "Segment queries into ingestion pipeline (Kafka buffer + Elasticsearch nodes) and search pipeline (Coordination nodes + replica shards). Utilize segment merging and inverse document frequency indexing.",
-    detail: "Document ingestion:\n- Kafka buffer stores incoming documents to absorb bursts.\n- Primary shards index records and build inverted index structures.\n- Segments are regularly merged in the background to minimize query lookups."
-  },
-  4: {
-    answer: "Frame disagreements around metrics, user impact, and engineering velocity. Present structural issues as debt that slows down feature delivery times rather than aesthetic cleanups.",
-    detail: "STAR method:\n- Situation: Technical debt in critical payments module threatened deadline velocity.\n- Task: Reach alignment with the PM who advocated for adding new conversion items instead.\n- Action: Plotted a metrics graph proving technical debt accounted for 40% of bug tickets. Proposed a compromise to dedicate 20% of every sprint for refactoring.\n- Result: Improved sprint delivery reliability by 25% and bugs dropped significantly."
-  },
-  5: {
-    answer: "Intrinsic matrix (K) represents internal camera attributes (focal length, optical center, skew). Extrinsic matrix (R|T) translates camera Coordinates to world Coordinates. They are estimated via homography patterns.",
-    detail: "Zhang's method uses a chessboard calibration pattern. Intrinsic parameters are estimated analytically using closed-form solutions by mapping chessboard corners in multiple images. Extrinsic parameters are optimized using Levenberg-Marquardt non-linear minimization."
-  },
-  6: {
-    answer: "Anchor Boxes act as bounding box scale frameworks. YOLO/Faster R-CNN slide anchors over feature map coordinates. Optimize sizes using K-means clustering over dataset ground truth bounding boxes.",
-    detail: "Run K-means clustering over all bounding box dimensions (width, height) in the training dataset using Intersection over Union (IoU) as the distance metric. Select the K centroids as the optimized anchor sizes to align with dataset target scales."
-  },
-  7: {
-    answer: "Post-training quantization (PTQ) converts weights after training, yielding minor loss of accuracy but fast configuration. Quantization-aware training (QAT) simulates quantization errors during backpropagation, yielding optimal accuracy.",
-    detail: "PTQ: Uses calibration datasets to find weight scale ranges. Highly effective for large models, but sometimes yields accuracy loss in smaller CV backbones.\nQAT: Backpropagates weights in floating point but performs simulated fake quantization on forward passes, forcing model weights to adapt to lower precision."
-  },
-  8: {
-    answer: "Analyze performance per-class and run labeling validation checks. Intersect labeled masks from multiple annotators to evaluate Jaccard/IoU consistency.",
-    detail: "Mitigate bias by:\n- Balance resampling: upsample under-represented environments (e.g. night-time street scenes).\n- Multi-annotator consensus: use voting or average thresholds to filter bad labels."
-  },
-  9: {
-    answer: "Apply weight pruning, Layer fusion (fuse Conv + BatchNorm + ReLU), and TensorRT FP16 quantization compile targeting Jetson GPU hardware constraints.",
-    detail: "Optimization steps:\n1. TensorRT compilation: compile PyTorch/ONNX model using FP16 quantization.\n2. Layer fusion: combine batch-normalization weights directly into Conv scale arrays to avoid auxiliary layer activations.\n3. KV-cache sizing: use optimized GPU static memory allocation for self-attention caches."
-  }
-};
-
 type CategoryFilter = 'All' | 'Interview' | 'CV Skill';
 
+/** Which screen of the session flow is showing (see "Screen = URL" below). 'loading' = the URL names a session that is still being fetched. */
+type Screen = 'setup' | 'loading' | 'ready' | 'quiz' | 'overview';
+
+/**
+ * The `session=` id in the URL: the numeric session id, or `offline-<date>` for a session kept only in this
+ * browser (offline mode keys them by date). Anything else is not a session.
+ */
+const OFFLINE_PREFIX = 'offline-';
+function parseSessionKey(key: string): { kind: 'offline'; date: string } | { kind: 'remote'; id: string } | null {
+  const offline = /^offline-(\d{4}-\d{2}-\d{2})$/.exec(key);
+  if (offline) return { kind: 'offline', date: offline[1] };
+  return /^\d+$/.test(key) ? { kind: 'remote', id: key } : null;
+}
+
+/** "W42/15/October" for a YYYY-MM-DD date: the backend's session code is a pure function of the date, so every session can show the right one. */
+function sessionCodeFor(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  const target = new Date(Date.UTC(y, m - 1, d));
+  const month = target.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+  target.setUTCDate(target.getUTCDate() + 4 - (target.getUTCDay() || 7)); // the Thursday of this ISO week
+  const week = Math.ceil(((target.getTime() - Date.UTC(target.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+  return `W${week}/${String(d).padStart(2, '0')}/${month}`;
+}
+
 export default function DailySessionInteractive() {
+  const companion = useCompanionVoice(greeting(new Date().getHours()));
   const router = useRouter();
-  const [sessionActive, setSessionActive] = useState(false);
-  const [practiceStarted, setPracticeStarted] = useState(false);
   const [sessionDate, setSessionDate] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [viewAll, setViewAll] = useState(false);
+  // The `session=` key of the session that `questions`/`answers`/`sessionDate` currently hold (null = none).
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  interface RecentRow {
+    key: string;
+    sessionId?: string;
+    date: string;
+    total: number;
+    answered: number;
+    offline?: boolean;
+  }
+  const [recentSessions, setRecentSessions] = useState<RecentRow[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [genWarning, setGenWarning] = useState<string | null>(null);
   const [isOfflineSession, setIsOfflineSession] = useState(false);
   const [backendOffline, setBackendOffline] = useState(false);
 
@@ -166,7 +169,6 @@ export default function DailySessionInteractive() {
   const [difficulty, setDifficulty] = useState('Mixed');
   const [cvText, setCvText] = useState('');
   const [jdText, setJdText] = useState('');
-  const [sessionCode, setSessionCode] = useState('');
   const [uploadingResume, setUploadingResume] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState('');
 
@@ -174,6 +176,10 @@ export default function DailySessionInteractive() {
   const [isGeneratingHint, setIsGeneratingHint] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showExplain, setShowExplain] = useState(false);
+  const [dynamicExplain, setDynamicExplain] = useState<string | null>(null);
+  const [isExplaining, setIsExplaining] = useState(false);
+  const [hintError, setHintError] = useState<string | null>(null);
+  const [codes, setCodes] = useState<Record<string, string>>({});
   const [dynamicAiAnswer, setDynamicAiAnswer] = useState<string | null>(null);
 
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,26 +223,187 @@ export default function DailySessionInteractive() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('All');
   const [isLoadingDbQuestions, setIsLoadingDbQuestions] = useState(false);
 
-  // Load active session from localStorage if user refreshes
+  // ── Screen = URL ──────────────────────────────────────────────────────────────────────────────────
+  // The address bar is the single source of truth for which screen shows, so Back/Forward, a reload and a
+  // shared link all land on the same screen:
+  //   ?tab=session                              setup (Configure Your Session + recent sessions)
+  //   ?tab=session&session=<id>                 ready ("Session Ready!")
+  //   ?tab=session&session=<id>&q=<n>           quiz, question n (1-based)
+  //   ?tab=session&session=<id>&q=<n>&view=all  every question at once (q = the question it was opened from)
+  // <id> is the numeric session id, or `offline-<date>` for a session kept only in this browser. Anything
+  // missing, unknown or out of range falls back to the parent screen. Moving to another screen pushes a
+  // history entry; stepping between questions replaces the current one.
+  const { get, update, pathname, searchParams } = useUrlState();
+  const goBack = useSmartBack();
+  const sessionParam = get('session') || null;
+  const qParam = get('q');
+  const viewParam = get('view');
+  const qNum = qParam !== null && /^\d+$/.test(qParam) ? Number(qParam) : NaN;
+  const qValid = qNum >= 1 && qNum <= questions.length;
+  const currentIndex = qValid ? qNum - 1 : 0;
+  const screen: Screen = !sessionParam
+    ? 'setup'
+    : loadedKey !== sessionParam
+      ? 'loading'
+      : qParam !== null && !qValid
+        ? 'ready'
+        : viewParam === 'all'
+          ? 'overview'
+          : qParam !== null
+            ? 'quiz'
+            : 'ready';
+  const viewAll = screen === 'overview';
+  // Where the Back controls lead: ready and quiz go to the setup; the overview goes back to its question.
+  const setupUrl = buildUrl(pathname, searchParams, { tab: 'session', session: null, q: null, view: null });
+  const quizUrl = buildUrl(pathname, searchParams, { view: null, q: currentIndex + 1 });
+
+  const loadedKeyRef = useRef<string | null>(null); // mirrors loadedKey for async code
+  // The latest `update` and whether this screen is still on show, for code that finishes after an await
+  const updateRef = useRef(update);
+  const mounted = useRef(true);
   useEffect(() => {
-    const activeDate = localStorage.getItem('ninja_active_session_date');
-    if (activeDate) {
-      loadSessionData(activeDate);
+    updateRef.current = update;
+  });
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  // True while the router is moving to a session's screen: the setup shows a spinner instead of flashing back.
+  const [navigating, startNavigation] = useTransition();
+
+  /** Moves to a session's "ready" screen. `fresh` drops what is held so a just-created session is fetched, not reused. */
+  const openSession = (key: string, fresh = false) => {
+    // generating can take a while: someone who has moved on to another tab meanwhile is not pulled back
+    if (!mounted.current) return;
+    if (fresh) {
+      loadedKeyRef.current = null;
+      setLoadedKey(null);
     }
+    startNavigation(() => {
+      updateRef.current({ tab: 'session', session: key, q: null, view: null }, 'push');
+    });
+  };
+
+  /**
+   * Fetches the session named in the URL; a session that can't be found sends the URL back to the setup.
+   * `superseded()` turns true once the URL has moved on (or the page is gone): a slow load must not land late.
+   */
+  const loadSession = async (key: string, superseded: () => boolean) => {
+    const fail = (message: string) => {
+      setLoadError(message);
+      updateRef.current({ session: null, q: null, view: null }, 'replace');
+    };
+    setLoadError(null);
+    try {
+      const notFound = isLoggedIn()
+        ? 'No questions were found for that session. Try generating a new one.'
+        : 'Log in to load your saved sessions, or generate a new one.';
+      const parsed = parseSessionKey(key);
+      if (!parsed) return fail(notFound);
+
+      const offline = parsed.kind === 'offline';
+      let sessionQs: Question[];
+      let dateStr: string;
+      if (parsed.kind === 'offline') {
+        dateStr = parsed.date;
+        sessionQs = localDailySessionAdapter.getQuestions(dateStr);
+      } else {
+        const { id } = parsed;
+        sessionQs = (await questionsService.getAll()).filter((q) => q.sessionId === id);
+        dateStr = sessionQs[0]?.dateEncountered ?? '';
+      }
+      if (superseded()) return;
+      if (sessionQs.length === 0) return fail(notFound);
+
+      // Saved answers
+      const progress = offline
+        ? localDailySessionAdapter.getSessionByDate(dateStr)
+        : await sessionService.getSessionByDate(dateStr);
+      if (superseded()) return;
+      const ansMap: Record<string, string> = {};
+      progress.forEach((p) => {
+        ansMap[p.questionText] = p.answerText;
+      });
+
+      setIsOfflineSession(offline);
+      setQuestions(sessionQs);
+      setSessionDate(dateStr);
+      setAnswers(ansMap);
+      setElapsedSeconds(0);
+      try {
+        // "started today" marker read by the daily reminder (NotificationHost)
+        localStorage.setItem('ninja_active_session_date', dateStr);
+      } catch {
+        /* storage unavailable: only the reminder check loses out */
+      }
+      loadedKeyRef.current = key;
+      setLoadedKey(key);
+    } catch (err) {
+      if (superseded()) return;
+      console.error(err);
+      fail('Could not load the session. Check that the backend is running and try again.');
+    }
+  };
+
+  // Load the session the URL names (a link, a reload, a recent session, or one that was just created). The
+  // screens show a spinner until it is in; moving between its questions never reloads it.
+  useEffect(() => {
+    if (!sessionParam || loadedKeyRef.current === sessionParam) return;
+    let cancelled = false;
+    void loadSession(sessionParam, () => cancelled);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionParam]);
+
+  // Keep the address bar honest: a param that doesn't belong to the screen on show (a stray q on the setup, a q
+  // out of range, an unknown view) is dropped. replace: it only tidies the current entry.
+  useEffect(() => {
+    if (screen === 'loading') return;
+    const want = {
+      session: screen === 'setup' ? null : sessionParam,
+      q: screen === 'quiz' || (screen === 'overview' && qValid) ? qNum : null,
+      view: screen === 'overview' ? 'all' : null,
+    };
+    if (
+      get('session') !== want.session ||
+      qParam !== (want.q === null ? null : String(want.q)) ||
+      viewParam !== want.view
+    ) {
+      update(want, 'replace');
+    }
+  }, [screen, sessionParam, qParam, viewParam, qNum, qValid, get, update]);
+
+  // A new screen starts at the top (the router keeps the scroll position when only the query changes), and
+  // leaving the quiz silences the focus sound, however the user left (Back, Reset, browser Back).
+  const settledScreen = useRef<Screen | null>(null);
+  useEffect(() => {
+    if (screen === 'loading') return;
+    const previous = settledScreen.current;
+    settledScreen.current = screen;
+    if (previous && previous !== screen) window.scrollTo({ top: 0 });
+    if (screen === 'setup' || screen === 'ready') stopSoundscape();
+  }, [screen]);
+
+  useEffect(() => {
     loadDbQuestions();
     checkBackendHealth().then((ok) => setBackendOffline(!ok));
   }, []);
 
-  // Timer effect
+  // Timer effect: runs while a question is on screen (paused on the setup, ready and overview screens)
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (practiceStarted && !viewAll) {
+    if (screen === 'quiz') {
       interval = setInterval(() => {
         setElapsedSeconds((prev) => prev + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [practiceStarted, viewAll]);
+  }, [screen]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -244,37 +411,43 @@ export default function DailySessionInteractive() {
     return `${m}:${s}`;
   };
 
-  const loadSessionData = async (dateStr: string) => {
-    setLoading(true);
-    try {
-      const offline = localStorage.getItem('ninja_active_session_offline') === '1';
-      setIsOfflineSession(offline);
+  // Latest 10 sessions: real session records from the server when logged in, plus offline ones kept in this browser.
+  // Refreshed every time the setup screen comes back (answer counts change while a session is open).
+  const onSetup = screen === 'setup';
+  useEffect(() => {
+    if (!onSetup) return;
+    let cancelled = false;
+    (async () => {
+      const offline: RecentRow[] = localDailySessionAdapter
+        .listRecent(10)
+        .map((r) => ({ key: `off:${r.date}`, date: r.date, total: r.total, answered: r.completed, offline: true }));
+      const remote: RecentRow[] = isLoggedIn()
+        ? (await sessionService.getRecentSessions(10)).map((r) => ({
+            key: `s:${r.sessionId}`,
+            sessionId: r.sessionId,
+            date: r.sessionDate,
+            total: r.questionCount,
+            answered: r.answeredCount,
+          }))
+        : [];
+      const merged = [...remote, ...offline]
+        .sort((a, b) => b.date.localeCompare(a.date) || Number(b.sessionId ?? 0) - Number(a.sessionId ?? 0))
+        .slice(0, 10);
+      if (!cancelled) setRecentSessions(merged);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [onSetup]);
 
-      const todayQs = offline
-        ? localDailySessionAdapter.getQuestions(dateStr)
-        : (await questionsService.getAll()).filter((q) => q.dateEncountered === dateStr);
-
-      if (todayQs.length > 0) {
-        setQuestions(todayQs);
-        setSessionDate(dateStr);
-        setSessionActive(true);
-
-        // Fetch saved answers
-        const progress = offline
-          ? localDailySessionAdapter.getSessionByDate(dateStr)
-          : await sessionService.getSessionByDate(dateStr);
-        const ansMap: Record<string, string> = {};
-        progress.forEach((p) => {
-          ansMap[p.questionText] = p.answerText;
-        });
-        setAnswers(ansMap);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  /** The recent-sessions row's address: its session's "ready" screen. */
+  const recentHref = (r: RecentRow) =>
+    buildUrl(pathname, searchParams, {
+      tab: 'session',
+      session: r.offline ? `${OFFLINE_PREFIX}${r.date}` : r.sessionId,
+      q: null,
+      view: null,
+    });
 
   /** Tries the real backend first; on a network failure (backend unreachable), falls back to a local session. */
   const resolveNewSession = async (): Promise<{ session_id: number; session_date: string; session_code: string; offline: boolean }> => {
@@ -291,15 +464,47 @@ export default function DailySessionInteractive() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        const payloadQuestions = DEFAULT_QUESTIONS.map((q, idx) => ({
-          section: idx < 5 ? 'A' : 'B',
-          number: (idx % 5) + 1,
-          category: q.category === 'Interview' ? 'interview' : 'cv_skill',
-          sub_type: q.subType,
-          difficulty: difficulty !== 'Mixed' ? difficulty.toLowerCase() : q.difficulty.toLowerCase(),
-          topics: [q.questionType || q.subType],
-          question_text: q.questionText,
-        }));
+        let payloadQuestions: any[] = [];
+        try {
+          const genRes = await backendFetch('/sessions/generate-session-questions', {
+            method: 'POST',
+            body: JSON.stringify({
+              difficulty,
+              cv_present: !!cvText,
+              jd_present: !!jdText,
+              cv_text: cvText || undefined,
+              jd_text: jdText || undefined,
+              ...defaultAIRequestFields(),
+            }),
+          });
+          if (genRes.ok) {
+            const genData = await genRes.json();
+            if (Array.isArray(genData.questions)) {
+              if (genData.questions.length === 0) {
+                // Every question we know has already been used: say so instead of repeating old ones.
+                throw Object.assign(new Error(genData.warning || 'No new questions are available right now.'), { noNewQuestions: true });
+              }
+              payloadQuestions = genData.questions;
+              setGenWarning(genData.warning || null);
+            }
+          }
+        } catch (e) {
+          if ((e as { noNewQuestions?: boolean })?.noNewQuestions) throw e;
+          console.warn('AI question generator unavailable, using base questions:', e);
+        }
+
+        if (!payloadQuestions.length) {
+          payloadQuestions = DEFAULT_QUESTIONS.map((q, idx) => ({
+            section: idx < 5 ? 'A' : 'B',
+            number: (idx % 5) + 1,
+            category: q.category === 'Interview' ? 'interview' : 'cv_skill',
+            sub_type: q.subType,
+            difficulty: difficulty !== 'Mixed' ? difficulty.toLowerCase() : q.difficulty.toLowerCase(),
+            topics: [q.questionType || q.subType],
+            question_text: q.questionText,
+          }));
+        }
+
         const qRes = await backendFetch('/sessions/questions', {
           method: 'POST',
           body: JSON.stringify({
@@ -327,19 +532,22 @@ export default function DailySessionInteractive() {
   const handleStartSession = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setGenWarning(null);
+    setLoadError(null);
     try {
-      const { session_date, session_code, offline } = await resolveNewSession();
+      const { session_id, session_date, offline } = await resolveNewSession();
 
-      setIsOfflineSession(offline);
-      if (offline) localStorage.setItem('ninja_active_session_offline', '1');
-      else localStorage.removeItem('ninja_active_session_offline');
-
-      setSessionCode(session_code);
-      localStorage.setItem('ninja_active_session_code', session_code);
-      localStorage.setItem('ninja_active_session_date', session_date);
-      await loadSessionData(session_date);
+      if (offline) setGenWarning('Backend unreachable: these are built-in sample questions, saved only in this browser.');
+      try {
+        localStorage.setItem('ninja_active_session_date', session_date);
+      } catch {
+        /* storage unavailable: only the daily reminder check loses out */
+      }
+      // The new session is a new screen: it gets its own URL, and the URL's loader fills it in.
+      openSession(offline ? `${OFFLINE_PREFIX}${session_date}` : String(session_id), true);
     } catch (err) {
       console.error('Failed to initialize session:', err);
+      setLoadError(err instanceof Error ? err.message : 'Could not start a session. Try again.');
     } finally {
       setLoading(false);
     }
@@ -373,11 +581,17 @@ export default function DailySessionInteractive() {
     setLoading(true);
     try {
       await persistAnswer(payload);
+      if (answerText.trim()) {
+        if (companion.settings.chimes && !companion.settings.soundMuted) playChime('good', companion.settings.volume);
+        companion.say(line('nailed'), 'cheer');
+      }
       const done = questions.filter(
         (q) => (q.questionText === currentQ.questionText ? answerText : answers[q.questionText] || '').trim()
       ).length;
       const total = questions.length;
       if (total > 0 && done === total) {
+        if (companion.settings.chimes && !companion.settings.soundMuted) playChime('finish', companion.settings.volume);
+        companion.say(line('finish'), 'cheer');
         notify({
           source: 'daily-session',
           tone: 'success',
@@ -426,17 +640,22 @@ export default function DailySessionInteractive() {
     }
   };
 
+  /** "Reset Session": forgets the open session and returns to the setup (a new history entry, like any screen change). */
   const handleClearSession = () => {
-    localStorage.removeItem('ninja_active_session_date');
-    localStorage.removeItem('ninja_active_session_offline');
+    stopSoundscape();
+    try {
+      // `date` is the "started today" marker; the others are keys older versions kept the active session in
+      ['date', 'id', 'offline', 'code'].forEach((k) => localStorage.removeItem(`ninja_active_session_${k}`));
+    } catch {
+      /* storage unavailable */
+    }
+    loadedKeyRef.current = null;
+    setLoadedKey(null);
     setIsOfflineSession(false);
-    setSessionActive(false);
-    setPracticeStarted(false);
     setElapsedSeconds(0);
     setQuestions([]);
     setAnswers({});
-    setCurrentIndex(0);
-    setViewAll(false);
+    update({ tab: 'session', session: null, q: null, view: null }, 'push');
   };
 
   const handleGenerateHint = async () => {
@@ -456,13 +675,16 @@ export default function DailySessionInteractive() {
             ...defaultAIRequestFields(),
           }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          setDynamicAiAnswer(data.answer);
-        }
+        if (!res.ok) throw new Error(await parseApiError(res));
+        const data = await res.json();
+        // The backend returns a generic stub (with a "note") when no AI key worked; don't present it as a real answer.
+        if (data.note) throw new Error('AI is not available right now. Check your API key in Settings.');
+        setDynamicAiAnswer(data.answer);
+      } else {
+        throw new Error('The backend is offline, so AI help is unavailable.');
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      setHintError(e?.message || 'Could not generate a hint.');
     } finally {
       setIsGeneratingHint(false);
       setShowHint(true);
@@ -473,6 +695,56 @@ export default function DailySessionInteractive() {
     setIsGeneratingHint(false);
     setShowHint(false);
     setShowExplain(false);
+    setDynamicAiAnswer(null);
+    setDynamicExplain(null);
+    setHintError(null);
+  };
+
+  // A hint belongs to the question it was asked for: it resets when the question changes, however it changed
+  // (number pill, Previous/Next, or the browser's Back/Forward).
+  useEffect(() => {
+    resetHints();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, loadedKey]);
+
+  const handleExplainMore = async () => {
+    if (!activeQuestion) return;
+    if (showExplain) {
+      setShowExplain(false);
+      return;
+    }
+    setShowExplain(true);
+    if (dynamicExplain) return;
+    setIsExplaining(true);
+    try {
+      const res = await backendFetch('/sessions/generate-answer', {
+        method: 'POST',
+        body: JSON.stringify({
+          question_text: activeQuestion.questionText,
+          category: activeQuestion.category,
+          sub_type: activeQuestion.subType,
+          action: 'explain',
+          ...defaultAIRequestFields(),
+        }),
+      });
+      if (!res.ok) throw new Error(await parseApiError(res));
+      setDynamicExplain((await res.json()).answer);
+    } catch (e: any) {
+      setHintError(e?.message || 'Could not generate the explanation.');
+    } finally {
+      setIsExplaining(false);
+    }
+  };
+
+  // Code written in the DSA / System Design code space, kept per question in this browser.
+  const codeKey = (q: string) => `ninja_code::${sessionDate}::${q}`;
+  const setCode = (q: string, v: string) => {
+    setCodes((p) => ({ ...p, [q]: v }));
+    try {
+      localStorage.setItem(codeKey(q), v);
+    } catch {
+      /* storage unavailable: code stays in memory for this visit */
+    }
   };
 
   const loadDbQuestions = async () => {
@@ -527,9 +799,9 @@ export default function DailySessionInteractive() {
   };
 
   const activeQuestion = questions[currentIndex];
-  const activeExplanation = EXPLANATIONS[currentIndex] || { answer: "Study the topic and write down your solution.", detail: "" };
 
-  if (loading && !sessionActive) {
+  // Spinner while a session is being created or fetched (the setup form never shows with one pending)
+  if (screen === 'loading' || (screen === 'setup' && (loading || navigating))) {
     return (
       <div className="flex items-center justify-center h-[500px]">
         <div className="w-48 h-48 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -538,7 +810,7 @@ export default function DailySessionInteractive() {
   }
 
   // Phase 1: Setup Form
-  if (!sessionActive) {
+  if (screen === 'setup') {
     const difficultyColor: Record<string, string> = {
       Hard: 'bg-red-500/10 text-red-400 border-red-500/20',
       Medium: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
@@ -554,6 +826,7 @@ export default function DailySessionInteractive() {
 
     return (
       <div className="space-y-24">
+        <CompanionStrip c={companion} />
         {backendOffline && (
           <div className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/10 px-6 py-4 text-sm text-warning">
             <Icon name="ExclamationTriangleIcon" size={18} variant="outline" className="flex-shrink-0" />
@@ -639,6 +912,53 @@ export default function DailySessionInteractive() {
           </div>
         </div>
 
+        {loadError && (
+          <div role="alert" className="flex items-center gap-3 rounded-xl border border-error/30 bg-error/10 px-6 py-4 text-sm text-error">
+            <Icon name="ExclamationTriangleIcon" size={18} variant="outline" className="flex-shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        )}
+
+        {/* ── Recent Sessions ── */}
+        {recentSessions.length > 0 && (
+          <div className="bg-card rounded-2xl border border-border overflow-hidden">
+            <div className="p-[1.5rem] sm:p-[2rem]">
+              <h3 className="font-heading text-base font-semibold text-foreground flex items-center gap-3 mb-[1rem]">
+                <Icon name="ClockIcon" size={18} variant="outline" className="text-primary flex-shrink-0" />
+                Recent Sessions
+                <span className="text-xs font-normal text-muted-foreground">last {recentSessions.length}</span>
+              </h3>
+              <ul className="divide-y divide-border">
+                {recentSessions.map((r) => {
+                  const pct = r.total ? Math.round((r.answered / r.total) * 100) : 0;
+                  return (
+                    <li key={r.key}>
+                      {/* a real link: the session has its own address, so it can also be opened in a new tab */}
+                      <Link
+                        href={recentHref(r)}
+                        prefetch={false}
+                        scroll={false}
+                        className="flex w-full items-center gap-[1rem] py-[0.75rem] text-left hover:bg-muted/40 rounded-lg px-[0.5rem] transition-smooth"
+                      >
+                        <span className="min-w-[6.5rem] text-sm font-medium text-foreground">
+                          {new Date(`${r.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </span>
+                        <span className="flex-1 h-[0.4rem] rounded-full bg-muted overflow-hidden">
+                          <span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                        </span>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {r.total} questions · {r.answered} answered{r.offline ? ' · offline' : ''}
+                        </span>
+                        <Icon name="ChevronRightIcon" size={14} variant="outline" className="text-muted-foreground" />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        )}
+
         {/* ── Question Preview from DB ── */}
         <div className="todo-lit lit-soft bg-card rounded-2xl border border-border overflow-hidden">
           <div className="p-9">
@@ -700,8 +1020,12 @@ export default function DailySessionInteractive() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {displayedDbQuestions.map((q, idx) => (
-                  <div key={q.id}
-                    className="todo-lit lit-soft bg-background border border-border rounded-xl p-5 flex flex-col gap-3">
+                  <div 
+                    key={q.id}
+                    onClick={() => router.push(`/question-review?id=${q.id}`)}
+                    className="todo-lit lit-soft bg-background border border-border rounded-xl p-5 flex flex-col gap-3 cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all group"
+                    title="Click to open question review & AI breakdown"
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 flex-wrap min-w-0">
                         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary shrink-0">
@@ -715,10 +1039,16 @@ export default function DailySessionInteractive() {
                         {q.difficulty}
                       </span>
                     </div>
-                    <p className="text-sm text-foreground leading-relaxed">
+                    <p className="text-sm text-foreground leading-relaxed group-hover:text-primary transition-colors">
                       <span className="text-muted-foreground font-medium mr-2">Q{idx + 1}.</span>
                       {q.questionText}
                     </p>
+                    <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs text-muted-foreground mt-auto">
+                      <span className="group-hover:text-primary font-medium flex items-center gap-1">
+                        Review Question & AI Feedback &rarr;
+                      </span>
+                      <span className="text-[11px] opacity-75 font-mono">#{q.id}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -730,9 +1060,14 @@ export default function DailySessionInteractive() {
   }
 
   // Phase 2: Ready / Interstitial
-  if (sessionActive && !practiceStarted) {
+  if (screen === 'ready') {
     return (
-      <div className="todo-lit lit-soft max-w-2xl mx-auto bg-card rounded-lg p-[1.25rem] sm:p-36 border border-border mt-[1rem] sm:mt-36 text-center animate-fade-in">
+      <div className="max-w-2xl mx-auto mt-[1rem] sm:mt-36 space-y-[1rem] animate-fade-in">
+      <div>
+        <BackButton href={setupUrl} label="Back" />
+      </div>
+      <CompanionStrip c={companion} />
+      <div className="todo-lit lit-soft bg-card rounded-lg p-[1.25rem] sm:p-36 border border-border text-center">
         <Icon name="CheckBadgeIcon" size={64} className="text-success mx-auto mb-18" variant="outline" />
         <h2 className="font-heading text-3xl font-semibold text-foreground mb-12">Session Ready!</h2>
         <p className="text-muted-foreground mb-24 font-body">
@@ -740,14 +1075,19 @@ export default function DailySessionInteractive() {
         </p>
         <div className="flex flex-col-reverse items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:gap-12">
           <button
-            onClick={handleClearSession}
+            onClick={() => goBack(setupUrl)}
             className="py-12 px-24 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth inline-flex items-center justify-center gap-12 focus-ring"
           >
             <Icon name="ArrowLeftIcon" size={18} variant="outline" />
             Back
           </button>
           <button
-            onClick={() => setPracticeStarted(true)}
+            onClick={() => {
+              companion.startSound();
+              companion.say(line('start'), 'cheer');
+              setElapsedSeconds(0);
+              update({ q: 1 }, 'push');
+            }}
             className="py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-lg font-medium transition-smooth inline-flex items-center justify-center gap-12 focus-ring shadow-glow"
           >
             <Icon name="PlayCircleIcon" size={24} variant="solid" />
@@ -755,12 +1095,30 @@ export default function DailySessionInteractive() {
           </button>
         </div>
       </div>
+      </div>
     );
   }
 
   // Phase 3: Active Session (Quiz Mode)
   return (
     <div className="space-y-24 mt-24 animate-fade-in">
+      <div>
+        {/* quiz -> the setup; the all-questions overview -> the quiz, at the question it was opened from */}
+        <BackButton href={viewAll ? quizUrl : setupUrl} label="Back" />
+      </div>
+      <CompanionStrip c={companion} />
+      <div className="h-[1rem] w-full overflow-hidden rounded-full bg-muted" aria-label="Session progress">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-lime-400 transition-all duration-500"
+          style={{ width: `${Math.max(4, Math.min(100, (Object.keys(answers).length / Math.max(1, questions.length)) * 100))}%` }}
+        />
+      </div>
+      {genWarning && (
+        <div role="status" className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-[1.25rem] py-[0.75rem] text-sm text-amber-700 dark:text-amber-300">
+          <Icon name="ExclamationTriangleIcon" size={18} variant="outline" className="flex-shrink-0" />
+          <span>{genWarning}</span>
+        </div>
+      )}
       {/* Session Controls Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-12 bg-muted/40 p-18 border border-border rounded-lg shadow-sm">
         <div className="flex items-center gap-12">
@@ -769,7 +1127,7 @@ export default function DailySessionInteractive() {
             {formatTime(elapsedSeconds)}
           </span>
           <span className="px-12 py-6 rounded-md bg-card border border-border text-foreground font-semibold text-sm">
-            Session ID: {sessionCode || localStorage.getItem('ninja_active_session_code') || sessionDate}
+            Session ID: {sessionCodeFor(sessionDate)}
           </span>
           <span className="text-sm text-muted-foreground">
             {Object.keys(answers).length} of 10 answered
@@ -783,7 +1141,7 @@ export default function DailySessionInteractive() {
         </div>
         <div className="flex gap-12">
           <button
-            onClick={() => setViewAll(!viewAll)}
+            onClick={() => (viewAll ? goBack(quizUrl) : update({ view: 'all' }, 'push'))}
             className="px-12 py-6 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth flex items-center gap-6"
           >
             <Icon name={viewAll ? "BookOpenIcon" : "ListBulletIcon"} size={16} variant="outline" />
@@ -821,7 +1179,11 @@ export default function DailySessionInteractive() {
                       {q.difficulty}
                     </span>
                   </div>
-                  <p className="text-sm font-medium text-foreground leading-relaxed mb-18">
+                  <p 
+                    onClick={() => router.push(`/question-review?id=${q.id || idx + 1}`)}
+                    className="text-sm font-medium text-foreground leading-relaxed mb-18 cursor-pointer hover:text-primary transition-colors"
+                    title="Click to open question review & AI breakdown"
+                  >
                     {q.questionText}
                   </p>
                 </div>
@@ -861,141 +1223,146 @@ export default function DailySessionInteractive() {
         </div>
       ) : (
         // Quiz Mode (Single Question Focus)
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-24">
-          
-          {/* AI Helper Sidebar Panel (Now on the LEFT) */}
-          <div className="space-y-24 order-2 lg:order-1">
-            {!showHint ? (
-              <div className="todo-lit lit-soft bg-card border border-border rounded-lg p-24 text-center">
-                <Icon name="SparklesIcon" size={32} variant="outline" className="text-warning mx-auto mb-12" />
-                <h4 className="font-heading text-sm font-medium text-foreground mb-6">AI Copilot</h4>
-                <p className="text-xs text-muted-foreground leading-relaxed mb-18">
-                  Stuck? You can summon the AI to provide a context-aware hint. This runs an on-demand inference to save LLM tokens.
-                </p>
-                <button
-                  onClick={handleGenerateHint}
-                  disabled={isGeneratingHint}
-                  className="w-full py-9 px-12 rounded-md border border-warning text-warning font-medium hover:bg-warning/10 transition-smooth flex items-center justify-center gap-6 disabled:opacity-50"
-                >
-                  {isGeneratingHint ? (
-                    <>
-                      <span className="w-12 h-12 border-2 border-warning/30 border-t-warning rounded-full animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="SparklesIcon" size={16} />
-                      Generate Hint
-                    </>
-                  )}
-                </button>
-              </div>
-            ) : (
-              <div className="todo-lit lit-soft bg-card border border-warning/50 rounded-lg p-24 space-y-18 animate-fade-in">
-                <div className="flex items-center justify-between pb-12 border-b border-border">
-                  <div className="flex items-center gap-12">
-                    <Icon name="SparklesIcon" size={20} variant="solid" className="text-warning" />
-                    <h4 className="font-heading text-md font-semibold text-foreground">AI Reference Hint</h4>
-                  </div>
-                </div>
-                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap font-body">
-                  {dynamicAiAnswer || activeExplanation.answer}
-                </p>
-                <button
-                  onClick={() => setShowExplain(!showExplain)}
-                  className="w-full py-9 px-12 rounded-md bg-secondary/10 text-secondary border border-secondary/20 text-xs font-semibold hover:bg-secondary/20 transition-smooth"
-                >
-                  {showExplain ? 'Hide Technical Explanation' : 'Explain More with AI'}
-                </button>
-              </div>
-            )}
-
-            {showHint && showExplain && (
-              <div className="todo-lit lit-soft bg-card border border-secondary/50 rounded-lg p-24 space-y-12 animate-fade-in">
-                <div className="flex items-center gap-6 pb-6 border-b border-border">
-                  <Icon name="CpuChipIcon" size={18} variant="outline" className="text-secondary" />
-                  <h5 className="font-heading text-sm font-semibold text-foreground">Technical Breakdown</h5>
-                </div>
-                <p className="text-[13px] text-foreground leading-relaxed whitespace-pre-wrap font-body bg-muted/30 p-12 rounded-md">
-                  {activeExplanation.detail}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="lg:col-span-2 space-y-24 order-1 lg:order-2">
-            {/* Question Card */}
-            <div className="todo-lit lit-soft bg-card border border-border rounded-lg p-24">
-              <div className="flex justify-between items-center mb-18 pb-12 border-b border-border">
-                <span className="text-xs font-semibold px-12 py-6 rounded bg-primary/15 text-primary">
-                  Question {currentIndex + 1} of 10 ({activeQuestion?.category})
-                </span>
-                <span className="text-sm font-caption text-muted-foreground">
-                  Sub-Type: {activeQuestion?.subType}
-                </span>
-              </div>
-              <h3 className="font-heading text-lg font-medium text-foreground mb-18">
-                {activeQuestion?.questionText}
-              </h3>
+        <div className="grid grid-cols-1 gap-[1.5rem] lg:grid-cols-[minmax(0,1fr)_21rem]">
+          <div className="min-w-0 space-y-[1.25rem]">
+            {/* Question navigator */}
+            <div className="flex flex-wrap items-center gap-2" aria-label="Questions">
+              {questions.map((q, idx) => {
+                const done = !!(answers[q.questionText] || '').trim();
+                const current = idx === currentIndex;
+                return (
+                  <button
+                    key={q.id ?? idx}
+                    type="button"
+                    onClick={() => update({ q: idx + 1 }, 'replace')}
+                    aria-label={`Question ${idx + 1}${done ? ' (answered)' : ''}`}
+                    aria-current={current}
+                    className={`h-9 w-9 rounded-full text-xs font-extrabold transition ${
+                      current
+                        ? 'scale-110 bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-md'
+                        : done
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                    }`}
+                  >
+                    {done && !current ? '✓' : idx + 1}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Answer Editor */}
-            <div className="todo-lit lit-soft bg-card border border-border rounded-lg p-24 space-y-18">
-              <label htmlFor="answer-box" className="block font-heading text-base font-medium text-foreground">
-                Your Response
-              </label>
-              <textarea
-                id="answer-box"
-                rows={10}
-                value={answers[activeQuestion?.questionText] || ''}
-                onChange={(e) => {
-                  const text = e.target.value;
-                  setAnswers((prev) => ({
-                    ...prev,
-                    [activeQuestion.questionText]: text,
-                  }));
-                }}
-                placeholder="Formulate your technical answer details here..."
-                className="w-full rounded-md border border-border bg-input px-12 py-12 text-sm text-foreground focus-ring placeholder:text-muted-foreground font-body"
-              />
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSaveAnswer}
-                  className="py-9 px-18 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-smooth flex items-center gap-6"
-                >
-                  <Icon name="CheckIcon" size={16} variant="outline" />
-                  Save Answer
-                </button>
+            {/* Question hero */}
+            <div className="rounded-[1.75rem] bg-gradient-to-br from-violet-600 via-fuchsia-500 to-amber-400 p-[2px] shadow-lg">
+              <div className="rounded-[1.65rem] bg-card p-[1.5rem]">
+                <div className="mb-[0.75rem] flex flex-wrap items-center gap-2 text-xs font-extrabold">
+                  <span className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                    Question {currentIndex + 1} of {questions.length}
+                  </span>
+                  <span className="rounded-full bg-muted px-3 py-1 text-foreground">{activeQuestion?.subType}</span>
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">{activeQuestion?.difficulty}</span>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/question-review?id=${activeQuestion?.id || currentIndex + 1}`)}
+                    className="ml-auto rounded-full border border-border px-3 py-1 text-muted-foreground hover:text-foreground"
+                  >
+                    Full review →
+                  </button>
+                </div>
+                <h3 className="font-heading text-xl font-bold leading-snug text-foreground">{activeQuestion?.questionText}</h3>
               </div>
             </div>
 
-            {/* Navigation Slider Controls */}
-            <div className="flex justify-between items-center py-12 border-t border-border">
+            {/* Answer + code space + AI coach */}
+            {activeQuestion && (
+              <div className="space-y-[1rem] rounded-[1.75rem] border-2 border-border bg-card p-[1.25rem] shadow-[0_4px_0_0_rgba(124,58,237,0.12)] sm:p-[1.5rem]">
+                <AnswerWorkspace
+                  question={{
+                    questionText: activeQuestion.questionText,
+                    category: activeQuestion.category === 'Interview' ? 'interview' : 'cv_skill',
+                    subType: activeQuestion.subType,
+                    difficulty: activeQuestion.difficulty,
+                  }}
+                  answer={answers[activeQuestion.questionText] || ''}
+                  onAnswerChange={(text) => setAnswers((prev) => ({ ...prev, [activeQuestion.questionText]: text }))}
+                  code={codes[activeQuestion.questionText] ?? (typeof window !== 'undefined' ? localStorage.getItem(codeKey(activeQuestion.questionText)) || '' : '')}
+                  onCodeChange={(v) => setCode(activeQuestion.questionText, v)}
+                />
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleSaveAnswer}
+                    className="flex items-center gap-2 rounded-2xl bg-emerald-500 px-[1.25rem] py-[0.65rem] text-sm font-extrabold text-white shadow-[0_4px_0_0_rgba(4,120,87,0.6)] transition active:translate-y-[2px] active:shadow-none"
+                  >
+                    <Icon name="CheckIcon" size={16} variant="outline" />
+                    Save answer
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Navigation */}
+            <div className="flex items-center justify-between">
               <button
                 disabled={currentIndex === 0}
-                onClick={() => {
-                  setCurrentIndex(currentIndex - 1);
-                  resetHints();
-                }}
-                className="py-9 px-18 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth disabled:opacity-30 disabled:pointer-events-none flex items-center gap-6"
+                onClick={() => update({ q: currentIndex }, 'replace')}
+                className="flex items-center gap-2 rounded-2xl border-2 border-border px-[1.1rem] py-[0.6rem] text-sm font-extrabold text-foreground transition hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
               >
                 <Icon name="ArrowLeftIcon" size={16} variant="outline" />
-                Previous Question
+                Previous
               </button>
               <button
                 disabled={currentIndex === questions.length - 1}
-                onClick={() => {
-                  setCurrentIndex(currentIndex + 1);
-                  resetHints();
-                }}
-                className="py-9 px-18 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth disabled:opacity-30 disabled:pointer-events-none flex items-center gap-6"
+                onClick={() => update({ q: currentIndex + 2 }, 'replace')}
+                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-[1.1rem] py-[0.6rem] text-sm font-extrabold text-white shadow-[0_4px_0_0_rgba(91,33,182,0.5)] transition active:translate-y-[2px] active:shadow-none disabled:pointer-events-none disabled:opacity-30"
               >
-                Next Question
+                Next
                 <Icon name="ArrowRightIcon" size={16} variant="outline" />
               </button>
             </div>
           </div>
 
+          {/* Hint / model answer panel */}
+          <aside className="space-y-[1rem] self-start lg:sticky lg:top-[5rem]">
+            <div className="rounded-[1.75rem] border-2 border-amber-300 bg-amber-50 p-[1.25rem] dark:border-amber-500/40 dark:bg-amber-500/10">
+              <div className="mb-[0.5rem] flex items-center gap-2 text-sm font-extrabold text-amber-900 dark:text-amber-100">
+                <span aria-hidden>💡</span> Stuck? Ask for a hint
+              </div>
+              {!showHint ? (
+                <>
+                  <p className="mb-[0.75rem] text-xs leading-relaxed text-amber-900/80 dark:text-amber-100/80">
+                    Try it yourself first. This gets a concise reference answer from AI for this exact question.
+                  </p>
+                  <button
+                    onClick={handleGenerateHint}
+                    disabled={isGeneratingHint}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-3 py-[0.65rem] text-sm font-extrabold text-amber-950 shadow-[0_4px_0_0_rgba(180,83,9,0.5)] transition active:translate-y-[2px] active:shadow-none disabled:opacity-60"
+                  >
+                    {isGeneratingHint ? 'Thinking…' : 'Generate hint'}
+                  </button>
+                </>
+              ) : (
+                <div className="space-y-[0.75rem]">
+                  {dynamicAiAnswer ? (
+                    <RichText text={dynamicAiAnswer} className="text-amber-950 dark:text-amber-50" />
+                  ) : null}
+                  {dynamicAiAnswer && (
+                    <button
+                      onClick={handleExplainMore}
+                      disabled={isExplaining}
+                      className="w-full rounded-2xl border-2 border-amber-400 px-3 py-2 text-xs font-extrabold text-amber-900 dark:text-amber-100"
+                    >
+                      {isExplaining ? 'Explaining…' : showExplain ? 'Hide deep explanation' : 'Explain more with AI'}
+                    </button>
+                  )}
+                  {showExplain && dynamicExplain && (
+                    <div className="rounded-2xl bg-white/70 p-3 dark:bg-black/20">
+                      <RichText text={dynamicExplain} />
+                    </div>
+                  )}
+                </div>
+              )}
+              {hintError && <p className="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-300">{hintError}</p>}
+            </div>
+          </aside>
         </div>
       )}
     </div>

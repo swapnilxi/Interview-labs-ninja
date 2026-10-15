@@ -6,6 +6,7 @@ import PendingStatusBanner from '@/modules/common/PendingStatusBanner';
 import NotificationHost from '@/components/ui/NotificationHost';
 import MobileTabBar from '@/components/ui/MobileTabBar';
 import LoginModal from '@/components/auth/LoginModal';
+import GlobalVoiceInput from '@/components/voice/GlobalVoiceInput';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -47,6 +48,7 @@ try{var sm=localStorage.getItem('labninja.sidebar_mode.v1');if(sm!=='hidden'){do
           <NotificationHost />
           <MobileTabBar />
           <LoginModal />
+          <GlobalVoiceInput />
         </AuthProvider>
 
         <script

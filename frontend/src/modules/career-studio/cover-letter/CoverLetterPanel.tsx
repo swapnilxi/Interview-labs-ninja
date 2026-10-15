@@ -9,6 +9,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
+import { buildUrl, useUrlState } from '@/lib/navigation/urlState';
 import { coverLetterService } from '@/lib/services/coverLetterService';
 import { downloadBlob } from '../shared/exportUtils';
 import { getActiveProfile } from '../shared/activeProfileStore';
@@ -32,10 +34,16 @@ function fmt(v?: string) {
 }
 
 export default function CoverLetterPanel({ profiles, loaded, onGoToProfiles, onProfilesChanged, showToast }: { profiles: Resume[]; loaded: boolean; onGoToProfiles: () => void; onProfilesChanged: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const { get, update, pathname, searchParams } = useUrlState();
+  // The open sub-screen is the URL's ?letter=: absent = the list, `new` = the new-letter form, otherwise a letter id.
+  const letterParam = get('letter');
+  const showGenerate = letterParam === 'new';
+  const editingId = letterParam && letterParam !== 'new' ? letterParam : null;
+  const listHref = buildUrl(pathname, searchParams, { letter: null });
   const [letters, setLetters] = useState<CoverLetter[]>([]);
   const [lettersLoaded, setLettersLoaded] = useState(false);
-  const [active, setActive] = useState<CoverLetter | null>(null);
-  const [showGenerate, setShowGenerate] = useState(false);
+  const [openLetter, setOpenLetter] = useState<CoverLetter | null>(null); // the letter ?letter=<id> points at, once loaded
+  const active = editingId && openLetter?.id === editingId ? openLetter : null;
   const [rename, setRename] = useState<{ id: string; value: string } | null>(null);
 
   const loadLetters = async () => {
@@ -48,13 +56,31 @@ export default function CoverLetterPanel({ profiles, loaded, onGoToProfiles, onP
     }
   };
 
-  useEffect(() => { void loadLetters(); }, []);
+  // Load the list on arrival and again whenever the list comes back into view (after the editor / new-letter form).
+  useEffect(() => {
+    if (!letterParam) void loadLetters();
+  }, [letterParam]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A link or refresh with ?letter=<id>: fetch that letter. One that no longer exists falls back to the list.
+  useEffect(() => {
+    if (!editingId || openLetter?.id === editingId) return;
+    let cancelled = false;
+    coverLetterService
+      .get(editingId)
+      .then((l) => { if (!cancelled) setOpenLetter(l); })
+      .catch(() => {
+        if (cancelled) return;
+        showToast('That cover letter could not be found.', 'error');
+        update({ letter: null }, 'replace');
+      });
+    return () => { cancelled = true; };
+  }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const remove = async (id: string) => {
     if (!window.confirm('Delete this cover letter? This cannot be undone.')) return;
     try {
       await coverLetterService.remove(id);
-      if (active?.id === id) setActive(null);
+      if (letterParam === id) update({ letter: null }, 'replace');
       void loadLetters();
       showToast('Cover letter deleted');
     } catch (e: any) {
@@ -75,14 +101,9 @@ export default function CoverLetterPanel({ profiles, loaded, onGoToProfiles, onP
     }
   };
 
-  if (active) {
-    return (
-      <CoverLetterEditor
-        letter={active}
-        onBack={() => { setActive(null); void loadLetters(); }}
-        showToast={showToast}
-      />
-    );
+  if (editingId) {
+    if (!active) return <div className="lab-card p-10 text-center text-sm text-muted-foreground max-w-[820px]">Loading…</div>;
+    return <CoverLetterEditor key={active.id} letter={active} backHref={listHref} showToast={showToast} />;
   }
 
   if (showGenerate) {
@@ -92,8 +113,9 @@ export default function CoverLetterPanel({ profiles, loaded, onGoToProfiles, onP
         loaded={loaded}
         onGoToProfiles={onGoToProfiles}
         onProfilesChanged={onProfilesChanged}
-        onCancel={() => setShowGenerate(false)}
-        onGenerated={(letter) => { setShowGenerate(false); setActive(letter); }}
+        backHref={listHref}
+        // the form is replaced by the letter it made, so Back from the letter returns to the list, not to a blank form
+        onGenerated={(letter) => { setOpenLetter(letter); update({ letter: letter.id }, 'replace'); }}
         showToast={showToast}
       />
     );
@@ -106,7 +128,7 @@ export default function CoverLetterPanel({ profiles, loaded, onGoToProfiles, onP
           <h2 className="font-heading text-lg font-semibold text-foreground">Cover letters</h2>
           <p className="text-xs text-muted-foreground mt-0.5">Generate a letter from a profile + a job target, then edit and export it.</p>
         </div>
-        <button onClick={() => setShowGenerate(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth shrink-0">
+        <button onClick={() => update({ letter: 'new' })} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth shrink-0">
           <Icon name="PlusIcon" size={16} /> New cover letter
         </button>
       </div>
@@ -117,7 +139,7 @@ export default function CoverLetterPanel({ profiles, loaded, onGoToProfiles, onP
         <div className="lab-card p-12 text-center">
           <div className="cs-empty-badge"><Icon name="EnvelopeIcon" size={28} className="text-primary" /></div>
           <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5 leading-relaxed">No cover letters yet — generate one from a profile and a job posting.</p>
-          <button onClick={() => setShowGenerate(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth"><Icon name="PlusIcon" size={16} /> New cover letter</button>
+          <button onClick={() => update({ letter: 'new' })} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth"><Icon name="PlusIcon" size={16} /> New cover letter</button>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -135,7 +157,7 @@ export default function CoverLetterPanel({ profiles, loaded, onGoToProfiles, onP
               ) : (
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">
-                    <button onClick={() => setActive(l)} className="text-left min-w-0 flex-1">
+                    <button onClick={() => { setOpenLetter(l); update({ letter: l.id }); }} className="text-left min-w-0 flex-1">
                       <p className="text-sm font-semibold text-foreground truncate">{l.title}</p>
                     </button>
                     <button onClick={() => setRename({ id: l.id, value: l.title })} className="shrink-0 p-1 rounded text-muted-foreground/70 hover:text-primary hover:bg-primary/5" title="Rename">
@@ -158,8 +180,8 @@ export default function CoverLetterPanel({ profiles, loaded, onGoToProfiles, onP
   );
 }
 
-function GenerateCoverLetterForm({ profiles, loaded, onGoToProfiles, onProfilesChanged, onCancel, onGenerated, showToast }: {
-  profiles: Resume[]; loaded: boolean; onGoToProfiles: () => void; onProfilesChanged: () => void; onCancel: () => void; onGenerated: (letter: CoverLetter) => void; showToast: (m: string, t?: 'success' | 'error') => void;
+function GenerateCoverLetterForm({ profiles, loaded, onGoToProfiles, onProfilesChanged, backHref, onGenerated, showToast }: {
+  profiles: Resume[]; loaded: boolean; onGoToProfiles: () => void; onProfilesChanged: () => void; backHref: string; onGenerated: (letter: CoverLetter) => void; showToast: (m: string, t?: 'success' | 'error') => void;
 }) {
   const [profileId, setProfileId] = useState('');
   const [source, setSource] = useState<JobSource>('description');
@@ -224,10 +246,13 @@ function GenerateCoverLetterForm({ profiles, loaded, onGoToProfiles, onProfilesC
 
   if (loaded && profiles.length === 0) {
     return (
-      <div className="lab-card p-12 text-center max-w-[820px]">
-        <div className="cs-empty-badge"><Icon name="EnvelopeIcon" size={28} className="text-primary" /></div>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5 leading-relaxed">To generate a cover letter, first create a data profile with your real experience.</p>
-        <button onClick={onGoToProfiles} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth"><Icon name="IdentificationIcon" size={16} /> Go to Profiles</button>
+      <div className="max-w-[820px]">
+        <div className="mb-3"><BackButton href={backHref} label="Back" /></div>
+        <div className="lab-card p-12 text-center">
+          <div className="cs-empty-badge"><Icon name="EnvelopeIcon" size={28} className="text-primary" /></div>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5 leading-relaxed">To generate a cover letter, first create a data profile with your real experience.</p>
+          <button onClick={onGoToProfiles} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth"><Icon name="IdentificationIcon" size={16} /> Go to Profiles</button>
+        </div>
       </div>
     );
   }
@@ -235,7 +260,7 @@ function GenerateCoverLetterForm({ profiles, loaded, onGoToProfiles, onProfilesC
   return (
     <div className="max-w-[820px]">
       <div className="mb-5 flex items-center gap-3">
-        <button onClick={onCancel} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-smooth"><Icon name="ArrowLeftIcon" size={16} /></button>
+        <BackButton href={backHref} label="Back" />
         <div>
           <h2 className="font-heading text-lg font-semibold text-foreground">New cover letter</h2>
           <p className="text-xs text-muted-foreground mt-0.5">Pick a profile, drop in a job, and pick a tone.</p>
@@ -311,7 +336,7 @@ function GenerateCoverLetterForm({ profiles, loaded, onGoToProfiles, onProfilesC
   );
 }
 
-function CoverLetterEditor({ letter, onBack, showToast }: { letter: CoverLetter; onBack: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
+function CoverLetterEditor({ letter, backHref, showToast }: { letter: CoverLetter; backHref: string; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [title, setTitle] = useState(letter.title);
   const [tone, setTone] = useState<CoverLetterTone>(letter.tone);
   const [content, setContent] = useState(letter.content_text);
@@ -381,7 +406,7 @@ function CoverLetterEditor({ letter, onBack, showToast }: { letter: CoverLetter;
   return (
     <div className="max-w-[820px]">
       <div className="mb-5 flex items-center gap-3">
-        <button onClick={onBack} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-smooth"><Icon name="ArrowLeftIcon" size={16} /></button>
+        <BackButton href={backHref} label="Back" className="shrink-0 [&>span]:sr-only sm:[&>span]:not-sr-only" />
         <div className="flex-1">
           <input
             value={title}

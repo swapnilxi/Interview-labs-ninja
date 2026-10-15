@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from .client import NoEmbeddingProviderError, call_ai_text, call_ai_vision, embed_texts, stream_ai_text, test_provider_key
 from .settings import AISettings, GROQ_MODELS, ai_default_info, resolve_model
-from .utils import extract_json_array, extract_json_object
+from .utils import extract_json_array, extract_json_items, extract_json_object
 
 __all__ = [
     "AISettings",
@@ -42,6 +42,7 @@ __all__ = [
     "embed_texts",
     "NoEmbeddingProviderError",
     "extract_json_array",
+    "extract_json_items",
     "extract_json_object",
     "test_provider_key",
 ]

@@ -16,6 +16,7 @@ from modules.common.ai import (
     call_ai_vision as call_vision_ai,
     stream_ai_text as stream_ai,
     extract_json_array as extract_json_array,
+    extract_json_items as extract_json_items,
 )
 
 

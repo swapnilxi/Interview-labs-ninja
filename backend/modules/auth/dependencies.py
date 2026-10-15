@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -9,6 +11,7 @@ from modules.auth.db import get_permission_overrides, get_user_by_id
 from modules.auth.security import decode_token
 
 _bearer = HTTPBearer(auto_error=True)
+_optional_bearer = HTTPBearer(auto_error=False)
 
 _CREDENTIALS_ERROR = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -47,6 +50,26 @@ def get_current_active_user(user: dict = Depends(get_current_user)) -> dict:
 
 def get_current_user_id(user: dict = Depends(get_current_active_user)) -> int:
     return user["id"]
+
+
+def get_optional_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer)) -> Optional[dict]:
+    if not creds:
+        return None
+    claims = decode_token(creds.credentials)
+    if not claims or "sub" not in claims:
+        return None
+    try:
+        user_id = int(claims["sub"])
+    except (KeyError, ValueError):
+        return None
+    user = get_user_by_id(user_id)
+    if user:
+        user["permission_overrides"] = get_permission_overrides(user_id)
+    return user
+
+
+def get_optional_user_id(user: Optional[dict] = Depends(get_optional_user)) -> Optional[int]:
+    return user["id"] if user else None
 
 
 # Role ladder: user < editor < admin < superadmin. "editor" may change LMS content only;

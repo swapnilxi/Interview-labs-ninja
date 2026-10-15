@@ -71,6 +71,10 @@ const nextConfig = {
       // URL still reaches the redirect to the /ai-todo page above.
       { source: '/todo/:path+', destination: '/api/todo/:path+' },
       { source: '/pareto/:path*', destination: '/api/pareto/:path*' },
+      // Lab AI sections + quizzes (fe-apis/labSections). ':path*' also matches the bare /lab-sections.
+      { source: '/lab-sections/:path*', destination: '/api/lab-sections/:path*' },
+      // DSA lab: only the week plan has a Next.js twin (exact path, so /dsa/topics etc. are untouched).
+      { source: '/dsa/week-plan', destination: '/api/dsa/week-plan' },
     ];
   },
   // Cross-Origin Isolation headers required by PDF.js 4.x (SharedArrayBuffer)

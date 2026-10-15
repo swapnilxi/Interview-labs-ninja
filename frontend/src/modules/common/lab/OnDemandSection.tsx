@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import Markdown from '@/modules/common/lab/Markdown';
+import SectionContextPanel from '@/modules/common/lab/SectionContextPanel';
+import AiError from '@/modules/common/lab/AiError';
+import type { ContextMode } from '@/lib/services/labSectionsService';
 
 interface OnDemandSectionProps {
   sectionIndex: number;
@@ -12,6 +16,12 @@ interface OnDemandSectionProps {
   isGenerating: boolean;
   isGenerated: boolean;
   onGenerate: () => void;
+  /** Enables the pen button + context box. Should reject with a readable message on failure. */
+  onGenerateWithContext?: (context: string, mode: ContextMode) => Promise<void>;
+  /** Context saved with the current content; pre-fills the box and marks the pen. */
+  savedContext?: string;
+  /** Why the last Generate failed; shown above the "locked" hint until the section is generated. */
+  error?: string | null;
   children?: React.ReactNode; // for custom render (e.g. quiz)
 }
 
@@ -24,9 +34,13 @@ export default function OnDemandSection({
   isGenerating,
   isGenerated,
   onGenerate,
+  onGenerateWithContext,
+  savedContext,
+  error,
   children,
 }: OnDemandSectionProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
 
   return (
     <div className="reading-card overflow-hidden transition-smooth mb-4 group/section">
@@ -60,6 +74,21 @@ export default function OnDemandSection({
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+          {onGenerateWithContext && (
+            <button
+              type="button"
+              onClick={() => setContextOpen((o) => !o)}
+              title="Add context"
+              aria-label="Add context to this section"
+              aria-expanded={contextOpen}
+              className={`relative p-1.5 rounded-lg transition-colors ${
+                contextOpen ? 'mix-bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <Icon name="PencilIcon" size={14} />
+              {savedContext && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />}
+            </button>
+          )}
           {!isGenerated ? (
             <button
               onClick={onGenerate}
@@ -82,10 +111,17 @@ export default function OnDemandSection({
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-success flex items-center gap-1 font-medium">
-                <Icon name="CheckCircleIcon" size={13} />
-                Done
-              </span>
+              {isGenerating ? (
+                <span className="text-[11px] text-primary flex items-center gap-1.5 font-medium">
+                  <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                  Updating…
+                </span>
+              ) : (
+                <span className="text-[11px] text-success flex items-center gap-1 font-medium">
+                  <Icon name="CheckCircleIcon" size={13} />
+                  Done
+                </span>
+              )}
               {!children && (
                 <button
                   onClick={() => setCollapsed(c => !c)}
@@ -100,72 +136,28 @@ export default function OnDemandSection({
         </div>
       </div>
 
+      {/* ── Context box (pen) ── */}
+      {contextOpen && onGenerateWithContext && (
+        <SectionContextPanel
+          initialContext={savedContext ?? ''}
+          hasContent={isGenerated && !!content?.trim()}
+          busy={isGenerating}
+          onSubmit={onGenerateWithContext}
+          onClose={() => setContextOpen(false)}
+        />
+      )}
+
       {/* ── Content ── */}
       {isGenerated && !collapsed && (
-        <div className="p-5 animate-fade-in">
-          {children ?? (
-            <div className="text-[14px] leading-7 text-foreground space-y-2">
-              {(content ?? '').split('\n').map((line, i) => {
-                if (line.startsWith('```')) return null;
-                if (line.startsWith('**') && line.endsWith('**')) {
-                  return (
-                    <h4 key={i} className="font-semibold text-foreground mt-5 mb-2 text-[15px] flex items-center gap-2">
-                      <span className="w-1 h-4 rounded-full bg-primary/60 flex-shrink-0" />
-                      {line.replace(/\*\*/g, '')}
-                    </h4>
-                  );
-                }
-                if (line.startsWith('- ') || line.startsWith('• ')) {
-                  return (
-                    <div key={i} className="flex gap-2.5 items-start">
-                      <span className="text-primary mt-1.5 flex-shrink-0 text-[8px]">●</span>
-                      <span className="font-body leading-relaxed">{line.replace(/^[-•]\s/, '')}</span>
-                    </div>
-                  );
-                }
-                if (/^\d+\.\s/.test(line)) {
-                  const num = line.match(/^(\d+)\./)?.[1];
-                  return (
-                    <div key={i} className="flex gap-2.5 items-start">
-                      <span className="text-primary font-bold flex-shrink-0 w-5 text-[12px] mt-0.5">{num}.</span>
-                      <span className="leading-relaxed">{line.replace(/^\d+\.\s/, '')}</span>
-                    </div>
-                  );
-                }
-                if (line.trim() === '') return <div key={i} className="h-1" />;
-                return <p key={i} className="font-body leading-relaxed">{line}</p>;
-              })}
-            </div>
-          )}
+        <div className={`p-5 animate-fade-in transition-opacity ${isGenerating ? 'opacity-60' : ''}`}>
+          {children ?? <Markdown content={content ?? ''} />}
         </div>
       )}
 
-      {/* ── Code blocks ── */}
-      {isGenerated && !collapsed && content && content.includes('```') && (
-        <div className="px-5 pb-5">
-          {content.split('```').filter((_, i) => i % 2 === 1).map((code, i) => {
-            const lines = code.split('\n');
-            const lang = lines[0].trim();
-            const codeContent = lines.slice(1).join('\n');
-            return (
-              <div key={i} className="mt-3 rounded-xl overflow-hidden border border-border shadow-sm">
-                <div className="flex items-center justify-between px-4 py-2 bg-muted/80 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400/60" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400/60" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/60" />
-                    </div>
-                    <span className="text-xs text-muted-foreground ml-1">{lang || 'python'}</span>
-                  </div>
-                  <Icon name="CodeBracketIcon" size={13} className="text-muted-foreground/60" />
-                </div>
-                <pre className="p-4 bg-elevated overflow-x-auto">
-                  <code className="text-[13px] font-code text-foreground leading-relaxed whitespace-pre">{codeContent}</code>
-                </pre>
-              </div>
-            );
-          })}
+      {/* ── Generate failed ── */}
+      {!isGenerated && !isGenerating && error && (
+        <div className="px-4 py-2.5 border-t border-border mix-bg-error/10">
+          <AiError message={error} />
         </div>
       )}
 

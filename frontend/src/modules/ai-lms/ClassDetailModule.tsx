@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLmsViewMode } from './context/LmsViewModeContext';
 import { lmsService } from './services/lmsService';
@@ -158,14 +159,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
       {/* Header & Breadcrumbs */}
       <div className="space-y-4 pb-6 border-b border-border">
         <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
-          <Link
-            href="/ai-lms"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-2xs group"
-            title="Back to AI LMS"
-          >
-            <Icon name="ArrowLeftIcon" size={12} className="group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back</span>
-          </Link>
+          <BackButton href="/ai-lms" label="Back" className="-ml-2.5" />
           <div className="h-3.5 w-px bg-border/80" />
           <Link
             href="/ai-lms"

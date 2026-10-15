@@ -61,6 +61,11 @@ interface EisenhowerMatrixProps<T extends MatrixItem> {
   showHeader?: boolean;
   unassignedLabel?: string;
   unassignedHint?: string;
+  /**
+   * `vivid` (default): the original look — tinted, outlined quadrants. `calm`: hairline quadrants on a soft fill with only a
+   * small coloured dot for identity, no glow and no entrance animation (Smart To-Do). Only affects the `grid` layout.
+   */
+  tone?: 'vivid' | 'calm';
 }
 
 const UNASSIGNED = 'unassigned' as const;
@@ -75,12 +80,14 @@ const QUADRANTS: {
   borderActive: string;
   desc: string;
   dot: string;
+  /** Dot in the `calm` tone: the shared status tokens (coral = critical, blue = planned, amber = warning, neutral). */
+  calmDot: string;
   lit: string;
 }[] = [
-  { id: 'do_now',    label: 'DO NOW',    title: 'Do now',    dot: 'bg-red-500',   colorClass: 'text-red-500',   bgClass: 'bg-red-500/5 border-red-500/20',   borderActive: 'border-red-500/60 bg-red-500/10',   desc: 'Urgent & Important', lit: '#ef4444' },
-  { id: 'schedule',  label: 'SCHEDULE',  title: 'Schedule',  dot: 'bg-blue-500',  colorClass: 'text-blue-500',  bgClass: 'bg-blue-500/5 border-blue-500/20',  borderActive: 'border-blue-500/60 bg-blue-500/10',  desc: 'Important, Not Urgent', lit: '#3b82f6' },
-  { id: 'delegate',  label: 'DELEGATE',  title: 'Delegate',  dot: 'bg-amber-500', colorClass: 'text-amber-500', bgClass: 'bg-amber-500/5 border-amber-500/20', borderActive: 'border-amber-500/60 bg-amber-500/10', desc: 'Urgent, Not Important', lit: '#f59e0b' },
-  { id: 'eliminate', label: 'ELIMINATE', title: 'Eliminate', dot: 'bg-gray-400',  colorClass: 'text-gray-500',  bgClass: 'bg-gray-500/5 border-gray-500/20',  borderActive: 'border-gray-400/60 bg-gray-400/10',  desc: 'Neither', lit: '#9ca3af' },
+  { id: 'do_now',    label: 'DO NOW',    title: 'Do now',    dot: 'bg-red-500', calmDot: 'bg-error',   colorClass: 'text-red-500',   bgClass: 'bg-red-500/5 border-red-500/20',   borderActive: 'border-red-500/60 bg-red-500/10',   desc: 'Urgent & Important', lit: '#ef4444' },
+  { id: 'schedule',  label: 'SCHEDULE',  title: 'Schedule',  dot: 'bg-blue-500', calmDot: 'mix-bg-progress',  colorClass: 'text-blue-500',  bgClass: 'bg-blue-500/5 border-blue-500/20',  borderActive: 'border-blue-500/60 bg-blue-500/10',  desc: 'Important, Not Urgent', lit: '#3b82f6' },
+  { id: 'delegate',  label: 'DELEGATE',  title: 'Delegate',  dot: 'bg-amber-500', calmDot: 'bg-warning', colorClass: 'text-amber-500', bgClass: 'bg-amber-500/5 border-amber-500/20', borderActive: 'border-amber-500/60 bg-amber-500/10', desc: 'Urgent, Not Important', lit: '#f59e0b' },
+  { id: 'eliminate', label: 'ELIMINATE', title: 'Eliminate', dot: 'bg-gray-400', calmDot: 'mix-bg-muted-foreground/60',  colorClass: 'text-gray-500',  bgClass: 'bg-gray-500/5 border-gray-500/20',  borderActive: 'border-gray-400/60 bg-gray-400/10',  desc: 'Neither', lit: '#9ca3af' },
 ];
 
 // ── Draggable card ────────────────────────────────────────────────────────────
@@ -89,11 +96,13 @@ function SortableCard<T extends MatrixItem>({
   item,
   renderer,
   gripOnly,
+  calm,
 }: {
   item: T;
   renderer: (item: T, isDragging?: boolean, dragHandle?: DragHandleProps) => React.ReactNode;
   /** The card scrolls and clicks normally; only the grip the renderer places starts a drag. */
   gripOnly?: boolean;
+  calm?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id.toString(),
@@ -138,7 +147,9 @@ function SortableCard<T extends MatrixItem>({
       onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
         if (event.target === event.currentTarget) sensorKeyDown?.(event);
       }}
-      className={`mb-3 cursor-grab active:cursor-grabbing touch-none select-none ${item.is_top_20 ? 'ring-1 ring-amber-400 rounded-xl shadow-sm' : ''}`}
+      className={`mb-3 cursor-grab active:cursor-grabbing touch-none select-none ${
+        item.is_top_20 ? (calm ? 'ring-1 mix-ring-warning/30 rounded-xl' : 'ring-1 ring-amber-400 rounded-xl shadow-sm') : ''
+      }`}
     >
       {renderer(item, isDragging)}
     </div>
@@ -152,13 +163,53 @@ function QuadrantDropZone<T extends MatrixItem>({
   items,
   isOver,
   renderer,
+  calm,
 }: {
   quad: (typeof QUADRANTS)[number];
   items: T[];
   isOver: boolean;
   renderer: (item: T, isDragging?: boolean, dragHandle?: DragHandleProps) => React.ReactNode;
+  calm?: boolean;
 }) {
   const { setNodeRef } = useDroppable({ id: quad.id });
+
+  if (calm) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={`flex min-h-[220px] flex-col overflow-hidden rounded-xl border transition-colors ${
+          isOver ? 'mix-border-primary/60 mix-bg-primary/[0.06]' : 'mix-border-foreground/10 mix-bg-foreground/[0.03]'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${quad.calmDot}`} aria-hidden="true" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-foreground">{quad.label}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>
+          </div>
+          <span className="text-xs text-muted-foreground">{quad.desc}</span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 pb-3 scrollbar-clean">
+          <SortableContext
+            id={quad.id}
+            items={items.map((i) => i.id.toString())}
+            strategy={verticalListSortingStrategy}
+          >
+            {items.length > 0 ? (
+              items.map((item) => (
+                <SortableCard key={item.id} item={item} renderer={renderer} calm />
+              ))
+            ) : (
+              <div className="flex h-full min-h-[120px] items-center justify-center px-2 text-center">
+                <p className="text-xs text-muted-foreground">Drop here → {quad.label}</p>
+              </div>
+            )}
+          </SortableContext>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -288,6 +339,7 @@ function UnassignedStrip<T extends MatrixItem>({
   hint,
   renderer,
   first,
+  calm,
 }: {
   items: T[];
   isOver: boolean;
@@ -296,26 +348,31 @@ function UnassignedStrip<T extends MatrixItem>({
   hint: string;
   renderer: (item: T, isDragging?: boolean, dragHandle?: DragHandleProps) => React.ReactNode;
   first: boolean;
+  calm?: boolean;
 }) {
   const { setNodeRef } = useDroppable({ id: UNASSIGNED, disabled: !droppable });
 
   return (
     <div
       ref={setNodeRef}
-      className={`${first ? 'mb-1' : 'mt-1'} p-3 rounded-xl border border-dashed transition-colors ${
-        isOver ? 'border-blue-400 bg-blue-500/10' : 'mix-border-border/50 mix-bg-muted/20'
+      className={`${first ? 'mb-1' : 'mt-1'} p-3 rounded-xl transition-colors ${
+        calm
+          ? isOver
+            ? 'mix-bg-primary/[0.08]'
+            : 'mix-bg-foreground/[0.04]'
+          : `border border-dashed ${isOver ? 'border-blue-400 bg-blue-500/10' : 'mix-border-border/50 mix-bg-muted/20'}`
       }`}
     >
       <h3 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-2">
-        <FlatIcon name="warning" size={14} /> {label}
-        <span className="bg-muted px-1.5 rounded text-xs">{items.length}</span>
+        {!calm && <FlatIcon name="warning" size={14} />} {label}
+        <span className={calm ? 'tabular-nums' : 'bg-muted px-1.5 rounded text-xs'}>{items.length}</span>
         <span className="text-xs font-normal opacity-70">{hint}</span>
       </h3>
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-clean">
         <SortableContext id={UNASSIGNED} items={items.map((i) => i.id.toString())} strategy={verticalListSortingStrategy}>
           {items.map((item) => (
             <div key={item.id} className="min-w-[200px] shrink-0">
-              <SortableCard item={item} renderer={renderer} />
+              <SortableCard item={item} renderer={renderer} calm={calm} />
             </div>
           ))}
         </SortableContext>
@@ -339,7 +396,9 @@ export default function EisenhowerMatrix<T extends MatrixItem>({
   showHeader = true,
   unassignedLabel = 'Unassigned',
   unassignedHint = '— drag to a quadrant above',
+  tone = 'vivid',
 }: EisenhowerMatrixProps<T>) {
+  const calm = tone === 'calm';
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
@@ -438,13 +497,36 @@ export default function EisenhowerMatrix<T extends MatrixItem>({
         hint={unassignedHint}
         renderer={itemRenderer}
         first={unassignedFirst}
+        calm={calm}
       />
     ) : null;
 
   return (
     <div className="flex flex-col h-full gap-4">
       {/* Header */}
-      {showHeader && (
+      {showHeader && calm && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <h2 className="font-heading text-sm font-semibold text-foreground">
+            Eisenhower Matrix
+            <span className="ml-2 text-xs font-normal text-muted-foreground">Drag cards between quadrants</span>
+          </h2>
+          {showAutoSort && (
+            <button
+              onClick={onAutoSort}
+              disabled={autoSortLoading || items.length === 0}
+              className="todo-btn todo-btn-ghost"
+            >
+              {autoSortLoading ? (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
+              ) : (
+                <Icon name="SparklesIcon" size={14} />
+              )}
+              AI Auto-Sort
+            </button>
+          )}
+        </div>
+      )}
+      {showHeader && !calm && (
         <div className="flex items-center justify-between">
           <h2 className="font-heading font-semibold text-base text-foreground flex items-center gap-2">
             <Icon name="Squares2X2Icon" size={20} className="text-primary" /> Eisenhower Matrix
@@ -495,7 +577,7 @@ export default function EisenhowerMatrix<T extends MatrixItem>({
             {unassignedFirst && unassignedSection}
 
             {/* 2×2 grid */}
-            <div className="todo-stagger grid grid-cols-1 md:grid-cols-2 gap-[1.25rem] flex-1 min-h-0">
+            <div className={`${calm ? '' : 'todo-stagger '}grid grid-cols-1 md:grid-cols-2 gap-[1.25rem] flex-1 min-h-0`}>
               {QUADRANTS.map((quad) => (
                 <QuadrantDropZone
                   key={quad.id}
@@ -503,6 +585,7 @@ export default function EisenhowerMatrix<T extends MatrixItem>({
                   items={categorized[quad.id]}
                   isOver={overTarget === quad.id}
                   renderer={itemRenderer}
+                  calm={calm}
                 />
               ))}
             </div>

@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
+import { buildUrl, sameAddress } from '@/lib/navigation/urlState';
 import { PdfDocument, DocumentChunk } from '../types';
 import PdfChunkCardItem from './PdfChunkCardItem';
 import { useReaderStorage, Bookmark } from '../utils/useReaderStorage';
@@ -9,18 +11,40 @@ import ChunkSearchPanel from './ChunkSearchPanel';
 
 interface PdfDeckReaderViewProps {
   document: PdfDocument;
+  /** "Back" in the header, and "Upload Different Document" on the finished screen. */
   onBackToInput: () => void;
+  /**
+   * Set when the reader is a screen with its own URL (the Swipe PDF Reader page): the card on screen is kept in
+   * the address (&card=<n>) and Back is a real link to `backHref`. Left out when the reader is embedded in
+   * another page (the AI LMS "swipe read" mode), which then behaves exactly as before.
+   */
+  routed?: { backHref: string; card: string | null };
+}
+
+/** `?card=` as a 0-based chunk index; `total` for the finished screen (`card=done`); null when absent or not a valid card. */
+function cardParamToIndex(value: string | null, total: number): number | null {
+  if (value === 'done') return total;
+  if (value === null || !/^\d+$/.test(value)) return null;
+  const n = parseInt(value, 10);
+  return n >= 1 && n <= total ? n - 1 : null;
 }
 
 export default function PdfDeckReaderView({
   document,
   onBackToInput,
+  routed,
 }: PdfDeckReaderViewProps) {
   const storage = useReaderStorage();
   const chunks = document.chunks;
 
+  // The card on screen is mirrored into the URL (&card=<n>, or &card=done for the finish screen), so a refresh or a
+  // shared link reopens the same card. A card named by the URL wins over the position saved on this device.
+  const cardFromUrl = useRef<number | null | undefined>(undefined);
+  if (cardFromUrl.current === undefined) cardFromUrl.current = routed ? cardParamToIndex(routed.card, chunks.length) : null;
+
   // ── Core state ─────────────────────────────────────────────────────────────
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(cardFromUrl.current ?? 0);
+  const [positionReady, setPositionReady] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [exitDirection, setExitDirection] = useState<'left' | 'right' | null>(null);
@@ -54,12 +78,13 @@ export default function PdfDeckReaderView({
         storage.getBookmarksAsync(document.id),
       ]);
       if (cancelled) return;
-      if (saved && saved.chunkIndex > 0 && saved.chunkIndex < chunks.length) {
+      if (saved && saved.chunkIndex > 0 && saved.chunkIndex < chunks.length && cardFromUrl.current === null) {
         setCurrentIndex(saved.chunkIndex);
         setResumeBanner({ chunkIndex: saved.chunkIndex });
       }
       setBookmarks(bms);
       hasInitializedRef.current = true;
+      setPositionReady(true);
     }
     loadState();
     return () => { cancelled = true; };
@@ -73,6 +98,20 @@ export default function PdfDeckReaderView({
       storage.saveProgress(document.id, currentIndex, chunks.length, currentPage);
     }
   }, [currentIndex, document.id, chunks, isFinished, storage]);
+
+  // ── Mirror the card into the URL ──────────────────────────────────────────
+  // history.replaceState (not router.replace): it changes the address at once, with no server round trip per
+  // swipe, and Next.js keeps useSearchParams in step with it. replace, so swiping adds no history entries.
+  const isRouted = !!routed;
+  useEffect(() => {
+    if (!isRouted || !positionReady) return;
+    const here = `${window.location.pathname}${window.location.search}`;
+    if (new URLSearchParams(window.location.search).get('doc') !== document.id) return; // already navigating away
+    const next = buildUrl(window.location.pathname, window.location.search, {
+      card: currentIndex >= chunks.length ? 'done' : currentIndex + 1,
+    });
+    if (!sameAddress(next, here)) window.history.replaceState(window.history.state, '', next);
+  }, [isRouted, positionReady, currentIndex, chunks.length, document.id]);
 
   // ── Reset card animation state when switching chunks ─────────────────────
   useEffect(() => {
@@ -397,14 +436,23 @@ export default function PdfDeckReaderView({
 
       {/* ── Top Header ────────────────────────────────────────────────────── */}
       <div className="w-full flex items-center justify-between gap-2 py-2 border-b border-border/60">
-        <button
-          type="button"
-          onClick={onBackToInput}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shrink-0"
-        >
-          <Icon name="ArrowLeftIcon" size={15} />
-          <span className="hidden sm:inline">Back</span>
-        </button>
+        {routed ? (
+          // Arrow only on phones (the header row is full there, as before); the word shows from `sm` up.
+          <BackButton
+            href={routed.backHref}
+            label="Back"
+            className="shrink-0 [&>span]:sr-only sm:[&>span]:not-sr-only"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={onBackToInput}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shrink-0"
+          >
+            <Icon name="ArrowLeftIcon" size={15} />
+            <span className="hidden sm:inline">Back</span>
+          </button>
+        )}
 
         {/* Center: doc title + chunk/page info (clickable to jump) */}
         <div className="text-center min-w-0 flex-1 px-1">

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import Header from '@/components/common/Header';
 import LmsHomeModule from '@/modules/ai-lms/LmsHomeModule';
+import RouteSpinner from '@/modules/ai-lms/components/RouteSpinner';
 import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
@@ -14,7 +16,9 @@ export default function AiLmsPage() {
       <Header />
       <RequireAuth feature="AI LMS">
         <main className="min-h-screen bg-background pt-[60px]">
-          <LmsHomeModule />
+          <Suspense fallback={<RouteSpinner />}>
+            <LmsHomeModule />
+          </Suspense>
         </main>
       </RequireAuth>
     </>

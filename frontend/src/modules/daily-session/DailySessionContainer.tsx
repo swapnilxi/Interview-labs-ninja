@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import DailySessionInteractive from './DailySessionModule';
 import DailySessionTabSwitcher, { DailySessionTab } from './components/DailySessionTabSwitcher';
@@ -8,6 +8,8 @@ import PracticeMode from './components/PracticeMode';
 import QuickPractice from './components/QuickPractice';
 import ProgressDashboardInteractive from '@/modules/progress-dashboard/ProgressDashboardModule';
 import QuestionBankInteractive from '@/modules/question-bank/QuestionBankModule';
+import SwapnilxiSpace from './components/SwapnilxiSpace';
+import { useAuth } from '@/contexts/AuthContext';
 
 const TAB_HEADER_METADATA: Record<
   DailySessionTab,
@@ -38,29 +40,44 @@ const TAB_HEADER_METADATA: Record<
     subtitle: 'Review, filter & practice your question repository',
     badges: ['Categorized search', 'Difficulty filter', 'CSV export', 'Batch actions'],
   },
+  myspace: {
+    title: 'MySpace · Private Personal Command Deck',
+    subtitle: 'Your personal preparation cockpit · private notes · target tracking & custom questions',
+    badges: ['Personalized', 'Private Notes', 'Target Tracker', 'Question Injector'],
+  },
+  'swapnilxi-space': {
+    title: 'Swapnilxi Private Command Deck',
+    subtitle: 'Creator controls · direct database ingestion · roadmap notes',
+    badges: ['Verified creator', 'Direct injection', 'Persistent notes', 'SuperAdmin deck'],
+  },
 };
 
 function DailySessionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const isSwapnilxi = user?.email?.toLowerCase() === 'swapnilgupta.xi@gmail.com';
+
   const tabParam = searchParams.get('tab') as DailySessionTab | null;
 
-  const validTabs: DailySessionTab[] = ['session', 'practice', 'quick-practice', 'progress', 'question-bank'];
-  const initialTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'session';
+  const validTabs: DailySessionTab[] = [
+    'session',
+    'practice',
+    'quick-practice',
+    'progress',
+    'question-bank',
+    'myspace',
+    'swapnilxi-space',
+  ];
 
-  const [activeTab, setActiveTab] = useState<DailySessionTab>(initialTab);
-
-  // Sync state if URL search param changes
-  useEffect(() => {
-    if (tabParam && validTabs.includes(tabParam) && tabParam !== activeTab) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
+  // The URL is the source of truth for the tab, so Back/Forward, a reload and a shared link all land on the
+  // same one. A missing or unknown ?tab= is the default tab (Daily Session), which is also what Back to a
+  // tab-less /daily-session must show.
+  const activeTab: DailySessionTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'session';
 
   const handleTabChange = (newTab: DailySessionTab) => {
-    setActiveTab(newTab);
     const targetUrl = newTab === 'session' ? '/daily-session' : `/daily-session?tab=${newTab}`;
-    router.replace(targetUrl, { scroll: false });
+    router.push(targetUrl, { scroll: false });
   };
 
   const currentMeta = TAB_HEADER_METADATA[activeTab] || TAB_HEADER_METADATA.session;
@@ -124,6 +141,7 @@ function DailySessionContent() {
         {activeTab === 'quick-practice' && <QuickPractice />}
         {activeTab === 'progress' && <ProgressDashboardInteractive embedded />}
         {activeTab === 'question-bank' && <QuestionBankInteractive embedded />}
+        {(activeTab === 'swapnilxi-space' || activeTab === 'myspace') && <SwapnilxiSpace />}
       </div>
     </div>
   );

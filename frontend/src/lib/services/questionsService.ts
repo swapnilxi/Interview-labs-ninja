@@ -10,6 +10,8 @@ export interface Question {
   difficulty: 'Easy' | 'Medium' | 'Hard';
   questionType?: string;
   dateEncountered: string;
+  /** The session this question was generated for (undefined for offline/local questions). */
+  sessionId?: string;
   lastReviewed: string | null;
   userPerformance?: number;
 }
@@ -38,6 +40,7 @@ function mapBackendQuestion(q: any): Question {
     difficulty,
     questionType: q.question_type || q.sub_type,
     dateEncountered: q.question_date,
+    sessionId: q.session_id != null ? String(q.session_id) : undefined,
     lastReviewed: q.last_reviewed || null,
     userPerformance: q.user_performance ?? undefined,
   };
@@ -56,6 +59,20 @@ export const questionsService = {
       console.error('Failed to fetch questions:', error);
       return [];
     }
+  },
+
+  async getById(id: string): Promise<Question | null> {
+    try {
+      const res = await apiFetch(`/questions/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        return mapBackendQuestion(data);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch question ${id}:`, error);
+    }
+    const all = await this.getAll();
+    return all.find((q) => String(q.id) === String(id)) || null;
   },
 
   async upsertMany(questions: Omit<Question, 'id'>[]): Promise<void> {
@@ -118,6 +135,42 @@ export const questionsService = {
       }
     } catch (error) {
       console.error(`Failed to update performance for question ${id}:`, error);
+    }
+  },
+
+  async clearDuplicates(): Promise<{ cleared_count: number; message: string }> {
+    try {
+      const res = await apiFetch('/questions/clear-duplicates', {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to clear duplicates:', error);
+      throw error;
+    }
+  },
+
+  async importDeck(payload: {
+    date?: string;
+    session?: string;
+    format?: string;
+    questions: any[];
+  }): Promise<{ success: boolean; total: number; inserted: number; duplicates: number; message: string }> {
+    try {
+      const res = await apiFetch('/questions/import-deck', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      return await res.json();
+    } catch (error) {
+      console.error('Failed to import deck to question bank:', error);
+      throw error;
     }
   },
 };

@@ -1,10 +1,23 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { questionsService, Question } from '@/lib/services/questionsService';
+import CompanionBubble from '../companion/CompanionBubble';
+import CompanionSettings from '../companion/CompanionSettings';
+import CompanionControls from '../companion/CompanionControls';
+import { useCompanionSettings } from '../companion/useCompanion';
+import { isSoundscapePlaying, playSoundscape, setSoundscapeVolume, stopSoundscape, playChime } from '../companion/soundscape';
+import { speak, stopSpeaking } from '../companion/voice';
+import { line, Mood } from '../companion/content';
+import { apiFetch, parseApiError } from '@/lib/http/apiClient';
+import { defaultAIRequestFields } from '@/lib/services/settingsService';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
+import { openLoginModal } from '@/components/auth/LoginModal';
+import { DECK_CATEGORY, cardsFromAi, MAX_IMPORT_BYTES, loadDeck, mergeDeck, parseDeckJson, saveDeck, type ParseResult, type QuickCard } from './quickDeck';
 
-const QUICK_FLASHCARD_POOL: { question: string; answer: string; category: string; subType: string; difficulty: string }[] = [
+const QUICK_FLASHCARD_POOL: QuickCard[] = [
   {
     question: 'What is the time and space complexity of accessing, inserting, and deleting in a Hash Map vs a Balanced BST?',
     answer: 'Hash Map: Average O(1) time for search/insert/delete, worst case O(N) on hash collisions. Space O(N).\nBalanced BST (e.g. Red-Black / AVL): Guaranteed O(log N) worst-case time for search/insert/delete. Maintains sorted order.',
@@ -57,15 +70,49 @@ const QUICK_FLASHCARD_POOL: { question: string; answer: string; category: string
 ];
 
 export default function QuickPractice() {
-  const [cards, setCards] = useState(QUICK_FLASHCARD_POOL);
+  const [baseCards, setBaseCards] = useState<QuickCard[]>(QUICK_FLASHCARD_POOL);
+  const [deck, setDeck] = useState<QuickCard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRevealed, setIsRevealed] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState<'All' | 'Interview' | 'CV Skill'>('All');
+  const [categoryFilter, setCategoryFilter] = useState<string>('All');
+  const [topicFilter, setTopicFilter] = useState('All');
+  const cards = [...baseCards, ...deck];
+
+  // Import panel
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importFileName, setImportFileName] = useState('');
+  const [importResult, setImportResult] = useState<ParseResult | null>(null);
+  const [importNote, setImportNote] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
+  useEffect(() => setDeck(loadDeck()), []);
+
+  // Companion
+  const [settings, updateSettings] = useCompanionSettings();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [msg, setMsg] = useState('Quick round! Think first, then reveal. I believe in you.');
+  const [msgMood, setMsgMood] = useState<Mood>('happy');
+
+  const say = (text: string, m: Mood) => {
+    setMsg(text);
+    setMsgMood(m);
+    if (settings.voiceOn && settings.mascotOn) speak(text, settings.voicePreset, settings.voiceURI);
+  };
+
+  // Start the focus sound on the first tap (browsers block audio before a gesture); silence on leave.
+  const ensureSound = () => {
+    if (settings.sound !== 'off' && !settings.soundMuted && !isSoundscapePlaying()) {
+      playSoundscape(settings.sound);
+      setSoundscapeVolume(settings.volume);
+    }
+  };
+  useEffect(() => () => { stopSoundscape(); stopSpeaking(); }, []);
 
   // Blitz Score
   const [streak, setStreak] = useState(0);
   const [masteredCount, setMasteredCount] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
+  const [isSyncingToBank, setIsSyncingToBank] = useState(false);
 
   // Try to load additional cards from backend
   useEffect(() => {
@@ -81,7 +128,7 @@ export default function QuickPractice() {
             difficulty: q.difficulty,
           }));
           // Combine with our rich prompt cards
-          setCards([...QUICK_FLASHCARD_POOL, ...mapped]);
+          setBaseCards([...QUICK_FLASHCARD_POOL, ...mapped]);
         }
       } catch (e) {
         // Fallback remains active
@@ -90,10 +137,126 @@ export default function QuickPractice() {
     loadDbQuestions();
   }, []);
 
+  const deckTopics = [...new Set(deck.map((c) => c.subType))].sort();
   const filteredCards = cards.filter((c) => {
-    if (categoryFilter === 'All') return true;
-    return c.category === categoryFilter;
+    if (categoryFilter !== 'All' && c.category !== categoryFilter) return false;
+    if (categoryFilter === DECK_CATEGORY && topicFilter !== 'All' && c.subType !== topicFilter) return false;
+    return true;
   });
+
+  const pickFile = async (file: File | undefined) => {
+    if (!file) return;
+    setImportNote(null);
+    if (file.size > MAX_IMPORT_BYTES) {
+      setImportResult({ cards: [], skipped: [], error: 'That file is over 2 MB. Split it into smaller decks.' });
+      return;
+    }
+    const text = await file.text();
+    setImportFileName(file.name);
+    setImportText(text);
+    setImportResult(parseDeckJson(text));
+  };
+
+  const convertWithAi = async () => {
+    if (!importText.trim()) return;
+    if (!isLoggedIn()) {
+      openLoginModal({ feature: 'AI import', redirectTo: `${window.location.pathname}${window.location.search}` });
+      return;
+    }
+    setConverting(true);
+    try {
+      const res = await apiFetch('/sessions/convert-flashcards', {
+        method: 'POST',
+        body: JSON.stringify({ text: importText, ...defaultAIRequestFields() }),
+      });
+      if (!res.ok) throw new Error(await parseApiError(res));
+      const data = await res.json();
+      const cards = cardsFromAi(data.cards ?? []);
+      if (!cards.length) {
+        setImportResult({ cards: [], skipped: [], error: 'The AI could not find any question/answer pairs in that text.' });
+      } else {
+        const notes = [data.truncated ? 'Only the first ~40,000 characters were converted.' : '', data.failed_chunks ? `${data.failed_chunks} part(s) could not be converted.` : ''].filter(Boolean);
+        setImportResult({ cards, skipped: notes.map((reason, i) => ({ index: i + 1, reason })), format: 'Converted by AI. Check the cards before relying on them' });
+      }
+    } catch (e: any) {
+      setImportResult({ cards: [], skipped: [], error: e?.message || 'AI conversion failed.' });
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  const applyImport = async (mode: 'add' | 'replace') => {
+    if (!importResult || importResult.error || !importResult.cards.length) return;
+    setIsSyncingToBank(true);
+    const next = mode === 'replace' ? importResult.cards : mergeDeck(deck, importResult.cards);
+    if (!saveDeck(next)) {
+      setImportResult({ ...importResult, error: 'Your browser would not store this deck (storage is full or disabled).' });
+      setIsSyncingToBank(false);
+      return;
+    }
+    setDeck(next);
+    setCategoryFilter(DECK_CATEGORY);
+    setTopicFilter('All');
+    setCurrentIndex(0);
+    setIsRevealed(false);
+
+    let bankSyncNote = '';
+    try {
+      const payload = {
+        date: importResult.date || new Date().toISOString().split('T')[0],
+        session: importResult.session || 'Quick Practice Deck',
+        format: importResult.deckFormat || '2-minute quick learning',
+        questions: importResult.cards.map((c, idx) => ({
+          id: c.sourceId || idx + 1,
+          topic: c.subType,
+          title: c.title,
+          question: c.question,
+          answer: c.answer,
+          remember: c.remember,
+          example: c.example,
+          formula: c.formula,
+          interview_tip: c.interviewTip,
+          tradeoffs: c.tradeoffs,
+          checklist: c.checklist,
+          steps: c.steps,
+          difficulty: c.difficulty || 'Medium',
+        })),
+      };
+
+      const res = await questionsService.importDeck(payload);
+      if (res && res.success) {
+        if (res.inserted > 0 && res.duplicates > 0) {
+          bankSyncNote = ` · Saved ${res.inserted} new questions to Question Bank (${res.duplicates} existing duplicates skipped).`;
+        } else if (res.inserted > 0) {
+          bankSyncNote = ` · Saved ${res.inserted} question(s) to Question Bank.`;
+        } else if (res.duplicates > 0) {
+          bankSyncNote = ` · All ${res.duplicates} question(s) already in Question Bank.`;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sync questions to Question Bank:', err);
+      bankSyncNote = ' · (Deck loaded in practice; Question Bank sync unavailable).';
+    } finally {
+      setIsSyncingToBank(false);
+    }
+
+    setImportNote(`${mode === 'replace' ? 'Replaced your deck with' : 'Added'} ${importResult.cards.length} card${importResult.cards.length === 1 ? '' : 's'}.${bankSyncNote}`);
+    setImportText('');
+    setImportFileName('');
+    setImportResult(null);
+    setImportOpen(false);
+    say(`Deck loaded with ${next.length} cards and synced to Question Bank!`, 'cheer');
+  };
+
+  const clearDeck = () => {
+    if (!window.confirm(`Remove all ${deck.length} cards from your uploaded deck?`)) return;
+    saveDeck([]);
+    setDeck([]);
+    setCategoryFilter('All');
+    setTopicFilter('All');
+    setCurrentIndex(0);
+    setIsRevealed(false);
+  };
 
   const currentCard = filteredCards[currentIndex % filteredCards.length] || QUICK_FLASHCARD_POOL[0];
 
@@ -111,12 +274,16 @@ export default function QuickPractice() {
   const handleGotIt = () => {
     setMasteredCount((prev) => prev + 1);
     setStreak((prev) => prev + 1);
+    if (settings.chimes && !settings.soundMuted) playChime('good', settings.volume);
+    say(line('nailed'), 'cheer');
     handleNext();
   };
 
   const handleNeedsReview = () => {
     setReviewCount((prev) => prev + 1);
     setStreak(0);
+    if (settings.chimes && !settings.soundMuted) playChime('soft', settings.volume);
+    say(line('review'), 'comfort');
     handleNext();
   };
 
@@ -129,6 +296,13 @@ export default function QuickPractice() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 animate-fade-in">
+      <div className="flex items-end justify-between gap-3">
+        <div className="flex-1">
+          <CompanionBubble text={msg} mood={msgMood} onSpeak={() => say(msg, msgMood)} />
+        </div>
+        <CompanionControls settings={settings} update={updateSettings} onOpenSettings={() => setSheetOpen(true)} />
+      </div>
+      <CompanionSettings open={sheetOpen} onClose={() => setSheetOpen(false)} settings={settings} update={updateSettings} />
       {/* Top Blitz Scoreboard */}
       <div className="grid grid-cols-3 gap-3 rounded-2xl border border-border bg-card/80 p-4 backdrop-blur-md shadow-sm">
         <div className="flex items-center gap-3">
@@ -170,13 +344,14 @@ export default function QuickPractice() {
 
       {/* Filter and Shuffle Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/30 p-1">
-          {(['All', 'Interview', 'CV Skill'] as const).map((cat) => (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-muted/30 p-1">
+          {(['All', 'Interview', 'CV Skill', ...(deck.length ? [DECK_CATEGORY] : [])]).map((cat) => (
             <button
               key={cat}
               type="button"
               onClick={() => {
                 setCategoryFilter(cat);
+                setTopicFilter('All');
                 setCurrentIndex(0);
                 setIsRevealed(false);
               }}
@@ -186,10 +361,41 @@ export default function QuickPractice() {
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {cat === 'All' ? 'All Questions' : cat}
+              {cat === 'All' ? 'All Questions' : cat === DECK_CATEGORY ? `${DECK_CATEGORY} (${deck.length})` : cat}
             </button>
           ))}
         </div>
+
+        {categoryFilter === DECK_CATEGORY && deckTopics.length > 1 && (
+          <select
+            value={topicFilter}
+            onChange={(e) => {
+              setTopicFilter(e.target.value);
+              setCurrentIndex(0);
+              setIsRevealed(false);
+            }}
+            aria-label="Filter deck by topic"
+            className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground"
+          >
+            <option value="All">All topics</option>
+            {deckTopics.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            setImportOpen((o) => !o);
+            setImportNote(null);
+          }}
+          aria-expanded={importOpen}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors shadow-sm"
+        >
+          <Icon name="ArrowUpTrayIcon" size={14} />
+          Import JSON
+        </button>
 
         <button
           type="button"
@@ -200,6 +406,128 @@ export default function QuickPractice() {
           Random Shuffle
         </button>
       </div>
+
+      {importNote && !importOpen && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+          <span>{importNote}</span>
+          {deck.length > 0 && (
+            <button type="button" onClick={clearDeck} className="underline">Remove my deck</button>
+          )}
+        </div>
+      )}
+
+      {importOpen && (
+        <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm animate-fade-in">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <span>Import Flashcard Deck</span>
+                <span className="text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full">
+                  Auto-syncs to Question Bank
+                </span>
+              </h4>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                Upload or paste your JSON format with <code>date</code>, <code>session</code>, <code>format</code>, and <code>questions</code>.
+                Rich fields supported: <code>title</code>, <code>topic</code>, <code>question</code>, <code>answer</code>, <code>remember</code>, <code>example</code>, <code>interview_tip</code>, <code>tradeoffs</code>, <code>checklist</code>, <code>steps</code>, and <code>formula</code>.
+                Questions are loaded into your practice deck and automatically saved to your Question Bank with SQL deduplication.
+              </p>
+            </div>
+            <button type="button" onClick={() => setImportOpen(false)} aria-label="Close import" className="text-muted-foreground hover:text-foreground">✕</button>
+          </div>
+
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3 text-xs font-semibold text-muted-foreground hover:border-primary/50">
+            <span>{importFileName || 'Choose a JSON file (.json, .txt, .csv, .md)…'}</span>
+            <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-primary">Browse</span>
+            <input type="file" accept=".json,.jsonl,.csv,.tsv,.txt,.md,application/json,text/plain,text/csv" className="hidden" onChange={(e) => { void pickFile(e.target.files?.[0]); e.target.value = ''; }} />
+          </label>
+
+          <textarea
+            value={importText}
+            spellCheck={false}
+            onChange={(e) => {
+              setImportText(e.target.value);
+              setImportFileName('');
+              setImportResult(e.target.value.trim() ? parseDeckJson(e.target.value) : null);
+            }}
+            rows={8}
+            placeholder={`{\n  "date": "2026-09-22",\n  "session": "Daily Interview Revision",\n  "format": "2-minute quick learning",\n  "questions": [\n    {\n      "id": 1,\n      "topic": "DSA",\n      "title": "Sliding Window",\n      "question": "When should you use a sliding window?",\n      "answer": "Use it for contiguous subarrays or substrings when you can maintain a condition while expanding and shrinking the window.",\n      "remember": [\n        "Expand right",\n        "Shrink left when constraint breaks",\n        "Often reduces O(n²) to O(n)"\n      ],\n      "example": "Longest substring without repeating characters.",\n      "interview_tip": "First ask whether the problem involves a contiguous range."\n    }\n  ]\n}`}
+            aria-label="Paste flashcards JSON"
+            className="w-full resize-y rounded-xl border border-border bg-input px-3.5 py-2.5 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none"
+          />
+
+          {importResult?.error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-300">{importResult.error}</p>}
+          {importText.trim() && (!importResult || importResult.error) && (
+            <button
+              type="button"
+              onClick={convertWithAi}
+              disabled={converting}
+              className="inline-flex items-center gap-2 rounded-xl border-2 border-violet-300 bg-violet-50 px-4 py-2 text-xs font-bold text-violet-800 disabled:opacity-60 dark:border-violet-500/40 dark:bg-violet-500/10 dark:text-violet-200"
+            >
+              {converting ? 'Converting…' : '✨ Convert with AI'}
+              <span className="font-medium opacity-70">restructures your text, adds nothing</span>
+            </button>
+          )}
+          {importResult && !importResult.error && (
+            <div className="space-y-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 font-bold">
+                <span>
+                  Found {importResult.cards.length} card{importResult.cards.length === 1 ? '' : 's'}
+                  {importResult.skipped.length > 0 && ` · skipped ${importResult.skipped.length}`}
+                </span>
+                {(importResult.date || importResult.session) && (
+                  <span className="text-[11px] font-normal opacity-90">
+                    {importResult.session && `Session: ${importResult.session}`}
+                    {importResult.date && ` (${importResult.date})`}
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                ✓ Cards will be loaded into Quick Practice & stored in SQLite Question Bank.
+              </div>
+              {importResult.format && <div className="opacity-80 text-[11px]">Format: {importResult.format}</div>}
+              {importResult.skipped.slice(0, 5).map((k) => (
+                <div key={k.index} className="text-amber-700 dark:text-amber-300 text-[11px]">Item {k.index}: {k.reason}</div>
+              ))}
+              {importResult.skipped.length > 5 && <div className="text-amber-700 dark:text-amber-300 text-[11px]">…and {importResult.skipped.length - 5} more.</div>}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!importResult || !!importResult.error || isSyncingToBank}
+              onClick={() => applyImport('add')}
+              className="rounded-xl bg-gradient-to-r from-primary to-violet-600 px-4 py-2 text-xs font-bold text-white shadow-sm disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {isSyncingToBank ? (
+                <>
+                  <Icon name="ArrowPathIcon" size={13} className="animate-spin" />
+                  Saving to Question Bank...
+                </>
+              ) : deck.length ? (
+                'Add to my deck & Question Bank'
+              ) : (
+                'Import deck & save to Question Bank'
+              )}
+            </button>
+            {deck.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  disabled={!importResult || !!importResult.error || isSyncingToBank}
+                  onClick={() => applyImport('replace')}
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-foreground disabled:opacity-40"
+                >
+                  Replace my deck
+                </button>
+                <button type="button" onClick={clearDeck} className="ml-auto text-xs font-semibold text-rose-500 hover:underline">
+                  Remove my deck ({deck.length})
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main Flashcard Container */}
       <div className="relative min-h-[340px] rounded-3xl border border-border bg-card p-6 sm:p-10 shadow-md flex flex-col justify-between overflow-hidden">
@@ -215,9 +543,16 @@ export default function QuickPractice() {
               <span className="rounded-md border border-border bg-muted/60 px-2.5 py-1 text-xs font-medium text-foreground">
                 {currentCard.subType}
               </span>
-              <span className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${difficultyColor}`}>
-                {currentCard.difficulty}
-              </span>
+              {currentCard.difficulty && (
+                <span className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${difficultyColor}`}>
+                  {currentCard.difficulty}
+                </span>
+              )}
+              {currentCard.imported && (
+                <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                  Deck & Bank
+                </span>
+              )}
             </div>
             <span className="text-xs font-medium text-muted-foreground">
               Card {currentIndex + 1} of {filteredCards.length}
@@ -226,6 +561,9 @@ export default function QuickPractice() {
 
           {/* Question Text */}
           <div className="my-6">
+            {currentCard.title && (
+              <div className="mb-1.5 text-xs font-bold uppercase tracking-wider text-primary">{currentCard.title}</div>
+            )}
             <h3 className="font-heading text-lg sm:text-2xl font-bold text-foreground leading-relaxed">
               {currentCard.question}
             </h3>
@@ -234,20 +572,120 @@ export default function QuickPractice() {
 
         {/* Revealed Answer Box */}
         {isRevealed ? (
-          <div className="my-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5 animate-fade-in space-y-2">
-            <div className="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
-              <Icon name="CheckCircleIcon" size={18} variant="solid" />
-              Model Answer & Key Takeaway:
+          <div className="my-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5 animate-fade-in space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
+                <Icon name="CheckCircleIcon" size={18} variant="solid" />
+                Model Answer & Key Takeaway:
+              </div>
+              <Link
+                href="/daily-session?tab=question-bank"
+                className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1"
+              >
+                Question Bank
+                <Icon name="ArrowTopRightOnSquareIcon" size={12} />
+              </Link>
             </div>
             <div className="text-xs sm:text-sm text-foreground/90 whitespace-pre-line leading-relaxed font-body">
               {currentCard.answer}
             </div>
+
+            {/* Formula */}
+            {currentCard.formula && (
+              <div className="rounded-xl border border-border bg-muted/50 px-3.5 py-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Icon name="CalculatorIcon" size={13} />
+                  Formula
+                </div>
+                <div className="mt-1 font-mono text-xs sm:text-sm text-foreground whitespace-pre-line">{currentCard.formula}</div>
+              </div>
+            )}
+
+            {/* Example */}
+            {currentCard.example && (
+              <div className="rounded-xl border border-border/80 bg-muted/40 px-3.5 py-2 text-xs sm:text-sm text-foreground/90 leading-relaxed">
+                <span className="font-bold text-foreground">Example: </span>{currentCard.example}
+              </div>
+            )}
+
+            {/* Remember */}
+            {currentCard.remember && currentCard.remember.length > 0 && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <Icon name="LightBulbIcon" size={13} />
+                  Remember
+                </div>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs sm:text-sm text-foreground">
+                  {currentCard.remember.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Interview Tip */}
+            {currentCard.interviewTip && (
+              <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3.5 py-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
+                  <Icon name="SparklesIcon" size={13} />
+                  Interview Tip
+                </div>
+                <div className="mt-1 text-xs sm:text-sm font-medium text-foreground leading-relaxed">
+                  {currentCard.interviewTip}
+                </div>
+              </div>
+            )}
+
+            {/* Trade-offs */}
+            {currentCard.tradeoffs && currentCard.tradeoffs.length > 0 && (
+              <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 px-3.5 py-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300 flex items-center gap-1.5">
+                  <Icon name="ScaleIcon" size={13} />
+                  Key Trade-offs
+                </div>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs sm:text-sm text-foreground">
+                  {currentCard.tradeoffs.map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Checklist */}
+            {currentCard.checklist && currentCard.checklist.length > 0 && (
+              <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300 flex items-center gap-1.5">
+                  <Icon name="ClipboardDocumentCheckIcon" size={13} />
+                  Checklist
+                </div>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs sm:text-sm text-foreground">
+                  {currentCard.checklist.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Steps */}
+            {currentCard.steps && currentCard.steps.length > 0 && (
+              <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3.5 py-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                  <Icon name="QueueListIcon" size={13} />
+                  Execution Steps
+                </div>
+                <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-xs sm:text-sm text-foreground">
+                  {currentCard.steps.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </div>
         ) : (
           <div className="my-6 flex items-center justify-center">
             <button
               type="button"
-              onClick={() => setIsRevealed(true)}
+              onClick={() => { ensureSound(); setIsRevealed(true); }}
               className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-violet-600 px-8 py-4 text-sm font-bold text-white shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-transform"
             >
               <Icon name="EyeIcon" size={18} variant="solid" />

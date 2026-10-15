@@ -10,4 +10,4 @@ export { callAIText, embedTexts, NoEmbeddingProviderError } from './client';
 export type { AISettingsPayload } from './client';
 export { resolveModel, aiDefaultInfo } from './defaults';
 export type { AIDefaultInfo } from './defaults';
-export { cleanHtmlOutput, extractJsonObject } from './utils';
+export { cleanHtmlOutput, extractJsonItems, extractJsonObject } from './utils';

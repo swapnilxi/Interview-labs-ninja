@@ -35,8 +35,55 @@ class AnalyzeRequest(AISettings):
 
 
 def _get_ai_helpers():
-    from ..shared.ai_helpers import call_ai as _call_ai, extract_json_array as _extract_json_array
-    return _call_ai, _extract_json_array
+    from ..shared.ai_helpers import call_ai as _call_ai, extract_json_items as _extract_json_items
+    return _call_ai, _extract_json_items
+
+
+# One analysis scores at most this many items (a bigger scope is trimmed, as it always was).
+_BATCH_LIMIT = 60
+# If a reply is cut off, the items it never reached are sent again, at most this many calls in all.
+_MAX_PASSES = 3
+
+
+def _analysis_max_tokens(count: int) -> int:
+    """Output budget for scoring `count` items in one reply.
+
+    A scored item is ~45-60 output tokens (a pretty-printed JSON object plus a one-line reason). The default 2,048
+    holds only ~35 of them: past that every provider silently cuts the reply off mid-array, and the answer used to
+    fail with "No JSON array found in response" although most of the scores were already there.
+    """
+    return min(6000, 600 + 80 * count)
+
+
+def _analysis_prompt(batch: List[Dict[str, Any]]) -> str:
+    return f"""You are a productivity strategist applying the 80/20 Pareto Principle.
+Analyze these tasks and identify which 20% will produce 80% of meaningful results.
+Consider: strategic impact, dependency (other tasks blocked on this), alignment with stated
+intentions, urgency vs importance, and which tasks remove the most friction.
+
+Tasks:
+{json.dumps(batch, indent=2)}
+
+For each task return a pareto_score between 0.0 and 1.0 and a short reason (at most 12 words).
+is_top_20 should be true ONLY for roughly the top {max(1, len(batch) // 5)} tasks in this list.
+Return ONLY a JSON array with one object per task, no markdown and no extra text:
+[
+  {{ "table": "tasks", "id": 1, "pareto_score": 0.92, "is_top_20": true, "reason": "Unblocks 4 other tasks" }}
+]"""
+
+
+def _result_key(res: Dict[str, Any], pending: List[Dict[str, Any]]) -> tuple:
+    """The (table, id) a scored result refers to. Models drop or mangle `table`; when the id is unique in the batch
+    that is enough to tell which item was meant."""
+    table = res.get("table")
+    try:
+        tid = int(res.get("id"))
+    except (TypeError, ValueError):
+        return (None, None)
+    if table not in _VALID_TABLES:
+        tables = {it["table"] for it in pending if it["id"] == tid}
+        table = next(iter(tables)) if len(tables) == 1 else None
+    return (table, tid)
 
 
 def _fetch_scope_items(cursor: sqlite3.Cursor, scope: str, user_id: int) -> List[Dict[str, Any]]:
@@ -107,31 +154,37 @@ async def analyze_pareto_endpoint(payload: AnalyzeRequest, user_id: int = Depend
     if not items:
         return {"results": [], "message": "No un-locked tasks to analyze in this scope."}
 
-    _call_ai, _extract_json_array = _get_ai_helpers()
+    _call_ai, _extract_json_items = _get_ai_helpers()
 
     # Cap to avoid blowing the prompt token budget on very large scopes.
-    batch = items[:60]
-    prompt = f"""You are a productivity strategist applying the 80/20 Pareto Principle.
-Analyze these tasks and identify which 20% will produce 80% of meaningful results.
-Consider: strategic impact, dependency (other tasks blocked on this), alignment with stated
-intentions, urgency vs importance, and which tasks remove the most friction.
+    batch = items[:_BATCH_LIMIT]
+    wanted = {(it["table"], it["id"]) for it in batch}
+    scored: Dict[tuple, Dict[str, Any]] = {}
+    pending = batch
+    for _ in range(_MAX_PASSES):
+        try:
+            response_text = _call_ai(_analysis_prompt(pending), payload, max_tokens=_analysis_max_tokens(len(pending)))
+            found, complete = _extract_json_items(response_text)
+        except Exception as exc:
+            if scored:
+                break  # keep what the earlier passes scored; the gap is reported in the response
+            raise HTTPException(status_code=500, detail=f"AI Pareto Analysis failed: {exc}")
+        before = len(scored)
+        for res in found:
+            key = _result_key(res, pending)
+            if key in wanted and key not in scored:
+                scored[key] = {**res, "table": key[0], "id": key[1]}
+        pending = [it for it in pending if (it["table"], it["id"]) not in scored]
+        # Go again only for a reply that was cut off and still got somewhere.
+        if complete or not pending or len(scored) == before:
+            break
 
-Tasks:
-{json.dumps(batch, indent=2)}
-
-For each task return a pareto_score between 0.0 and 1.0 and a one-line reason.
-is_top_20 should be true ONLY for roughly the top {max(1, len(batch) // 5)} tasks in this list.
-Return ONLY JSON:
-[
-  {{ "table": "tasks", "id": 1, "pareto_score": 0.92, "is_top_20": true, "reason": "Unblocks 4 other tasks" }}
-]
-No extra text."""
-
-    try:
-        response_text = _call_ai(prompt, payload)
-        results = _extract_json_array(response_text)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"AI Pareto Analysis failed: {exc}")
+    results = [scored[(it["table"], it["id"])] for it in batch if (it["table"], it["id"]) in scored]
+    if not results:
+        raise HTTPException(
+            status_code=500,
+            detail="AI Pareto Analysis failed: the AI's reply had no score for any of these tasks",
+        )
 
     conn = sqlite3.connect(get_db_path())
     try:
@@ -139,10 +192,13 @@ No extra text."""
         for res in results:
             table = res.get("table")
             tid = res.get("id")
-            score = res.get("pareto_score")
+            try:
+                score = float(res.get("pareto_score"))
+            except (TypeError, ValueError):
+                continue
             top20 = 1 if res.get("is_top_20") else 0
             reason = res.get("reason")
-            if table in _VALID_TABLES and tid and score is not None:
+            if table in _VALID_TABLES and tid:
                 # table is re-checked against _VALID_TABLES right before interpolation —
                 # never build this query from an unvalidated table name.
                 cursor.execute(
@@ -155,7 +211,12 @@ No extra text."""
         conn.close()
 
     top20_count = sum(1 for r in results if r.get("is_top_20"))
-    return {"results": results, "analyzed_count": len(results), "top20_count": top20_count}
+    response: Dict[str, Any] = {"results": results, "analyzed_count": len(results), "top20_count": top20_count}
+    missed = len(batch) - len(results)
+    if missed > 0:
+        response["partial"] = True
+        response["message"] = f"The AI scored {len(results)} of {len(batch)} items; run the analysis again to retry the other {missed}."
+    return response
 
 
 @router.get("/top20")
@@ -227,7 +288,7 @@ async def reanalyze_single_endpoint(table: str, item_id: int, payload: AnalyzeRe
     finally:
         conn.close()
 
-    _call_ai, _extract_json_array = _get_ai_helpers()
+    _call_ai, _extract_json_items = _get_ai_helpers()
 
     prompt = f"""You are a productivity strategist. Evaluate this single task on a scale of 0.0 to 1.0 for its
 Pareto (80/20) impact — strategic value, dependencies it unblocks, urgency vs importance, and friction removed.
@@ -241,11 +302,13 @@ Return ONLY JSON:
 No extra text."""
 
     try:
-        response_text = _call_ai(prompt, payload)
-        results = _extract_json_array(response_text)
+        response_text = _call_ai(prompt, payload, max_tokens=600)
+        results, _complete = _extract_json_items(response_text)
         if not results:
             raise ValueError("No result returned")
         res = results[0]
+        if res.get("pareto_score") is None:
+            raise ValueError("the AI's answer had no pareto_score")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI Pareto Analysis failed: {exc}")
 

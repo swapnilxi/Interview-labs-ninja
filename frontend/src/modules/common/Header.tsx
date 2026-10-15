@@ -1,5 +1,6 @@
 'use client';
 
+import { openLoginModal } from '@/components/auth/LoginModal';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -149,10 +150,10 @@ function AuthStatus() {
   const { user, isGuest, logout } = useAuth();
   if (isGuest) {
     return (
-      <Link href="/login" className="app-nav-link">
+      <button type="button" onClick={() => openLoginModal()} className="app-nav-link">
         <Icon name="UserCircleIcon" size={18} variant="outline" />
         <span>Log in</span>
-      </Link>
+      </button>
     );
   }
   return (

@@ -21,8 +21,6 @@ function getBundledPath(dbName: string): string | null {
   const sources = [
     path.join(cwd, 'backend', 'data', `${dbName}.sqlite3`),
     path.join(cwd, '..', 'backend', 'data', `${dbName}.sqlite3`),
-    path.join(cwd, 'data', `${dbName}.sqlite3`),
-    path.join(cwd, `${dbName}.sqlite3`),
   ];
 
   // Try walking up from __dirname to reliably find backend/data
@@ -47,23 +45,19 @@ function getBundledPath(dbName: string): string | null {
  * so consecutive requests in the same instance share the same writable copy.
  */
 export function getWritablePath(dbName: string): string {
-  // In local development (non-Vercel), use the project's SQLite DB directly so Next.js
-  // and FastAPI share the exact same database file in real-time.
+  // Local development (non-Vercel): use backend/data/<name>.sqlite3 directly so Next.js and
+  // FastAPI share the exact same file. Never fall back to another copy: fail loudly instead.
   if (!process.env.VERCEL) {
     const localSrc = getBundledPath(dbName);
-    if (localSrc) {
-      try {
-        fs.accessSync(localSrc, fs.constants.R_OK | fs.constants.W_OK);
-        return localSrc;
-      } catch (err) {
-        console.warn(`[sqliteReader] Cannot write to ${localSrc}. Falling back to /tmp. Generated data will be ephemeral!`, err);
-        // Fall back to /tmp if not writable
-      }
-    } else {
-      console.warn(`[sqliteReader] Could not find ${dbName}.sqlite3 in tree. Falling back to /tmp. Generated data will be ephemeral!`);
+    if (!localSrc) {
+      throw new Error(`[sqliteReader] backend/data/${dbName}.sqlite3 was not found. Refusing to use any other database.`);
     }
+    fs.accessSync(localSrc, fs.constants.R_OK | fs.constants.W_OK);
+    return localSrc;
   }
 
+  // Vercel only: the deployed repo is read-only, so a writable /tmp copy of backend/data/<name>.sqlite3
+  // is unavoidable there (it is re-seeded from Neon / the bundled file on every cold start).
   const tmpPath = `/tmp/${dbName}.sqlite3`;
   if (!fs.existsSync(tmpPath)) {
     const src = getBundledPath(dbName);

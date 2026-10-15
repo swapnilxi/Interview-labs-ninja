@@ -12,9 +12,7 @@ export default function QuestionReviewPage() {
   return (
     <>
       <Header />
-      <RequireAuth feature="Question Review">
-        <QuestionReviewInteractive />
-      </RequireAuth>
+      <QuestionReviewInteractive />
     </>
   );
 }

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import Header from '@/components/common/Header';
 import SubjectDetailModule from '@/modules/ai-lms/SubjectDetailModule';
+import RouteSpinner from '@/modules/ai-lms/components/RouteSpinner';
 import RequireAuth from '@/modules/auth/RequireAuth';
 
 interface PageProps {
@@ -27,7 +29,9 @@ export default async function SubjectDetailPage({ params }: PageProps) {
       <Header />
       <RequireAuth feature="AI LMS">
         <main className="min-h-screen bg-background pt-[60px]">
-          <SubjectDetailModule classSlug={classSlug} subjectSlug={subjectSlug} />
+          <Suspense fallback={<RouteSpinner />}>
+            <SubjectDetailModule classSlug={classSlug} subjectSlug={subjectSlug} />
+          </Suspense>
         </main>
       </RequireAuth>
     </>
