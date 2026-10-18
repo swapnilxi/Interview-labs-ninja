@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import TaskNode from './TaskNode';
-import FilterBar, { type TaskFilters } from './FilterBar';
+import FilterBar, { type TaskFilters, clearNarrowingFilters, countActiveFilters } from './FilterBar';
 import AddTaskModal from './AddTaskModal';
+import ProgressStrip from './ProgressStrip';
 import Modal from '@/components/ui/Modal';
 import { isTopLayer, popLayer, pushLayer } from '@/lib/ui/layers';
 import {
@@ -37,8 +38,6 @@ const DEFAULT_FILTERS: TaskFilters = {
   top20: false,
 };
 
-const DAILY_TARGET = 3;
-
 function Spinner({ className = '' }: { className?: string }) {
   return (
     <span
@@ -62,10 +61,13 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
   const quickAddSubmittingRef = useRef(false);
   const quickAddInputRef = useRef<HTMLInputElement>(null);
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
+  // The latest full tree (not the search-pruned one the rows draw), for handlers that must not trust what a row saw.
+  const tasksRef = useRef<Task[]>([]);
   const [undoInfo, setUndoInfo] = useState<{ parentId: number; previousChildren: Task[] } | null>(null);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [resumeTask, setResumeTask] = useState<Task | null>(null);
   const [stats, setStats] = useState<TodoStats | null>(null);
+  const [statsFailed, setStatsFailed] = useState(false);
   // The "Due today & overdue" list starts folded: those tasks already show their date in the list below.
   const [showDue, setShowDue] = useState(false);
   // The floating "+" is a stand-in for the header's "New Todo": it only shows once that button has scrolled out of view.
@@ -81,9 +83,13 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
   const loadStats = useCallback(async () => {
     const data = await todoService.getStats();
-    // On failure keep whatever real numbers we had (or none) — never show made-up zeros.
+    // On failure keep whatever real numbers we had (or none) — never show made-up zeros. Only when there is nothing
+    // earlier to keep showing does the strip say that progress is unavailable.
     if (data) {
       setStats(data);
+      setStatsFailed(false);
+    } else {
+      setStatsFailed(true);
     }
   }, []);
 
@@ -133,6 +139,8 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
     loadStats();
   }, [refreshSignal, loadTasks, loadStats]);
 
+  tasksRef.current = tasks;
+
   // ── Task tree mutation helpers ──────────────────────────────────────────
 
   const updateTaskInTree = useCallback((taskId: number, updates: Partial<Task>) => {
@@ -170,7 +178,9 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
       function walk(nodes: Task[]): Task[] {
         return nodes.map(n => {
           if (n.id === parentId) {
-            return { ...n, children: [...(n.children || []), ...newChildren] };
+            // Never the same task twice, whatever calls this (a repeated callback, a refresh landing in between).
+            const have = new Set((n.children || []).map(c => c.id));
+            return { ...n, children: [...(n.children || []), ...newChildren.filter(c => !have.has(c.id))] };
           }
           if (n.children?.length) return { ...n, children: walk(n.children) };
           return n;
@@ -200,8 +210,11 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
   // ── Undo handler (feedback #1) ──────────────────────────────────────────
 
-  const handleUndoAvailable = useCallback((parentId: number, previousChildren: Task[]) => {
+  const handleUndoAvailable = useCallback((parentId: number, _previousChildrenInView: Task[]) => {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    // What the parent had before is read from the full tree, not from the row: a search or filter shows a row only the
+    // children that match, and undoing to that shorter list would delete the others from the database.
+    const previousChildren = flattenTree(tasksRef.current).find(t => t.id === parentId)?.children ?? [];
     setUndoInfo({ parentId, previousChildren });
     undoTimerRef.current = setTimeout(() => setUndoInfo(null), 10000);
   }, []);
@@ -224,20 +237,13 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
   // ── Event handlers from TaskNode ────────────────────────────────────────
 
-  const handleChildrenGenerated = useCallback((parentId: number, children: Task[], _genType: string) => {
-    // For regenerate, replace; for new generation, append
-    const parent = flattenTree(tasks).find(t => t.id === parentId);
-    if (parent && parent.children?.length && children[0]) {
-      // Check if these are regenerated (no overlap with existing)
-      const existingIds = new Set(parent.children.map(c => c.id));
-      const isRegenerate = !children.some(c => existingIds.has(c.id));
-      if (isRegenerate && parent.children.length > 0) {
-        replaceChildrenOfTask(parentId, children);
-        return;
-      }
-    }
-    addChildrenToTask(parentId, children);
-  }, [tasks, addChildrenToTask, replaceChildrenOfTask]);
+  // Regenerate deletes the old children first, so only it replaces. Dive Deeper, Chunk It and "Definition of Done" add
+  // new children next to the existing ones and return just the new rows: guessing "regenerate" from "none of these ids
+  // are on screen" used to wipe the visible siblings (they stayed in the database and only came back after a reload).
+  const handleChildrenGenerated = useCallback((parentId: number, children: Task[], _genType: string, mode: 'append' | 'replace' = 'append') => {
+    if (mode === 'replace') replaceChildrenOfTask(parentId, children);
+    else addChildrenToTask(parentId, children);
+  }, [addChildrenToTask, replaceChildrenOfTask]);
 
   // ── Task creation ───────────────────────────────────────────────────────
 
@@ -289,25 +295,29 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
   // ── Filtering ───────────────────────────────────────────────────────────
 
+  // Does this task itself satisfy the search text and every narrowing filter? (Ancestors of a match are kept for
+  // context by the tree walk below but are not "results": the result count uses this directly.)
+  const taskMatches = useCallback((task: Task): boolean => {
+    const { status, priority, time, genType, search, top20 } = filters;
+    if (status !== 'all' && task.status !== status) return false;
+    if (priority !== 'all' && task.priority !== priority) return false;
+    if (genType !== 'all' && task.generation_type !== genType) return false;
+    if (top20 && !task.is_top_20) return false;
+    if (search && !task.title.toLowerCase().includes(search.toLowerCase()) &&
+        !(task.context || '').toLowerCase().includes(search.toLowerCase())) return false;
+    if (time !== 'all') {
+      const est = task.time_estimate?.toLowerCase() || '';
+      const mins = parseTimeMinutes(est);
+      if (time === 'quick' && (mins === null || mins > 30)) return false;
+      if (time === 'medium' && (mins === null || mins <= 30 || mins > 120)) return false;
+      if (time === 'deep' && (mins === null || mins <= 120)) return false;
+    }
+    return true;
+  }, [filters]);
+
   const filterTasks = useCallback((nodes: Task[]): Task[] => {
     const { status, priority, time, genType, search, top20 } = filters;
-
-    function matches(task: Task): boolean {
-      if (status !== 'all' && task.status !== status) return false;
-      if (priority !== 'all' && task.priority !== priority) return false;
-      if (genType !== 'all' && task.generation_type !== genType) return false;
-      if (top20 && !task.is_top_20) return false;
-      if (search && !task.title.toLowerCase().includes(search.toLowerCase()) &&
-          !(task.context || '').toLowerCase().includes(search.toLowerCase())) return false;
-      if (time !== 'all') {
-        const est = task.time_estimate?.toLowerCase() || '';
-        const mins = parseTimeMinutes(est);
-        if (time === 'quick' && (mins === null || mins > 30)) return false;
-        if (time === 'medium' && (mins === null || mins <= 30 || mins > 120)) return false;
-        if (time === 'deep' && (mins === null || mins <= 120)) return false;
-      }
-      return true;
-    }
+    const matches = taskMatches;
 
     function walkFilter(nodes: Task[]): Task[] {
       return nodes
@@ -317,18 +327,22 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
           const childrenMatch = filteredChildren.length > 0;
 
           if (selfMatches || childrenMatch) {
-            return { ...n, children: filteredChildren };
+            // The copy only holds the matching children, so it also carries the real totals for its progress figure.
+            const real = n.children ?? [];
+            return { ...n, children: filteredChildren, child_total: real.length, child_done: real.filter(c => c.status === 'done').length };
           }
           return null;
         })
         .filter(Boolean) as Task[];
     }
 
+    // Focus is a flat list of what is in progress or overdue. Search and the filters narrow it too: they used to be
+    // ignored here, so a typed query (or a status chip) sat in the toolbar doing nothing.
     if (filters.view === 'focus') {
       const flat = flattenTree(nodes);
       return flat.filter(t =>
         (t.status === 'in_progress' || (getRelativeDueDate(t.due_date)?.isOverdue)) &&
-        (!top20 || t.is_top_20)
+        matches(t)
       );
     }
 
@@ -336,7 +350,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
     if (!hasAnyFilter) return nodes;
 
     return walkFilter(nodes);
-  }, [filters]);
+  }, [filters, taskMatches]);
 
   function parseTimeMinutes(est: string): number | null {
     const hMatch = est.match(/(\d+)\s*h/);
@@ -352,10 +366,46 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
   // Level of each task (root = 1), from the full tree: the flat List / Focus layouts and filtered views show subsets, so
   // a row's level can't be read from where it happens to be drawn.
   const depthById = useMemo(() => buildDepthMap(tasks), [tasks]);
+  // Title of each task's parent, from the real tree: the flat List / Focus layouts show it so a row keeps its context.
+  const parentTitleById = useMemo(() => {
+    const parents = new Map<number, string>();
+    const walk = (nodes: Task[], parentTitle?: string) => {
+      for (const node of nodes) {
+        if (parentTitle) parents.set(node.id, parentTitle);
+        if (node.children?.length) walk(node.children, node.title);
+      }
+    };
+    walk(tasks);
+    return parents;
+  }, [tasks]);
   const openCount = allTasks.filter(t => t.status !== 'done').length;
-  const hasNarrowingFilter =
-    filters.status !== 'all' || filters.priority !== 'all' || filters.time !== 'all' ||
-    filters.genType !== 'all' || filters.top20;
+  const hasNarrowingFilter = countActiveFilters(filters) > 0;
+  // What the header counts: the tasks that really are results (a match, not the ancestors kept around it for context).
+  const resultsNarrowed = hasNarrowingFilter || Boolean(filters.search);
+  // The flat List layout has nothing nested, so the ancestors the tree keeps around a match for context would only show up
+  // as rows that match nothing (a "Done" filter listing In Progress parents). A flat row already names its parent.
+  const listTasks = flattenTree(filteredTasks).filter(t => !resultsNarrowed || taskMatches(t));
+  const resultCount = filters.view === 'focus'
+    ? filteredTasks.length
+    : resultsNarrowed ? allTasks.filter(taskMatches).length : allTasks.length;
+  // What the header says about the list, as plain text. Sighted users see it update on every keystroke; a screen reader is
+  // only told once it has settled (see `spokenCount`), so typing in the search box doesn't read out a number per letter.
+  const countSummary = resultsNarrowed || filters.view === 'focus'
+    ? `${resultCount} of ${allTasks.length} tasks${filters.view === 'focus' ? ' in focus' : ''}`
+    : `${openCount} open, ${allTasks.length} total`;
+  const [spokenCount, setSpokenCount] = useState('');
+  const spokenReady = useRef(false);
+  useEffect(() => {
+    if (loading || loadError) return;
+    // The first figure is shown at once (there is nothing yet to settle); after that, wait for the typing to stop.
+    if (!spokenReady.current) {
+      spokenReady.current = true;
+      setSpokenCount(countSummary);
+      return;
+    }
+    const timer = setTimeout(() => setSpokenCount(countSummary), 700);
+    return () => clearTimeout(timer);
+  }, [countSummary, loading, loadError]);
 
   // ── Today section (feedback #6) ─────────────────────────────────────────
 
@@ -374,8 +424,8 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
   return (
     <div className="flex flex-col gap-[1.5rem] sm:gap-[2rem]">
-      {/* Progress — one quiet line; only real numbers, hidden if stats couldn't load */}
-      {stats && <ProgressStrip stats={stats} />}
+      {/* Progress — one quiet line of real numbers; a placeholder while loading, a plain note if it can't load */}
+      <ProgressStrip stats={stats} failed={statsFailed} onRetry={loadStats} />
 
       <section aria-labelledby="todo-tasks-heading" className="flex flex-col gap-[1rem]">
         {/* Workspace header: the one section heading on the page, with its actions */}
@@ -386,16 +436,24 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
             </h2>
             {!loading && !loadError && allTasks.length > 0 && (
               <span className="text-xs text-muted-foreground">
-                {openCount} open<span className="hidden sm:inline"> · {allTasks.length} total</span>
+                {resultsNarrowed || filters.view === 'focus' ? (
+                  <>
+                    <span className="font-medium tabular-nums text-foreground">{resultCount}</span> of {allTasks.length} tasks
+                    {filters.view === 'focus' && ' in focus'}
+                  </>
+                ) : (
+                  <>{openCount} open<span className="hidden sm:inline"> · {allTasks.length} total</span></>
+                )}
               </span>
             )}
+            {!loading && !loadError && allTasks.length > 0 && spokenCount && <span role="status" className="sr-only">{spokenCount}</span>}
           </div>
           <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={() => setShowBrainDumpModal(true)}
               title="Paste a text dump and let AI turn it into structured tasks"
-              className="todo-btn todo-btn-ghost"
+              className="todo-btn todo-btn-ghost h-9"
             >
               <Icon name="LightBulbIcon" size={14} />
               <span className="hidden sm:inline">Brain Dump</span>
@@ -406,7 +464,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                 type="button"
                 onClick={() => setShowStartDayModal(true)}
                 title="Let AI pick today's focus tasks for the hours you have"
-                className="todo-btn todo-btn-ghost"
+                className="todo-btn todo-btn-ghost h-9"
               >
                 <Icon name="SunIcon" size={14} />
                 <span className="hidden sm:inline">Start Day</span>
@@ -417,7 +475,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                 type="button"
                 onClick={() => setShowEndDayModal(true)}
                 title="Reschedule what's left and reflect on today"
-                className="todo-btn todo-btn-ghost"
+                className="todo-btn todo-btn-ghost h-9"
               >
                 <Icon name="MoonIcon" size={14} />
                 <span className="hidden sm:inline">End Day</span>
@@ -431,7 +489,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
               aria-expanded={showQuickAdd}
               aria-controls="todo-quick-add"
               title="Add a task without opening a form"
-              className="todo-btn todo-btn-primary ml-1"
+              className="todo-btn todo-btn-primary ml-1 h-9 px-4"
             >
               <Icon name="PlusIcon" size={14} variant="solid" />
               New Todo
@@ -444,7 +502,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
           <div id="todo-quick-add" className="animate-fade-in">
             <form
               onSubmit={e => { e.preventDefault(); handleQuickAdd(); }}
-              className="todo-capture"
+              className="todo-capture gap-1 sm:gap-3"
               aria-label="Quick add task"
             >
               <label htmlFor="todo-quick-add-input" className="sr-only">New task title</label>
@@ -468,10 +526,12 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
               <button
                 type="button"
                 onClick={() => openAddModal(quickAddTitle.trim())}
-                className="todo-btn todo-btn-ghost hidden sm:inline-flex"
+                className="todo-btn todo-btn-ghost"
                 title="Open the full form: priority, due date, context, recurrence"
+                aria-label="More details: priority, due date, context, recurrence"
               >
-                More details
+                <Icon name="AdjustmentsHorizontalIcon" size={14} />
+                <span className="hidden sm:inline">More details</span>
               </button>
               <button
                 type="submit"
@@ -522,7 +582,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
               aria-valuenow={planDone}
             >
               <div
-                className="h-full rounded-full bg-primary transition-all duration-500"
+                className="h-full rounded-full bg-primary transition-all duration-500 motion-reduce:transition-none"
                 style={{ width: `${(planDone / activePlan.tasks.length) * 100}%` }}
               />
             </div>
@@ -624,7 +684,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
         {/* Loading state */}
         {loading && (
-          <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading tasks">
+          <div role="status" className="flex flex-col gap-2" aria-busy="true" aria-label="Loading tasks">
             {[1, 2, 3].map(i => (
               <div key={i} className="h-[3.75rem] rounded-xl mix-bg-foreground/[0.05] motion-safe:animate-pulse" />
             ))}
@@ -652,7 +712,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
         {!loading && !loadError && filteredTasks.length > 0 && (
           <div>
             {/* List flattens the tree; Focus is already a flat list; Tree renders nested. */}
-            {(filters.view === 'list' ? flattenTree(filteredTasks) : filteredTasks).map(task => (
+            {(filters.view === 'list' ? listTasks : filteredTasks).map(task => (
               <TaskNode
                 key={task.id}
                 task={task}
@@ -664,6 +724,8 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                 onUndoAvailable={handleUndoAvailable}
                 onChildAdded={handleChildAdded}
                 searchQuery={filters.search}
+                autoExpand={resultsNarrowed}
+                parentTitle={filters.view !== 'tree' ? parentTitleById.get(task.id) : undefined}
                 onResumeTask={setResumeTask}
                 flat={filters.view !== 'tree'}
               />
@@ -718,7 +780,9 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                 {filters.search
                   ? `No tasks match "${filters.search}". Try a different search.`
                   : filters.view === 'focus'
-                    ? 'No tasks are in progress or overdue. Pick something from your backlog to get started.'
+                    ? hasNarrowingFilter
+                      ? 'No in-progress or overdue tasks match these filters.'
+                      : 'No tasks are in progress or overdue. Pick something from your backlog to get started.'
                     : filters.top20 && !hasNarrowingFilterBesidesTop20(filters)
                       ? 'Run 80/20 Analyze above to score your tasks and surface the high-leverage ones.'
                       : 'Try adjusting your filters to see more tasks.'}
@@ -733,7 +797,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
               {hasNarrowingFilter && (
                 <button
                   type="button"
-                  onClick={() => setFilters({ ...filters, status: 'all', priority: 'all', time: 'all', genType: 'all', top20: false })}
+                  onClick={() => setFilters(clearNarrowingFilters(filters))}
                   className="todo-btn todo-btn-quiet"
                 >
                   Clear filters
@@ -754,7 +818,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
         <button
           type="button"
           onClick={() => openAddModal()}
-          className="todo-fab todo-fab-right bg-primary text-primary-foreground"
+          className="todo-fab todo-fab-right max-lg:hidden bg-primary text-primary-foreground"
           aria-label="Add task with details"
           title="Add task with details"
         >
@@ -851,138 +915,9 @@ function DepthLegend() {
         >
           <span className="h-3 w-[3px] shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
           <span>L{i + 1}{i === 4 ? '+' : ''}</span>
-          <span className="hidden mix-text-muted-foreground/85 xl:inline">{DEPTH_NAMES[i]}</span>
+          <span className="sr-only xl:not-sr-only">{DEPTH_NAMES[i]}</span>
         </span>
       ))}
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Progress (Feature 8) — real stats only: three small, softly tinted metrics (blue = today's progress, green = streak,
-// cyan = the week). A coloured figure and a thin indicator, no outline, so none of them competes with the task list.
-// ────────────────────────────────────────────────────────────────────────────
-
-const METRIC_TONE = {
-  progress: { tile: 'mix-bg-progress/10', figure: 'mix-text-progress', track: 'mix-bg-progress/20', fill: 'mix-bg-progress' },
-  success: { tile: 'mix-bg-success/10', figure: 'text-success', track: 'mix-bg-success/20', fill: 'bg-success' },
-  info: { tile: 'mix-bg-info/10', figure: 'mix-text-info', track: 'mix-bg-info/20', fill: 'mix-bg-info' },
-} as const;
-type MetricTone = keyof typeof METRIC_TONE;
-
-function MetricTile({ tone, label, title, children }: {
-  tone: MetricTone;
-  label: string;
-  title?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={`inline-flex items-center gap-2.5 rounded-xl px-3 py-2 sm:gap-3 sm:px-3.5 ${METRIC_TONE[tone].tile}`} title={title}>
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function ProgressStrip({ stats }: { stats: TodoStats }) {
-  const completed = stats.completed_today;
-  const targetHit = completed >= DAILY_TARGET;
-  const week = stats.last_7_days || [];
-  const weekTotal = week.reduce((sum, n) => sum + n, 0);
-  // Blue while the day is in progress; green once the target is reached.
-  const todayTone: MetricTone = targetHit ? 'success' : 'progress';
-
-  const figure = 'font-heading text-base font-semibold leading-none tabular-nums';
-  const caption = 'text-xs text-muted-foreground';
-
-  return (
-    <div role="group" aria-label="Your progress" className="flex flex-wrap items-center gap-2 sm:gap-3">
-      <MetricTile
-        tone={todayTone}
-        label="Today"
-        title={targetHit ? 'Daily target reached — nice work.' : `${DAILY_TARGET - completed} more to hit your daily goal`}
-      >
-        <span className="flex items-baseline gap-1">
-          <span className={`${figure} ${METRIC_TONE[todayTone].figure}`}>{completed}</span>
-          <span className={caption}>/ {DAILY_TARGET}</span>
-        </span>
-        <div
-          className={`hidden h-1 w-[4.5rem] overflow-hidden rounded-full sm:block ${METRIC_TONE[todayTone].track}`}
-          role="progressbar"
-          aria-label="Daily target progress"
-          aria-valuemin={0}
-          aria-valuemax={DAILY_TARGET}
-          aria-valuenow={Math.min(completed, DAILY_TARGET)}
-        >
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${METRIC_TONE[todayTone].fill}`}
-            style={{ width: `${Math.min(100, (completed / DAILY_TARGET) * 100)}%` }}
-          />
-        </div>
-        {targetHit && (
-          <Icon name="CheckCircleIcon" size={16} variant="solid" className="shrink-0 text-success" aria-label="Daily target reached" />
-        )}
-      </MetricTile>
-
-      <MetricTile
-        tone="success"
-        label="Streak"
-        title={
-          stats.streak === 0
-            ? 'Complete a task today to start a streak.'
-            : completed > 0
-              ? "You're on track today — keep it going."
-              : 'Complete a task today to keep your streak alive.'
-        }
-      >
-        <span className="flex items-baseline gap-1">
-          <span className={`${figure} ${METRIC_TONE.success.figure}`}>{stats.streak}</span>
-          <span className={caption}>{stats.streak === 1 ? 'day' : 'days'}</span>
-        </span>
-      </MetricTile>
-
-      <MetricTile tone="info" label="7 days">
-        <span className="flex items-baseline gap-1">
-          <span className={`${figure} ${METRIC_TONE.info.figure}`}>{weekTotal}</span>
-          <span className={`${caption} hidden sm:inline`}>done</span>
-        </span>
-        <div className="hidden sm:block">
-          <WeekBars counts={week} labels={stats.last_7_dates || []} />
-        </div>
-      </MetricTile>
-    </div>
-  );
-}
-
-/** Seven daily-completion bars in the info cyan; today (the last entry) full strength, earlier days recessive. */
-function WeekBars({ counts, labels }: { counts: number[]; labels: string[] }) {
-  const max = Math.max(...counts, 1);
-  const summary = counts.map((n, i) => `${labels[i] || `Day ${i + 1}`}: ${n}`).join(', ');
-
-  return (
-    <div className="flex h-5 items-end gap-[3px]" role="img" aria-label={`Tasks completed per day, oldest to today. ${summary}`}>
-      {counts.map((count, i) => {
-        const isToday = i === counts.length - 1;
-        return (
-          <div key={i} className="group relative flex h-full w-[5px] items-end">
-            <div
-              className="w-full rounded-[2px] transition-colors"
-              style={{
-                height: count > 0 ? `${Math.max(25, (count / max) * 100)}%` : '2px',
-                background:
-                  count === 0
-                    ? 'color-mix(in srgb, var(--color-foreground) 14%, transparent)'
-                    : isToday
-                      ? 'var(--color-info)'
-                      : 'color-mix(in srgb, var(--color-info) 45%, transparent)',
-              }}
-            />
-            <div className="todo-popover pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 text-xs font-medium group-hover:block">
-              {labels[i] || `Day ${i + 1}`}: {count} done
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -1171,7 +1106,7 @@ function StartDayModal({ model, onClose, onPlanAccepted }: StartDayModalProps) {
                     />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold truncate text-foreground">{s.task.title}</p>
-                      <p className="text-xs mix-text-muted-foreground/80 italic mt-0.5">Coach: &ldquo;{s.reason}&rdquo;</p>
+                      <p className="text-xs text-muted-foreground italic mt-0.5">Coach: &ldquo;{s.reason}&rdquo;</p>
                     </div>
                     <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground self-start">
                       {s.task.time_estimate || 'no est'}
@@ -1743,10 +1678,10 @@ function BrainDumpModal({ model, onClose, onTasksSaved }: BrainDumpModalProps) {
                       value={t.time_estimate || ''}
                       placeholder="Estimate (e.g. 1h)"
                       onChange={e => handleEditField(idx, 'time_estimate', e.target.value)}
-                      className="bg-input border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus-ring w-[6rem] placeholder:mix-text-muted-foreground/60"
+                      className="bg-input border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus-ring w-[6rem] placeholder:text-muted-foreground"
                     />
                     {t.parent_temp_id && (
-                      <span className="text-xs mix-text-muted-foreground/80 bg-muted px-1.5 py-0.5 rounded font-medium">
+                      <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium">
                         Subtask of #{t.parent_temp_id}
                       </span>
                     )}
@@ -1756,7 +1691,7 @@ function BrainDumpModal({ model, onClose, onTasksSaved }: BrainDumpModalProps) {
                     value={t.context || ''}
                     placeholder="Add context notes..."
                     onChange={e => handleEditField(idx, 'context', e.target.value)}
-                    className="w-full text-xs text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none py-0.5 placeholder:mix-text-muted-foreground/50"
+                    className="w-full text-xs text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none py-0.5 placeholder:text-muted-foreground"
                   />
                 </div>
               ))}

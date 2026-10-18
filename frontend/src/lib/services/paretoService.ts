@@ -54,15 +54,11 @@ export const paretoService = {
     return data;
   },
 
+  /** Throws when the list can't be loaded, so the caller can tell that apart from "nothing analysed yet" (empty lists). */
   async getTop20(): Promise<Top20Response> {
-    try {
-      const res = await apiFetch('/pareto/top20');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error('Failed to fetch top 20', err);
-      return { smart: [], quick: [], plan: [] };
-    }
+    const res = await apiFetch('/pareto/top20');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
   },
 
   async reanalyze(table: ParetoTable, itemId: number, model: 'ollama' | 'gemini' = 'gemini'): Promise<{

@@ -10,9 +10,19 @@ import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/Gene
 import MarkdownLite from '@/modules/common/lab/MarkdownLite';
 import { useLabSections, type SectionState } from '@/modules/common/lab/useLabSections';
 import { useLabQuiz } from '@/modules/common/lab/useLabQuiz';
+import { buildPrerequisitesMarkdown } from './prerequisites';
 import { useWeekPlan, type WeekPlanApi } from './useWeekPlan';
 import WeekPlanView from './WeekPlanView';
 import WeekPill from './WeekPill';
+import { CompleteButton, DoneMark, LabProgressSummary } from '@/modules/common/lab/LabProgressUi';
+import { LabSettingsButton, settingsSections } from '@/modules/common/lab/LabSettings';
+import LabSettingsModal from '@/modules/common/lab/LabSettingsModal';
+import ProjectSelector from '@/modules/common/lab/project/ProjectSelector';
+import { sectionSaveInfo } from '@/modules/common/lab/project/sectionProject';
+import SectionPromptModal from '@/modules/common/lab/SectionPromptModal';
+import { useLabSettings } from '@/modules/common/lab/useLabSettings';
+import { DSA_DEFAULT_GUIDANCE } from './sectionGuidance';
+import ApproachTabs from './ApproachTabs';
 import { useUrlState } from '@/lib/navigation/urlState';
 import { LabBackBar, LabScreenLoading, jumpToAnchor, useLabNav, useScrollToTopOnChange } from '@/modules/common/lab/labNavigation';
 import type { ContextMode } from '@/lib/services/labSectionsService';
@@ -70,8 +80,18 @@ After the last approach add:
 
 Stay specific to this problem, not generic. Never skip the failing step: the learner must understand why each approach is not enough before the next one appears. Aim for roughly 900-1500 words excluding code.`;
 
+// Standing instructions for the Prerequisites section when it is rewritten with the pen (the plain
+// Generate fills in the template from ./prerequisites.ts, which has the same three groups).
+const PREREQUISITES_GUIDANCE = `List the specific things a learner must already know to solve THIS problem, as short bullets under these bold headings, in this order:
+**Python concepts** - language features, built-ins and library calls the solution uses (for example how to update a dict value, heapq with tuples, deque, bitwise operators).
+**Data structures** - the structures involved and the operations on them that must be second nature.
+**Algorithms & ideas** - the techniques and simpler problems this one builds on (for example slow and fast pointers, prefix sums, binary search on a sorted array).
+Add **Math / bit tricks** as a fourth group only if the problem needs it.
+
+Every bullet names ONE concrete skill, never a vague area like "basic Python" or "arrays". Put a tiny example in backticks where it helps (for example \`d[k] = d.get(k, 0) + 1\`). Use 8-14 bullets in total, no paragraphs, and never write that no prerequisites are needed.`;
+
 const SECTION_DEFS = [
-  { id: 'prerequisites',   label: 'Prerequisites',               icon: 'AcademicCapIcon',            subtitle: 'What to know before diving in'            },
+  { id: 'prerequisites',   label: 'Prerequisites',               icon: 'AcademicCapIcon',            subtitle: 'Specific Python, data-structure and algorithm skills to have first', guidance: PREREQUISITES_GUIDANCE },
   { id: 'theory',          label: 'Core Theory',                 icon: 'CalculatorIcon',             subtitle: 'Mathematical foundations + intuition'      },
   { id: 'approaches',      label: 'Approaches',                  icon: 'ArrowTrendingUpIcon',        subtitle: 'Brute force → optimal, and why each one gives way', aiGenerated: true, guidance: APPROACHES_GUIDANCE },
   { id: 'visual',          label: 'Visual Architecture',         icon: 'PhotoIcon',                  subtitle: 'Data flow diagrams + architecture'         },
@@ -86,20 +106,19 @@ const SECTION_DEFS = [
   { id: 'references',      label: 'References & Resources',      icon: 'BookOpenIcon',               subtitle: 'NeetCode, LeetCode, Striver, GFG, MIT OCW' },
 ];
 
+// The sections the lab settings dialog lists (each with its built-in instructions as the editable prompt).
+const SETTINGS_SECTIONS = settingsSections(SECTION_DEFS, DSA_DEFAULT_GUIDANCE, {
+  notes: { quiz: 'These instructions and your context are added to the requirements for each new batch of quiz questions.' },
+});
+
 /* ─────────────────────────────── content templates ─────────────────────── */
 function getContent(sectionId: string, topic: DSATopic): string {
   const { lc, hint } = parseBrief(topic.brief);
   const n = topic.name;
-  const prereqs = topic.prerequisites.join(', ') || 'none';
   const subs = topic.subtopics.map(s => `- **${s.name}**: ${s.brief}`).join('\n');
 
   const templates: Record<string, string> = {
-    prerequisites:
-      `**Prerequisites for ${n}**\n\n` +
-      (topic.prerequisites.length
-        ? topic.prerequisites.map((p, i) => `${i + 1}. **${p}**`).join('\n')
-        : 'No specific prerequisites — basic Python familiarity is sufficient.') +
-      `\n\n**Why these matter:** Without ${prereqs}, the pattern intuition of ${n} will be harder to follow.`,
+    prerequisites: buildPrerequisitesMarkdown(n, topic.category, topic.prerequisites),
 
     theory:
       `**Core Theory: ${n}**${lc ? ` (LeetCode ${lc})` : ''}\n\n` +
@@ -254,10 +273,12 @@ export default function DSALabInteractive() {
   const { sections, generate: generateSection, generateWithContext } = useLabSections({
     lab: 'dsa', topic: currentTopic, subtopic: currentSub, sectionDefs: SECTION_DEFS,
     getDefaultContent: id => (currentTopic ? getContent(id, currentTopic) : ''),
+    defaultGuidance: DSA_DEFAULT_GUIDANCE,
   });
   const quiz = useLabQuiz({
     lab: 'dsa', topic: currentTopic, subtopic: currentSub,
     category: currentTopic?.category ?? '',
+    defaultGuidance: DSA_DEFAULT_GUIDANCE.quiz,
     prerequisites: currentTopic?.prerequisites ?? [],
     // the other problems in the same pattern family: what the quiz can compare this one against
     relatedTopics: currentTopic
@@ -407,6 +428,7 @@ export default function DSALabInteractive() {
                     <h2 className="text-sm font-bold text-foreground tracking-tight">DSA Lab</h2>
                     <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{topics.length} topics · {allSecNames.length} patterns</p>
                   </div>
+                  <LabSettingsButton lab="dsa" labName="DSA Lab" sections={SETTINGS_SECTIONS} />
                   <button onClick={() => collapseLeft()} className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Collapse sidebar">
                     <Icon name="ChevronLeftIcon" size={14} />
                   </button>
@@ -548,6 +570,7 @@ export default function DSALabInteractive() {
                                     {lc && <span className="text-[9px] text-muted-foreground/50 leading-none">{lc}</span>}
                                     <span className={`text-[8px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{topic.difficulty}</span>
                                     <WeekPill week={weekPlan.weekOf(topic.id)} className="!text-[8px]" />
+                                    <DoneMark lab="dsa" topicId={topic.id} />
                                     {topic.isCustom && <span className="text-[8px] text-amber-500/80">custom</span>}
                                   </div>
                                 </div>
@@ -571,6 +594,7 @@ export default function DSALabInteractive() {
                                         {(idx + 1).toString().padStart(2, '0')}
                                       </span>
                                       <span className="truncate">{sub.name}</span>
+                                      <DoneMark lab="dsa" topicId={topic.id} subtopicId={sub.id} className="ml-1.5 align-middle" />
                                     </button>
                                   );
                                 })}
@@ -716,6 +740,8 @@ function WikiIndex({
         </div>
       </div>
 
+      <LabProgressSummary lab="dsa" topicIds={topics.map(t => t.id)} noun="questions" />
+
       {/* ── View switch: by pattern / by week ── */}
       <div role="tablist" aria-label="Wiki view" className="flex items-center gap-2">
         {(['pattern', 'week'] as const).map(v => (
@@ -781,6 +807,7 @@ function WikiIndex({
                           <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-md border border-border">{lc}</span>
                         )}
                         <WeekPill week={weekPlan.weekOf(t.id)} />
+                        <DoneMark lab="dsa" topicId={t.id} />
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{t.difficulty}</span>
                       </div>
                     </div>
@@ -833,6 +860,9 @@ function TopicDetail({
   const ds = diffStyle(topic.difficulty);
   const name = subtopic?.name ?? topic.name;
   const desc = subtopic?.brief ?? hint ?? topic.brief;
+  const labSettings = useLabSettings('dsa');
+  const [promptModalSection, setPromptModalSection] = useState<any | null>(null);
+  const [labSettingsModalOpen, setLabSettingsModalOpen] = useState(false);
   // The quiz isn't a template section: its state comes from the AI quiz, not from `sections`.
   const sections: Record<string, SectionState> = {
     ...baseSections,
@@ -871,6 +901,22 @@ function TopicDetail({
                 Custom
               </span>
             )}
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              <ProjectSelector />
+              <button
+                type="button"
+                onClick={() => setLabSettingsModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 text-xs font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-all shadow-sm"
+                title="DSA Lab Settings & Prompts"
+              >
+                <Icon name="AdjustmentsHorizontalIcon" size={13} className="text-primary" />
+                <span>Lab Settings</span>
+                {labSettings.hasAny && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                )}
+              </button>
+              <CompleteButton lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} />
+            </div>
           </div>
 
           <h1 className="text-xl font-bold text-foreground mb-2 leading-snug tracking-tight">{name}</h1>
@@ -958,7 +1004,12 @@ function TopicDetail({
                 content={s.content} isGenerated={s.generated} isGenerating={s.generating}
                 onGenerate={def.id === 'quiz' ? quiz.generateFirst : () => onGenerate(def.id)}
                 onGenerateWithContext={def.id === 'quiz' ? undefined : (context, mode) => onGenerateWithContext(def.id, context, mode)}
+                onOpenPromptSettings={def.id === 'quiz' ? undefined : () => setPromptModalSection(def)}
                 savedContext={s.context}
+                customised={labSettings.isCustomised(def.id)}
+                allowEmptyRegenerate={def.id !== 'quiz' && !!(def.guidance || DSA_DEFAULT_GUIDANCE[def.id])}
+                projectSave={def.id === 'quiz' ? undefined : sectionSaveInfo({ lab: 'dsa', topic, subtopic, sectionId: def.id, sectionLabel: def.label, state: s })}
+                renderContent={def.id === 'approaches' ? c => <ApproachTabs content={c} /> : undefined}
                 error={s.error}>
                 {def.id === 'quiz' && s.generated ? (
                   <QuizCarousel
@@ -972,6 +1023,11 @@ function TopicDetail({
             </div>
           );
         })}
+      </div>
+
+      {/* ── Mark as complete (again, at the end of the page) ── */}
+      <div className="flex justify-center pt-2">
+        <CompleteButton lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} size="lg" />
       </div>
 
       {/* ── Prev / Next navigation ── */}
@@ -993,6 +1049,32 @@ function TopicDetail({
           <Icon name="ArrowRightIcon" size={14} className="flex-shrink-0 text-muted-foreground group-hover:text-blue-400 transition-colors" />
         </button>
       </div>
+
+      {promptModalSection && (
+        <SectionPromptModal
+          lab="dsa"
+          section={promptModalSection}
+          currentSettings={labSettings.get(promptModalSection.id)}
+          labWideSettings={labSettings.labWide}
+          currentTopic={{ name: topic.name, brief: desc, subtopicName: subtopic?.name }}
+          isOpen={true}
+          onClose={() => setPromptModalSection(null)}
+          onSave={async (vals) => {
+            await labSettings.save(promptModalSection.id, vals);
+          }}
+          onSaveAndGenerate={async (vals) => {
+            await labSettings.save(promptModalSection.id, vals);
+            await onGenerateWithContext(promptModalSection.id, vals.context || '', 'regenerate');
+          }}
+        />
+      )}
+
+      <LabSettingsModal
+        lab="dsa"
+        isOpen={labSettingsModalOpen}
+        onClose={() => setLabSettingsModalOpen(false)}
+        currentTopic={{ name: topic.name, brief: desc, subtopicName: subtopic?.name }}
+      />
     </div>
   );
 }

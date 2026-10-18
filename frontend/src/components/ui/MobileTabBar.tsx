@@ -25,10 +25,16 @@ const LABS = [
     icon: 'ServerStackIcon',
     hint: 'Architecture & scale',
   },
+  {
+    label: 'Labs Project',
+    path: '/labs-project',
+    icon: 'FolderOpenIcon',
+    hint: 'Projects the labs generate for',
+  },
 ];
 
-// Pages where a tab bar would be noise (auth) — everything else gets it.
-const HIDDEN_ON = ['/login'];
+// Pages where a tab bar would be noise (auth, and the published resume/portfolio pages a visitor opens from a link) — everything else gets it.
+const HIDDEN_ON = ['/login', '/p', '/r'];
 
 function LabsSheet({
   isOpen,

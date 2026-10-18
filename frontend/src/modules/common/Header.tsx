@@ -47,6 +47,11 @@ const navigationItems: NavigationItem[] = [
     icon: 'ServerStackIcon',
   },
   {
+    label: 'Labs Project',
+    path: '/labs-project',
+    icon: 'FolderOpenIcon',
+  },
+  {
     label: 'Config',
     path: '/config',
     icon: 'Cog6ToothIcon',

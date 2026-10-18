@@ -71,13 +71,16 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   } catch (err) {
     // Fall back to Next.js FE API route if primary FastAPI request fails
     if (baseUrl !== '') {
+      let fallbackRes: Response | null = null;
       try {
-        const fallbackRes = await fetch(path, { ...options, headers });
-        if (fallbackRes.status === 401 && isLoggedIn()) {
-          clearToken();
-        }
-        return fallbackRes;
+        fallbackRes = await fetch(path, { ...options, headers });
       } catch {}
+      // A 401 here is not a verdict on the stored token: the FE API verifies with its own JWT secret,
+      // so a token issued by FastAPI always fails there. Treat it as "backend unreachable" (callers
+      // keep the token) instead of dropping the login just because FastAPI was still starting up.
+      if (fallbackRes && !(fallbackRes.status === 401 && isLoggedIn())) {
+        return fallbackRes;
+      }
     }
     throw err;
   }

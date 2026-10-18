@@ -82,6 +82,20 @@ cd "$WORKSPACE_DIR/frontend"
 npm run dev &
 FE_PID=$!
 
+# `next dev` compiles a route on its first request (6-9 s for the first one) and then rewrites the
+# shared layout chunk in place. A browser that opens in that window can download a truncated chunk and
+# never hydrate (dead "Log in" button / endless spinner until a manual reload). Pre-compile the landing
+# routes in the background so the first real page load is warm.
+(
+    for _ in $(seq 1 60); do
+        curl -s -o /dev/null "http://localhost:$FRONTEND_PORT/" && break
+        sleep 1
+    done
+    for route in "/daily-session" "/ai-todo?tab=quick"; do
+        curl -s -m 120 -o /dev/null "http://localhost:$FRONTEND_PORT$route" || true
+    done
+) &
+
 echo "----------------------------------------"
 echo "Services are starting up..."
 echo "  Backend URL:  http://localhost:$BACKEND_PORT"

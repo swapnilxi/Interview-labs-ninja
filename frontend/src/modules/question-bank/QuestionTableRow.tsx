@@ -75,7 +75,10 @@ export default function QuestionTableRow({
         <td className="px-18 py-12">
           <div className="flex items-start gap-12">
             <button
-              onClick={() => setIsExpanded(!isExpanded)}
+              onClick={(e) => {
+                e.stopPropagation(); // expanding must not also open the row
+                setIsExpanded(!isExpanded);
+              }}
               className="p-6 rounded-md hover:bg-muted transition-smooth focus-ring mt-6"
               aria-label={isExpanded ? 'Collapse question' : 'Expand question'}
             >

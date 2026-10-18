@@ -16,14 +16,15 @@ export interface CompanionSettings {
   mascotOn: boolean; // false hides Deepu and silences his voice
 }
 
-const SETTINGS_KEY = 'ls.companion.settings.v1';
+const SETTINGS_KEY = 'ls.companion.settings.v2';
+const LEGACY_SETTINGS_KEY = 'ls.companion.settings.v1';
 const STATS_KEY = 'ls.companion.stats.v1';
 const EVT = 'ls-companion-change';
 
 export const DEFAULT_SETTINGS: CompanionSettings = {
   sound: 'om',
   volume: 0.5,
-  voiceOn: true,
+  voiceOn: false,
   voicePreset: 'pip',
   voiceURI: null,
   spiritual: true,
@@ -31,6 +32,26 @@ export const DEFAULT_SETTINGS: CompanionSettings = {
   soundMuted: false,
   mascotOn: true,
 };
+
+function readSettings(): CompanionSettings {
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    }
+    // Migrate from v1, ensuring mascot voice starts off by default
+    const legacy = window.localStorage.getItem(LEGACY_SETTINGS_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy);
+      const migrated: CompanionSettings = { ...DEFAULT_SETTINGS, ...parsed, voiceOn: false };
+      window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+    return DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -53,7 +74,7 @@ function write(key: string, value: unknown) {
 export function useCompanionSettings() {
   const [settings, setSettings] = useState<CompanionSettings>(DEFAULT_SETTINGS);
   useEffect(() => {
-    const sync = () => setSettings(read(SETTINGS_KEY, DEFAULT_SETTINGS));
+    const sync = () => setSettings(readSettings());
     sync();
     window.addEventListener(EVT, sync);
     return () => window.removeEventListener(EVT, sync);

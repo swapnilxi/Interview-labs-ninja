@@ -15,10 +15,11 @@ export function useCompanionVoice(initialMsg: string) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const say = useCallback(
-    (text: string, m: Mood = 'happy', voice = true) => {
+    (text: string, m: Mood = 'happy', voice?: boolean) => {
       setMsg(text);
       setMood(m);
-      if (voice && settings.voiceOn && settings.mascotOn) {
+      const shouldSpeak = voice !== undefined ? voice : (settings.voiceOn && settings.mascotOn);
+      if (shouldSpeak && settings.mascotOn) {
         speak(text, settings.voicePreset, settings.voiceURI);
         setSpeaking(true);
         clearTimeout(timer.current);

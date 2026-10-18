@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useId } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import Modal from '@/components/ui/Modal';
 import { toast } from '@/lib/ui/toast';
@@ -29,6 +29,9 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const savingRef = useRef(false);
+  // Every label below is tied to its field with these ids (they also have to be unique if two dialogs ever coexist).
+  const uid = useId();
+  const fid = (name: string) => `${uid}-${name}`;
 
   const [intention, setIntention] = useState('');
   const [definitionOfDone, setDefinitionOfDone] = useState('');
@@ -159,8 +162,9 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
         {/* Priority + Time + Due date row */}
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Priority</label>
+            <label htmlFor={fid('priority')} className="block text-xs font-medium text-muted-foreground mb-1.5">Priority</label>
             <select
+              id={fid('priority')}
               value={priority}
               onChange={e => setPriority(e.target.value as TaskPriority)}
               className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
@@ -171,8 +175,9 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Time Estimate</label>
+            <label htmlFor={fid('time')} className="block text-xs font-medium text-muted-foreground mb-1.5">Time Estimate</label>
             <input
+              id={fid('time')}
               type="text"
               value={timeEstimate}
               onChange={e => setTimeEstimate(e.target.value)}
@@ -181,8 +186,9 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Due Date</label>
+            <label htmlFor={fid('due')} className="block text-xs font-medium text-muted-foreground mb-1.5">Due Date</label>
             <input
+              id={fid('due')}
               type="date"
               value={dueDate}
               onChange={e => setDueDate(e.target.value)}
@@ -193,10 +199,11 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
 
         {/* Context textarea */}
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-            Add Context <span className="mix-text-muted-foreground/60">(optional)</span>
+          <label htmlFor={fid('context')} className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Add Context <span>(optional)</span>
           </label>
           <textarea
+            id={fid('context')}
             value={context}
             onChange={e => setContext(e.target.value)}
             placeholder="Add notes, requirements, or paste relevant information. AI will use this to generate better subtasks."
@@ -210,30 +217,33 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
           <button
             type="button"
             onClick={() => setShowIntentionFields(!showIntentionFields)}
-            className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            aria-expanded={showIntentionFields}
+            aria-controls={fid('intention-fields')}
+            className="todo-focus flex items-center gap-1 rounded text-xs font-semibold text-primary hover:underline"
           >
             <Icon name={showIntentionFields ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={14} />
             Intention & Definition of Done (Optional)
           </button>
 
           {showIntentionFields && (
-            <div className="space-y-3 p-3 rounded-lg mix-bg-muted/30 border border-border animate-fade-in">
+            <div id={fid('intention-fields')} className="space-y-3 p-3 rounded-lg mix-bg-muted/30 border border-border animate-fade-in">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-medium text-muted-foreground">Why does this matter? (Intention)</label>
+                  <label htmlFor={fid('intention')} className="block text-xs font-medium text-muted-foreground">Why does this matter? (Intention)</label>
                   <button
                     type="button"
                     onClick={handleSuggestIntention}
                     disabled={suggesting || !title.trim()}
-                    className="text-xs text-primary hover:underline font-semibold disabled:opacity-50"
+                    className="todo-focus rounded text-xs text-primary hover:underline font-semibold disabled:opacity-50"
                   >
                     <span className="inline-flex items-center gap-1"><Icon name="SparklesIcon" size={11} variant="solid" />{suggesting ? 'Suggesting...' : 'Suggest'}</span>
                   </button>
                 </div>
                 {suggestError && (
-                  <p className="text-xs text-red-500 mb-1.5">{suggestError}</p>
+                  <p role="alert" className="text-xs text-error mb-1.5">{suggestError}</p>
                 )}
                 <input
+                  id={fid('intention')}
                   type="text"
                   value={intention}
                   onChange={e => setIntention(e.target.value)}
@@ -243,8 +253,9 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">What does done look like? (Definition of Done)</label>
+                <label htmlFor={fid('dod')} className="block text-xs font-medium text-muted-foreground mb-1">What does done look like? (Definition of Done)</label>
                 <input
+                  id={fid('dod')}
                   type="text"
                   value={definitionOfDone}
                   onChange={e => setDefinitionOfDone(e.target.value)}
@@ -272,8 +283,9 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
           {isRecurring && (
             <div className="space-y-3 p-3 rounded-lg mix-bg-muted/30 border border-border animate-fade-in">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Recurrence Interval</label>
+                <label htmlFor={fid('interval')} className="block text-xs font-medium text-muted-foreground mb-1.5">Recurrence Interval</label>
                 <select
+                  id={fid('interval')}
                   value={recurrenceInterval}
                   onChange={e => setRecurrenceInterval(e.target.value)}
                   className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus-ring"
@@ -286,8 +298,9 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
 
               {recurrenceInterval === 'custom_days' && (
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Custom Days (comma-separated)</label>
+                  <label htmlFor={fid('custom-days')} className="block text-xs font-medium text-muted-foreground mb-1">Custom Days (comma-separated)</label>
                   <input
+                    id={fid('custom-days')}
                     type="text"
                     value={recurrenceCustomDays}
                     onChange={e => setRecurrenceCustomDays(e.target.value)}
@@ -302,10 +315,11 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
 
         {/* File upload */}
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-            Attach Files <span className="mix-text-muted-foreground/60">(.txt, .pdf, .docx)</span>
-          </label>
-          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:mix-border-primary/40 hover:mix-bg-primary/5 transition-smooth">
+          <p id={fid('files-hint')} className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Attach Files <span>(.txt, .pdf, .docx)</span>
+          </p>
+          {/* The input is visually hidden, not display:none: a keyboard user can still reach it, and the label shows the focus. */}
+          <label className="relative inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:mix-border-primary/40 hover:mix-bg-primary/5 transition-smooth focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
             <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
             <span className="text-xs text-muted-foreground">
               {uploading ? 'Extracting text...' : 'Choose file'}
@@ -314,7 +328,8 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
               type="file"
               accept=".txt,.pdf,.docx"
               onChange={handleFileUpload}
-              className="hidden"
+              aria-describedby={fid('files-hint')}
+              className="sr-only"
               disabled={uploading}
             />
             {uploading && <span className="w-3 h-3 border-2 mix-border-primary/30 border-t-primary rounded-full animate-spin" />}
@@ -327,7 +342,12 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
                 <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs text-foreground">
                   <Icon name="DocumentIcon" size={12} className="text-muted-foreground" />
                   {name}
-                  <button type="button" onClick={() => removeAttachment(name)} className="text-muted-foreground hover:text-red-500 transition-smooth">
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(name)}
+                    aria-label={`Remove ${name}`}
+                    className="todo-focus rounded text-muted-foreground hover:text-error transition-smooth"
+                  >
                     <Icon name="XMarkIcon" size={12} />
                   </button>
                 </span>
@@ -348,7 +368,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition-smooth"
+            className="todo-focus px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition-smooth"
           >
             Cancel
           </button>

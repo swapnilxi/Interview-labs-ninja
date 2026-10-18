@@ -155,18 +155,19 @@ export default function TemplateDesigner({ kind, template, profiles, initialProf
   return (
     <div className="fixed inset-0 z-[300] bg-background flex flex-col">
       {/* Toolbar */}
-      <div className="h-[56px] flex items-center gap-2 px-4 border-b border-border bg-card flex-shrink-0">
+      {/* Scrolls sideways on a phone, where Cancel / Save / Use & publish do not fit next to the name. */}
+      <div className="h-[56px] flex items-center gap-2 px-4 border-b border-border bg-card flex-shrink-0 overflow-x-auto scrollbar-clean">
         <BackButton href={backHref} label="Back" className="shrink-0 [&>span]:sr-only sm:[&>span]:not-sr-only" />
         <Icon name="SwatchIcon" size={18} className="text-primary" />
-        <span className="text-sm font-semibold text-foreground">{template ? 'Edit template' : 'New template'}</span>
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded ml-1">{kind}</span>
+        <span className="text-sm font-semibold text-foreground whitespace-nowrap">{template ? 'Edit template' : 'New template'}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded ml-1 shrink-0">{kind}</span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Template name"
-          className="ml-2 min-w-0 flex-1 max-w-[280px] bg-transparent text-sm font-medium text-foreground focus:outline-none focus:bg-muted/50 rounded px-2 py-1 border border-transparent focus:border-border"
+          className="ml-2 min-w-[8rem] flex-1 max-w-[280px] bg-transparent text-sm font-medium text-foreground focus:outline-none focus:bg-muted/50 rounded px-2 py-1 border border-transparent focus:border-border"
         />
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 shrink-0 whitespace-nowrap">
           {error && <span className="text-xs text-error">{error}</span>}
           <button onClick={onClose} className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted">Cancel</button>
           <button onClick={save} disabled={saving || usingTemplate} className="px-4 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 inline-flex items-center gap-1.5"><Icon name="CheckIcon" size={14} /> {saving ? 'Saving…' : 'Save template'}</button>

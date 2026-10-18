@@ -71,7 +71,7 @@ export function TemplatePickerCard({
           onClick={(e) => { e.stopPropagation(); onEdit(); }}
           disabled={busy || disabled}
           title={`Edit ${name}`}
-          className="absolute -top-1.5 -right-1.5 p-1 rounded-full bg-card border border-border text-muted-foreground opacity-0 group-hover/tpl:opacity-100 hover:text-primary hover:border-primary transition-smooth disabled:opacity-0"
+          className="absolute -top-1.5 -right-1.5 p-1 rounded-full bg-card border border-border text-muted-foreground opacity-0 [@media(hover:none)]:opacity-100 group-hover/tpl:opacity-100 focus-visible:opacity-100 hover:text-primary hover:border-primary transition-smooth disabled:opacity-0"
         >
           <Icon name="PencilSquareIcon" size={10} />
         </button>

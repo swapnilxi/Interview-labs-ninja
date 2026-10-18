@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import FlatIcon from '@/components/ui/FlatIcon';
-import ProjectIcon from './ProjectIcon';
 import { Project, ProjectNode, projectService } from '@/lib/services/projectService';
 import ProjectNodeDetailModal from './ProjectNodeDetailModal';
 import ParetoModal from '@/components/ui/ParetoModal';
@@ -11,7 +10,6 @@ import { confirmDialog } from '@/lib/ui/confirm';
 
 interface ProjectExplorerProps {
   project: Project;
-  onClose: () => void;
   model: 'ollama' | 'gemini';
 }
 
@@ -334,7 +332,7 @@ function collectParentIds(nodes: ProjectNode[], acc: number[] = []): number[] {
   return acc;
 }
 
-export default function ProjectExplorer({ project, onClose, model }: ProjectExplorerProps) {
+export default function ProjectExplorer({ project, model }: ProjectExplorerProps) {
   const [nodes, setNodes] = useState<ProjectNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -455,80 +453,38 @@ export default function ProjectExplorer({ project, onClose, model }: ProjectExpl
 
   return (
     <div className="flex flex-col h-full bg-card border mix-border-border/80 rounded-xl shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b mix-border-border/50 mix-bg-muted/20">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground transition-smooth"
-            title="Back to projects"
-          >
-            <Icon name="ArrowLeftIcon" size={14} />
-          </button>
+      {/* Toolbar: the project's own header (title, Back, sections) lives in ProjectScreen */}
+      {(project.description || parentIds.length > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b mix-border-border/50 mix-bg-muted/20 px-4 py-3">
+          {project.description ? (
+            <p className="min-w-0 flex-1 text-xs italic text-muted-foreground">&ldquo;{project.description}&rdquo;</p>
+          ) : (
+            <span className="flex-1" />
+          )}
 
-          <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm shadow-sm"
-              style={{
-                backgroundColor: `${project.color || '#3b82f6'}20`,
-                border: `1px solid ${project.color || '#3b82f6'}40`,
-              }}
-            >
-              <ProjectIcon icon={project.icon} size={22} />
+          {/* Expand / Collapse All */}
+          {parentIds.length > 0 && (
+            <div className="inline-flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={handleExpandAll}
+                disabled={collapsedCount === 0}
+                className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
+                title="Expand all tasks"
+              >
+                <Icon name="ChevronDoubleDownIcon" size={12} />
+                <span className="hidden sm:inline">Expand All</span>
+              </button>
+              <button
+                onClick={handleCollapseAll}
+                disabled={collapsedCount === parentIds.length}
+                className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
+                title="Collapse all tasks"
+              >
+                <Icon name="ChevronDoubleUpIcon" size={12} />
+                <span className="hidden sm:inline">Collapse All</span>
+              </button>
             </div>
-            <div>
-              <h2 className="font-heading font-semibold text-foreground text-sm flex items-center gap-2">
-                {project.title}
-                {project.is_top_20 && (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 shadow-sm">
-                    <FlatIcon name="star" size={14} /> Top 20%
-                  </span>
-                )}
-              </h2>
-              <p className="text-xs text-muted-foreground flex items-center gap-2">
-                <span className="uppercase font-bold text-emerald-500">{project.status}</span>
-                <span>•</span>
-                <span>{project.priority.toUpperCase()}</span>
-                {project.due_date && (
-                  <>
-                    <span>•</span>
-                    <span>Due: {project.due_date}</span>
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Expand / Collapse All */}
-        {parentIds.length > 0 && (
-          <div className="inline-flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={handleExpandAll}
-              disabled={collapsedCount === 0}
-              className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
-              title="Expand all tasks"
-            >
-              <Icon name="ChevronDoubleDownIcon" size={12} />
-              <span className="hidden sm:inline">Expand All</span>
-            </button>
-            <button
-              onClick={handleCollapseAll}
-              disabled={collapsedCount === parentIds.length}
-              className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
-              title="Collapse all tasks"
-            >
-              <Icon name="ChevronDoubleUpIcon" size={12} />
-              <span className="hidden sm:inline">Collapse All</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Description if present */}
-      {project.description && (
-        <div className="px-4 py-2 border-b mix-border-border/50 bg-black/5 dark:bg-white/5">
-          <p className="text-xs text-muted-foreground italic">"{project.description}"</p>
+          )}
         </div>
       )}
 

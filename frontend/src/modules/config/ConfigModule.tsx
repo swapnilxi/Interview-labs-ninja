@@ -12,6 +12,7 @@ import {
 } from '@/lib/services/settingsService';
 import { API_BASE_URL } from '@/lib/http/apiClient';
 import AppearanceSettingsCard from './AppearanceSettingsCard';
+import LabSettingsManager from '@/modules/common/lab/LabSettingsManager';
 
 const PROVIDERS = [
   {
@@ -476,6 +477,7 @@ export default function ConfigInteractive() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
+  const [configTab, setConfigTab] = useState<'providers' | 'labs'>('providers');
 
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
@@ -713,11 +715,52 @@ export default function ConfigInteractive() {
         </div>
       )}
 
-      {/* ── Import from .env card ─────────────────────────────────────────── */}
-      <div className="bg-card border border-border rounded-lg shadow-md overflow-hidden">
-        <button
-          type="button"
-          id="env-import-toggle"
+      {/* ── Top Tabs: AI Models / Lab Prompts ── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-1.5 rounded-xl bg-card border border-border shadow-sm">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setConfigTab('providers')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              configTab === 'providers'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+            }`}
+          >
+            <Icon name="SparklesIcon" size={15} />
+            <span>AI Models & API Keys</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfigTab('labs')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              configTab === 'labs'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+            }`}
+          >
+            <Icon name="AdjustmentsHorizontalIcon" size={15} />
+            <span>Lab Prompts & Sections</span>
+            <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+              configTab === 'labs' ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-primary/10 text-primary'
+            }`}>
+              DSA · Sys Design · CV
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {configTab === 'labs' ? (
+        <div className="bg-card border border-border rounded-xl p-6 shadow-md">
+          <LabSettingsManager />
+        </div>
+      ) : (
+        <>
+          {/* ── Import from .env card ─────────────────────────────────────────── */}
+          <div className="bg-card border border-border rounded-lg shadow-md overflow-hidden">
+            <button
+              type="button"
+              id="env-import-toggle"
           onClick={() => envPanel.open ? setEnvPanel(p => ({ ...p, open: false })) : fetchEnvPrefill()}
           className="w-full flex items-center justify-between p-24 hover:bg-muted/30 transition-smooth text-left"
         >
@@ -1320,6 +1363,8 @@ export default function ConfigInteractive() {
           </button>
         </div>
       </form>
+      </>
+      )}
     </div>
   );
 }

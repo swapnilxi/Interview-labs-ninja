@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import BackButton from '@/components/ui/BackButton';
+import { useUrlState } from '@/lib/navigation/urlState';
 import Icon from '@/components/ui/AppIcon';
 import FlatIcon from '@/components/ui/FlatIcon';
 import ProjectIcon from './ProjectIcon';
 import EisenhowerMatrix, { MatrixItem } from '@/components/ui/EisenhowerMatrix';
 import ProjectCard from './ProjectCard';
-import ProjectExplorer from './ProjectExplorer';
+import ProjectScreen from './ProjectScreen';
+import { parseProjectId, planUrls } from './projectUrls';
 import ProjectRoadmap from './ProjectRoadmap';
 import CreateProjectModal from './CreateProjectModal';
 import { Project, ProjectNodeFlat, projectService } from '@/lib/services/projectService';
@@ -28,8 +31,8 @@ const TAB_GUIDE: Record<PlanSubView, { title: string; steps: string[] }> = {
   projects: {
     title: 'Projects — Your Planning Hub',
     steps: [
-      'Click a project card body to open its Explorer and add/AI-generate topics.',
-      'Use Explore to build the node tree, or Roadmap for an AI phase plan.',
+      'Click a project card to open it. Every project has its own address you can bookmark or share.',
+      'Use Explore to build the node tree, AI Planner to plan it with AI from your requirements, or Roadmap for a quick phase outline.',
       'Inside Explorer: use Dive Deeper (strategic subtopics) or Chunk It (actionable tasks) on any node.',
       'Push nodes to Smart To-Do or Quick Daily with a single click.',
       'Click Delete on any card footer to permanently remove the project and all its nodes.',
@@ -122,11 +125,13 @@ export default function PlanProject({ model }: PlanProjectProps) {
   const rawView = searchParams.get('view') as PlanSubView | null;
   const activeSubView: PlanSubView = rawView && VALID_VIEWS.includes(rawView) ? rawView : 'projects';
 
+  // A project is `?project=<id>`; on the Projects view it opens the project's own screen, on Roadmap it picks the project.
+  const { update } = useUrlState();
+  const projectId = parseProjectId(searchParams.get('project'));
+
+  // Switching sub-view starts that view at its top: a chosen project, section or step does not follow.
   const setActiveSubView = (view: PlanSubView) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', 'plan');
-    params.set('view', view);
-    router.push(`/ai-todo?${params.toString()}`);
+    router.push(view === 'projects' ? planUrls.list : `${planUrls.list}&view=${view}`);
   };
 
   const [showGuide, setShowGuide] = useState(true);
@@ -137,7 +142,6 @@ export default function PlanProject({ model }: PlanProjectProps) {
   const [autoSortLoading, setAutoSortLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
 
   const loadProjects = async () => {
@@ -157,6 +161,8 @@ export default function PlanProject({ model }: PlanProjectProps) {
   useEffect(() => {
     loadProjects();
   }, []);
+
+  const activeProject = projectId === null ? null : projects.find(p => p.id === projectId) ?? null;
 
   // Fetch project nodes whenever switching to matrix view
   useEffect(() => {
@@ -196,15 +202,6 @@ export default function PlanProject({ model }: PlanProjectProps) {
     }
   };
 
-  const handleActionClick = (project: Project, action: 'dive' | 'chunk' | 'roadmap') => {
-    if (action === 'roadmap') {
-      setActiveProject(project);
-      setActiveSubView('roadmap');
-    } else {
-      setActiveProject(project);
-    }
-  };
-
   const handleAnalyze = async () => {
     if (!(await confirmParetoRun('plan', 'all your projects and topics'))) return;
     setAnalyzeLoading(true);
@@ -234,15 +231,30 @@ export default function PlanProject({ model }: PlanProjectProps) {
     quadrant: n.eisenhower_quadrant || null,
   })) as unknown as (MatrixItem & ProjectNodeFlat)[];
 
-  // If a project is selected for explorer in 'projects' view
-  if (activeProject && activeSubView === 'projects') {
-    return (
-      <ProjectExplorer
-        project={activeProject}
-        onClose={() => setActiveProject(null)}
-        model={model}
-      />
-    );
+  // A project is open on the Projects view: it has its own screen (Explorer / AI Planner) and Back.
+  if (projectId !== null && activeSubView === 'projects') {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-[4rem]" role="status" aria-label="Loading the project">
+          <span className="w-[1.5rem] h-[1.5rem] border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
+        </div>
+      );
+    }
+    if (!activeProject) {
+      return (
+        <div className="todo-glass mx-auto mt-4 flex max-w-xl flex-col items-center gap-4 px-[2rem] py-[3rem] text-center">
+          <span className="todo-icon-chip h-[3.5rem] w-[3.5rem]">
+            <Icon name="FolderIcon" size={26} />
+          </span>
+          <div>
+            <p className="font-heading text-base font-semibold text-foreground">Project not found</p>
+            <p className="mt-1 text-sm text-muted-foreground">It may have been deleted, or it belongs to another account.</p>
+          </div>
+          <BackButton href={planUrls.list} label="Back to projects" />
+        </div>
+      );
+    }
+    return <ProjectScreen key={activeProject.id} project={activeProject} model={model} />;
   }
 
   const guide = TAB_GUIDE[activeSubView];
@@ -355,8 +367,6 @@ export default function PlanProject({ model }: PlanProjectProps) {
                   <ProjectCard
                     key={project.id}
                     project={project}
-                    onClick={setActiveProject}
-                    onActionClick={handleActionClick}
                     onDelete={handleDelete}
                   />
                 ))}
@@ -392,11 +402,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
                 itemRenderer={(item, isDragging) => {
                   const openProject = () => {
                     if (isDragging) return;
-                    const proj = projects.find(p => p.id === item.project_id);
-                    if (proj) {
-                      setActiveProject(proj);
-                      setActiveSubView('projects');
-                    }
+                    router.push(planUrls.project(item.project_id));
                   };
                   return (
                     <div
@@ -424,9 +430,10 @@ export default function PlanProject({ model }: PlanProjectProps) {
         {activeSubView === 'roadmap' && (
           <div className="h-full">
             <ProjectRoadmap
+              key={activeProject?.id ?? 'none'}
               project={activeProject}
               projects={projects}
-              onSelectProject={setActiveProject}
+              onSelectProject={(p) => update({ project: p.id }, 'replace')}
               model={model}
             />
           </div>

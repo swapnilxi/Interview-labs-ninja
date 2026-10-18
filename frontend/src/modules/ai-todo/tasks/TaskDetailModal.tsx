@@ -287,7 +287,7 @@ export default function TaskDetailModal({
                 id="task-detail-status"
                 value={status}
                 onChange={(e) => onStatusChange(e.target.value as TaskStatus)}
-                className="w-full bg-card border mix-border-border/80 rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none"
+                className="w-full bg-card border mix-border-border/80 rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               >
                 {Object.entries(STATUS_CONFIG).map(([k, cfg]) => (
                   <option key={k} value={k}>
@@ -306,7 +306,7 @@ export default function TaskDetailModal({
                 id="task-detail-priority"
                 value={priority}
                 onChange={(e) => onPriorityChange(e.target.value as TaskPriority)}
-                className="w-full bg-card border mix-border-border/80 rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none"
+                className="w-full bg-card border mix-border-border/80 rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               >
                 {Object.entries(PRIORITY_CONFIG).map(([k, cfg]) => (
                   <option key={k} value={k}>
@@ -326,7 +326,7 @@ export default function TaskDetailModal({
                 type="date"
                 value={dueDate}
                 onChange={(e) => onDueDateChange(e.target.value)}
-                className="w-full bg-card border mix-border-border/80 rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none"
+                className="w-full bg-card border mix-border-border/80 rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -342,7 +342,7 @@ export default function TaskDetailModal({
                 onChange={(e) => setTimeEstimate(e.target.value)}
                 onBlur={() => saveText('time_estimate', timeEstimate)}
                 placeholder="e.g. 30m, 1h"
-                className="w-full bg-card border mix-border-border/80 rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none"
+                className="w-full bg-card border mix-border-border/80 rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
@@ -360,7 +360,7 @@ export default function TaskDetailModal({
               onBlur={() => saveText('context', context)}
               placeholder="Attach background details, notes, links, or instructions for this task..."
               rows={3}
-              className="w-full bg-input border border-border rounded-xl p-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:mix-text-muted-foreground/60 leading-relaxed"
+              className="w-full bg-input border border-border rounded-xl p-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground leading-relaxed"
             />
           </div>
 
@@ -377,7 +377,7 @@ export default function TaskDetailModal({
                 onBlur={() => saveText('intention', intention)}
                 placeholder="Why are you doing this task?..."
                 rows={2}
-                className="w-full bg-input border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:mix-text-muted-foreground/60"
+                className="w-full bg-input border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />
             </div>
 
@@ -392,7 +392,7 @@ export default function TaskDetailModal({
                 onBlur={() => saveText('definition_of_done', dod)}
                 placeholder="Clear criteria when this task is complete..."
                 rows={2}
-                className="w-full bg-input border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:mix-text-muted-foreground/60"
+                className="w-full bg-input border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />
             </div>
           </div>
@@ -416,7 +416,7 @@ export default function TaskDetailModal({
                 aria-label="New subtask title"
                 aria-invalid={subtaskError ? true : undefined}
                 placeholder="Add a subtask..."
-                className="flex-1 bg-input border mix-border-border/80 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:mix-text-muted-foreground/60"
+                className="flex-1 bg-input border mix-border-border/80 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />
               <button
                 type="submit"
@@ -464,7 +464,7 @@ export default function TaskDetailModal({
                 aria-label="New note"
                 placeholder="Add a progress note or journal entry..."
                 rows={2}
-                className="w-full bg-input border mix-border-border/80 rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:mix-text-muted-foreground/60"
+                className="w-full bg-input border mix-border-border/80 rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />
               <button
                 type="submit"

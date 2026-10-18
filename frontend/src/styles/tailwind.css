@@ -130,6 +130,12 @@
     scroll-behavior: smooth;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   body {
     @apply bg-background text-foreground font-body;
     min-height: 100vh;
@@ -949,6 +955,12 @@
     @apply todo-focus inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-smooth hover:text-foreground;
   }
 
+  /* The track scrolls (overflow-x), so an offset ring would be clipped at its edge: draw the focus ring inside. */
+  .todo-segment:focus-visible {
+    --tw-ring-inset: inset;
+    --tw-ring-offset-width: 0px;
+  }
+
   .todo-segment[aria-pressed='true'],
   .todo-segment[aria-current='page'] {
     @apply bg-card text-foreground shadow-sm;
@@ -957,6 +969,27 @@
   .todo-segment[aria-pressed='true'] svg,
   .todo-segment[aria-current='page'] svg {
     @apply text-primary;
+  }
+
+  /* View selectors (task layout, planning views): the selected one is violet text and icon on a soft violet tint, so it is
+     found at a glance without an outline or a shadow. Opt-in; the Copilot's Local/Online toggle keeps the neutral raise. */
+  .todo-segmented-accent .todo-segment[aria-pressed='true'],
+  .todo-segmented-accent .todo-segment[aria-current='page'] {
+    @apply text-primary shadow-none;
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  }
+
+  /* Light theme only: the violet text of a selected control sat on its own violet tint at 3.7-3.9:1, and muted text on the
+     segmented track at 4.4:1 (small text needs 4.5:1). A shade darker clears it; the dark theme is untouched. */
+  html:not(.dark) .todo-btn-active,
+  html:not(.dark) .todo-segmented-accent .todo-segment[aria-pressed='true'],
+  html:not(.dark) .todo-segmented-accent .todo-segment[aria-current='page'] {
+    color: color-mix(in srgb, var(--color-primary) 76%, var(--color-foreground));
+  }
+
+  /* (#71695f is the light --color-muted-foreground: a custom property can't be defined from itself.) */
+  html:not(.dark) .todo-segmented {
+    --color-muted-foreground: color-mix(in srgb, #71695f 78%, var(--color-foreground));
   }
 
   /* Touch targets (checklist 1.8). On a coarse pointer — a finger — everything you tap in the To-Do area is at
@@ -1236,6 +1269,24 @@
     background: color-mix(in srgb, var(--color-primary) 9%, transparent);
   }
 
+  /* A row's secondary controls (Dive Deeper, Chunk It, the "···" toggle) are drawn quietly until the row is hovered or has
+     keyboard focus inside it. They keep their place in the layout, so revealing them never moves anything. Without hover
+     (touch) and below `sm` (the phone layout leans on them) they are simply always shown. */
+  @media (hover: hover) and (min-width: 640px) {
+    .todo-reveal {
+      opacity: 0;
+      transition: opacity 150ms ease;
+    }
+
+    .todo-row:hover .todo-reveal,
+    .todo-row:focus-within .todo-reveal,
+    .todo-row[data-expanded='true'] .todo-reveal,
+    .todo-reveal:focus-visible,
+    .todo-reveal[aria-expanded='true'] {
+      opacity: 1;
+    }
+  }
+
   /* A card that has to read as one draggable object (Eisenhower matrix). */
   .todo-row-card {
     position: relative;
@@ -1261,8 +1312,8 @@
   }
 
   .todo-rail {
-    top: 0.75rem;
-    bottom: 0.75rem;
+    top: 0.625rem;
+    bottom: 0.625rem;
   }
 
   /* A hover target wide enough for the tooltip (a 3px bar alone is hard to land on). */
@@ -1274,15 +1325,20 @@
 
   /* Starts where the parent's rail ends, so rail and branch read as one continuous line. */
   .todo-branch {
-    top: -0.75rem;
-    bottom: 0.75rem;
+    top: -0.625rem;
+    bottom: 0.625rem;
     opacity: 0.3;
     pointer-events: none;
   }
 
-  /* Visible but quieter on a finished task. */
+  /* Visible but quieter on a finished task: 65% keeps every level at 3.5:1 or better against the dark page (55% dropped
+     violet and pink under 3:1). The light theme's rails only just clear 3:1 at full strength, so there they are not dimmed. */
   .todo-row[data-done='true'] .todo-rail {
-    opacity: 0.55;
+    opacity: 0.65;
+  }
+
+  html:not(.dark) .todo-row[data-done='true'] .todo-rail {
+    opacity: 1;
   }
 
   /* A soft fill for things that group content (filter panel, Today's Focus). No outline, no shadow. */
@@ -1391,6 +1447,16 @@
     transform: scale(0.97);
   }
 
+  /* `variant="quiet"` conversation: your own messages are a soft violet tint (no solid block, no outline); the assistant's
+     replies are plain text beside a thin violet rule, so the two read apart without speech-bubble boxes. */
+  .copilot-msg-user-quiet {
+    @apply rounded-xl rounded-tr-sm text-foreground;
+    background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  }
+  .copilot-msg-ai-quiet {
+    border-left: 2px solid color-mix(in srgb, var(--color-primary) 38%, transparent);
+  }
+
   /* Quiet suggestion row: no outline, no lift. Just text that brightens and gets a soft fill on hover. */
   .copilot-chip-quiet {
     @apply flex w-full items-start gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs leading-snug text-muted-foreground transition-colors disabled:opacity-50;
@@ -1402,6 +1468,20 @@
 
   .copilot-input {
     @apply w-full rounded-full border border-border bg-input py-2.5 pl-4 pr-11 text-xs text-foreground placeholder:text-muted-foreground transition-shadow;
+  }
+
+  /* Quiet composer: a soft fill with no edge until you type in it. 16px on a phone so iOS does not zoom the page. */
+  .copilot-input-quiet {
+    @apply w-full rounded-full border border-transparent py-2.5 pl-4 pr-11 text-base text-foreground transition-shadow placeholder:text-muted-foreground sm:text-xs;
+    background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
+  }
+  .copilot-input-quiet:hover:not(:focus) {
+    background: color-mix(in srgb, var(--color-foreground) 9%, transparent);
+  }
+  .copilot-input-quiet:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 18%, transparent);
   }
   .copilot-input:focus {
     outline: none;
@@ -1497,6 +1577,11 @@
     @apply rounded-lg border border-border bg-popover text-popover-foreground shadow-lg;
   }
 
+  /* Menu items kept only a background tint on keyboard focus (about 1.2:1 against the menu): draw an edge too. */
+  .todo-popover [role='menuitem']:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--color-ring);
+  }
+
   /* Dialog panel of components/ui/Modal.tsx: a short enter animation (off for reduced motion).
      The animation ends at `transform: none`, so the panel never stays a containing block. */
   .ui-modal-panel {
@@ -1527,21 +1612,15 @@
     max-width: min(26rem, calc(100vw - 2rem));
   }
 
-  /* Bottom-centre. Phones: lifted above the corner FABs (3rem tall at 1.25rem from the bottom). */
+  /* Bottom-centre. No floating button sits down here below lg any more, so a phone's toast only has to clear the
+     home indicator, or the tab bar when there is one. */
   .todo-toast-host {
-    bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
   }
 
-  /* With the tab bar present, sit just above it; the FABs lift by the same amount below. */
   @media (max-width: 767px) {
     html.has-mobile-tabs .todo-toast-host {
-      bottom: calc(5.75rem + var(--mobile-tab-h));
-    }
-  }
-
-  @media (min-width: 640px) {
-    .todo-toast-host {
-      bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+      bottom: calc(1rem + var(--mobile-tab-h));
     }
   }
 
@@ -1696,24 +1775,15 @@
   }
 
   /*
-   * Floating action buttons. Kept inside the main column: clear of the sidebar
-   * rail on the left and the Copilot panel on the right (.todo-shell carries
-   * data-copilot), and above the iOS home indicator via safe-area insets.
-   * z-30 so modals (z-50+) always cover them.
+   * The "+" floating action button (Add task with details). lg and up only: below that the task column runs the full
+   * width of the screen, so a fixed button there would sit on a row's checkbox or "···" (the inline "More details"
+   * button in the quick-add row is the way to the full form instead). From lg it lives in the gutter the page keeps
+   * free beside the Copilot (see below), clear of every row, and above the iOS home indicator via safe-area insets.
+   * z-30 so modals (z-50+) always cover it.
    */
   .todo-fab {
     @apply todo-focus fixed z-30 flex h-[2.5rem] w-[2.5rem] items-center justify-center rounded-full shadow-md transition-smooth;
     bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  @media (max-width: 767px) {
-    html.has-mobile-tabs .todo-fab {
-      bottom: calc(1rem + var(--mobile-tab-h));
-    }
-
-    html.has-mobile-tabs .todo-fab-popover {
-      bottom: calc(4.25rem + var(--mobile-tab-h));
-    }
   }
 
   /* No lift: it is a fixed control, it should not move under the pointer. */
@@ -1721,38 +1791,155 @@
     box-shadow: 0 8px 20px -8px rgba(15, 12, 8, 0.5);
   }
 
-  .todo-fab-left,
-  .todo-fab-popover {
-    left: calc(1rem + env(safe-area-inset-left, 0px));
-  }
-
   .todo-fab-right {
     right: calc(1rem + env(safe-area-inset-right, 0px));
   }
 
-  /* Pop-up anchored above the left FAB (distraction capture). */
-  .todo-fab-popover {
+  /*
+   * Distraction capture panel (the inbox button in the page header, or Alt/Option+D). Fixed just under the app header
+   * at the right edge of the main column, so it opens in view wherever the list is scrolled to; from lg it steps left
+   * to clear the Copilot column.
+   */
+  .todo-capture-popover {
     @apply fixed z-40;
-    bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    top: calc(60px + var(--app-banner-h, 0px) + 0.5rem);
+    right: calc(1rem + env(safe-area-inset-right, 0px));
     width: min(20rem, calc(100vw - 2rem));
   }
 
-  @media (min-width: 768px) {
-    html.has-sidebar-rail .todo-fab-left,
-    html.has-sidebar-rail .todo-fab-popover {
-      left: calc(60px + 0.5rem);
+  /*
+   * "Skip to Task Copilot": the Copilot column comes after the whole task list in tab order, so keyboard users get a
+   * way across. Visually hidden until it has focus, then a small button under the app header.
+   */
+  .todo-skip-link {
+    @apply todo-btn todo-btn-primary;
+  }
+
+  .todo-skip-link:not(:focus) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .todo-skip-link:focus {
+    position: fixed;
+    z-index: 130;
+    top: calc(60px + var(--app-banner-h, 0px) + 0.5rem);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /*
+   * The To-Do Copilot: one element, two presentations, so the conversation survives a collapse or a resize.
+   * lg and up: the right-hand column (--todo-copilot-w wide: narrower on a small laptop or tablet, 20rem from xl), or gone
+   * while collapsed to the 48px strip. Below lg: a slide-over sheet opened from the "Copilot" button in the page header.
+   */
+  .todo-shell {
+    --todo-copilot-w: 17.5rem;
+  }
+
+  /* Just past the lg breakpoint the task column is ~526px wide beside a 17.5rem Copilot: not enough for a row's
+     metadata and its hover actions on one line, so every row grew a second, empty-looking line. A slightly slimmer
+     Copilot there gives the rows their normal height back (the column is back to normal width from 1100px). */
+  @media (min-width: 1024px) and (max-width: 1099px) {
+    .todo-shell {
+      --todo-copilot-w: 15.5rem;
     }
   }
 
-  /* The Copilot (320px open / 48px collapsed strip) only exists at lg+. The "+" sits in the gutter the page keeps free
-     beside it (lg:pr-[3.5rem] in app/ai-todo/page.tsx: 8px gap + 40px button + 8px), so it never covers a task row. */
+  @media (min-width: 1280px) {
+    .todo-shell {
+      --todo-copilot-w: 20rem;
+    }
+  }
+
+  .todo-copilot {
+    position: fixed;
+    top: calc(60px + var(--app-banner-h, 0px));
+    right: 0;
+    bottom: var(--mobile-tab-h, 0px);
+    z-index: 115;
+    width: min(92vw, 24rem);
+    background: var(--color-card);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.35);
+    transform: translateX(105%);
+    visibility: hidden;
+    transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 240ms;
+    overscroll-behavior: contain;
+  }
+
+  .todo-copilot[data-sheet='open'] {
+    transform: translateX(0);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .todo-copilot-backdrop {
+    position: fixed;
+    inset: 0;
+    top: calc(60px + var(--app-banner-h, 0px));
+    bottom: var(--mobile-tab-h, 0px);
+    z-index: 114;
+    background: rgba(0, 0, 0, 0.45);
+    animation: fadeIn 180ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .todo-copilot {
+      transition: none;
+    }
+
+    .todo-copilot-backdrop {
+      animation: none;
+    }
+  }
+
   @media (min-width: 1024px) {
+    .todo-copilot {
+      position: static;
+      z-index: auto;
+      flex-shrink: 0;
+      width: var(--todo-copilot-w);
+      height: 100%;
+      transform: none;
+      visibility: visible;
+      transition: none;
+      box-shadow: none;
+      /* The page's own surface with one hairline between them: secondary by weight, not by a second panel colour. */
+      background: transparent;
+      border-left: 1px solid color-mix(in srgb, var(--color-foreground) 10%, transparent);
+    }
+
+    .todo-copilot[data-desktop='collapsed'] {
+      display: none;
+    }
+
+    .todo-copilot-backdrop {
+      display: none;
+    }
+
+    /* The "+" sits in the gutter the page keeps free beside the Copilot (lg:pr-[3.5rem] in app/ai-todo/page.tsx:
+       8px gap + 40px button + 8px), so it never covers a task row. The strip is 48px when collapsed. */
     .todo-shell[data-copilot='open'] .todo-fab-right {
-      right: calc(320px + 0.5rem);
+      right: calc(var(--todo-copilot-w) + 0.5rem);
     }
 
     .todo-shell[data-copilot='collapsed'] .todo-fab-right {
       right: calc(48px + 0.5rem);
+    }
+
+    .todo-shell[data-copilot='open'] .todo-capture-popover {
+      right: calc(var(--todo-copilot-w) + 1rem);
+    }
+
+    .todo-shell[data-copilot='collapsed'] .todo-capture-popover {
+      right: calc(48px + 1rem);
     }
   }
 
@@ -1805,6 +1992,13 @@
 
   .animate-fade-in {
     animation: fadeIn 250ms ease-out;
+  }
+
+  /* Panels, toasts and chat messages still appear; they just don't slide in. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in {
+      animation: none;
+    }
   }
 
   /* Used by swipe reader components */

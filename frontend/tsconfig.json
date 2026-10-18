@@ -35,7 +35,6 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    ".next-e2e/types/**/*.ts",
     ".next-lint-scratch/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts"

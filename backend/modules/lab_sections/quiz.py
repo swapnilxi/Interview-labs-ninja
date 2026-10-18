@@ -29,7 +29,12 @@ def build_quiz_prompt(
     subtopic_brief: str,
     previous_questions: Iterable[str],
     count: int,
+    section_guidance: str = "",
+    standing_context: str = "",
+    project_blocks: str = "",
+    project_rules: str = "",
 ) -> str:
+    # `project_blocks` / `project_rules` come from lab_projects.knowledge.quiz_prompt_parts ('' = no project).
     domain = _DOMAINS.get(lab, "technical interview")
     lines = [f"Topic: {topic_name}"]
     if topic_brief:
@@ -45,7 +50,17 @@ def build_quiz_prompt(
     if subtopic_name:
         focus = f"{subtopic_name} — {subtopic_brief}" if subtopic_brief else subtopic_name
         lines.append(f"Learner is currently on this sub-topic: {focus}")
-    context = "\n".join(lines)
+    context = "\n".join(lines) + project_blocks
+
+    standing = standing_context.strip()
+    if standing:
+        context += (
+            "\n\nStanding context about the learner (applies to every section of this lab; use it to tailor depth, "
+            f'examples and language):\n\"\"\"\n{standing}\n\"\"\"'
+        )
+    guidance = section_guidance.strip()
+    if guidance:
+        context += f"\n\nQuiz requirements from the learner (follow these closely, in addition to the rules below):\n{guidance}"
 
     prev = [q.strip().replace("\n", " ")[:_PREVIOUS_CHARS] for q in previous_questions if q and q.strip()]
     prev = prev[-MAX_PREVIOUS_IN_PROMPT:]
@@ -58,7 +73,7 @@ def build_quiz_prompt(
 
 {context}
 
-Write {count} questions that are about this specific topic AND the concepts around it: the problem's key insight and invariant, its time/space complexity, edge cases and common bugs, the underlying pattern and the prerequisite ideas, and how it differs from or generalises to the related problems listed. Mix the kinds: conceptual, complexity, bug-spotting / edge case, pattern recognition ("which approach fits this variant?"), and short predict-the-result questions.
+Write {count} questions that are about this specific topic AND the concepts around it: the problem's key insight and invariant, its time/space complexity, edge cases and common bugs, the underlying pattern and the prerequisite ideas, and how it differs from or generalises to the related problems listed. Mix the kinds: conceptual, complexity, bug-spotting / edge case, pattern recognition ("which approach fits this variant?"), and short predict-the-result questions.{project_rules}
 
 Rules:
 - Exactly 4 options per question, exactly one correct. Distractors must be plausible and reflect real misconceptions, not obvious throwaways. Never use "all of the above" or "none of the above".

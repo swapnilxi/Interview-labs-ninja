@@ -24,6 +24,19 @@ const SUB_VIEWS: { id: SmartSubView; label: string; short: string; icon: string 
   { id: 'weekly', label: 'Weekly Plan', short: 'Weekly', icon: 'CalendarDaysIcon' },
 ];
 
+/**
+ * The matrix places a card by one of its own quadrant ids. Earlier "Auto-Sort" runs stored the 80/20 sweep's names
+ * (q1_do…q4_eliminate) instead, and a card with a quadrant the matrix doesn't know used to vanish from every quadrant
+ * and from the unassigned pool. Known aliases are mapped; anything else goes to the unassigned pool.
+ */
+const QUADRANT_IDS = new Set(['do_now', 'schedule', 'delegate', 'eliminate']);
+const QUADRANT_ALIASES: Record<string, string> = { q1_do: 'do_now', q2_schedule: 'schedule', q3_delegate: 'delegate', q4_eliminate: 'eliminate' };
+function matrixQuadrant(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const id = QUADRANT_ALIASES[raw] ?? raw;
+  return QUADRANT_IDS.has(id) ? id : null;
+}
+
 /** What the capture box checks before anything is sent: it needs a title, and a priority tag alone is not a task. */
 function validateCapture(raw: string): string | null {
   const text = raw.trim();
@@ -181,7 +194,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
     setAutoSortLoading(true);
     setAiError(null);
     try {
-      await todoService.prioritizeAllWithAI(model);
+      await todoService.eisenhowerAuto(model);
       await loadMatrixTasks();
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Auto-sort failed.');
@@ -193,7 +206,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
   const matrixItems = tasks.map(t => ({
     ...t,
     id: t.id.toString(),
-    quadrant: t.eisenhower_quadrant || null,
+    quadrant: matrixQuadrant(t.eisenhower_quadrant),
   })) as unknown as (MatrixItem & Task)[];
 
   return (
@@ -283,7 +296,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
 
         {/* Task intelligence: planning views + 80/20 analysis (applies to every view) */}
         <div className="flex items-center justify-between gap-x-3 gap-y-2">
-          <div className="todo-segmented todo-segmented-quiet min-w-0 flex-1 sm:flex-none" role="group" aria-label="Planning view">
+          <div className="todo-segmented todo-segmented-quiet todo-segmented-accent min-w-0 flex-1 sm:flex-none" role="group" aria-label="Planning view">
             {SUB_VIEWS.map(view => (
               <button
                 key={view.id}

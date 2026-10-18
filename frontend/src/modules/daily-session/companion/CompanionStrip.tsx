@@ -12,7 +12,7 @@ export default function CompanionStrip({ c }: { c: ReturnType<typeof useCompanio
   return (
     <div className="flex items-end justify-between gap-3">
       <div className="flex-1">
-        <CompanionBubble text={c.msg} mood={c.mood} speaking={c.speaking} onSpeak={() => c.say(c.msg, c.mood)} />
+        <CompanionBubble text={c.msg} mood={c.mood} speaking={c.speaking} onSpeak={() => c.say(c.msg, c.mood, true)} />
       </div>
       <CompanionControls settings={c.settings} update={c.update} onOpenSettings={() => setOpen(true)} />
       <CompanionSettings open={open} onClose={() => setOpen(false)} settings={c.settings} update={c.update} />

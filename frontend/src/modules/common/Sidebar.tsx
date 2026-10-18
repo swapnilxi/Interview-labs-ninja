@@ -4,6 +4,7 @@ import { openLoginModal } from '@/components/auth/LoginModal';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useLocationSearch } from '@/lib/navigation/useLocationSearch';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -32,6 +33,7 @@ const LAB_LINKS: SidebarLink[] = [
   { label: 'CV Lab', path: '/cv-lab', icon: 'EyeIcon' },
   { label: 'DSA Lab', path: '/dsa-lab', icon: 'CpuChipIcon' },
   { label: 'System Design', path: '/system-design-lab', icon: 'ServerStackIcon' },
+  { label: 'Labs Project', path: '/labs-project', icon: 'FolderOpenIcon' },
 ];
 
 const CAREER_LINKS: SidebarLink[] = [
@@ -68,6 +70,8 @@ export default function Sidebar({
   onOpenDrawer,
 }: SidebarProps) {
   const pathname = usePathname();
+  // Live ?query (same on server and first client render): the 'current tab' highlight must not read window.location in render.
+  const search = useLocationSearch();
   const { user, isGuest, isAdmin, logout } = useAuth();
   const [internalMode, setInternalMode] = useState<SidebarMode>('icon-only');
 
@@ -167,8 +171,6 @@ export default function Sidebar({
   }, [isAiTodoRoute]);
 
   const isDailySessionTabActive = (path: string) => {
-    if (typeof window === 'undefined') return pathname === path;
-    const search = window.location.search;
     const currentTab = new URLSearchParams(search).get('tab') || 'session';
     const targetTab = new URLSearchParams(path.split('?')[1] || '').get('tab') || 'session';
     return (
@@ -180,8 +182,6 @@ export default function Sidebar({
   };
 
   const isCareerLinkActive = (path: string) => {
-    if (typeof window === 'undefined') return pathname === path;
-    const search = window.location.search;
     const currentTab = new URLSearchParams(search).get('tab') || 'resumes';
     const targetTab = new URLSearchParams(path.split('?')[1] || '').get('tab');
     if (targetTab) {
@@ -192,8 +192,7 @@ export default function Sidebar({
 
   const isAiTodoTabActive = (path: string) => {
     if (pathname !== '/ai-todo') return false;
-    if (typeof window === 'undefined') return false;
-    const currentTab = new URLSearchParams(window.location.search).get('tab') || 'quick';
+    const currentTab = new URLSearchParams(search).get('tab') || 'quick';
     const targetTab = new URLSearchParams(path.split('?')[1] || '').get('tab') || 'quick';
     return currentTab === targetTab;
   };

@@ -35,11 +35,16 @@ interface TaskNodeProps {
   model: 'ollama' | 'gemini';
   onUpdate: (taskId: number, updates: Partial<Task>) => void;
   onDelete: (taskId: number) => void;
-  onChildrenGenerated: (parentId: number, children: Task[], generationType: string) => void;
+  /** `append` (default): the children are new siblings of whatever is already there. `replace`: the backend deleted the old ones first (regenerate). */
+  onChildrenGenerated: (parentId: number, children: Task[], generationType: string, mode?: 'append' | 'replace') => void;
   onUndoAvailable: (parentId: number, previousChildren: Task[]) => void;
   /** A subtask was added by hand (e.g. from the details dialog); the owner appends it to the tree. */
   onChildAdded?: (parentId: number, child: Task) => void;
   searchQuery?: string;
+  /** A search or filter has pruned this tree, so every branch left in it leads to a match: open them all. */
+  autoExpand?: boolean;
+  /** Title of this task's parent, shown in the flat List / Focus layouts where nothing is nested. */
+  parentTitle?: string;
   onResumeTask?: (task: Task) => void;
   revealDelays?: Record<number, number>;
   /** List/Focus layouts already show every task flat — don't also nest the subtree under each row. */
@@ -59,11 +64,21 @@ export default function TaskNode({
   onUndoAvailable,
   onChildAdded,
   searchQuery = '',
+  autoExpand = false,
+  parentTitle,
   onResumeTask,
   flat = false,
   variant = 'row',
 }: TaskNodeProps) {
   const [childrenExpanded, setChildrenExpanded] = useState(depth <= 2);
+  // While a search or filter has pruned the tree, its branches open by themselves (a match must never sit hidden inside
+  // a collapsed parent). Collapsing one by hand still works meanwhile, and the person's own open/closed choice for a
+  // branch is not overwritten by it: it applies again as soon as the search is cleared.
+  const [closedWhileFiltering, setClosedWhileFiltering] = useState(false);
+  useEffect(() => { if (!autoExpand) setClosedWhileFiltering(false); }, [autoExpand]);
+  const expanded = autoExpand ? !closedWhileFiltering : childrenExpanded;
+  const toggleChildren = () => (autoExpand ? setClosedWhileFiltering(v => !v) : setChildrenExpanded(v => !v));
+  const openChildren = () => { setChildrenExpanded(true); setClosedWhileFiltering(false); };
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [loading, setLoading] = useState<'dive' | 'chunk' | 'regen' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -93,7 +108,6 @@ export default function TaskNode({
   // 80/20 State
   const [showParetoModal, setShowParetoModal] = useState(false);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
-  const [reanalyzing, setReanalyzing] = useState(false);
 
   // Move-to-project picker state
   const [movePlanOpen, setMovePlanOpen] = useState(false);
@@ -165,7 +179,11 @@ export default function TaskNode({
   const isInactive = lastAct && (new Date().getTime() - new Date(lastAct).getTime() > 2 * 24 * 60 * 60 * 1000);
 
   // Search highlight
-  const matchesSearch = searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase());
+  // Same fields the search filter reads (title and context), so every row it keeps for a hit is marked as one.
+  const matchesSearch = searchQuery && (
+    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (task.context || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // ── Inline edit handlers ─────────────────────────────────────────────────
 
@@ -217,7 +235,7 @@ export default function TaskNode({
     setShowDepthWarning(null);
     setAiError(null);
     setLoading(type);
-    setChildrenExpanded(true);
+    openChildren();
 
     try {
       const previousChildren = [...(task.children || [])];
@@ -228,6 +246,9 @@ export default function TaskNode({
       if (subtasks.length > 0) {
         onChildrenGenerated(task.id, subtasks, type === 'dive' ? 'dive_deeper' : 'chunk');
         onUndoAvailable(task.id, previousChildren);
+      } else {
+        // Nothing was written, so nothing changed: say so instead of leaving a spinner that just stops.
+        setAiError('The AI did not return any subtasks. Try again, or add more context to this task first.');
       }
     } catch (err) {
       console.error('AI action failed:', err);
@@ -242,9 +263,9 @@ export default function TaskNode({
     setLoading('regen');
     try {
       const subtasks = await todoService.regenerate(task.id, model);
-      if (subtasks.length > 0) {
-        onChildrenGenerated(task.id, subtasks, task.generation_type);
-      }
+      // The backend deleted the old children before writing these, so they replace what is shown, even when none came back.
+      onChildrenGenerated(task.id, subtasks, task.generation_type, 'replace');
+      if (subtasks.length === 0) setAiError('The old subtasks were removed, but the AI did not return new ones. Try Regenerate again.');
     } catch (err) {
       console.error('Regeneration failed:', err);
       setAiError(err instanceof Error ? err.message : 'Regeneration failed.');
@@ -304,8 +325,13 @@ export default function TaskNode({
   // layouts, where nothing is nested). It drives the rail colour, the "L2" tag and its tooltip.
   const depthColor = getDepthColor(depth);
   const depthTitle = `Level ${depth} — ${getDepthName(depth)}`;
-  // Only the nested tree indents; the flat layouts show the level through the rail and the tag alone.
-  const indented = depth > 1 && !flat && !isCard;
+  // Only the nested tree indents; the flat layouts show the level through the rail and the tag alone. The indent stops
+  // growing at L5: deeper tasks share that level's colour anyway, and every further step would only cost title width.
+  const indented = depth > 1 && depth <= 5 && !flat && !isCard;
+  // The level as text, only where colour and position cannot say it: the flat layouts (nothing is nested) and the
+  // levels that share the L5+ colour. Everywhere else the rail, the indent and the legend already do.
+  const showLevelText = !isCard && (flat ? depth > 1 : depth >= 5);
+  const isRoot = depth === 1 && !flat;
 
   // Small inline controls on the meta line: text only, soft fill on hover.
   const metaBtn =
@@ -321,20 +347,99 @@ export default function TaskNode({
   // state group on the right, so every checkbox lines up at the left edge and the title gets the width back.
   const chevronButton = (className: string) => (
     <button
-      onClick={() => setChildrenExpanded(!childrenExpanded)}
-      className={`todo-focus rounded text-muted-foreground hover:text-foreground transition-smooth shrink-0 ${className}`}
-      title={childrenExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
-      aria-label={`${childrenExpanded ? 'Collapse' : 'Expand'} ${task.children.length} subtask${task.children.length === 1 ? '' : 's'}`}
-      aria-expanded={childrenExpanded}
+      onClick={toggleChildren}
+      className={`todo-focus flex h-[1.5rem] w-[1.5rem] shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground transition-smooth ${className}`}
+      title={expanded ? 'Collapse subtasks' : 'Expand subtasks'}
+      aria-label={`${expanded ? 'Collapse' : 'Expand'} ${task.children.length} subtask${task.children.length === 1 ? '' : 's'}`}
+      aria-expanded={expanded}
     >
       <Icon
         name="ChevronRightIcon"
         size={12}
-        className={`transition-transform duration-200 ${childrenExpanded ? 'rotate-90' : ''}`}
+        className={`transition-transform duration-200 motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`}
       />
     </button>
   );
-  const showChevron = hasChildren && !flat;
+  // A matrix card is one draggable object: it never nests its subtasks (they are cards of their own in the pool).
+  const showChevron = hasChildren && !flat && variant !== 'card';
+
+  // Status and priority are editable in place (a dropdown each); they lead the metadata line so everything about a task is
+  // read in one place instead of being split between the title's row and the line below it.
+  const statusControl = (
+    <div className="flex flex-shrink-0">
+      <button
+        ref={statusBtnRef}
+        onClick={() => { setShowStatusMenu(!showStatusMenu); setShowPriorityMenu(false); }}
+        disabled={isCard}
+        className={`${metaBtn} justify-start font-medium sm:min-w-[5.75rem] ${STATUS_TEXT[task.status]}`}
+        aria-haspopup="menu"
+        aria-expanded={showStatusMenu}
+        aria-label={`Status: ${statusConf.label}. Change status`}
+      >
+        <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: STATUS_COLOR[task.status] }} aria-hidden="true" />
+        <span className="truncate">{statusConf.label}</span>
+      </button>
+      <Popover
+        open={showStatusMenu}
+        anchorRef={statusBtnRef}
+        onClose={() => setShowStatusMenu(false)}
+        label="Change status"
+        className="todo-popover p-1 min-w-[130px]"
+      >
+        {(Object.entries(STATUS_CONFIG) as [TaskStatus, typeof statusConf][]).map(([key, conf]) => (
+          <button
+            key={key}
+            role="menuitem"
+            onClick={() => handleStatusChange(key)}
+            className={`w-full text-left text-xs px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted flex items-center gap-2 ${
+              task.status === key ? 'font-semibold' : ''
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLOR[key] }} />
+            {conf.label}
+          </button>
+        ))}
+      </Popover>
+    </div>
+  );
+  const priorityControl = (
+    <div className="flex flex-shrink-0">
+      <button
+        ref={priorityBtnRef}
+        onClick={() => { setShowPriorityMenu(!showPriorityMenu); setShowStatusMenu(false); }}
+        disabled={isCard}
+        className={`${metaBtn} ${PRIORITY_TEXT[task.priority]} justify-start font-medium sm:min-w-[3.25rem]`}
+        title={priorityConf.label}
+        aria-haspopup="menu"
+        aria-expanded={showPriorityMenu}
+        aria-label={`Priority: ${priorityConf.label}. Change priority`}
+      >
+        <span className="block h-2 w-2 rounded-full" style={{ backgroundColor: PRIORITY_COLOR[task.priority] }} aria-hidden="true" />
+        {task.priority.toUpperCase()}
+      </button>
+      <Popover
+        open={showPriorityMenu}
+        anchorRef={priorityBtnRef}
+        onClose={() => setShowPriorityMenu(false)}
+        label="Change priority"
+        className="todo-popover p-1 min-w-[120px]"
+      >
+        {(Object.entries(PRIORITY_CONFIG) as [TaskPriority, typeof priorityConf][]).map(([key, conf]) => (
+          <button
+            key={key}
+            role="menuitem"
+            onClick={() => handlePriorityChange(key)}
+            className={`w-full text-left text-xs px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted flex items-center gap-2 ${
+              task.priority === key ? 'font-semibold' : ''
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PRIORITY_COLOR[key] }} />
+            {conf.label}
+          </button>
+        ))}
+      </Popover>
+    </div>
+  );
 
   const dueTone = dueInfo?.isOverdue
     ? 'font-semibold text-error'
@@ -346,8 +451,9 @@ export default function TaskNode({
     <div className={`task-node relative ${indented ? 'pl-[1rem] sm:pl-[1.25rem]' : ''}`} data-depth={depth}>
       {/* The task: separated from the next by spacing and a faint divider, not by a box */}
       <div
-        className={`group/row ${isCard ? 'todo-row-card px-3 py-2.5' : 'todo-row pl-3 pr-1 py-3 sm:px-3'} ${dimmed ? 'opacity-60' : ''}`}
+        className={`group/row ${isCard ? 'todo-row-card px-3 py-2.5' : `todo-row pl-3 pr-1 sm:px-3 ${isRoot ? 'py-3.5' : 'py-2.5'}`} ${dimmed ? 'opacity-60' : ''}`}
         data-match={matchesSearch ? 'true' : undefined}
+        data-expanded={detailsExpanded ? 'true' : undefined}
         data-done={task.status === 'done' ? 'true' : undefined}
       >
         {/* Hierarchy rail: this task's level as a slim bar on its left edge. Not in the matrix, where cards are flat. */}
@@ -362,13 +468,14 @@ export default function TaskNode({
         )}
         <div className="flex items-start gap-x-2.5">
           {/* Lead: subtask chevron + checkbox */}
-          <div className="flex shrink-0 items-start gap-1.5">
+          <div className="flex shrink-0 items-start gap-2.5">
             {/* Children chevron (separate from the details toggle) */}
-            {showChevron ? chevronButton('mt-[3px] hidden sm:block') : <span className="hidden w-3 shrink-0 sm:block [@media(pointer:coarse)]:w-10" />}
+            {showChevron ? chevronButton('-mx-[0.375rem] -my-[0.1875rem] hidden sm:flex') : !isCard && <span className="hidden w-3 shrink-0 sm:block [@media(pointer:coarse)]:w-[1.75rem]" />}
 
             {/* Checkbox — padded hit area around the 16px box */}
             <button
               onClick={handleCheckbox}
+              disabled={isCard}
               role="checkbox"
               aria-checked={task.status === 'done'}
               aria-label={`Mark "${task.title}" ${task.status === 'done' ? 'not done' : 'done'}`}
@@ -409,11 +516,12 @@ export default function TaskNode({
                 />
               ) : (
                 <button
-                  className={`todo-focus min-w-[9rem] flex-1 basis-[9rem] rounded text-left text-sm font-medium leading-snug transition-smooth line-clamp-2 break-words ${
-                    task.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'
-                  }`}
+                  className={`todo-focus min-w-[9rem] flex-1 basis-[9rem] break-words rounded text-left leading-snug transition-smooth ${
+                    isRoot ? 'text-[0.9375rem] font-semibold' : 'text-sm font-medium'
+                  } ${task.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'}`}
                   onClick={() => setShowDetailModal(true)}
                   onDoubleClick={() => startEdit('title', task.title)}
+                  disabled={isCard}
                   title="Click to open task page for details & context · double-click to rename"
                 >
                   {task.title}
@@ -446,79 +554,6 @@ export default function TaskNode({
                   </button>
                 )}
 
-                {/* Status (inline dropdown): a coloured dot and plain text, not a filled pill */}
-                <div className={`flex-shrink-0 ${detailsExpanded ? '' : 'hidden sm:block'}`}>
-                  <button
-                    ref={statusBtnRef}
-                    onClick={() => { setShowStatusMenu(!showStatusMenu); setShowPriorityMenu(false); }}
-                    className={`${metaBtn} w-[6.25rem] justify-start font-medium ${STATUS_TEXT[task.status]}`}
-                    aria-haspopup="menu"
-                    aria-expanded={showStatusMenu}
-                    aria-label={`Status: ${statusConf.label}. Change status`}
-                  >
-                    <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: STATUS_COLOR[task.status] }} aria-hidden="true" />
-                    <span className="truncate">{statusConf.label}</span>
-                  </button>
-                  <Popover
-                    open={showStatusMenu}
-                    anchorRef={statusBtnRef}
-                    onClose={() => setShowStatusMenu(false)}
-                    label="Change status"
-                    className="todo-popover p-1 min-w-[130px]"
-                  >
-                    {(Object.entries(STATUS_CONFIG) as [TaskStatus, typeof statusConf][]).map(([key, conf]) => (
-                      <button
-                        key={key}
-                        role="menuitem"
-                        onClick={() => handleStatusChange(key)}
-                        className={`w-full text-left text-xs px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted flex items-center gap-2 ${
-                          task.status === key ? 'font-semibold' : ''
-                        }`}
-                      >
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLOR[key] }} />
-                        {conf.label}
-                      </button>
-                    ))}
-                  </Popover>
-                </div>
-
-                {/* Priority (inline dropdown) */}
-                <div className={`flex-shrink-0 ${detailsExpanded ? '' : 'hidden sm:block'}`}>
-                  <button
-                    ref={priorityBtnRef}
-                    onClick={() => { setShowPriorityMenu(!showPriorityMenu); setShowStatusMenu(false); }}
-                    className={`${metaBtn} ${PRIORITY_TEXT[task.priority]} min-w-[3rem] justify-start font-medium`}
-                    title={priorityConf.label}
-                    aria-haspopup="menu"
-                    aria-expanded={showPriorityMenu}
-                    aria-label={`Priority: ${priorityConf.label}. Change priority`}
-                  >
-                    <span className="block h-2 w-2 rounded-full" style={{ backgroundColor: PRIORITY_COLOR[task.priority] }} aria-hidden="true" />
-                    {task.priority.toUpperCase()}
-                  </button>
-                  <Popover
-                    open={showPriorityMenu}
-                    anchorRef={priorityBtnRef}
-                    onClose={() => setShowPriorityMenu(false)}
-                    label="Change priority"
-                    className="todo-popover p-1 min-w-[120px]"
-                  >
-                    {(Object.entries(PRIORITY_CONFIG) as [TaskPriority, typeof priorityConf][]).map(([key, conf]) => (
-                      <button
-                        key={key}
-                        role="menuitem"
-                        onClick={() => handlePriorityChange(key)}
-                        className={`w-full text-left text-xs px-2.5 py-1.5 rounded-md transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted flex items-center gap-2 ${
-                          task.priority === key ? 'font-semibold' : ''
-                        }`}
-                      >
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PRIORITY_COLOR[key] }} />
-                        {conf.label}
-                      </button>
-                    ))}
-                  </Popover>
-                </div>
-
                 {/* Phones: the subtask chevron sits here, next to the details toggle */}
                 {showChevron && !isCard && chevronButton('sm:hidden')}
 
@@ -526,7 +561,7 @@ export default function TaskNode({
                 {!isCard && (
                   <button
                     onClick={() => setDetailsExpanded(!detailsExpanded)}
-                    className={`todo-focus flex-shrink-0 rounded-md p-1 transition-smooth ${
+                    className={`todo-focus todo-reveal flex-shrink-0 rounded-md p-1 transition-smooth ${
                       detailsExpanded ? 'todo-btn-active' : 'text-muted-foreground hover:text-foreground hover:mix-bg-foreground/[0.07]'
                     }`}
                     title={detailsExpanded ? 'Hide details & actions' : 'Show details & actions'}
@@ -557,35 +592,24 @@ export default function TaskNode({
               )}
               {task.time_estimate && <span>{task.time_estimate}</span>}
               {hasChildren && <span className="tabular-nums">{progress}%</span>}
-              {depth > 1 && <span title={depthTitle}>L{depth}</span>}
+              {showLevelText && <span title={depthTitle}>L{depth}</span>}
+              {flat && parentTitle && <span className="max-w-full truncate" title={`Under: ${parentTitle}`}>↳ {parentTitle}</span>}
             </div>
 
             {/* Line 2: quiet metadata on the left, the AI actions on the right. Only values that exist are drawn;
                 the empty ones appear on hover. On a phone it is the expanded view of the summary above. */}
-            <div className={`-ml-1.5 mt-1.5 flex-wrap items-center gap-x-1 gap-y-1 ${detailsExpanded ? 'flex' : 'hidden sm:flex'}`}>
-              {/* Depth — plain text, and only below the top level (the indent already shows it) */}
-              {depth > 1 && !isCard && (
-                <span className="px-1.5 text-xs text-muted-foreground" title={depthTitle}>L{depth}</span>
-              )}
-
-              {/* Generation type */}
-              {task.generation_type === 'dive_deeper' && (
-                <span className="px-1.5 text-xs text-muted-foreground" title="Created by Dive Deeper">Deep</span>
-              )}
-              {task.generation_type === 'chunk' && (
-                <span className="px-1.5 text-xs text-muted-foreground" title="Created by Chunk It">Chunk</span>
-              )}
-
-              {/* Recurrence badge (Feature 4) */}
-              {task.is_recurring ? (
-                <span
-                  className="inline-flex items-center gap-1 px-1.5 text-xs text-muted-foreground"
-                  title={`Recurring: ${task.recurrence_interval}${task.recurrence_interval === 'custom_days' ? ` (${task.recurrence_custom_days})` : ''}`}
-                >
-                  <Icon name="ArrowPathIcon" size={12} />
-                  {task.recurrence_interval === 'custom_days' ? task.recurrence_custom_days : task.recurrence_interval}
+            <div className={`-ml-1.5 mt-1 flex-wrap items-center gap-x-1 gap-y-1 ${detailsExpanded ? 'flex' : 'hidden sm:flex'}`}>
+              {/* Where it lives: only the flat layouts (List, Focus) need this, because nothing is nested there */}
+              {flat && parentTitle && !isCard && (
+                <span className="inline-flex min-w-0 max-w-[14rem] items-center gap-1 px-1.5 text-xs text-muted-foreground" title={`Under: ${parentTitle}`}>
+                  <Icon name="ArrowTurnDownRightIcon" size={12} className="shrink-0" />
+                  <span className="truncate">{parentTitle}</span>
                 </span>
-              ) : null}
+              )}
+
+              {/* State, then priority: always present, so every row's line starts the same way */}
+              {statusControl}
+              {priorityControl}
 
               {/* Due date (click to edit) */}
               {editingField === 'due_date' ? (
@@ -600,7 +624,8 @@ export default function TaskNode({
               ) : (dueInfo || !isCard) && (
                 <button
                   onClick={() => startEdit('due_date', task.due_date || '')}
-                  className={`${metaBtn} ${dueTone} ${dueInfo ? '' : emptyField}`}
+                  disabled={isCard}
+                  className={`${metaBtn} ${dueTone} ${isCard ? '' : 'sm:min-w-[6rem]'} ${dueInfo ? '' : emptyField}`}
                 >
                   <Icon name="CalendarIcon" size={12} />
                   {dueInfo?.text || 'Add date'}
@@ -621,14 +646,15 @@ export default function TaskNode({
               ) : (task.time_estimate || !isCard) && (
                 <button
                   onClick={() => startEdit('time_estimate', task.time_estimate || '')}
-                  className={`${metaBtn} ${metaMuted} ${task.time_estimate ? '' : emptyField}`}
+                  disabled={isCard}
+                  className={`${metaBtn} ${metaMuted} ${isCard ? '' : 'sm:min-w-[4.25rem]'} ${task.time_estimate ? '' : emptyField}`}
                 >
                   <Icon name="ClockIcon" size={12} />
                   {task.time_estimate || 'Add time'}
                 </button>
               )}
 
-              {/* Progress (if has children) */}
+              {/* Progress (if has children), and what a collapsed parent is hiding */}
               {hasChildren && (
                 <span className="flex items-center gap-1.5 px-1.5" title={`${progress}% of subtasks done`}>
                   <span className="h-1 w-[2.5rem] overflow-hidden rounded-full mix-bg-foreground/10">
@@ -638,13 +664,64 @@ export default function TaskNode({
                     />
                   </span>
                   <span className="text-xs tabular-nums text-muted-foreground">{progress}%</span>
+                  {!expanded && !flat && (
+                    <span className="text-xs text-muted-foreground">· {task.children.length} subtask{task.children.length === 1 ? '' : 's'}</span>
+                  )}
                 </span>
               )}
 
-              {/* Right: context, notes and the AI breakdown actions (not in the matrix, where cards aren't clickable).
-                  On a phone every one of these is a 40px-tall tap target, so they live in the "···" panel instead. */}
+              {/* Tags: how it was made, whether it repeats, and the level where colour can't say it */}
+              {task.generation_type === 'dive_deeper' && (
+                <span className="px-1.5 text-xs text-muted-foreground" title="Created by Dive Deeper">Deep</span>
+              )}
+              {task.generation_type === 'chunk' && (
+                <span className="px-1.5 text-xs text-muted-foreground" title="Created by Chunk It">Chunk</span>
+              )}
+              {task.is_recurring ? (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 text-xs text-muted-foreground"
+                  title={`Recurring: ${task.recurrence_interval}${task.recurrence_interval === 'custom_days' ? ` (${task.recurrence_custom_days})` : ''}`}
+                >
+                  <Icon name="ArrowPathIcon" size={12} />
+                  {task.recurrence_interval === 'custom_days' ? task.recurrence_custom_days : task.recurrence_interval}
+                </span>
+              ) : null}
+              {showLevelText && (
+                <span className="px-1.5 text-xs text-muted-foreground" title={depthTitle}>L{depth}</span>
+              )}
+
+              {/* Right: the AI breakdown actions, then the context and notes markers at the edge (not in the matrix, where
+                  cards aren't clickable). On a phone every one of these is a 40px-tall tap target, so they live in the "···" panel instead. */}
               {!isCard && (
                 <div className="ml-auto hidden flex-wrap items-center gap-x-0.5 gap-y-1 sm:flex">
+                  {/* Dive Deeper / Chunk It — on the row, never behind the details toggle (per feedback), but drawn quietly until the row is hovered or focused (see .todo-reveal) */}
+                  <button
+                    onClick={() => handleAIAction('dive')}
+                    disabled={loading !== null}
+                    className={`${metaBtn} todo-reveal font-medium text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50`}
+                    title="Break into strategic subtasks"
+                  >
+                    {loading === 'dive' ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" aria-hidden="true" />
+                    ) : (
+                      <Icon name="MagnifyingGlassIcon" size={12} />
+                    )}
+                    <span>Dive Deeper</span>
+                  </button>
+                  <button
+                    onClick={() => handleAIAction('chunk')}
+                    disabled={loading !== null}
+                    className={`${metaBtn} todo-reveal font-medium text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50`}
+                    title="Break into actionable steps"
+                  >
+                    {loading === 'chunk' ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" aria-hidden="true" />
+                    ) : (
+                      <Icon name="ScissorsIcon" size={12} />
+                    )}
+                    <span>Chunk It</span>
+                  </button>
+
                   {/* Context chip */}
                   {task.context && (
                     <button
@@ -667,34 +744,6 @@ export default function TaskNode({
                     <Icon name="DocumentTextIcon" size={12} />
                     {notesCount > 0 ? notesCount : ''}
                   </button>
-
-                  {/* Dive Deeper / Chunk It — always on the row (per feedback, not gated behind the details toggle), just quiet */}
-                  <button
-                    onClick={() => handleAIAction('dive')}
-                    disabled={loading !== null}
-                    className={`${metaBtn} font-medium text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50`}
-                    title="Break into strategic subtasks"
-                  >
-                    {loading === 'dive' ? (
-                      <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" aria-hidden="true" />
-                    ) : (
-                      <Icon name="MagnifyingGlassIcon" size={12} />
-                    )}
-                    <span>Dive Deeper</span>
-                  </button>
-                  <button
-                    onClick={() => handleAIAction('chunk')}
-                    disabled={loading !== null}
-                    className={`${metaBtn} font-medium text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50`}
-                    title="Break into actionable steps"
-                  >
-                    {loading === 'chunk' ? (
-                      <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" aria-hidden="true" />
-                    ) : (
-                      <Icon name="ScissorsIcon" size={12} />
-                    )}
-                    <span>Chunk It</span>
-                  </button>
                 </div>
               )}
             </div>
@@ -707,6 +756,7 @@ export default function TaskNode({
                   <div className="relative group">
                     <button
                       onClick={() => setShowDetailModal(true)}
+                      disabled={isCard}
                       className="flex w-full min-w-0 items-start gap-1.5 rounded px-1.5 text-left text-xs text-muted-foreground transition-smooth hover:text-foreground"
                     >
                       <Icon name="FlagIcon" size={12} className="mt-px shrink-0" />
@@ -722,6 +772,7 @@ export default function TaskNode({
                   <div className="relative group">
                     <button
                       onClick={() => setShowDetailModal(true)}
+                      disabled={isCard}
                       className="flex w-full min-w-0 items-start gap-1.5 rounded px-1.5 text-left text-xs text-muted-foreground transition-smooth hover:text-foreground"
                     >
                       <Icon name="CheckCircleIcon" size={12} className="mt-px shrink-0" />
@@ -971,7 +1022,7 @@ export default function TaskNode({
                                 </button>
                               ))}
                               {(moveProjects || []).length === 0 && (
-                                <p className="px-2.5 py-1.5 text-xs mix-text-muted-foreground/80 italic">
+                                <p className="px-2.5 py-1.5 text-xs text-muted-foreground italic">
                                   No existing projects yet.
                                 </p>
                               )}
@@ -1106,7 +1157,7 @@ export default function TaskNode({
                               e.currentTarget.blur();
                             }
                           }}
-                          className="bg-input border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus-ring w-[6rem] placeholder:mix-text-muted-foreground/60"
+                          className="bg-input border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus-ring w-[6rem] placeholder:text-muted-foreground"
                         />
                       )}
                     </div>
@@ -1216,7 +1267,7 @@ export default function TaskNode({
           onUpdate={(updates) => onUpdate(task.id, updates || {})}
           onSubtaskCreated={(child) => {
             onChildAdded?.(task.id, child);
-            setChildrenExpanded(true);
+            openChildren();
           }}
           model={model}
         />
@@ -1237,16 +1288,17 @@ export default function TaskNode({
       </div>
 
       {/* Children (recursive) */}
-      {childrenExpanded && hasChildren && !flat && (
-        <div className="relative">
+      {expanded && hasChildren && !flat && !isCard && (
+        <div className="relative" role="group" aria-label={`Subtasks of ${task.title}`}>
           {/* This parent's colour, dimmed, running down beside its children (gone with them when collapsed) */}
           <span className="todo-branch" aria-hidden="true" style={{ '--rail': depthColor } as React.CSSProperties} />
-          {task.children.map((child, index) => (
+          {task.children.map((child) => (
             <TaskNode
               key={child.id}
               task={child}
               depth={depth + 1}
-              chunkIndex={child.generation_type === 'chunk' ? index : undefined}
+              // Step numbers count the chunk steps only: a Chunk It run after a Dive Deeper one still starts at "1."
+              chunkIndex={child.generation_type === 'chunk' ? task.children.filter(c => c.generation_type === 'chunk').indexOf(child) : undefined}
               model={model}
               onUpdate={onUpdate}
               onDelete={onDelete}
@@ -1254,6 +1306,7 @@ export default function TaskNode({
               onUndoAvailable={onUndoAvailable}
               onChildAdded={onChildAdded}
               searchQuery={searchQuery}
+              autoExpand={autoExpand}
               onResumeTask={onResumeTask}
             />
           ))}

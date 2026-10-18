@@ -12,6 +12,8 @@ export interface SavedSection {
   context: string;
   mode: ContextMode;
   updatedAt: string;
+  /** The Labs Project this body was written for (null/absent = no project). */
+  projectId?: number | null;
 }
 
 /** A topic or subtopic, reduced to what the generator needs. */
@@ -48,8 +50,28 @@ export async function generateSectionWithContext(args: {
   mode: SectionMode;
   context: string;
   existingContent: string;
+  /** What the learner's lab settings say about them (lab-wide + this section). */
+  standingContext?: string;
+  /** Custom prompt addon (appended to section instructions). */
+  promptAddon?: string;
+  /** Custom prompt override (replaces built-in guidance). */
+  customGuidance?: string;
+  /** Write for this Labs Project (its context and relevant saved sections are added server-side). */
+  projectId?: number | null;
 }): Promise<SavedSection> {
-  const { lab, topic, subtopic, section, mode, context, existingContent } = args;
+  const {
+    lab,
+    topic,
+    subtopic,
+    section,
+    mode,
+    context,
+    existingContent,
+    standingContext,
+    promptAddon,
+    customGuidance,
+    projectId,
+  } = args;
   const res = await apiFetch('/lab-sections/generate', {
     method: 'POST',
     body: JSON.stringify({
@@ -63,10 +85,13 @@ export async function generateSectionWithContext(args: {
       section_id: section.id,
       section_label: section.label,
       section_subtitle: section.subtitle ?? '',
-      section_guidance: section.guidance ?? '',
+      section_guidance: customGuidance !== undefined ? customGuidance : (section.guidance ?? ''),
+      standing_context: standingContext ?? '',
+      prompt_addon: promptAddon ?? '',
       mode,
       context,
       existing_content: mode === 'update' ? existingContent : '',
+      ...(projectId ? { project_id: projectId } : {}),
       ...defaultAIRequestFields(),
     }),
   });
@@ -107,8 +132,24 @@ export async function generateQuiz(args: {
   prerequisites: string[];
   relatedTopics: string[];
   count?: number;
+  /** Learner-written requirements for the quiz (their prompt/add-on from lab settings). */
+  guidance?: string;
+  standingContext?: string;
+  /** Write the questions for this Labs Project (see generateSectionWithContext). */
+  projectId?: number | null;
 }): Promise<QuizQuestion[]> {
-  const { lab, topic, subtopic, category, prerequisites, relatedTopics, count = 4 } = args;
+  const {
+    lab,
+    topic,
+    subtopic,
+    category,
+    prerequisites,
+    relatedTopics,
+    count = 4,
+    guidance,
+    standingContext,
+    projectId,
+  } = args;
   const res = await apiFetch('/lab-sections/quiz/generate', {
     method: 'POST',
     body: JSON.stringify({
@@ -123,9 +164,92 @@ export async function generateQuiz(args: {
       subtopic_name: subtopic?.name ?? '',
       subtopic_brief: subtopic?.brief ?? '',
       count,
+      section_guidance: guidance ?? '',
+      standing_context: standingContext ?? '',
+      ...(projectId ? { project_id: projectId } : {}),
       ...defaultAIRequestFields(),
     }),
   });
   if (!res.ok) throw new Error(await errorMessage(res));
   return (await res.json()).questions ?? [];
+}
+
+export interface LabProgressItem {
+  topicId: string;
+  /** '' for the topic's own page. */
+  subtopicId: string;
+  /** Server time (UTC, "YYYY-MM-DD HH:MM:SS"). */
+  completedAt: string;
+}
+
+/** Every page of the lab the user has marked complete. */
+export async function fetchLabProgress(lab: LabName): Promise<LabProgressItem[]> {
+  const res = await apiFetch(`/lab-sections/progress?${new URLSearchParams({ lab })}`);
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return (await res.json()).completed ?? [];
+}
+
+/** Marks one page (a topic, or a subtopic of it) complete or not. Throws with a readable message. */
+export async function setPageCompleted(
+  lab: LabName,
+  topicId: string,
+  subtopicId: string,
+  completed: boolean
+): Promise<{ completed: boolean; completedAt: string | null }> {
+  const res = await apiFetch('/lab-sections/progress', {
+    method: 'PUT',
+    body: JSON.stringify({ lab, topic_id: topicId, subtopic_id: subtopicId, completed }),
+  });
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return res.json();
+}
+
+/** What a user changed about how one section (or, as '*', the whole lab) is generated. */
+export interface SectionSettings {
+  /** Replaces the section's built-in instructions when non-empty. */
+  prompt: string;
+  /** Appended to whichever instructions are in force. */
+  addon: string;
+  /** Standing context about the learner. */
+  context: string;
+}
+
+/** Section id of the lab-wide settings row. */
+export const LAB_WIDE_SECTION = '*';
+
+/** The user's customised sections for a lab, keyed by section id ('*' = lab-wide). */
+export async function fetchLabSettings(lab: LabName): Promise<Record<string, SectionSettings>> {
+  const res = await apiFetch(`/lab-sections/settings?${new URLSearchParams({ lab })}`);
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return (await res.json()).settings ?? {};
+}
+
+/** Saves one section's settings; all three empty resets it to the defaults. Throws with a readable message. */
+export async function saveLabSettings(
+  lab: LabName,
+  sectionId: string,
+  values: SectionSettings
+): Promise<SectionSettings> {
+  const res = await apiFetch('/lab-sections/settings', {
+    method: 'PUT',
+    body: JSON.stringify({ lab, section_id: sectionId, ...values }),
+  });
+  if (!res.ok) throw new Error(await errorMessage(res));
+  const saved = await res.json();
+  return { prompt: saved.prompt, addon: saved.addon, context: saved.context };
+}
+
+/** Reset one section's settings or all settings for a lab back to defaults. */
+export async function resetLabSettings(
+  lab: LabName,
+  sectionId: string = 'all'
+): Promise<{ ok: boolean }> {
+  const res = await apiFetch(
+    `/lab-sections/settings?lab=${lab}&section_id=${encodeURIComponent(sectionId)}`,
+    {
+      method: 'DELETE',
+    }
+  );
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return res.json();
 }

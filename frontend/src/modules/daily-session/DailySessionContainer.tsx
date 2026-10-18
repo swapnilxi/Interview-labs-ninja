@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import DailySessionInteractive from './DailySessionModule';
 import DailySessionTabSwitcher, { DailySessionTab } from './components/DailySessionTabSwitcher';
@@ -74,6 +74,12 @@ function DailySessionContent() {
   // same one. A missing or unknown ?tab= is the default tab (Daily Session), which is also what Back to a
   // tab-less /daily-session must show.
   const activeTab: DailySessionTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'session';
+
+  // A hand-edited ?tab=zzz shows the default tab, so the address is corrected to match (replace: no history entry).
+  useEffect(() => {
+    if (tabParam && !validTabs.includes(tabParam)) router.replace('/daily-session', { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabParam]);
 
   const handleTabChange = (newTab: DailySessionTab) => {
     const targetUrl = newTab === 'session' ? '/daily-session' : `/daily-session?tab=${newTab}`;

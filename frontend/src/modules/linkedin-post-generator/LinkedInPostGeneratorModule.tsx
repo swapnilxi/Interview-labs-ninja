@@ -13,10 +13,15 @@ export default function LinkedInPostGeneratorModule() {
   // The tab lives in the URL (?tab=templates) so Back/Forward, a refresh and a shared link keep it.
   // The generator is the default screen, so a missing or unknown value falls back to it.
   const { get, update } = useUrlState();
-  const pageTab: PageTab = get('tab') === 'templates' ? 'templates' : 'generate';
+  const tabParam = get('tab');
+  const pageTab: PageTab = tabParam === 'templates' ? 'templates' : 'generate';
   const setPageTab = (tab: PageTab) => {
     if (tab !== pageTab) update({ tab: tab === 'generate' ? null : tab });
   };
+  // An unknown ?tab= shows the generator; drop it so the address matches what is on screen (replace: no history entry).
+  useEffect(() => {
+    if (tabParam !== null && tabParam !== 'generate' && tabParam !== 'templates') update({ tab: null }, 'replace');
+  }, [tabParam, update]);
   const [templates, setTemplates] = useState<LinkedInTemplate[]>([]);
 
   const refreshTemplates = () => {

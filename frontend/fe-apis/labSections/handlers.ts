@@ -7,8 +7,28 @@
 
 import { aiSettings, callAi, extractJsonArray, HttpError, type Row } from '../todo/_shared';
 import type { TodoRoute } from '../todo/router';
-import { addQuizQuestions, fetchQuizQuestions, fetchSavedSections, saveSection } from './db';
+import {
+  addQuizQuestions,
+  fetchProgress,
+  fetchQuizQuestions,
+  fetchQuizQuestionsForPrompt,
+  fetchSavedSections,
+  fetchSectionProject,
+  fetchSettings,
+  resetSettings,
+  saveSection,
+  saveSettings,
+  setProgress,
+} from './db';
 import { buildQuizPrompt, normalizeQuestions } from './quiz';
+import {
+  generationRef,
+  loadProjectContext,
+  quizPromptParts,
+  sectionPromptParts,
+  type KnowledgeItem,
+  type PromptProject,
+} from '../labProjects/knowledge';
 
 const LAB_NAMES = ['dsa', 'cv', 'system_design'] as const;
 const SECTION_MODES = ['generate', 'update', 'regenerate'] as const;
@@ -101,6 +121,24 @@ interface SectionPayload {
   context: string;
   existingContent: string;
   sectionGuidance: string;
+  standingContext: string;
+  promptAddon: string;
+  /** The Labs Project to write for (null = none). Its text is loaded from the database, never from the request. */
+  projectId: number | null;
+}
+
+/** Pydantic's `Optional[StrictInt] = Field(ge=1)`: absent/null is fine, anything else must be a JSON integer >= 1. */
+function projectIdField(body: Row): number | null {
+  const v = body.project_id;
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1)
+    throw new HttpError(422, "Field 'project_id' must be a positive integer");
+  return v;
+}
+
+/** What the saved project sections are matched against: the page, the section and what the learner asked for. */
+function knowledgeQuery(...parts: string[]): string {
+  return parts.filter((part) => part).join(' ');
 }
 
 function parseSectionPayload(body: Row): SectionPayload {
@@ -118,17 +156,32 @@ function parseSectionPayload(body: Row): SectionPayload {
     mode: oneOf(body.mode, SECTION_MODES, 'mode'),
     context: strField(body, 'context', 4000, { def: '' }),
     existingContent: strField(body, 'existing_content', 40000, { def: '' }),
-    sectionGuidance: strField(body, 'section_guidance', 4000, { def: '' }),
+    sectionGuidance: strField(body, 'section_guidance', 9000, { def: '' }),
+    standingContext: strField(body, 'standing_context', 4500, { def: '' }),
+    promptAddon: strField(body, 'prompt_addon', 4000, { def: '' }),
+    projectId: projectIdField(body),
   };
 }
 
-function buildSectionPrompt(p: SectionPayload): string {
+function buildSectionPrompt(
+  p: SectionPayload,
+  project: PromptProject | null = null,
+  knowledge: KnowledgeItem[] = []
+): string {
   const domain = DOMAINS[p.lab];
   const subject = p.subtopicName ? `${p.topicName} — ${p.subtopicName}` : p.topicName;
   const brief = p.subtopicBrief || p.topicBrief;
   const briefLine = brief ? `\nTopic summary: ${brief}` : '';
   const purpose = p.sectionSubtitle ? ` (${p.sectionSubtitle})` : '';
   const context = p.context.trim();
+
+  const standing = p.standingContext.trim();
+  let standingBlock = '';
+  if (standing) {
+    standingBlock =
+      '\n\nStanding context about the learner (applies to every section of this lab; use it to tailor depth, ' +
+      `examples and language):\n"""\n${standing}\n"""`;
+  }
 
   let contextBlock = '';
   if (context) {
@@ -140,6 +193,12 @@ function buildSectionPrompt(p: SectionPayload): string {
   let guidanceBlock = '';
   if (p.sectionGuidance.trim()) {
     guidanceBlock = `\n\nSection requirements (follow these closely):\n${p.sectionGuidance.trim()}`;
+  }
+
+  const addon = (p.promptAddon ?? '').trim();
+  let addonBlock = '';
+  if (addon) {
+    addonBlock = `\n\nAdditional instructions (prompt add-on):\n${addon}`;
   }
 
   let task: string;
@@ -157,12 +216,14 @@ function buildSectionPrompt(p: SectionPayload): string {
     task = 'Write this section for the learner.';
   }
 
-  return `You are a senior ${domain} instructor writing one section of a study lab.
+  const [roleSuffix, projectBlocks, projectRules] = sectionPromptParts(project, knowledge);
+
+  return `You are a senior ${domain} instructor writing one section of a study lab${roleSuffix}.
 
 Topic: ${subject}${briefLine}
-Section: ${p.sectionLabel}${purpose}${contextBlock}${guidanceBlock}
+Section: ${p.sectionLabel}${purpose}${projectBlocks}${standingBlock}${contextBlock}${guidanceBlock}${addonBlock}
 
-${task}
+${task}${projectRules}
 
 Output rules:
 - Respond with the section's Markdown ONLY — no preamble, no closing remarks, and do not wrap the whole answer in a code fence.
@@ -197,14 +258,56 @@ export const routes: TodoRoute[] = [
     path: '/generate',
     handler: async ({ userId, json }) => {
       const body = await json();
-      const p = parseSectionPayload(body);
+      let p = parseSectionPayload(body);
       const context = p.context.trim();
-      if (p.mode !== 'generate' && !context) throw new HttpError(422, 'Add some context first.');
+      // A regenerate with nothing new to say is fine when the section has instructions or standing context
+      // to write from (the user changed their lab settings and wants the page redone); an update never is.
+      // A selected project is something to write from too.
+      const hasStanding = !!(
+        p.sectionGuidance.trim() ||
+        p.standingContext.trim() ||
+        p.promptAddon.trim() ||
+        p.projectId !== null
+      );
+      if ((p.mode === 'update' || (p.mode === 'regenerate' && !hasStanding)) && !context) {
+        throw new HttpError(422, 'Add some context first.');
+      }
       if (p.mode === 'update' && !p.existingContent.trim()) {
         throw new HttpError(422, 'There is no existing content to update. Use regenerate instead.');
       }
 
-      const text = await askAi(buildSectionPrompt(p), body, MAX_TOKENS);
+      // Isolation: the page's stored body may have been written for a different project. Revising it would
+      // carry that project's text into this generation, so an update of such a body becomes a fresh write.
+      const [saved, storedProjectId] = fetchSectionProject(
+        userId,
+        p.lab,
+        p.topicId,
+        p.subtopicId,
+        p.sectionId
+      );
+      if (saved && storedProjectId !== null && storedProjectId !== p.projectId && p.existingContent) {
+        p = { ...p, existingContent: '', mode: p.mode === 'update' ? 'regenerate' : p.mode };
+      }
+
+      let project: PromptProject | null = null;
+      let knowledge: KnowledgeItem[] = [];
+      if (p.projectId !== null) {
+        const brief = p.subtopicBrief || p.topicBrief;
+        ({ project, knowledge } = loadProjectContext(userId, p.projectId, {
+          query: knowledgeQuery(
+            p.topicName,
+            p.subtopicName,
+            brief,
+            p.sectionLabel,
+            p.sectionSubtitle,
+            context
+          ),
+          excludeGenerationPrefix: generationRef(p.lab, p.topicId, p.subtopicId, p.sectionId),
+          existingContent: p.existingContent,
+        }));
+      }
+
+      const text = await askAi(buildSectionPrompt(p, project, knowledge), body, MAX_TOKENS);
       const content = clean(text);
       if (!content) throw new HttpError(502, 'The AI returned an empty response. Try again.');
 
@@ -217,7 +320,8 @@ export const routes: TodoRoute[] = [
         p.sectionId,
         content,
         context,
-        p.mode
+        p.mode,
+        p.projectId
       );
     },
   },
@@ -242,18 +346,44 @@ export const routes: TodoRoute[] = [
       if (!Number.isInteger(count) || count < 1 || count > 8)
         throw new HttpError(422, "Field 'count' must be an integer from 1 to 8");
 
-      const previous = fetchQuizQuestions(userId, lab, topicId, subtopicId).map((q) => q.q);
+      // The whole payload is validated before anything touches the database (like Pydantic does).
+      const topicBrief = strField(body, 'topic_brief', 2000, { def: '' });
+      const category = strField(body, 'category', 300, { def: '' });
+      const prerequisites = listField(body, 'prerequisites', 20);
+      const relatedTopics = listField(body, 'related_topics', 20);
+      const subtopicName = strField(body, 'subtopic_name', 300, { def: '' });
+      const subtopicBrief = strField(body, 'subtopic_brief', 2000, { def: '' });
+      const sectionGuidance = strField(body, 'section_guidance', 9000, { def: '' });
+      const standingContext = strField(body, 'standing_context', 4500, { def: '' });
+      const projectId = projectIdField(body);
+
+      // Only questions from no project or this same project are shown to the model as "already seen".
+      const previous = fetchQuizQuestionsForPrompt(userId, lab, topicId, subtopicId, projectId).map(
+        (q) => q.q
+      );
+      let project: PromptProject | null = null;
+      let knowledge: KnowledgeItem[] = [];
+      if (projectId !== null) {
+        ({ project, knowledge } = loadProjectContext(userId, projectId, {
+          query: knowledgeQuery(topicName, subtopicName, subtopicBrief || topicBrief, category),
+        }));
+      }
+      const [projectBlocks, projectRules] = quizPromptParts(project, knowledge);
       const prompt = buildQuizPrompt({
         lab,
         topicName,
-        topicBrief: strField(body, 'topic_brief', 2000, { def: '' }),
-        category: strField(body, 'category', 300, { def: '' }),
-        prerequisites: listField(body, 'prerequisites', 20),
-        relatedTopics: listField(body, 'related_topics', 20),
-        subtopicName: strField(body, 'subtopic_name', 300, { def: '' }),
-        subtopicBrief: strField(body, 'subtopic_brief', 2000, { def: '' }),
+        topicBrief,
+        category,
+        prerequisites,
+        relatedTopics,
+        subtopicName,
+        subtopicBrief,
         previousQuestions: previous,
         count,
+        sectionGuidance,
+        standingContext,
+        projectBlocks,
+        projectRules,
       });
 
       const text = await askAi(prompt, body, QUIZ_MAX_TOKENS);
@@ -267,10 +397,70 @@ export const routes: TodoRoute[] = [
       if (!questions.length)
         throw new HttpError(502, "The AI didn't return any usable questions. Try again.");
 
-      const added = addQuizQuestions(userId, lab, topicId, subtopicId, questions.slice(0, count));
+      const added = addQuizQuestions(
+        userId,
+        lab,
+        topicId,
+        subtopicId,
+        questions.slice(0, count),
+        projectId
+      );
       if (!added.length)
         throw new HttpError(502, 'The AI only repeated questions you already have. Try again.');
       return { questions: added };
+    },
+  },
+  {
+    // "Mark as complete": every page of the lab the user has finished.
+    method: 'GET',
+    path: '/progress',
+    handler: ({ userId, query }) => {
+      const lab = oneOf(query.get('lab'), LAB_NAMES, 'lab');
+      return { completed: fetchProgress(userId, lab) };
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/progress',
+    handler: async ({ userId, json }) => {
+      const body = await json();
+      const lab = oneOf(body.lab, LAB_NAMES, 'lab');
+      const topicId = strField(body, 'topic_id', 200, { min: 1 });
+      const subtopicId = strField(body, 'subtopic_id', 200, { def: '' });
+      if (typeof body.completed !== 'boolean')
+        throw new HttpError(422, "Field 'completed' must be true or false");
+      return setProgress(userId, lab, topicId, subtopicId, body.completed);
+    },
+  },
+  {
+    // Lab settings: how the user wants a lab's sections generated ('*' = lab-wide).
+    method: 'GET',
+    path: '/settings',
+    handler: ({ userId, query }) => {
+      const lab = oneOf(query.get('lab'), LAB_NAMES, 'lab');
+      return { settings: fetchSettings(userId, lab) };
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/settings',
+    handler: async ({ userId, json }) => {
+      const body = await json();
+      const lab = oneOf(body.lab, LAB_NAMES, 'lab');
+      const sectionId = strField(body, 'section_id', 100, { min: 1 });
+      const prompt = strField(body, 'prompt', 4000, { def: '' });
+      const addon = strField(body, 'addon', 2000, { def: '' });
+      const context = strField(body, 'context', 2000, { def: '' });
+      return saveSettings(userId, lab, sectionId, prompt, addon, context);
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/settings',
+    handler: ({ userId, query }) => {
+      const lab = oneOf(query.get('lab'), LAB_NAMES, 'lab');
+      const sectionId = query.get('section_id') ?? 'all';
+      return resetSettings(userId, lab, sectionId);
     },
   },
 ];

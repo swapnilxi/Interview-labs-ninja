@@ -3,14 +3,9 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import type { WeekPlanApi } from './useWeekPlan';
-import {
-  CORE_ORDER,
-  PER_WEEK_OPTIONS,
-  WEEK_CAP,
-  WEEK_COUNT_OPTIONS,
-  weekCounts,
-  weekTheme,
-} from './weekPlan';
+import { DoneMark } from '@/modules/common/lab/LabProgressUi';
+import { useLabProgress } from '@/modules/common/lab/useLabProgress';
+import { PER_WEEK_OPTIONS, WEEK_CAP, WEEK_COUNT_OPTIONS, weekCounts, weekTheme } from './weekPlan';
 
 interface WeekTopic {
   id: string;
@@ -70,6 +65,7 @@ function QuestionRow({
           {lc}
         </span>
       )}
+      <DoneMark lab="dsa" topicId={topic.id} />
       <span
         className={`text-[9px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${difficultyBadge(topic.difficulty)}`}
       >
@@ -140,8 +136,8 @@ function GeneratePanel({ weekPlan, onClose }: { weekPlan: WeekPlanApi; onClose: 
       </div>
       <p className="text-[11px] text-muted-foreground">
         Fills {weeks} weeks in learning order with up to {perWeek} questions each (
-        {Math.min(CORE_ORDER.length, weeks * perWeek)} questions in all). The rest stay out of the
-        plan. This replaces your current plan.
+        {Math.min(weekPlan.coreOrder.length, weeks * perWeek)} questions in all). The rest stay out
+        of the plan. This replaces your current plan.
       </p>
       <div className="flex items-center gap-2">
         <button
@@ -179,10 +175,11 @@ export default function WeekPlanView({
   const [genOpen, setGenOpen] = useState(false);
   const [poolOpen, setPoolOpen] = useState(false);
   const { plan } = weekPlan;
+  const progress = useLabProgress('dsa');
   const counts = weekCounts(plan);
 
   const rank = (id: string) => {
-    const i = (CORE_ORDER as readonly string[]).indexOf(id);
+    const i = weekPlan.coreOrder.indexOf(id);
     return i === -1 ? 1000 + topics.findIndex((t) => t.id === id) : i;
   };
   const inWeek = (w: number) =>
@@ -233,6 +230,7 @@ export default function WeekPlanView({
         {Array.from({ length: plan.weeks }, (_, i) => i + 1).map((w) => {
           const questions = inWeek(w);
           const full = counts[w - 1] >= WEEK_CAP;
+          const doneInWeek = progress.countDone(questions.map((q) => q.id));
           return (
             <section key={w} aria-label={`Week ${w}`} className="lab-card overflow-hidden">
               <header className="px-4 py-3 border-b border-border flex items-center gap-2">
@@ -242,8 +240,13 @@ export default function WeekPlanView({
                 <span className="text-[11px] text-muted-foreground truncate">
                   {weekTheme(questions.map((q) => q.category))}
                 </span>
+                {doneInWeek > 0 && (
+                  <span className="ml-auto text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    {doneInWeek} done
+                  </span>
+                )}
                 <span
-                  className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-md border whitespace-nowrap ${
+                  className={`${doneInWeek > 0 ? '' : 'ml-auto '}text-[10px] font-bold px-2 py-0.5 rounded-md border whitespace-nowrap ${
                     full
                       ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
                       : 'bg-muted text-muted-foreground border-border'

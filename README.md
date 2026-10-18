@@ -354,6 +354,54 @@ manual transcript-paste box.
 | `frontend/src/modules/{cv-lab/CVLabModule,dsa-lab/DSALabModule,system-design-lab/SystemDesignLabModule}.tsx` | Each wires `onAddSubtopic` to persist the generated subtopic to its own topics endpoint and renders `content`/`sourceUrl` on the subtopic's detail view. |
 | `frontend/src/modules/config/ConfigModule.tsx` | Optional "YouTube Data API Key" field, with instructions for obtaining one. |
 
+## Labs Project (`/labs-project`)
+
+A **project** is a named body of background (`context`: objectives, requirements, constraints, decisions) that the
+three practice labs (CV, DSA, System Design) generate *for*. Pick a project in a lab and its sections and quiz are written
+for that project; save the responses you like back into the project and they become **saved sections** that later
+generations (in any lab) can build on. Everything is per user and login-required, like the lab sections themselves.
+
+- **Data** (`lab_projects`, `lab_project_sections`; `backend/modules/lab_projects/schema.py`): a project has
+  `name/description/context/status('active'|'archived')`; a section has `title/content/source_lab_id/source_lab_name/source_generation_id`
+  (`'lab|topic|subtopic|section@generated-at'` of the lab page it was saved from). A saved section is a **copy**:
+  regenerating or editing the lab page, or editing the project context, never changes it.
+- **Delete policy**: deleting a project deletes its context and every section saved to it (the UI says how many and
+  suggests Archive, which keeps everything but hides the project from the labs and refuses new sections, 409). Lab pages that
+  were generated for the project keep their text.
+- **API** (`/lab-projects`, `backend/modules/lab_projects/router.py`, twin `frontend/fe-apis/labProjects/`, route
+  `src/app/api/lab-projects/[[...path]]`, rewrite in `next.config.mjs`): `GET/POST /`, `GET/PATCH/DELETE /{id}`,
+  `GET/POST /{id}/sections` (`?q=` searches title + content, `?lab=` filters), `GET/PATCH/DELETE /{id}/sections/{sid}`. Someone
+  else's project or section is a **404**, never a 403. Every query is scoped by `user_id`, and every section query also by its project.
+- **Generation**: `POST /lab-sections/generate` and `/lab-sections/quiz/generate` take an optional `project_id`. The server loads the
+  project (never trusts text from the request): 404 if it isn't the user's, 409 if archived. `lab_projects/knowledge.py` builds the
+  prompt parts: the project block, the saved knowledge, and rules that make the answer *apply the lab's content to the project*
+  (examples from the project's domain, a closing "Applying this to <project>" list, no invented requirements, explicit assumptions,
+  and how to resolve conflicts: project context first, then the newer section, contradictions are mentioned, not hidden).
+  With no `project_id` every prompt is byte-for-byte what it was before.
+- **Retrieval** (`knowledge.py`): the core context is always sent; saved sections are *retrieved*: BM25 over the project's sections
+  (title weighted x3, plural folding), matched against the page, section and the learner's words; a relevance cut-off, at most 4
+  sections / 6,000 characters, long sections excerpted around the matching passages, exact duplicates collapsed, and the section
+  copied from the very page being regenerated left out. Ties go to the newer section. No embeddings are used, so nothing extra is
+  sent to a provider and results are deterministic.
+- **Isolation**: `lab_section_content.project_id` and `lab_quiz_questions.project_id` record which project text was written for. An
+  *update* of a stored body written for another project (or for none, when the request has a project) is turned into a fresh write, and a
+  quiz only shows the model earlier questions from no project or the same project. Deleting a project leaves its id on those rows
+  on purpose (ids are never reused), so that text is never picked up by anything else.
+- **Prompts are twinned.** `lab_projects/knowledge.py` ↔ `fe-apis/labProjects/knowledge.ts` (with `text.ts` for Python's `len`/`strip`
+  semantics) and `lab_sections/{router,quiz}.py` ↔ `fe-apis/labSections/{handlers,quiz}.ts` must stay byte-identical: change both and diff the
+  prompts both backends send to a mock provider.
+- **Frontend**: `src/modules/labs-project/` (page `/labs-project`: Projects list, Project Context, Project Sections, section detail;
+  screens live in the URL: `?project=&tab=context|sections&section=&status=&new=1`), `src/modules/common/lab/project/` (shared store +
+  `useLabProjects`, `ProjectSelector` in each lab's header, `SectionProjectBar` under each generated section with **Save to Project**,
+  `SaveToProjectDialog`), `src/lib/services/labProjectsService.ts`. The selection is shared by all labs and kept in localStorage per user.
+  `useLabSections`/`useLabQuiz` read it at click time (`resolveSelectedProject`); with a project selected even the labs' template
+  sections go through the AI.
+- **Tests**: `cd backend && uv run python tests/lab_projects_test.py` (copy of the DB, fake model call): CRUD, isolation between users and projects,
+  persistence, deletion, retrieval, project context in the prompts, the no-project prompt, update/regenerate behaviour, quiz scoping.
+- **Not covered yet**: the "Generate Questions" / YouTube panel (feeds the global Question Bank, no `fe-apis` twin), the other
+  modules (LinkedIn, Career, LMS), the static quizzes in the CV and System Design labs (there is nothing AI-written to adapt), and guests (the labs
+  need a login anyway).
+
 ## To-Do Module (AI To-Do)
 
 A full task-management feature lives alongside the interview-coach modules, reachable
@@ -369,11 +417,28 @@ analysis, and a floating Distraction Inbox for capturing off-task thoughts.
 | `router.py` | Smart Todo: task CRUD, AI breakdown (dive/chunk/regenerate/DoD), notes, daily plan kickstart/save/end, brain-dump, inbox, stats, Eisenhower/weekly-plan, NLP task parsing, cross-module moves. Mounted at `/todo`. |
 | `quick_router.py` | Quick Daily: quick-task CRUD, brain-dump image/handwriting upload, bulk create, AI day plan, Eisenhower auto-sort, end-of-day. Mounted at `/todo/quick-tasks`. |
 | `projects_router.py` | Plan & Project: project CRUD, project-node tree CRUD, AI dive/chunk on nodes, AI roadmap generation, cross-module moves. Mounted at `/todo`. |
+| `projects/plan_router.py`, `projects/plan_db.py` | The project's **AI Planner** (see below): saved workspace (`project_plans`), clarifying questions, timeline check, plan generation, chat refinement, add-to-project. Mounted at `/todo`. Twin: `fe-apis/todo/projects/planHandlers.ts` + `planDb.ts`. |
 | `pareto_router.py` | 80/20 scoring shared across all three tabs (`analyze`, `top20`, `reanalyze`). Mounted at `/pareto` (note: **not** under `/todo`). `analyze` sizes the AI's output budget to the item count (the shared 2,048-token default cuts a ~35+ item reply off mid-array), keeps the whole objects of a cut-off reply (`extract_json_items`), re-asks for the unscored rest (≤3 calls), and answers `partial: true` + `message` when some items still have no score. Ported to `fe-apis/todo/pareto/handlers.ts` — keep the two in step. |
 | `db.py`, `quick_db.py`, `projects_db.py` | Raw SQLite access for `tasks`, `quick_tasks`/`quick_tasks_archive`, `projects`/`project_nodes` respectively. |
 | `schema.py` | Shared Pydantic request models (`TaskCreate`/`TaskUpdate`/AI request shapes). |
 
-Frontend service clients live in `frontend/src/lib/services/{todoService,quickTaskService,projectService,paretoService}.ts`,
+### Project screens and the AI Planner
+
+Every project has its own address (`/ai-todo?tab=plan&project=<id>`; the Back link returns to the list), and
+`&section=planner` opens its **AI Planner** (`&step=brief|questions|timeline|plan` is the step). All addresses are
+built in `modules/ai-todo/projects/projectUrls.ts`; the Roadmap view takes the same `project=` param.
+
+The planner is a guided conversation, saved per project in the `project_plans` table (one JSON blob; the client
+owns its shape and runs everything the AI returns through the normalizers in `projectPlannerService.ts`):
+
+1. **Brief** — requirements typed in, plus plain-text documents (`.txt .md .csv .json`; PDF/Word text has to be pasted). The AI reads the first 60,000 characters (notes first, then documents in order).
+2. **Questions** — the AI asks what it still needs; answers (or one-click suggestions) feed every later prompt; "ask follow-up questions" runs another round.
+3. **Timeline** — start and end date, or start and a duration in weeks/months. The server works out the day count so the model never does date maths. "Is this timeline realistic?" returns a verdict (realistic / tight / unrealistic / generous), concerns, recommendations and, when it isn't realistic, a suggested duration you can apply in one click.
+4. **Plan** — phases with dates (forced inside the chosen timeline), objectives, tasks, deliverables, milestones, risks, plus assumptions and success metrics, a timeline chart, and a **Plan with AI** chat that answers questions or edits the plan. The plan can be copied as Markdown or added to the project's Explorer tree (`/plan/apply`: phases as `phase` nodes with due date + context, tasks as `action` children).
+
+AI results are saved the moment they arrive; typing is saved ~1 s after you stop. The planner is login-only, like every AI feature: guests keep their projects and Explorer but see a sign-in prompt in the planner. It is mirrored in `fe-apis/todo/projects/plan*.ts` (prompts, limits and error texts are copied verbatim, so change both).
+
+Frontend service clients live in `frontend/src/lib/services/{todoService,quickTaskService,projectService,projectPlannerService,paretoService}.ts`,
 and components in `frontend/src/modules/ai-todo/`.
 
 ### Known gaps / tech debt

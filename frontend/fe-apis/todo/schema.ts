@@ -272,6 +272,17 @@ export function ensureTodoSchema(db: TodoDb): void {
   `);
   addColumnIfMissing(db, 'project_nodes', columnsOf(db, 'project_nodes'), 'user_id', 'INTEGER DEFAULT NULL');
 
+  // One AI Planner workspace per project (see shared/schema.py): the client owns the JSON shape of `state`.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_plans (
+      project_id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      state TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS goal_nodes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

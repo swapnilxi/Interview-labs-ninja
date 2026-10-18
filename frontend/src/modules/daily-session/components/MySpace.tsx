@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { questionsService, Question } from '@/lib/services/questionsService';
 import { notify } from '@/lib/ui/notifications';
 import { openLoginModal } from '@/components/auth/LoginModal';
+import { useUrlState } from '@/lib/navigation/urlState';
 
 interface FocusTargets {
   targetRole: string;
@@ -20,6 +21,18 @@ export default function MySpace() {
   const { user } = useAuth();
   const isSwapnilxi = user?.email?.toLowerCase() === 'swapnilgupta.xi@gmail.com';
   const userKey = user ? (user.id || user.email?.toLowerCase() || 'authenticated') : 'guest';
+
+  // One screen, two addresses: ?tab=swapnilxi-space for the creator, ?tab=myspace for everyone else. A hand-edited or
+  // shared link to the other one shows this same screen, so the address (and the page header, which follows it) is
+  // corrected to the one that belongs to this account. replace: the wrong address does not stay in history.
+  const { get: getParam, update: updateUrl } = useUrlState();
+  const tabParam = getParam('tab');
+  const ownTab = isSwapnilxi ? 'swapnilxi-space' : 'myspace';
+  useEffect(() => {
+    if (user && (tabParam === 'myspace' || tabParam === 'swapnilxi-space') && tabParam !== ownTab) {
+      updateUrl({ tab: ownTab }, 'replace');
+    }
+  }, [user, tabParam, ownTab, updateUrl]);
 
   const [dbQuestions, setDbQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);

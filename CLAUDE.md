@@ -183,11 +183,21 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   diverge. `ai_todo`'s twin is `frontend/fe-apis/todo/` (one catch-all route per prefix,
   `src/app/api/{todo,pareto}/[...path]`); its README maps each Python file to its TS port.
 - **The labs have two small twins**, nothing else of theirs does: `backend/modules/lab_sections/`
-  (AI-written lab sections like DSA "Approaches", context regenerate, AI quizzes; `/lab-sections/*`)
-  ↔ `frontend/fe-apis/labSections/`, and the DSA week plan (`/dsa/week-plan`, in `dsa_lab/`) ↔
+  (AI-written lab sections like DSA "Approaches", context regenerate, AI quizzes, the per-page
+  "Mark as complete" state, and each user's per-section generation settings: prompt, add-on, standing
+  context, `'*'` = the lab-wide row; `/lab-sections/*`) ↔ `frontend/fe-apis/labSections/` (its catch-all route
+  must export every verb the twin serves: a missing `PUT` was a 405 until the progress check caught
+  it), and the DSA week plan (`/dsa/week-plan`, in `dsa_lab/`) ↔
   `frontend/fe-apis/dsaLab/`. Prompts, limits and error texts are copied verbatim, so change both. To
   check them: point both at a mock OpenAI-compatible provider (`customBaseUrl`), send the same requests
   to each, and diff statuses, bodies and the prompts the mock received.
+- **Labs Project** is the third lab twin: `backend/modules/lab_projects/` (`/lab-projects/*`: projects and the
+  sections saved to them) ↔ `frontend/fe-apis/labProjects/`. `lab_sections` takes an optional `project_id`
+  (JSON integer only), loads the project server-side scoped to the user, and adds the project block through
+  `lab_projects/knowledge.py` ↔ `fe-apis/labProjects/knowledge.ts`; both the retrieval (BM25) and every prompt
+  string must stay byte-identical across the pair. Isolation rules live in README.md ("Labs Project"): never
+  null `lab_section_content.project_id` / `lab_quiz_questions.project_id` on a project delete, and always scope
+  section queries by user *and* project. `backend/tests/lab_projects_test.py` covers it.
 - Most other modules (`career_studio`, the rest of the interview labs — topics/sections —,
   `daily_session`, `linkedin_post_generator`) have **no** `fe-apis` equivalent — they only work in
   `fastapi` mode. Don't assume feature parity between modes without checking whether a

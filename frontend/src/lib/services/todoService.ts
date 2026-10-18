@@ -42,6 +42,12 @@ export interface Task {
   pareto_reason?: string | null;
   pareto_locked?: boolean;
   eisenhower_quadrant?: string | null;
+  /**
+   * Set only on the copy of a task that a search or filter has pruned: `children` then holds just the matches, so these
+   * carry the real number of subtasks and how many are done. Progress is a fact about the task, not about the view.
+   */
+  child_total?: number;
+  child_done?: number;
 }
 
 export interface TodoStats {
@@ -160,7 +166,10 @@ export function getRelativeDueDate(dueDateStr: string | null): { text: string; i
   if (!dueDateStr) return null;
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  const due = new Date(dueDateStr);
+  // A stored due date is a calendar day ("2026-10-16"), not a moment. `new Date("2026-10-16")` reads it as midnight UTC, which
+  // is the evening of the 15th west of UTC: every label was a day early there ("due today" read "1d overdue").
+  const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(dueDateStr);
+  const due = day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])) : new Date(dueDateStr);
   due.setHours(0, 0, 0, 0);
   const diffMs = due.getTime() - now.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
@@ -187,6 +196,8 @@ export function flattenTree(tasks: Task[]): Task[] {
 }
 
 export function computeProgress(task: Task): number {
+  // A pruned copy (search / filters) carries the real totals; its `children` is only the visible matches.
+  if (task.child_total) return Math.round(((task.child_done ?? 0) / task.child_total) * 100);
   if (!task.children?.length) return task.status === 'done' ? 100 : 0;
   const done = task.children.filter(c => c.status === 'done').length;
   return Math.round((done / task.children.length) * 100);
@@ -659,6 +670,20 @@ export const todoService = {
     return await res.json();
   },
 
+  /**
+   * AI assigns an Eisenhower quadrant (do_now / schedule / delegate / eliminate — the matrix's own ids) to every open task.
+   * Only quadrants change. (`prioritizeAllWithAI` is the 80/20 sweep: it rewrites priorities and Pareto scores and stores
+   * quadrants as q1_do…q4_eliminate, which the matrix can't place.)
+   */
+  async eisenhowerAuto(model: string = 'gemini'): Promise<{ assignments: { task_id: number; quadrant: string }[] }> {
+    const res = await apiFetch('/todo/tasks/eisenhower-auto', {
+      method: 'POST',
+      body: JSON.stringify(aiRequestFields(model)),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    return await res.json();
+  },
+
   async prioritizeAllWithAI(model: string = 'gemini'): Promise<any> {
     const res = await apiFetch('/todo/ai/prioritize-all', {
       method: 'POST',
@@ -688,6 +713,9 @@ export const todoService = {
 };
 
 export function triggerConfetti(x: number, y: number) {
+  // A burst of flying particles is exactly the motion the OS setting asks to avoid. The task still shows as done (filled
+  // checkbox, struck-through title), so nothing is lost by skipping it.
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
   const colors = ['#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#8b5cf6', '#ef4444'];
   const container = document.createElement('div');
   container.style.position = 'fixed';

@@ -6,6 +6,7 @@ import Markdown from '@/modules/common/lab/Markdown';
 import SectionContextPanel from '@/modules/common/lab/SectionContextPanel';
 import AiError from '@/modules/common/lab/AiError';
 import type { ContextMode } from '@/lib/services/labSectionsService';
+import SectionProjectBar, { type SectionSaveInfo } from '@/modules/common/lab/project/SectionProjectBar';
 
 interface OnDemandSectionProps {
   sectionIndex: number;
@@ -22,6 +23,16 @@ interface OnDemandSectionProps {
   savedContext?: string;
   /** Why the last Generate failed; shown above the "locked" hint until the section is generated. */
   error?: string | null;
+  /** The learner customised this section in the lab settings: shows a small "Custom" badge. */
+  customised?: boolean;
+  /** Lets the user click to open the prompt/addon editor modal */
+  onOpenPromptSettings?: () => void;
+  /** Lets the pen's Regenerate run without typing anything (see SectionContextPanel). */
+  allowEmptyRegenerate?: boolean;
+  /** Draws the generated text itself (the Approaches tabs); the plain Markdown view is used when absent. */
+  renderContent?: (content: string) => React.ReactNode;
+  /** Adds the project strip under the text: the project it was written for and "Save to Project". */
+  projectSave?: SectionSaveInfo;
   children?: React.ReactNode; // for custom render (e.g. quiz)
 }
 
@@ -37,6 +48,11 @@ export default function OnDemandSection({
   onGenerateWithContext,
   savedContext,
   error,
+  customised,
+  onOpenPromptSettings,
+  allowEmptyRegenerate,
+  renderContent,
+  projectSave,
   children,
 }: OnDemandSectionProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -51,21 +67,39 @@ export default function OnDemandSection({
       >
         <div className="flex items-center gap-3 min-w-0">
           {/* Section number pill */}
-          <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold leading-none transition-colors
-            ${isGenerated ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground/60'}`}>
+          <div
+            className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold leading-none transition-colors
+            ${isGenerated ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground/60'}`}
+          >
             {String(sectionIndex).padStart(2, '0')}
           </div>
 
           {/* Icon + title */}
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors
-            ${isGenerated ? 'bg-primary/10' : 'bg-muted/60'}`}>
-            <Icon name={icon as any} size={16} className={isGenerated ? 'text-primary' : 'text-muted-foreground/50'} />
+          <div
+            className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors
+            ${isGenerated ? 'bg-primary/10' : 'bg-muted/60'}`}
+          >
+            <Icon
+              name={icon as any}
+              size={16}
+              className={isGenerated ? 'text-primary' : 'text-muted-foreground/50'}
+            />
           </div>
 
           <div className="min-w-0">
-            <h3 className={`text-sm font-semibold leading-tight transition-colors
-              ${isGenerated ? 'text-foreground' : 'text-foreground/70'}`}>
+            <h3
+              className={`text-sm font-semibold leading-tight transition-colors
+              ${isGenerated ? 'text-foreground' : 'text-foreground/70'}`}
+            >
               {title}
+              {customised && (
+                <span
+                  title="Customised in this lab's settings"
+                  className="ml-2 align-middle text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30"
+                >
+                  Custom
+                </span>
+              )}
             </h3>
             {subtitle && (
               <p className="text-[11px] text-muted-foreground/70 mt-0.5 truncate">{subtitle}</p>
@@ -74,6 +108,24 @@ export default function OnDemandSection({
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+          {onOpenPromptSettings && (
+            <button
+              type="button"
+              onClick={onOpenPromptSettings}
+              title="Edit section prompt, add-ons & context"
+              aria-label="Edit section prompt and configuration"
+              className={`relative p-1.5 rounded-lg transition-colors ${
+                customised
+                  ? 'mix-bg-amber-500/15 text-amber-500 hover:mix-bg-amber-500/25'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <Icon name="AdjustmentsHorizontalIcon" size={15} />
+              {customised && (
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500" />
+              )}
+            </button>
+          )}
           {onGenerateWithContext && (
             <button
               type="button"
@@ -82,11 +134,15 @@ export default function OnDemandSection({
               aria-label="Add context to this section"
               aria-expanded={contextOpen}
               className={`relative p-1.5 rounded-lg transition-colors ${
-                contextOpen ? 'mix-bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                contextOpen
+                  ? 'mix-bg-primary/15 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
               <Icon name="PencilIcon" size={14} />
-              {savedContext && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />}
+              {savedContext && (
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
+              )}
             </button>
           )}
           {!isGenerated ? (
@@ -124,7 +180,7 @@ export default function OnDemandSection({
               )}
               {!children && (
                 <button
-                  onClick={() => setCollapsed(c => !c)}
+                  onClick={() => setCollapsed((c) => !c)}
                   className="p-1.5 rounded-lg hover:bg-muted/80 transition-all text-muted-foreground hover:text-foreground"
                   title={collapsed ? 'Expand' : 'Collapse'}
                 >
@@ -142,6 +198,8 @@ export default function OnDemandSection({
           initialContext={savedContext ?? ''}
           hasContent={isGenerated && !!content?.trim()}
           busy={isGenerating}
+          allowEmptyRegenerate={allowEmptyRegenerate}
+          onOpenPromptSettings={onOpenPromptSettings}
           onSubmit={onGenerateWithContext}
           onClose={() => setContextOpen(false)}
         />
@@ -149,9 +207,17 @@ export default function OnDemandSection({
 
       {/* ── Content ── */}
       {isGenerated && !collapsed && (
-        <div className={`p-5 animate-fade-in transition-opacity ${isGenerating ? 'opacity-60' : ''}`}>
-          {children ?? <Markdown content={content ?? ''} />}
+        <div
+          className={`p-5 animate-fade-in transition-opacity ${isGenerating ? 'opacity-60' : ''}`}
+        >
+          {children ??
+            (renderContent ? renderContent(content ?? '') : <Markdown content={content ?? ''} />)}
         </div>
+      )}
+
+      {/* ── Project: which project it is for + Save to Project ── */}
+      {projectSave && isGenerated && !collapsed && !children && !!content?.trim() && (
+        <SectionProjectBar content={content} info={projectSave} busy={isGenerating} />
       )}
 
       {/* ── Generate failed ── */}
@@ -165,7 +231,10 @@ export default function OnDemandSection({
       {!isGenerated && !isGenerating && (
         <div className="px-4 py-3 flex items-center gap-2.5 text-muted-foreground/60 bg-muted/20">
           <Icon name="LockClosedIcon" size={13} />
-          <p className="text-xs">Click <span className="text-primary font-medium">Generate ✨</span> to load this section on-demand</p>
+          <p className="text-xs">
+            Click <span className="text-primary font-medium">Generate ✨</span> to load this section
+            on-demand
+          </p>
         </div>
       )}
     </div>

@@ -26,9 +26,11 @@ The bare `/todo` URL is *not* an API path: it redirects to the `/ai-todo` page.
 |---|---|
 | `shared/schema.py` | `schema.ts` (`ensureTodoSchema`, run once per process from `withTodoDb`) |
 | `tasks/db.py`, `quick/db.py`, `projects/db.py`, `goals/db.py` | `<module>/db.ts` |
+| `projects/plan_db.py` | `projects/planDb.ts` (the AI Planner workspace + add-plan-to-project) |
 | `tasks/router.py` (task CRUD … `/tasks/{id}/resume`) | `tasks/handlersCore.ts` |
 | `tasks/router.py` (`/daily/*` … `/ai/smart-schedule`) | `tasks/handlersPlanning.ts` |
 | `quick/router.py`, `projects/router.py`, `goals/router.py` | `<module>/handlers.ts` |
+| `projects/plan_router.py` (AI Planner: `/projects/{id}/plan`, `…/plan/{questions,feasibility,generate,refine,apply}`) | `projects/planHandlers.ts` |
 | `pareto/router.py` | `pareto/handlers.ts` (mounted at `/pareto`, not `/todo`) |
 | `import_data/router.py` | `importData/handlers.ts` |
 | `modules/common/ai`, `modules/auth/dependencies.py` | `_shared.ts` |

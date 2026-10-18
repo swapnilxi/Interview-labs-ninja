@@ -10,7 +10,16 @@ import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/Gene
 import MarkdownLite from '@/modules/common/lab/MarkdownLite';
 import { useLabSections } from '@/modules/common/lab/useLabSections';
 import { LabBackBar, LabScreenLoading, jumpToAnchor, useLabNav, useScrollToTopOnChange } from '@/modules/common/lab/labNavigation';
+import { CompleteButton, DoneMark, LabProgressSummary } from '@/modules/common/lab/LabProgressUi';
+import { LabSettingsButton, settingsSections } from '@/modules/common/lab/LabSettings';
+import LabSettingsModal from '@/modules/common/lab/LabSettingsModal';
+import ProjectSelector from '@/modules/common/lab/project/ProjectSelector';
+import { sectionSaveInfo } from '@/modules/common/lab/project/sectionProject';
+import SectionPromptModal from '@/modules/common/lab/SectionPromptModal';
+import { useLabSettings } from '@/modules/common/lab/useLabSettings';
+import { SD_DEFAULT_GUIDANCE } from './sectionGuidance';
 import { apiFetch } from '@/lib/http/apiClient';
+import { buildSdPrerequisitesMarkdown } from './prerequisites';
 
 interface SDTopic {
   id: string;
@@ -708,6 +717,8 @@ function getContent(sectionId: string, topic: SDTopic): string {
   const name = topic.name;
 
   const templates: Record<string, string> = {
+    prerequisites: buildSdPrerequisitesMarkdown(topic),
+
     problem: `**Problem Statement: ${name}**\n\n**Why this matters:**\nThis system is at the core of modern digital infrastructure. Getting the design right is the difference between a system that serves millions and one that falls over under load.\n\n**The core challenge:**\n${topic.brief}\n\n**What makes this hard:**\n1. Scale: ${topic.scale}\n2. Reliability: Users expect 99.99%+ uptime\n3. Consistency vs Availability trade-offs under network partitions\n4. Cost: Compute and storage at this scale is expensive\n\n**Interview context:**\nThis is a favourite at FAANG because it tests: system thinking, knowledge of distributed systems, ability to make and justify trade-offs, and practical engineering experience.`,
 
     requirements: `**Requirements for ${name}**\n\n**Functional Requirements (what the system must DO):**\n1. Core feature: primary use case, end-to-end\n2. CRUD operations: create, read, update, delete as applicable\n3. Search/query capabilities if needed\n4. User authentication and authorisation\n5. Notifications/webhooks for async events\n\n**Non-Functional Requirements (how well it must do it):**\n| Requirement | Target | Notes |\n|---|---|---|\n| Latency | < 100ms p99 | End-to-end for read |\n| Availability | 99.99% | 52min downtime/year |\n| Consistency | Eventual | Tolerate staleness < 1s |\n| Scale | ${topic.scale} | Peak traffic |\n| Durability | 99.999999999% | 11 nines for data |\n\n**What to clarify in interview:**\n- Read-heavy or write-heavy? (affects caching strategy)\n- Global or single-region? (affects replication design)\n- Strong or eventual consistency? (fundamental design driver)\n- What are the SLOs and who are the users?`,
@@ -743,7 +754,19 @@ function getContent(sectionId: string, topic: SDTopic): string {
   return templates[sectionId] ?? `**${name} — ${sectionId}**\n\nProduction-quality system design content for this section.`;
 }
 
+// Standing instructions for the Prerequisites section when it is rewritten with the pen (the plain
+// Generate fills in the template from ./prerequisites.ts, which has the same groups).
+const PREREQUISITES_GUIDANCE = `List the specific things a learner must already know to follow THIS design, as short bullets under these bold headings, in this order:
+**Networking & web basics** - protocols and web pieces the design uses (for example HTTP redirects 301 vs 302, WebSocket vs polling, CDN caching headers).
+**Data & storage** - the storage concepts it relies on (for example indexes, replication lag, Redis sorted sets, object storage vs a database).
+**Distributed-systems concepts** - the ideas to know first (for example consistent hashing, quorum, idempotency, CAP, fan-out on write).
+**Estimation & math** - the numbers and formulas used in the back-of-envelope step (for example QPS = requests per day / 86,400, storage = records x size x retention).
+Add **Coding skills** as a fifth group only for low-level-design topics (classes, design patterns, data structures).
+
+Every bullet names ONE concrete skill, never a vague area like "databases" or "networking". Put a tiny example in backticks where it helps. Use 8-14 bullets in total, no paragraphs, and never write that no prerequisites are needed.`;
+
 const SECTION_DEFS = [
+  { id: 'prerequisites', label: 'Prerequisites', icon: 'AcademicCapIcon', subtitle: 'Specific networking, data and distributed-systems skills to have first', guidance: PREREQUISITES_GUIDANCE },
   { id: 'problem', label: 'Problem Statement & Why It Matters', icon: 'DocumentTextIcon', subtitle: 'Context, challenges, interview importance' },
   { id: 'requirements', label: 'Functional & Non-Functional Requirements', icon: 'ClipboardDocumentListIcon', subtitle: 'User stories, SLOs, constraints' },
   { id: 'estimation', label: 'Back-of-Envelope Estimation', icon: 'CalculatorIcon', subtitle: 'QPS, storage, bandwidth, memory' },
@@ -761,6 +784,9 @@ const SECTION_DEFS = [
   { id: 'quiz', label: 'Quiz', icon: 'TrophyIcon', subtitle: '4 questions with explanations' },
   { id: 'lld', label: 'Low-Level Design', icon: 'PuzzlePieceIcon', subtitle: 'Design patterns, class diagrams, Python code' },
 ];
+
+// The sections the lab settings dialog lists (the quiz here is a fixed question bank, so it is left out).
+const SETTINGS_SECTIONS = settingsSections(SECTION_DEFS, SD_DEFAULT_GUIDANCE, { skip: ['quiz'] });
 
 const QUIZ_BANK = [
   { q: 'What does CAP theorem state?', options: ['A system can have Consistency, Availability, and Partition tolerance', 'A distributed system can only guarantee 2 of: Consistency, Availability, Partition tolerance', 'Consistency and Availability are always achievable', 'Partition tolerance is optional'], answer: 1, explanation: 'CAP theorem: in the presence of a network Partition, you must choose between Consistency (all nodes see same data) and Availability (every request gets a response).' },
@@ -830,6 +856,8 @@ function SDWikiIndex({
         </div>
       </div>
 
+      <LabProgressSummary lab="system_design" topicIds={allTopics.map(t => t.id)} noun="topics" />
+
       {/* ── Clickable Category Index ── */}
       <div className="lab-card overflow-hidden">
         <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
@@ -881,6 +909,7 @@ function SDWikiIndex({
                         {t.scale !== 'N/A' && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border leading-none">{t.scale}</span>
                         )}
+                        <DoneMark lab="system_design" topicId={t.id} />
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{t.difficulty}</span>
                       </div>
                     </div>
@@ -1078,9 +1107,13 @@ export default function SystemDesignLabInteractive() {
   const allTopics = topics;
   const currentTopic = allTopics.find(t => t.id === selectedTopicId) ?? null;
   const currentSubtopic = currentTopic?.subtopics.find(s => s.id === selectedSubtopicId) ?? null;
-  const { sections, generate: generateSection, generateWithContext } = useLabSections({
+  const labSettings = useLabSettings('system_design');
+  const [promptModalSection, setPromptModalSection] = useState<any | null>(null);
+  const [labSettingsModalOpen, setLabSettingsModalOpen] = useState(false);
+  const { sections, generate: generateSection, generateWithContext, canRegenerateWithoutContext } = useLabSections({
     lab: 'system_design', topic: currentTopic, subtopic: currentSubtopic, sectionDefs: SECTION_DEFS,
     getDefaultContent: id => (currentTopic ? getContent(id, currentTopic) : ''),
+    defaultGuidance: SD_DEFAULT_GUIDANCE,
   });
   const contextLabel = selectedTopicId === 'wiki' ? 'Wiki Index' : (currentSubtopic?.name ?? currentTopic?.name ?? 'System Design');
 
@@ -1241,6 +1274,7 @@ export default function SystemDesignLabInteractive() {
                     <h2 className="text-sm font-bold text-foreground tracking-tight">System Design</h2>
                     <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{allTopics.length} problems · {groupedSections.length} categories</p>
                   </div>
+                  <LabSettingsButton lab="system_design" labName="System Design" sections={SETTINGS_SECTIONS} />
                   <button onClick={() => collapseLeft()} className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Collapse sidebar">
                     <Icon name="ChevronLeftIcon" size={14} />
                   </button>
@@ -1378,6 +1412,7 @@ export default function SystemDesignLabInteractive() {
                                   </span>
                                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                     <span className={`text-[8px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{topic.difficulty}</span>
+                                    <DoneMark lab="system_design" topicId={topic.id} />
                                     {topic.isLLD && <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-400 border border-violet-500/20 font-bold leading-none">LLD</span>}
                                     {topic.scale !== 'N/A' && <span className="text-[8px] text-muted-foreground/50 leading-none">{topic.scale}</span>}
                                   </div>
@@ -1403,6 +1438,7 @@ export default function SystemDesignLabInteractive() {
                                         {(idx + 1).toString().padStart(2, '0')}
                                       </span>
                                       <span className="truncate">{sub.name}</span>
+                                      <DoneMark lab="system_design" topicId={topic.id} subtopicId={sub.id} className="ml-1.5 align-middle" />
                                     </button>
                                   );
                                 })}
@@ -1492,6 +1528,22 @@ export default function SystemDesignLabInteractive() {
                     {currentSubtopic && (
                       <span className="text-xs px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary border border-secondary/20 leading-none">Deep Dive</span>
                     )}
+                    <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                      <ProjectSelector />
+                      <button
+                        type="button"
+                        onClick={() => setLabSettingsModalOpen(true)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 text-xs font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-all shadow-sm"
+                        title="System Design Lab Settings & Prompts"
+                      >
+                        <Icon name="AdjustmentsHorizontalIcon" size={13} className="text-primary" />
+                        <span>Lab Settings</span>
+                        {labSettings.hasAny && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        )}
+                      </button>
+                      <CompleteButton lab="system_design" topicId={currentTopic.id} subtopicId={currentSubtopic?.id ?? ''} />
+                    </div>
                   </div>
 
                   <h1 className="text-xl font-bold text-foreground mb-2 leading-snug tracking-tight">
@@ -1573,7 +1625,11 @@ export default function SystemDesignLabInteractive() {
                       <OnDemandSection key={def.id} sectionIndex={idx + 1} icon={def.icon} title={def.label} subtitle={def.subtitle}
                         content={s.content} isGenerated={s.generated} isGenerating={s.generating} onGenerate={() => generateSection(def.id)}
                         onGenerateWithContext={def.id === 'quiz' ? undefined : (context, mode) => generateWithContext(def.id, context, mode)}
-                        savedContext={s.context}>
+                        savedContext={s.context}
+                        customised={def.id !== 'quiz' && labSettings.isCustomised(def.id)}
+                        projectSave={def.id === 'quiz' ? undefined : sectionSaveInfo({ lab: 'system_design', topic: currentTopic, subtopic: currentSubtopic ?? null, sectionId: def.id, sectionLabel: def.label, state: s })}
+                        onOpenPromptSettings={def.id !== 'quiz' ? () => setPromptModalSection(def) : undefined}
+                        allowEmptyRegenerate={canRegenerateWithoutContext(def.id)}>
                         {def.id === 'quiz' && s.generated ? (
                           <QuizCarousel questions={QUIZ_BANK.slice(quizBatch * 4, quizBatch * 4 + 4)} hasMore={(quizBatch + 1) * 4 < QUIZ_BANK.length} onGenerateMore={() => setQuizBatch(b => b + 1)} />
                         ) : undefined}
@@ -1581,6 +1637,11 @@ export default function SystemDesignLabInteractive() {
                     </div>
                   );
                 })}
+              </div>
+
+              {/* ── Mark as complete (again, at the end of the page) ── */}
+              <div className="flex justify-center pt-2">
+                <CompleteButton lab="system_design" topicId={currentTopic.id} subtopicId={currentSubtopic?.id ?? ''} size="lg" />
               </div>
 
               {/* ── Prev / Next ── */}
@@ -1594,6 +1655,40 @@ export default function SystemDesignLabInteractive() {
                   {nextItem?.label ?? 'No next'}<Icon name="ArrowRightIcon" size={14} />
                 </button>
               </div>
+
+              {promptModalSection && (
+                <SectionPromptModal
+                  lab="system_design"
+                  section={promptModalSection}
+                  currentSettings={labSettings.get(promptModalSection.id)}
+                  labWideSettings={labSettings.labWide}
+                  currentTopic={{
+                    name: currentTopic.name,
+                    brief: currentSubtopic?.brief ?? currentTopic.brief,
+                    subtopicName: currentSubtopic?.name,
+                  }}
+                  isOpen={true}
+                  onClose={() => setPromptModalSection(null)}
+                  onSave={async (vals) => {
+                    await labSettings.save(promptModalSection.id, vals);
+                  }}
+                  onSaveAndGenerate={async (vals) => {
+                    await labSettings.save(promptModalSection.id, vals);
+                    await generateWithContext(promptModalSection.id, vals.context || '', 'regenerate');
+                  }}
+                />
+              )}
+
+              <LabSettingsModal
+                lab="system_design"
+                isOpen={labSettingsModalOpen}
+                onClose={() => setLabSettingsModalOpen(false)}
+                currentTopic={{
+                  name: currentTopic.name,
+                  brief: currentSubtopic?.brief ?? currentTopic.brief,
+                  subtopicName: currentSubtopic?.name,
+                }}
+              />
             </div>
           )}
         </main>

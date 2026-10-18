@@ -8,7 +8,7 @@
  */
 
 import { openLoginModal } from '@/components/auth/LoginModal';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
@@ -89,6 +89,16 @@ export default function CareerStudioTabs() {
     if (tabParam !== null && !isTab(tabParam)) update({ tab: null }, 'replace');
   }, [tabParam, update]);
 
+  // The tab row scrolls sideways on a phone: keep the open tab in view (after a reload or a deep link it can start off-screen).
+  const tabbarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const bar = tabbarRef.current;
+    const active = bar?.querySelector<HTMLElement>('.cs-tab-active');
+    if (!bar || !active) return;
+    const offset = active.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft;
+    bar.scrollTo({ left: Math.max(0, offset - (bar.clientWidth - active.offsetWidth) / 2) });
+  }, [tab, authed]);
+
   const createProfile = async () => {
     try {
       const p = await careerService.createProfile('My Profile');
@@ -135,7 +145,7 @@ export default function CareerStudioTabs() {
         <div className={`fixed top-20 right-6 z-[300] px-4 py-2.5 rounded-lg text-sm font-medium shadow-lg animate-fade-in ${toast.type === 'success' ? 'bg-success/10 text-success border border-success/30' : 'bg-error/10 text-error border border-error/30'}`}>{toast.message}</div>
       )}
 
-      <div className="cs-tabbar">
+      <div ref={tabbarRef} className="cs-tabbar">
         {TABS.map((t) => (
           <button key={t.id} onClick={() => goToTab(t.id)} className={`cs-tab ${tab === t.id ? 'cs-tab-active' : ''}`}>
             <Icon name={t.icon as any} size={16} /> {t.label}

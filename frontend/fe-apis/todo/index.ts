@@ -13,6 +13,7 @@ import { routes as tasksCoreRoutes } from './tasks/handlersCore';
 import { routes as tasksPlanningRoutes } from './tasks/handlersPlanning';
 import { routes as quickRoutes } from './quick/handlers';
 import { routes as projectRoutes } from './projects/handlers';
+import { routes as projectPlanRoutes } from './projects/planHandlers';
 import { routes as goalRoutes } from './goals/handlers';
 import { routes as importRoutes } from './importData/handlers';
 import { routes as paretoRoutes } from './pareto/handlers';
@@ -22,6 +23,7 @@ const TODO_ROUTES = compileRoutes([
   ...tasksPlanningRoutes,
   ...quickRoutes,
   ...projectRoutes,
+  ...projectPlanRoutes,
   ...goalRoutes,
   ...importRoutes,
 ]);

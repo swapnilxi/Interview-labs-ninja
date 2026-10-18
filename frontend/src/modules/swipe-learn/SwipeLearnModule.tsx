@@ -321,8 +321,10 @@ export default function SwipeLearnModule() {
     return allCards.filter((c) => savedCardIds.includes(c.id));
   }, [allCards, savedCardIds]);
 
+  // Phones: leave room for the app's bottom tab bar (--mobile-tab-h, set on <html> while it shows), or it would cover
+  // this screen's own bottom nav.
   return (
-    <div className="w-full h-[calc(100dvh-60px)] overflow-hidden bg-background flex flex-col items-center">
+    <div className="w-full h-[calc(100dvh_-_60px_-_var(--mobile-tab-h,0px))] overflow-hidden bg-background flex flex-col items-center">
       {/* Mobile-first centered frame */}
       <div className="w-full max-w-[680px] flex-1 min-h-0 flex flex-col border-x border-border relative">
         {/* Toast Alert */}

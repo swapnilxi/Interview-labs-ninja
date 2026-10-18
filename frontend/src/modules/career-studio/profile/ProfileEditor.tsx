@@ -51,11 +51,13 @@ export default function ProfileEditor({ profileId, backHref }: { profileId: stri
   const flushPendingSaves = useResumeStore((s) => s.flushPendingSaves);
   const discardPendingSaves = useResumeStore((s) => s.discardPendingSaves);
 
-  // The phone-size Edit / Preview toggle is a section of this screen, so it lives in the URL (?pane=preview; anything else is Edit).
+  // The phone-size Edit / Preview toggle is the same editor seen two ways, so it lives in the URL (?pane=preview; anything
+  // else is Edit) but replaces the entry: toggling must not stack history entries (the Back control would then step through
+  // them instead of closing the editor, and the browser's Back would reopen it).
   const { get, update } = useUrlState();
   const mobileTab: 'edit' | 'preview' = get('pane') === 'preview' ? 'preview' : 'edit';
   const setMobileTab = (tab: 'edit' | 'preview') => {
-    if (tab !== mobileTab) update({ pane: tab === 'preview' ? 'preview' : null });
+    if (tab !== mobileTab) update({ pane: tab === 'preview' ? 'preview' : null }, 'replace');
   };
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);

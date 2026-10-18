@@ -8,6 +8,9 @@ import {
   type LabPage,
   type QuizQuestion,
 } from '@/lib/services/labSectionsService';
+import { useLabSettings } from '@/modules/common/lab/useLabSettings';
+import { resolveSelectedProject } from '@/modules/common/lab/project/projectStore';
+import { useLabProjects } from '@/modules/common/lab/project/useLabProjects';
 
 interface QuizState {
   key: string;
@@ -34,6 +37,7 @@ export function useLabQuiz({
   category,
   prerequisites,
   relatedTopics,
+  defaultGuidance = '',
 }: {
   lab: LabName;
   topic: LabPage | null;
@@ -41,7 +45,11 @@ export function useLabQuiz({
   category: string;
   prerequisites: string[];
   relatedTopics: string[];
+  /** The quiz section's built-in instructions, shown in the lab settings. They are only sent along once the learner has changed something. */
+  defaultGuidance?: string;
 }) {
+  const settings = useLabSettings(lab);
+  useLabProjects(); // keeps the project list bound to the signed-in user while a quiz is on screen
   const topicId = topic?.id ?? '';
   const subtopicId = subtopic?.id ?? '';
   const key = topicId ? `${topicId}|${subtopicId}` : '';
@@ -77,6 +85,11 @@ export function useLabQuiz({
     inFlightKey.current = forKey;
     setStore((prev) => (prev.key !== forKey ? prev : { ...prev, generating: true, error: null }));
     try {
+      // The quiz's built-in rules live in the backend prompt, so the learner's text is an extra block on
+      // top of it, and nothing extra is sent until they have changed something for this section or the lab.
+      const instructions = settings.effective('quiz', defaultGuidance);
+      const touched = settings.isCustomised('quiz') || settings.usesAi('quiz');
+      const project = await resolveSelectedProject();
       const added = await generateQuiz({
         lab,
         topic,
@@ -84,6 +97,9 @@ export function useLabQuiz({
         category,
         prerequisites,
         relatedTopics,
+        guidance: touched ? instructions.guidance : '',
+        standingContext: instructions.standingContext,
+        projectId: project?.id ?? null,
       });
       setStore((prev) =>
         prev.key !== forKey

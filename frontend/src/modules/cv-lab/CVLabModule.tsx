@@ -10,7 +10,16 @@ import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/Gene
 import MarkdownLite from '@/modules/common/lab/MarkdownLite';
 import { useLabSections } from '@/modules/common/lab/useLabSections';
 import { LabBackBar, LabScreenLoading, jumpToAnchor, useLabNav, useScrollToTopOnChange } from '@/modules/common/lab/labNavigation';
+import { CompleteButton, DoneMark, LabProgressSummary } from '@/modules/common/lab/LabProgressUi';
+import { LabSettingsButton, settingsSections } from '@/modules/common/lab/LabSettings';
+import LabSettingsModal from '@/modules/common/lab/LabSettingsModal';
+import ProjectSelector from '@/modules/common/lab/project/ProjectSelector';
+import { sectionSaveInfo } from '@/modules/common/lab/project/sectionProject';
+import SectionPromptModal from '@/modules/common/lab/SectionPromptModal';
+import { useLabSettings } from '@/modules/common/lab/useLabSettings';
+import { CV_DEFAULT_GUIDANCE } from './sectionGuidance';
 import { apiFetch } from '@/lib/http/apiClient';
+import { buildCvPrerequisitesMarkdown } from './prerequisites';
 
 interface CVTopic {
   id: string;
@@ -485,10 +494,9 @@ const TOPICS: CVTopic[] = [
 
 function getContent(sectionId: string, topic: CVTopic): string {
   const name = topic.name;
-  const prereqs = topic.prerequisites.join(', ');
 
   const templates: Record<string, string> = {
-    prerequisites: `**Prerequisites for ${name}:**\n\n${topic.prerequisites.map((p, i) => `${i + 1}. **${p}** — Foundational understanding required before exploring this topic.`).join('\n')}\n\n**Why these matter:**\nWithout solid grounding in ${prereqs || 'basic mathematics'}, the mathematical derivations and intuition behind ${name} will be difficult to follow. Ensure you review these foundations before starting.`,
+    prerequisites: buildCvPrerequisitesMarkdown(topic),
 
     theory: `**Core Theory: ${name}**\n\n**Mathematical Foundation:**\nThe key operations in ${name} involve representing visual signals as multi-dimensional matrices and computing spatial or semantic features.\n\n- Grayscale representation: f(x, y) ∈ [0, 255]\n- Color representation: f(x, y) ∈ [0, 255]³ (e.g. RGB, HSV, LAB channels)\n- Convolutions compute local linear combinations: g(x, y) = ∑_dx ∑_dy f(x + dx, y + dy) · K(dx, dy)\n\n**Key principles and concepts:**\n- Locality — pixels close to each other are highly correlated.\n- Stationary statistics — visual features (like edges, textures) are invariant to translation.\n- Scale-space representation — structures exist across multiple resolutions.`,
 
@@ -514,8 +522,17 @@ function getContent(sectionId: string, topic: CVTopic): string {
   return templates[sectionId] ?? `**${name} — ${sectionId}**\n\nProfessional-grade content for this section covering ${name} in depth. This material is formatted for interview preparation and production engineering contexts.`;
 }
 
+// Standing instructions for the Prerequisites section when it is rewritten with the pen (the plain
+// Generate fills in the template from ./prerequisites.ts, which has the same groups).
+const PREREQUISITES_GUIDANCE = `List the specific things a learner must already know to follow THIS topic, as short bullets under these bold headings, in this order:
+**Python & library skills** - concrete NumPy / OpenCV / PyTorch skills the topic uses (for example matrix multiplication with \`@\`, tensor shapes and permute, updating a dict of results after converting arrays to lists, hashmap lookups).
+**Math & tensor operations** - the maths the topic leans on (for example matrix multiplication, homogeneous coordinates, gradients, softmax).
+**Core concepts** - vision and deep-learning ideas to know first (for example intrinsic vs extrinsic camera parameters, convolution, IoU), and the earlier topics in this lab it builds on.
+
+Every bullet names ONE concrete skill, never a vague area like "basic Python" or "linear algebra". Put a tiny example in backticks where it helps. Use 8-14 bullets in total, no paragraphs, and never write that no prerequisites are needed.`;
+
 const SECTION_DEFS = [
-  { id: 'prerequisites', label: 'Prerequisites', icon: 'AcademicCapIcon', subtitle: 'What to know before diving in' },
+  { id: 'prerequisites', label: 'Prerequisites', icon: 'AcademicCapIcon', subtitle: 'Specific Python, math and vision skills to have first', guidance: PREREQUISITES_GUIDANCE },
   { id: 'theory', label: 'Core Theory', icon: 'CalculatorIcon', subtitle: 'Mathematical foundations + equations' },
   { id: 'visual', label: 'Visual Explanation & Architecture', icon: 'PhotoIcon', subtitle: 'Data flow diagrams + architecture' },
   { id: 'implementation', label: 'Practical Implementation', icon: 'CodeBracketIcon', subtitle: 'OpenCV / PyTorch code examples' },
@@ -528,6 +545,9 @@ const SECTION_DEFS = [
   { id: 'quiz', label: 'Quiz', icon: 'TrophyIcon', subtitle: '4 questions, score tracked, generate more' },
   { id: 'references', label: 'References & Resources', icon: 'BookOpenIcon', subtitle: 'CS231n, Papers With Code, OpenCV docs' },
 ];
+
+// The sections the lab settings dialog lists (the quiz here is a fixed question bank, so it is left out).
+const SETTINGS_SECTIONS = settingsSections(SECTION_DEFS, CV_DEFAULT_GUIDANCE, { skip: ['quiz'] });
 
 const QUIZ_BANK = [
   { q: 'Why is the HSV color space preferred over RGB for color-based object segmentation?', options: ['It uses fewer channels', 'It separates intensity/value from color/hue information', 'It is computationally faster to read', 'RGB is deprecated'], answer: 1, explanation: 'In HSV, Hue represents pure color. This isolates color values from illumination and shadowing variations (which affect Saturation and Value), making thresholding far more robust.' },
@@ -596,6 +616,8 @@ function CVWikiIndex({
         </div>
       </div>
 
+      <LabProgressSummary lab="cv" topicIds={allTopics.map(t => t.id)} noun="topics" />
+
       {/* ── Clickable Category Index ── */}
       <div className="lab-card overflow-hidden">
         <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
@@ -643,6 +665,7 @@ function CVWikiIndex({
                       </h3>
                       <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                         <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border leading-none">{t.category}</span>
+                        <DoneMark lab="cv" topicId={t.id} />
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{t.difficulty}</span>
                       </div>
                     </div>
@@ -892,9 +915,13 @@ export default function CVLabInteractive() {
   }));
   const currentTopic = allTopics.find(t => t.id === selectedTopicId) ?? null;
   const currentSubtopic = currentTopic?.subtopics.find(s => s.id === selectedSubtopicId) ?? null;
-  const { sections, generate: generateSection, generateWithContext } = useLabSections({
+  const labSettings = useLabSettings('cv');
+  const [promptModalSection, setPromptModalSection] = useState<any | null>(null);
+  const [labSettingsModalOpen, setLabSettingsModalOpen] = useState(false);
+  const { sections, generate: generateSection, generateWithContext, canRegenerateWithoutContext } = useLabSections({
     lab: 'cv', topic: currentTopic, subtopic: currentSubtopic, sectionDefs: SECTION_DEFS,
     getDefaultContent: id => (currentTopic ? getContent(id, currentTopic) : ''),
+    defaultGuidance: CV_DEFAULT_GUIDANCE,
   });
   const contextLabel = selectedTopicId === 'wiki' ? 'Wiki Index' : (currentSubtopic?.name ?? currentTopic?.name ?? 'Computer Vision');
 
@@ -1013,6 +1040,7 @@ export default function CVLabInteractive() {
                     <h2 className="text-sm font-bold text-foreground tracking-tight">Computer Vision</h2>
                     <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{allTopics.length} topics · {groupedSections.length} categories</p>
                   </div>
+                  <LabSettingsButton lab="cv" labName="Computer Vision" sections={SETTINGS_SECTIONS} />
                   <button onClick={() => collapseLeft()} className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Collapse sidebar">
                     <Icon name="ChevronLeftIcon" size={14} />
                   </button>
@@ -1151,6 +1179,7 @@ export default function CVLabInteractive() {
                                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                     <span className={`text-[8px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{topic.difficulty}</span>
                                     <span className="text-[8px] text-muted-foreground/50 leading-none">{topic.category}</span>
+                                    <DoneMark lab="cv" topicId={topic.id} />
                                   </div>
                                 </div>
                               </button>
@@ -1174,6 +1203,7 @@ export default function CVLabInteractive() {
                                         {(idx + 1).toString().padStart(2, '0')}
                                       </span>
                                       <span className="truncate">{sub.name}</span>
+                                      <DoneMark lab="cv" topicId={topic.id} subtopicId={sub.id} className="ml-1.5 align-middle" />
                                     </button>
                                   );
                                 })}
@@ -1260,6 +1290,22 @@ export default function CVLabInteractive() {
                     {currentTopic.isCustom && (
                       <span className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 leading-none">Custom</span>
                     )}
+                    <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                      <ProjectSelector />
+                      <button
+                        type="button"
+                        onClick={() => setLabSettingsModalOpen(true)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 text-xs font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-all shadow-sm"
+                        title="CV Lab Settings & Prompts"
+                      >
+                        <Icon name="AdjustmentsHorizontalIcon" size={13} className="text-primary" />
+                        <span>Lab Settings</span>
+                        {labSettings.hasAny && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        )}
+                      </button>
+                      <CompleteButton lab="cv" topicId={currentTopic.id} subtopicId={currentSubtopic?.id ?? ''} />
+                    </div>
                   </div>
 
                   <h1 className="text-xl font-bold text-foreground mb-2 leading-snug tracking-tight">
@@ -1350,7 +1396,11 @@ export default function CVLabInteractive() {
                       <OnDemandSection sectionIndex={idx + 1} icon={def.icon} title={def.label} subtitle={def.subtitle}
                         content={s.content} isGenerated={s.generated} isGenerating={s.generating} onGenerate={() => generateSection(def.id)}
                         onGenerateWithContext={def.id === 'quiz' ? undefined : (context, mode) => generateWithContext(def.id, context, mode)}
-                        savedContext={s.context}>
+                        onOpenPromptSettings={def.id === 'quiz' ? undefined : () => setPromptModalSection(def)}
+                        savedContext={s.context}
+                        customised={def.id !== 'quiz' && labSettings.isCustomised(def.id)}
+                        projectSave={def.id === 'quiz' ? undefined : sectionSaveInfo({ lab: 'cv', topic: currentTopic, subtopic: currentSubtopic ?? null, sectionId: def.id, sectionLabel: def.label, state: s })}
+                        allowEmptyRegenerate={canRegenerateWithoutContext(def.id)}>
                         {def.id === 'quiz' && s.generated ? (
                           <QuizCarousel questions={QUIZ_BANK.slice(quizBatch * 4, quizBatch * 4 + 4)} hasMore={(quizBatch + 1) * 4 < QUIZ_BANK.length}
                             onGenerateMore={() => setQuizBatch(b => b + 1)} />
@@ -1359,6 +1409,11 @@ export default function CVLabInteractive() {
                     </div>
                   );
                 })}
+              </div>
+
+              {/* ── Mark as complete (again, at the end of the page) ── */}
+              <div className="flex justify-center pt-2">
+                <CompleteButton lab="cv" topicId={currentTopic.id} subtopicId={currentSubtopic?.id ?? ''} size="lg" />
               </div>
 
               {/* ── Prev / Next ── */}
@@ -1372,6 +1427,40 @@ export default function CVLabInteractive() {
                   {nextItem?.label ?? 'No next'}<Icon name="ArrowRightIcon" size={14} />
                 </button>
               </div>
+
+              {promptModalSection && (
+                <SectionPromptModal
+                  lab="cv"
+                  section={promptModalSection}
+                  currentSettings={labSettings.get(promptModalSection.id)}
+                  labWideSettings={labSettings.labWide}
+                  currentTopic={{
+                    name: currentTopic.name,
+                    brief: currentSubtopic?.brief ?? currentTopic.brief,
+                    subtopicName: currentSubtopic?.name,
+                  }}
+                  isOpen={true}
+                  onClose={() => setPromptModalSection(null)}
+                  onSave={async (vals) => {
+                    await labSettings.save(promptModalSection.id, vals);
+                  }}
+                  onSaveAndGenerate={async (vals) => {
+                    await labSettings.save(promptModalSection.id, vals);
+                    await generateWithContext(promptModalSection.id, vals.context || '', 'regenerate');
+                  }}
+                />
+              )}
+
+              <LabSettingsModal
+                lab="cv"
+                isOpen={labSettingsModalOpen}
+                onClose={() => setLabSettingsModalOpen(false)}
+                currentTopic={{
+                  name: currentTopic.name,
+                  brief: currentSubtopic?.brief ?? currentTopic.brief,
+                  subtopicName: currentSubtopic?.name,
+                }}
+              />
             </div>
           )}
         </main>

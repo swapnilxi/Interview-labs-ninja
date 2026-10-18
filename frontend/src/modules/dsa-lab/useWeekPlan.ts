@@ -5,8 +5,9 @@ import { fetchWeekPlan, resetWeekPlan, saveWeekPlan } from '@/lib/services/dsaWe
 import {
   generateWeekPlan,
   moveQuestion,
-  suggestedPlan,
-  CORE_ORDER,
+  coreOrder as coreOrderFor,
+  DEFAULT_PER_WEEK,
+  DEFAULT_WEEKS,
   type WeekPlan,
 } from './weekPlan';
 
@@ -14,8 +15,11 @@ import {
  * The learner's week plan: their saved one if they have changed anything, otherwise the suggested
  * plan. Edits show immediately and are saved in the background; if a save fails the plan snaps back
  * to the last saved state and `error` says why.
+ *
+ * `topics` should be a stable array (state, not rebuilt every render): the core questions are looked up
+ * in it by LeetCode number whenever it changes.
  */
-export function useWeekPlan(topics: { id: string }[]) {
+export function useWeekPlan(topics: { id: string; brief: string }[]) {
   const [saved, setSaved] = useState<WeekPlan | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,10 +37,11 @@ export function useWeekPlan(topics: { id: string }[]) {
       .finally(() => setLoaded(true));
   }, []);
 
-  const availableKey = topics.map((t) => t.id).join('|');
+  // Ids of the core questions present in this topic list, in learning order.
+  const coreOrder = useMemo(() => coreOrderFor(topics), [topics]);
   const suggested = useMemo(
-    () => suggestedPlan(new Set(availableKey ? availableKey.split('|') : [])),
-    [availableKey]
+    () => generateWeekPlan(coreOrder, DEFAULT_WEEKS, DEFAULT_PER_WEEK),
+    [coreOrder]
   );
   const plan = saved ?? suggested;
 
@@ -70,20 +75,15 @@ export function useWeekPlan(topics: { id: string }[]) {
   };
 
   const generate = (weeks: number, perWeek: number) => {
-    const available = new Set(availableKey ? availableKey.split('|') : []);
-    commit(
-      generateWeekPlan(
-        CORE_ORDER.filter((id) => available.has(id)),
-        weeks,
-        perWeek
-      )
-    );
+    commit(generateWeekPlan(coreOrder, weeks, perWeek));
   };
 
   const reset = () => commit(null);
 
   return {
     plan,
+    /** Ids of the core questions in learning order (what "Generate plan" fills the weeks from). */
+    coreOrder,
     loaded,
     error,
     clearError: () => setError(null),

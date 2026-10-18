@@ -48,6 +48,7 @@ from modules.common.config_router import router as config_router
 # Lab modules
 from modules.dsa_lab.router import router as dsa_router
 from modules.lab_sections.router import router as lab_sections_router
+from modules.lab_projects.router import router as lab_projects_router
 from modules.cv_lab.router import router as cv_router
 from modules.system_design_lab.router import router as sd_router
 
@@ -63,6 +64,7 @@ from modules.linkedin_post_generator.generation.router import router as linkedin
 from modules.ai_todo.tasks.router import router as todo_router
 from modules.ai_todo.quick.router import router as quick_router
 from modules.ai_todo.projects.router import router as projects_router
+from modules.ai_todo.projects.plan_router import router as project_plan_router
 from modules.ai_todo.goals.router import router as goals_router
 from modules.ai_todo.pareto.router import router as pareto_router
 from modules.ai_todo.import_data.router import router as import_router
@@ -167,6 +169,7 @@ app.include_router(session_router)
 app.include_router(session_public_router)
 app.include_router(dsa_router)
 app.include_router(lab_sections_router)
+app.include_router(lab_projects_router)
 app.include_router(cv_router)
 app.include_router(sd_router)
 app.include_router(linkedin_templates_router)
@@ -174,6 +177,7 @@ app.include_router(linkedin_generation_router)
 app.include_router(todo_router)
 app.include_router(quick_router)
 app.include_router(projects_router)
+app.include_router(project_plan_router)
 app.include_router(goals_router)
 app.include_router(pareto_router)
 app.include_router(import_router)

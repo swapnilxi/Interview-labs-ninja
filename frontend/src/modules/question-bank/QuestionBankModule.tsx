@@ -241,7 +241,8 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
   };
 
   const handlePractice = (questionId: string) => {
-    router.push(`/daily-session?practice=${questionId}`);
+    // Practice Mode opens a one-question run for this id (see PracticeMode's `practice` entry link).
+    router.push(`/daily-session?tab=practice&practice=${encodeURIComponent(questionId)}`);
   };
 
   const handleExport = () => {

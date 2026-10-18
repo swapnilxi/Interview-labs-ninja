@@ -1,19 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import ProjectIcon from './ProjectIcon';
+import { planUrls } from './projectUrls';
 import { Project } from '@/lib/services/projectService';
 
 interface ProjectCardProps {
   project: Project;
-  onClick: (project: Project) => void;
-  onActionClick?: (project: Project, action: 'dive' | 'chunk' | 'roadmap') => void;
   onDelete?: (project: Project) => void;
   isCompact?: boolean;
 }
 
-export default function ProjectCard({ project, onClick, onActionClick, onDelete, isCompact = false }: ProjectCardProps) {
+export default function ProjectCard({ project, onDelete, isCompact = false }: ProjectCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   // 80/20 styling
@@ -72,11 +72,10 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
       style={{ '--lit': color } as React.CSSProperties}
       className={`todo-lit flex flex-col bg-card border border-border rounded-xl overflow-hidden ${paretoClasses} ${project.status === 'completed' || project.status === 'archived' ? 'opacity-60' : ''}`}
     >
-      {/* Clickable main body — a real button, so it is reachable and operable from the keyboard */}
-      <button
-        type="button"
+      {/* Clickable main body — a real link to the project's own address, so it opens in a new tab and works from the keyboard */}
+      <Link
+        href={planUrls.project(project.id)}
         className="todo-focus block w-full flex-1 cursor-pointer p-[1.5rem] text-left"
-        onClick={() => onClick(project)}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -135,34 +134,27 @@ export default function ProjectCard({ project, onClick, onActionClick, onDelete,
             {project.description}
           </p>
         )}
-      </button>
+      </Link>
 
       {/* ── Action footer — always visible, NOT part of the clickable area ── */}
       {!isCompact && (
-        <div className="flex items-center justify-between gap-2 border-t border-border px-[1.25rem] py-3" style={{ background: 'color-mix(in srgb, var(--color-foreground) 4%, transparent)' }}>
-          {/* Left: explore / roadmap buttons */}
-          <div className="flex items-center gap-1.5">
-            {onActionClick && (
-              <>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onActionClick(project, 'dive'); }}
-                  className="copilot-tint px-2.5 py-1.5 text-xs font-semibold"
-                >
-                  <Icon name="MagnifyingGlassIcon" size={12} /> Explore
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onActionClick(project, 'roadmap'); }}
-                  className="copilot-tint px-2.5 py-1.5 text-xs font-semibold"
-                >
-                  <Icon name="MapIcon" size={12} /> Roadmap
-                </button>
-              </>
-            )}
+        <div className="flex flex-wrap items-center gap-2 border-t border-border px-[1rem] py-3" style={{ background: 'color-mix(in srgb, var(--color-foreground) 4%, transparent)' }}>
+          {/* Left: each one is a link to its own screen */}
+          <div className="flex flex-wrap items-center gap-1">
+            <Link href={planUrls.project(project.id)} className="todo-focus copilot-tint px-1.5 py-1.5 text-xs font-semibold">
+              <Icon name="MagnifyingGlassIcon" size={12} /> Explore
+            </Link>
+            <Link href={planUrls.project(project.id, 'planner')} className="todo-focus copilot-tint px-1.5 py-1.5 text-xs font-semibold">
+              <Icon name="SparklesIcon" size={12} /> AI Planner
+            </Link>
+            <Link href={planUrls.roadmap(project.id)} className="todo-focus copilot-tint px-1.5 py-1.5 text-xs font-semibold">
+              <Icon name="MapIcon" size={12} /> Roadmap
+            </Link>
           </div>
 
           {/* Right: delete button (always visible) */}
           {onDelete && (
-            <div className="flex items-center gap-1.5">
+            <div className="ml-auto flex items-center gap-1.5">
               {confirmDelete ? (
                 <>
                   <span className="text-xs text-red-500 font-semibold">Sure?</span>

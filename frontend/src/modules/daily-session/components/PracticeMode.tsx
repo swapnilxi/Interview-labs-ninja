@@ -155,7 +155,9 @@ const readHistory = (): PracticeRun[] => {
 // ---------- A run has an address ----------
 // Setup is /daily-session?tab=practice. A run in progress is &run=<id>&q=<n> (n counts from 1) and its finished
 // summary is &run=<id>&done=1. The run itself is kept in localStorage, so a reload, a new tab or Forward can bring
-// it back; an address whose run is not in storage falls back to setup.
+// it back; an address whose run is not in storage falls back to setup. `&practice=<question id>` (from the question
+// bank) is an entry link that opens a one-question run in its own place; an unknown id falls back to setup. The run's
+// Back uses preferHistory, so a run opened from the bank returns to the bank rather than to setup.
 const PRACTICE_URL = '/daily-session?tab=practice';
 const RUN_KEY = 'labninja.practice.run.v1';
 
@@ -283,6 +285,8 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
   const urlRun = get('run');
   const urlQ = get('q');
   const urlDone = get('done');
+  // `practice=<question id>` is an entry link (the question bank's "Practice again"): it opens a one-question run.
+  const urlPractice = get('practice');
 
   // Companion
   const [msg, setMsg] = useState('');
@@ -398,7 +402,16 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
         setIsPracticing(false);
         setIsCompleted(false);
       }
-      if (urlQ !== null || urlDone !== null) update({ q: null, done: null }, 'replace'); // stray run params
+      if (urlPractice !== null) {
+        // An entry link: wait for the questions, then open a one-question run in this address's place.
+        // An unknown id is just a refinement that does not apply: drop it and stay on setup.
+        if (loading) return;
+        const target = allQuestions.find((x) => x.id === urlPractice);
+        if (target) beginRun([target], 'replace', false);
+        else update({ practice: null, run: null, q: null, done: null }, 'replace');
+        return;
+      }
+      if (urlRun !== null || urlQ !== null || urlDone !== null) update({ run: null, q: null, done: null }, 'replace'); // stray run params
       return;
     }
     if (run.on && run.id === urlRun) {
@@ -417,7 +430,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
       update({ run: null, q: null, done: null }, 'replace'); // not restorable: back to setup
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlRun, urlQ, urlDone]);
+  }, [urlRun, urlQ, urlDone, urlPractice, loading]);
 
   const eligibleQuestions = useMemo(
     () =>
@@ -456,9 +469,14 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
   const startPractice = (mode: NavMode = 'push') => {
     const pool = eligibleQuestions.length > 0 ? eligibleQuestions : allQuestions;
     const selected = [...pool].sort(() => Math.random() - 0.5).slice(0, Math.min(questionCount, pool.length));
+    beginRun(selected, mode, true);
+  };
+
+  // `byTap` is false when an address starts the run (no tap, so no audio or speech: the browser would refuse it).
+  const beginRun = (selected: Question[], mode: NavMode, byTap: boolean) => {
     if (selected.length === 0) return;
     // Runs inside a tap, so the browser lets audio start.
-    if (settings.sound !== 'off' && !settings.soundMuted) {
+    if (byTap && settings.sound !== 'off' && !settings.soundMuted) {
       playSoundscape(settings.sound);
       setSoundscapeVolume(settings.volume);
     }
@@ -483,9 +501,10 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
         ? `${line('start')} ${deity.mantra}: ${deity.for}.`
         : line('start'),
       'cheer',
+      byTap,
     );
     window.scrollTo({ top: 0 }); // the run opens at its top, where Back is
-    update({ run: id, q: 1, done: null }, mode);
+    update({ run: id, q: 1, done: null, practice: null }, mode);
   };
 
   // Leaving on purpose (X, "Change topics"): the run is dropped for good and we go back to setup. Browser Back
@@ -583,7 +602,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
     return (
       <div className="mx-auto max-w-xl space-y-4 pb-8 animate-fade-in">
         <div>
-          <BackButton href={PRACTICE_URL} label="Back" />
+          <BackButton href={PRACTICE_URL} label="Back" preferHistory />
         </div>
         <div className={`${CARD} overflow-hidden text-center`}>
           <div className="bg-gradient-to-b from-amber-200 via-orange-100 to-transparent px-4 pb-2 pt-6 dark:from-amber-500/25 dark:via-orange-500/10">
@@ -651,7 +670,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 pb-[9rem] animate-fade-in">
         <div>
-          <BackButton href={PRACTICE_URL} label="Back" />
+          <BackButton href={PRACTICE_URL} label="Back" preferHistory />
         </div>
         {/* Top bar: exit, chunky progress, xp, sound */}
         <div className="flex items-center gap-3">

@@ -13,3 +13,6 @@ async function handle(req: Request, { params }: Ctx) {
 
 export const GET = handle;
 export const POST = handle;
+export const PUT = handle;
+export const DELETE = handle;
+

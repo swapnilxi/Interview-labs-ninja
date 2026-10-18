@@ -137,21 +137,30 @@ export default function QuestionTableMobile({
 
                 <div className="flex items-center gap-6">
                   <button
-                    onClick={() => onReview(question.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReview(question.id);
+                    }}
                     className="p-9 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-smooth focus-ring"
                     aria-label="Review question"
                   >
                     <Icon name="EyeIcon" size={18} variant="outline" />
                   </button>
                   <button
-                    onClick={() => onPractice(question.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPractice(question.id);
+                    }}
                     className="p-9 rounded-md bg-secondary/10 text-secondary hover:bg-secondary/20 transition-smooth focus-ring"
                     aria-label="Practice again"
                   >
                     <Icon name="ArrowPathIcon" size={18} variant="outline" />
                   </button>
                   <button
-                    onClick={() => toggleExpand(question.id)}
+                    onClick={(e) => {
+                      e.stopPropagation(); // expanding must not also open the card
+                      toggleExpand(question.id);
+                    }}
                     className="p-9 rounded-md hover:bg-muted transition-smooth focus-ring"
                     aria-label={isExpanded ? 'Collapse' : 'Expand'}
                   >

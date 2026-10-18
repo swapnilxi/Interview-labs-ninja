@@ -29,6 +29,11 @@ export function buildQuizPrompt(a: {
   subtopicBrief: string;
   previousQuestions: string[];
   count: number;
+  sectionGuidance?: string;
+  standingContext?: string;
+  /** From labProjects/knowledge quizPromptParts ('' = no project). */
+  projectBlocks?: string;
+  projectRules?: string;
 }): string {
   const domain = DOMAINS[a.lab] ?? 'technical interview';
   const lines = [`Topic: ${a.topicName}`];
@@ -42,7 +47,18 @@ export function buildQuizPrompt(a: {
     const focus = a.subtopicBrief ? `${a.subtopicName} — ${a.subtopicBrief}` : a.subtopicName;
     lines.push(`Learner is currently on this sub-topic: ${focus}`);
   }
-  const context = lines.join('\n');
+  let context = lines.join('\n') + (a.projectBlocks ?? '');
+
+  const standing = (a.standingContext ?? '').trim();
+  if (standing) {
+    context +=
+      '\n\nStanding context about the learner (applies to every section of this lab; use it to tailor depth, ' +
+      `examples and language):\n"""\n${standing}\n"""`;
+  }
+  const guidance = (a.sectionGuidance ?? '').trim();
+  if (guidance) {
+    context += `\n\nQuiz requirements from the learner (follow these closely, in addition to the rules below):\n${guidance}`;
+  }
 
   const prev = a.previousQuestions
     .filter((q) => q && q.trim())
@@ -58,7 +74,7 @@ export function buildQuizPrompt(a: {
 
 ${context}
 
-Write ${a.count} questions that are about this specific topic AND the concepts around it: the problem's key insight and invariant, its time/space complexity, edge cases and common bugs, the underlying pattern and the prerequisite ideas, and how it differs from or generalises to the related problems listed. Mix the kinds: conceptual, complexity, bug-spotting / edge case, pattern recognition ("which approach fits this variant?"), and short predict-the-result questions.
+Write ${a.count} questions that are about this specific topic AND the concepts around it: the problem's key insight and invariant, its time/space complexity, edge cases and common bugs, the underlying pattern and the prerequisite ideas, and how it differs from or generalises to the related problems listed. Mix the kinds: conceptual, complexity, bug-spotting / edge case, pattern recognition ("which approach fits this variant?"), and short predict-the-result questions.${a.projectRules ?? ''}
 
 Rules:
 - Exactly 4 options per question, exactly one correct. Distractors must be plausible and reflect real misconceptions, not obvious throwaways. Never use "all of the above" or "none of the above".

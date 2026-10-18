@@ -226,6 +226,7 @@ def init_db() -> None:
         from modules.cv_lab.schema import register as cv_register
         from modules.dsa_lab.schema import register as dsa_register
         from modules.lab_sections.schema import register as lab_sections_register
+        from modules.lab_projects.schema import register as lab_projects_register
         from modules.linkedin_post_generator.templates.schema import register as linkedin_register
         from modules.ai_todo.shared.schema import register as todo_register
         from modules.common.rag.storage import register as rag_register
@@ -234,6 +235,7 @@ def init_db() -> None:
         cv_register(cursor)
         dsa_register(cursor)
         lab_sections_register(cursor)
+        lab_projects_register(cursor)
         linkedin_register(cursor)
         todo_register(cursor)
         # Shared RAG chunk storage (modules.common.rag) -- registered centrally, like

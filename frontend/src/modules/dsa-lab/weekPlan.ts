@@ -21,59 +21,63 @@ export interface WeekPlan {
 }
 
 /**
- * Learning order of the core questions. Cut in sevens it gives: 1 hashing & prefix sums, 2 pointers &
- * windows, 3 lists / stacks / search, 4 trees / graphs / backtracking, 5 dynamic programming,
- * 6 greedy / intervals / heaps. The tail is what a shorter plan drops first.
+ * Learning order of the core questions, by LeetCode number. Cut in sevens it gives: 1 hashing & prefix
+ * sums, 2 pointers & windows, 3 lists / stacks / search, 4 trees / graphs / backtracking, 5 dynamic
+ * programming, 6 greedy / intervals / heaps. The tail is what a shorter plan drops first.
+ *
+ * Matched by LeetCode number rather than topic id because the same questions have different ids in the
+ * two places the lab gets its topics from: the seeded database (`hm-two-sum`, FastAPI mode) and the
+ * built-in fallback list (`dsa-20`, nextjs-api mode). Both carry "LC #n" in the brief.
  */
-export const CORE_ORDER = [
+export const CORE_LC = [
   // Week 1 — hashing & prefix sums
-  'hm-two-sum',
-  'hm-group-anagrams',
-  'hm-top-k-frequent',
-  'hm-longest-consecutive',
-  'ps-range-sum-query',
-  'ps-subarray-sum-k',
-  'ps-product-except-self',
+  1, // Two Sum
+  49, // Group Anagrams
+  347, // Top K Frequent Elements
+  128, // Longest Consecutive Sequence
+  303, // Range Sum Query - Immutable
+  560, // Subarray Sum Equals K
+  238, // Product of Array Except Self
   // Week 2 — two pointers & sliding window
-  'tp-valid-palindrome-ii',
-  'tp-3sum',
-  'tp-container-most-water',
-  'tp-trapping-rain-water',
-  'sw-longest-no-repeat',
-  'sw-longest-repeating-replacement',
-  'sw-min-window-substring',
+  680, // Valid Palindrome II
+  15, // 3Sum
+  11, // Container With Most Water
+  42, // Trapping Rain Water
+  3, // Longest Substring Without Repeating Characters
+  424, // Longest Repeating Character Replacement
+  76, // Minimum Window Substring
   // Week 3 — linked lists, stacks & binary search
-  'll-reverse-linked-list',
-  'll-merge-two-sorted-lists',
-  'fs-linked-list-cycle-ii',
-  'ms-next-greater-element',
-  'ms-daily-temperatures',
-  'bs-search-rotated-array',
-  'bs-koko-bananas',
+  206, // Reverse Linked List
+  21, // Merge Two Sorted Lists
+  142, // Linked List Cycle II
+  496, // Next Greater Element I
+  739, // Daily Temperatures
+  33, // Search in Rotated Sorted Array
+  875, // Koko Eating Bananas
   // Week 4 — trees, graphs & backtracking
-  'tr-level-order-traversal',
-  'tr-validate-bst',
-  'tr-lowest-common-ancestor',
-  'gr-number-of-islands',
-  'gr-clone-graph',
-  'gr-course-schedule',
-  'bt-combination-sum',
+  102, // Binary Tree Level Order Traversal
+  98, // Validate Binary Search Tree
+  236, // Lowest Common Ancestor
+  200, // Number of Islands
+  133, // Clone Graph
+  207, // Course Schedule
+  39, // Combination Sum
   // Week 5 — dynamic programming
-  'dp1-house-robber',
-  'dp1-coin-change',
-  'dp1-lis',
-  'dp1-decode-ways',
-  'dp2-unique-paths',
-  'dp2-lcs',
-  'dp2-edit-distance',
+  198, // House Robber
+  322, // Coin Change
+  300, // Longest Increasing Subsequence
+  91, // Decode Ways
+  62, // Unique Paths
+  1143, // Longest Common Subsequence
+  72, // Edit Distance
   // Week 6 — greedy, intervals & heaps
-  'gr2-jump-game',
-  'gr2-gas-station',
-  'iv-merge-intervals',
-  'iv-non-overlapping-intervals',
-  'hp-kth-largest',
-  'hp-merge-k-sorted-lists',
-  'hp-task-scheduler',
+  55, // Jump Game
+  134, // Gas Station
+  56, // Merge Intervals
+  435, // Non-Overlapping Intervals
+  215, // Kth Largest Element in an Array
+  23, // Merge K Sorted Lists
+  621, // Task Scheduler
 ] as const;
 
 /**
@@ -94,13 +98,28 @@ export function generateWeekPlan(
   return { weeks, assignments };
 }
 
-/** The suggested plan for whichever of the core questions exist in `availableIds`. */
-export function suggestedPlan(availableIds: ReadonlySet<string>): WeekPlan {
-  return generateWeekPlan(
-    CORE_ORDER.filter((id) => availableIds.has(id)),
-    DEFAULT_WEEKS,
-    DEFAULT_PER_WEEK
-  );
+/** The LeetCode number in a topic's brief ("LC #560 [Medium] — …" or "LC #560 - …"), or null. */
+export function lcNumber(brief: string): number | null {
+  const m = /LC\s+#(\d+)/.exec(brief);
+  return m ? Number(m[1]) : null;
+}
+
+/** Ids of the core questions that exist in `topics`, in learning order (see CORE_LC for why by LC number). */
+export function coreOrder(topics: readonly { id: string; brief: string }[]): string[] {
+  const idByLc = new Map<number, string>();
+  for (const t of topics) {
+    const n = lcNumber(t.brief);
+    if (n !== null && !idByLc.has(n)) idByLc.set(n, t.id);
+  }
+  return CORE_LC.flatMap((n) => {
+    const id = idByLc.get(n);
+    return id ? [id] : [];
+  });
+}
+
+/** The suggested plan: the core questions that exist in `topics`, six weeks of seven. */
+export function suggestedPlan(topics: readonly { id: string; brief: string }[]): WeekPlan {
+  return generateWeekPlan(coreOrder(topics), DEFAULT_WEEKS, DEFAULT_PER_WEEK);
 }
 
 export function weekCounts(plan: WeekPlan): number[] {

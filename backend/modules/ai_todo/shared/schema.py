@@ -286,6 +286,18 @@ def register(cursor) -> None:
     if "user_id" not in [row[1] for row in cursor.fetchall()]:
         cursor.execute("ALTER TABLE project_nodes ADD COLUMN user_id INTEGER DEFAULT NULL;")
 
+    # One AI Planner workspace per project: requirements, Q&A, timeline, plan and chat live in `state` as JSON
+    # (the client owns its shape; the server only stores it). Deleted with the project.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS project_plans (
+            project_id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            state TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )
+    """)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS goal_nodes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

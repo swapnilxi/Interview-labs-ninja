@@ -73,6 +73,8 @@ const nextConfig = {
       { source: '/pareto/:path*', destination: '/api/pareto/:path*' },
       // Lab AI sections + quizzes (fe-apis/labSections). ':path*' also matches the bare /lab-sections.
       { source: '/lab-sections/:path*', destination: '/api/lab-sections/:path*' },
+      // Labs Projects + their saved sections (fe-apis/labProjects).
+      { source: '/lab-projects/:path*', destination: '/api/lab-projects/:path*' },
       // DSA lab: only the week plan has a Next.js twin (exact path, so /dsa/topics etc. are untouched).
       { source: '/dsa/week-plan', destination: '/api/dsa/week-plan' },
     ];

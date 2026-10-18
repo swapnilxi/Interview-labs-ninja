@@ -106,7 +106,8 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
   const { designId, openDesigner, closeDesigner, dropDesigner } = useDesignerParam();
   const designerTemplate = designId ? customTemplates.find((t) => t.id === designId) ?? null : null;
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  // Edit / Preview is a section of this screen, so it lives in the URL (?mode=preview); anything else is Edit.
+  // Edit / Preview is the same editor seen two ways, so it lives in the URL (?mode=preview; anything else is Edit) but
+  // replaces the entry: toggling must not stack history entries (Back would then step through them instead of leaving).
   const { get, update } = useUrlState();
   const mode: 'edit' | 'preview' = get('mode') === 'preview' ? 'preview' : 'edit';
   const lastUrl = useRef<string | null>(null);
@@ -407,31 +408,33 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
   const backTab = isPortfolio ? 'portfolios' : 'resumes';
 
   return (
-    <div className="pt-[60px] h-screen flex flex-col bg-background">
+    // h-app-screen: a full-height shell that, on phones, stops above the bottom tab bar (see tailwind.css).
+    <div className="pt-[60px] h-app-screen flex flex-col bg-background">
       {/* Toolbar */}
-      <div className="h-[52px] flex items-center gap-2 px-3 sm:px-4 border-b border-border bg-card shadow-sm flex-shrink-0">
+      {/* On a phone the actions do not fit: the toolbar scrolls sideways inside itself instead of widening the page. */}
+      <div className="h-[52px] flex items-center gap-2 px-3 sm:px-4 border-b border-border bg-card shadow-sm flex-shrink-0 max-md:overflow-x-auto max-md:scrollbar-clean">
         {/* Arrow only on phones (the toolbar is full there); the word shows from `sm` up. */}
         <BackButton href={`/career?tab=${backTab}`} label="Back" className="shrink-0 [&>span]:sr-only sm:[&>span]:not-sr-only" />
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2.5 py-1 rounded-full">
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2.5 py-1 rounded-full">
           <Icon name={isPortfolio ? 'GlobeAltIcon' : 'DocumentTextIcon'} size={13} /> {isPortfolio ? 'Portfolio' : 'Resume'}
         </span>
         <input
           value={view.title}
           onChange={(e) => setView((v) => (v ? { ...v, title: e.target.value } : v))}
           onBlur={(e) => patch({ title: e.target.value }, true)}
-          className="min-w-0 flex-1 max-w-[280px] bg-transparent text-sm font-semibold text-foreground focus:outline-none focus:bg-muted/50 rounded px-2 py-1"
+          className="min-w-0 max-md:min-w-[7rem] flex-1 max-w-[280px] bg-transparent text-sm font-semibold text-foreground focus:outline-none focus:bg-muted/50 rounded px-2 py-1"
           placeholder="Untitled"
         />
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <div className="flex items-center bg-muted rounded-lg p-0.5">
             <button
-              onClick={() => update({ mode: null })}
+              onClick={() => update({ mode: null }, 'replace')}
               className={`px-2.5 py-1.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 transition-smooth ${mode === 'edit' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
             >
               <Icon name="PencilSquareIcon" size={14} /> Edit
             </button>
             <button
-              onClick={() => { update({ mode: 'preview' }); void refreshPreview(viewId, view.kind); }}
+              onClick={() => { update({ mode: 'preview' }, 'replace'); void refreshPreview(viewId, view.kind); }}
               className={`px-2.5 py-1.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 transition-smooth ${mode === 'preview' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
             >
               <Icon name="EyeIcon" size={14} /> Preview
@@ -474,7 +477,7 @@ export default function ViewEditor({ viewId }: { viewId: string }) {
               )}
             </div>
             {showPublishPopover && publishInfo?.is_public && publicUrl && (
-              <div className="absolute right-0 top-full mt-2 w-[280px] rounded-lg border border-border bg-card shadow-lg p-3 z-20 space-y-2">
+              <div className="absolute right-0 top-full mt-2 w-[280px] rounded-lg border border-border bg-card shadow-lg p-3 z-20 space-y-2 max-md:hidden">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-foreground inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-success" /> Published</span>
                   <button onClick={() => setShowPublishPopover(false)} className="text-muted-foreground hover:text-foreground"><Icon name="XMarkIcon" size={14} /></button>
