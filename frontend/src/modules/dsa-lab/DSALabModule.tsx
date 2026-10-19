@@ -39,6 +39,7 @@ import { DifficultyTag, LcTag, Tag, difficultyDotClass, tagClass } from './ui';
 import { CompleteButton, DoneMark, LabProgressSummary } from '@/modules/common/lab/LabProgressUi';
 import { LabSettingsButton, settingsSections } from '@/modules/common/lab/LabSettings';
 import LabSettingsModal from '@/modules/common/lab/LabSettingsModal';
+import LabGuideModal from '@/modules/common/lab/LabGuideModal';
 import ProjectSelector from '@/modules/common/lab/project/ProjectSelector';
 import { sectionSaveInfo } from '@/modules/common/lab/project/sectionProject';
 import SectionPromptModal from '@/modules/common/lab/SectionPromptModal';
@@ -360,6 +361,7 @@ export default function DSALabInteractive() {
   >([]);
 
   const mainRef = useRef<HTMLElement>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   /* ── fetch ── */
   useEffect(() => {
@@ -675,6 +677,7 @@ export default function DSALabInteractive() {
               onCollapse={collapseLeft}
               onExpand={() => setLeftOpen(true)}
               collapseLabel={lab.isMobile ? 'Close sidebar' : undefined}
+              onOpenGuide={() => setGuideOpen(true)}
               settings={
                 <LabSettingsButton lab="dsa" labName="DSA Lab" sections={SETTINGS_SECTIONS} />
               }
@@ -994,6 +997,7 @@ export default function DSALabInteractive() {
               title={contextLabel}
               onTopics={lab.openTopics}
               onCopilot={lab.openCopilot}
+              onGuide={() => setGuideOpen(true)}
             />
           )}
           {/* Back to the parent screen: a topic goes back to the Wiki Index (or the week plan / organizer it was opened from), a subtopic to its topic */}
@@ -1021,6 +1025,7 @@ export default function DSALabInteractive() {
               onSelectTopic={selectTopic}
               onSelectSub={selectSub}
               onBeforeOrganize={rememberOrganizerPlace}
+              onOpenGuide={() => setGuideOpen(true)}
             />
           ) : !currentTopic ? (
             <div className="flex h-full flex-col items-center justify-center px-8 text-center">
@@ -1044,6 +1049,7 @@ export default function DSALabInteractive() {
               onGenerateWithContext={generateWithContext}
               onNavigate={navigateTo}
               onAddGeneratedSubtopic={handleAddGeneratedSubtopic}
+              onOpenGuide={() => setGuideOpen(true)}
             />
           )}
         </main>
@@ -1076,6 +1082,12 @@ export default function DSALabInteractive() {
         </aside>
       </div>
 
+      <LabGuideModal
+        isOpen={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        initialLab="dsa"
+      />
+
       {/* Answers confirmDialog() (deleting a plan, removing a week with questions): it is not mounted app-wide. */}
       <ConfirmHost panelClassName="dsa-type" />
     </div>
@@ -1094,6 +1106,7 @@ function WikiIndex({
   onSelectTopic,
   onSelectSub,
   onBeforeOrganize,
+  onOpenGuide,
 }: {
   grouped: { name: string; topics: DSATopic[] }[];
   topics: DSATopic[];
@@ -1101,6 +1114,7 @@ function WikiIndex({
   onSelectTopic: (id: string) => void;
   onSelectSub: (topicId: string, subId: string) => void;
   onBeforeOrganize: (trigger: OrganizeTrigger) => void;
+  onOpenGuide?: () => void;
 }) {
   // ?view=week shows the week-by-week plan; no param is the pattern-wise handbook.
   const { get: getParam, update: updateUrl } = useUrlState();
@@ -1121,6 +1135,7 @@ function WikiIndex({
         icon="BookOpenIcon"
         title="DSA Lab Wiki"
         description="Pattern-wise interview preparation handbook"
+        onOpenGuide={onOpenGuide}
         metrics={[
           { label: 'Patterns', value: grouped.length },
           { label: 'Topics', value: topics.length },
@@ -1308,6 +1323,7 @@ function TopicDetail({
   onGenerateWithContext,
   onNavigate,
   onAddGeneratedSubtopic,
+  onOpenGuide,
 }: {
   topic: DSATopic;
   subtopic: DSATopic['subtopics'][0] | null;
@@ -1320,6 +1336,7 @@ function TopicDetail({
   onGenerateWithContext: (id: string, context: string, mode: ContextMode) => Promise<void>;
   onNavigate: (item: NavItem) => void;
   onAddGeneratedSubtopic: (topicId: string, generated: GeneratedSubtopic) => void;
+  onOpenGuide?: () => void;
 }) {
   const { hint } = parseBrief(topic.brief);
   const name = subtopic?.name ?? topic.name;
@@ -1357,12 +1374,30 @@ function TopicDetail({
           {topic.isCustom && <Tag>Custom</Tag>}
         </div>
 
-        <h1 className="mt-3.5 text-xl font-semibold leading-snug tracking-tight text-foreground">
-          {name}
-        </h1>
-        <p className="mt-1.5 text-sm font-semibold leading-relaxed mix-text-foreground/[0.78]">
-          {desc}
-        </p>
+        <div className="mt-3.5 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-semibold leading-snug tracking-tight text-foreground">
+                {name}
+              </h1>
+              {onOpenGuide && (
+                <button
+                  type="button"
+                  onClick={onOpenGuide}
+                  aria-label="How to use DSA Lab"
+                  title="How to use DSA Lab"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/70 transition-colors shadow-2xs cursor-pointer flex-shrink-0"
+                >
+                  <Icon name="BookOpenIcon" size={12} className="text-primary flex-shrink-0" />
+                  <span>Lab Guide</span>
+                </button>
+              )}
+            </div>
+            <p className="mt-1.5 text-sm font-semibold leading-relaxed mix-text-foreground/[0.78]">
+              {desc}
+            </p>
+          </div>
+        </div>
 
         {/* Prerequisites */}
         {topic.prerequisites.length > 0 && (

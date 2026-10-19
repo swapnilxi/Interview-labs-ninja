@@ -36,6 +36,7 @@ export function LabSidebarHeader({
   onCollapse,
   onExpand,
   settings,
+  onOpenGuide,
   collapseLabel = 'Collapse sidebar',
 }: {
   icon: string;
@@ -46,6 +47,8 @@ export function LabSidebarHeader({
   onExpand: () => void;
   /** The lab's settings button; only shown while expanded. */
   settings?: ReactNode;
+  /** Callback to open the lab guide reading modal */
+  onOpenGuide?: () => void;
   /** Name of the collapse button. Say "Close sidebar" where the sidebar is a phone sheet. */
   collapseLabel?: string;
 }) {
@@ -55,6 +58,17 @@ export function LabSidebarHeader({
         <span aria-hidden="true" className="lab-tile h-8 w-8">
           <Icon name={icon} size={18} />
         </span>
+        {onOpenGuide && (
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            aria-label={`Guide: How to use ${title}`}
+            title={`Guide: How to use ${title}`}
+            className="todo-btn todo-btn-ghost h-8 w-8 px-0 text-muted-foreground hover:text-foreground"
+          >
+            <Icon name="BookOpenIcon" size={16} />
+          </button>
+        )}
         <button
           type="button"
           onClick={onExpand}
@@ -73,9 +87,23 @@ export function LabSidebarHeader({
         <Icon name={icon} size={18} />
       </span>
       <div className="min-w-0 flex-1">
-        <h2 className="break-words text-sm font-semibold leading-tight tracking-tight text-foreground">
-          {title}
-        </h2>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <h2 className="break-words text-sm font-semibold leading-tight tracking-tight text-foreground">
+            {title}
+          </h2>
+          {onOpenGuide && (
+            <button
+              type="button"
+              onClick={onOpenGuide}
+              aria-label={`Guide: How to use ${title}`}
+              title={`Guide: How to use ${title}`}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/70 transition-colors flex-shrink-0 cursor-pointer"
+            >
+              <Icon name="BookOpenIcon" size={11} className="text-primary flex-shrink-0" />
+              <span>Guide</span>
+            </button>
+          )}
+        </div>
         <p className="mt-0.5 break-words text-[13px] font-medium leading-snug tabular-nums mix-text-foreground/[0.74]">
           {subtitle}
         </p>

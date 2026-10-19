@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "graphify": {
+      "command": "graphify-mcp"
+    }
+  }
+}

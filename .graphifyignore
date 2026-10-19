@@ -1,0 +1,8 @@
+# Exclude images and icons from semantic LLM extraction
+*.ico
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.webp
+*.gif

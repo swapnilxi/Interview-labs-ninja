@@ -130,17 +130,19 @@ export function LabMobileBar({
   title,
   onTopics,
   onCopilot,
+  onGuide,
 }: {
   title: string;
   onTopics: () => void;
   onCopilot: () => void;
+  onGuide?: () => void;
 }) {
   return (
     <div className="sticky top-0 z-10 flex min-h-[3.5rem] items-center gap-1 border-b border-border mix-bg-background/90 px-2 backdrop-blur">
       <button
         type="button"
         onClick={onTopics}
-        className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] font-semibold text-foreground active:bg-muted"
+        className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] font-semibold text-foreground active:bg-muted cursor-pointer"
         aria-label="Browse topics"
       >
         <Icon name="Bars3BottomLeftIcon" size={20} />
@@ -150,10 +152,21 @@ export function LabMobileBar({
       <p className="min-w-0 flex-1 break-words py-1 text-center text-sm font-medium leading-snug text-muted-foreground">
         {title}
       </p>
+      {onGuide && (
+        <button
+          type="button"
+          onClick={onGuide}
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground active:bg-muted cursor-pointer"
+          aria-label="Open Lab Guide"
+          title="How to use this lab"
+        >
+          <Icon name="BookOpenIcon" size={18} />
+        </button>
+      )}
       <button
         type="button"
         onClick={onCopilot}
-        className="flex h-11 w-11 items-center justify-center rounded-xl text-primary active:bg-muted"
+        className="flex h-11 w-11 items-center justify-center rounded-xl text-primary active:bg-muted cursor-pointer"
         aria-label="Open Copilot"
       >
         <Icon name="SparklesIcon" size={20} variant="solid" />

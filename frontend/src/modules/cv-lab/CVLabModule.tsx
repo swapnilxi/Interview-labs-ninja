@@ -16,6 +16,7 @@ import { LAB_REVEAL, LabAddRow, LabInlineAdd, LabRecentList, LabSidebarHeader } 
 import { LAB_CHIP, LAB_CHIP_ACCENT, WIKI_CARD, WIKI_CARD_TITLE_HOVER, WIKI_CHIP, WikiHero, WikiIndexNav, WikiSectionHeading } from '@/modules/common/lab/WikiParts';
 import { LabSettingsButton, settingsSections } from '@/modules/common/lab/LabSettings';
 import LabSettingsModal from '@/modules/common/lab/LabSettingsModal';
+import LabGuideModal from '@/modules/common/lab/LabGuideModal';
 import ProjectSelector from '@/modules/common/lab/project/ProjectSelector';
 import { sectionSaveInfo } from '@/modules/common/lab/project/sectionProject';
 import SectionPromptModal from '@/modules/common/lab/SectionPromptModal';
@@ -565,12 +566,13 @@ const QUIZ_BANK = [
 const cvAnchor = (name: string) => `cv-cat-${name.replace(/[\s&/()']/g, '-')}`;
 
 function CVWikiIndex({
-  groupedSections, allTopics, onSelectTopic, onSelectSub,
+  groupedSections, allTopics, onSelectTopic, onSelectSub, onOpenGuide,
 }: {
   groupedSections: { name: string; topics: CVTopic[] }[];
   allTopics: CVTopic[];
   onSelectTopic: (id: string) => void;
   onSelectSub: (topicId: string, subId: string) => void;
+  onOpenGuide?: () => void;
 }) {
   const totalSubs  = allTopics.reduce((a, t) => a + t.subtopics.length, 0);
   const hardCount  = allTopics.filter(t => t.difficulty === 'Hard' || t.difficulty === 'Medium-Hard').length;
@@ -582,6 +584,7 @@ function CVWikiIndex({
         icon="EyeIcon"
         title="CV Lab Wiki"
         description="Computer vision interview preparation handbook"
+        onOpenGuide={onOpenGuide}
         metrics={[
           { label: 'Categories', value: groupedSections.length },
           { label: 'Topics', value: allTopics.length },
@@ -700,6 +703,7 @@ export default function CVLabInteractive() {
   const lab = useLabSheets(`${selectedTopicId}|${selectedSubtopicId}`);
   const { leftExpanded, rightExpanded, setLeftOpen, setRightOpen, collapseLeft, collapseRight } = useLabPanes(lab);
   const [recentTopics,  setRecentTopics]  = useState<{ id: string; name: string; subId?: string; subName?: string }[]>([]);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
     apiFetch('/cv/sections')
@@ -1010,6 +1014,7 @@ export default function CVLabInteractive() {
               onCollapse={() => collapseLeft()}
               onExpand={() => setLeftOpen(true)}
               collapseLabel={lab.isMobile ? 'Close sidebar' : undefined}
+              onOpenGuide={() => setGuideOpen(true)}
               settings={<LabSettingsButton lab="cv" labName="Computer Vision" sections={SETTINGS_SECTIONS} />}
             />
             {leftExpanded && (
@@ -1200,7 +1205,14 @@ export default function CVLabInteractive() {
 
         {/* ── CENTER ────────────────────────────────────────────────────────── */}
         <main ref={mainRef} className="lab-main scrollbar-clean">
-          {lab.isMobile && <LabMobileBar title={contextLabel} onTopics={lab.openTopics} onCopilot={lab.openCopilot} />}
+          {lab.isMobile && (
+            <LabMobileBar
+              title={contextLabel}
+              onTopics={lab.openTopics}
+              onCopilot={lab.openCopilot}
+              onGuide={() => setGuideOpen(true)}
+            />
+          )}
           {/* Back to the parent screen: a topic goes back to the Wiki Index, a subtopic to its topic */}
           {selectedTopicId !== 'wiki' && currentTopic && (
             <LabBackBar
@@ -1217,6 +1229,7 @@ export default function CVLabInteractive() {
               allTopics={allTopics}
               onSelectTopic={selectTopic}
               onSelectSub={selectSubtopic}
+              onOpenGuide={() => setGuideOpen(true)}
             />
           ) : !currentTopic ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-[1.5rem]">
@@ -1238,6 +1251,15 @@ export default function CVLabInteractive() {
                     <ProjectSelector />
                     <button
                       type="button"
+                      onClick={() => setGuideOpen(true)}
+                      className="todo-btn todo-btn-secondary"
+                      title="CV Lab Guide & Handbook"
+                    >
+                      <Icon name="BookOpenIcon" size={14} className="text-primary" />
+                      <span>Lab Guide</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setLabSettingsModalOpen(true)}
                       className="todo-btn todo-btn-secondary"
                       title="CV Lab Settings & Prompts"
@@ -1252,9 +1274,22 @@ export default function CVLabInteractive() {
                   </div>
                 </div>
 
-                <h1 className="break-words text-xl font-semibold text-foreground mb-2 leading-snug tracking-tight">
-                  {currentSubtopic?.name ?? currentTopic.name}
-                </h1>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="break-words text-xl font-semibold text-foreground leading-snug tracking-tight">
+                      {currentSubtopic?.name ?? currentTopic.name}
+                    </h1>
+                    <button
+                      type="button"
+                      onClick={() => setGuideOpen(true)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/70 transition-colors shadow-2xs cursor-pointer flex-shrink-0"
+                      title="Open CV Lab Guide"
+                    >
+                      <Icon name="BookOpenIcon" size={12} className="text-primary flex-shrink-0" />
+                      <span>Lab Guide</span>
+                    </button>
+                  </div>
+                </div>
                 <p className="text-sm font-semibold leading-relaxed mix-text-foreground/[0.78]">
                   {currentSubtopic?.brief ?? currentTopic.brief}
                 </p>
@@ -1434,6 +1469,12 @@ export default function CVLabInteractive() {
           {!rightExpanded && <LabCopilotRail onOpen={() => setRightOpen(true)} />}
         </aside>
       </div>
+
+      <LabGuideModal
+        isOpen={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        initialLab="cv"
+      />
     </div>
   );
 }

@@ -38,6 +38,8 @@ export function WikiHero({
   description,
   metrics,
   children,
+  onOpenGuide,
+  guideLabel = 'How to use this lab',
 }: {
   /** A Heroicons name for AppIcon, e.g. 'BookOpenIcon' (DSA), 'EyeIcon' (CV), 'ServerStackIcon' (System Design). */
   icon: string;
@@ -46,6 +48,10 @@ export function WikiHero({
   metrics: WikiMetric[];
   /** The progress row (`<LabProgressSummary />`). Rendered under a hairline. */
   children?: ReactNode;
+  /** Callback to open the lab guide modal */
+  onOpenGuide?: () => void;
+  /** Label for the guide button */
+  guideLabel?: string;
 }) {
   return (
     // .lab-hero = relative + overflow-hidden + the ::before wash (tailwind.css). Its children sit in a `relative` wrapper so
@@ -56,10 +62,22 @@ export function WikiHero({
           <span aria-hidden="true" className="lab-tile h-11 w-11">
             <Icon name={icon} size={22} />
           </span>
-          <div className="min-w-0">
-            <h1 className="break-words text-2xl font-semibold leading-tight tracking-tight text-foreground">
-              {title}
-            </h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="break-words text-2xl font-semibold leading-tight tracking-tight text-foreground">
+                {title}
+              </h1>
+              {onOpenGuide && (
+                <button
+                  type="button"
+                  onClick={onOpenGuide}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-card/90 hover:bg-card text-foreground border border-border shadow-2xs hover:border-primary/40 transition-colors cursor-pointer"
+                >
+                  <Icon name="BookOpenIcon" size={13} className="text-primary flex-shrink-0" />
+                  <span>{guideLabel}</span>
+                </button>
+              )}
+            </div>
             <p className="mt-1 text-sm font-medium leading-snug mix-text-foreground/[0.74]">
               {description}
             </p>
