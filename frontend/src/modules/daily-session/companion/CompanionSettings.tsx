@@ -39,12 +39,12 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
         <div className="mx-auto mb-4 h-1.5 w-[3rem] rounded-full bg-border sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-heading text-lg font-extrabold text-foreground">Sound & Companion</h2>
-          <button type="button" onClick={onClose} className="rounded-full bg-violet-600 px-4 py-2 text-sm font-bold text-white">Done</button>
+          <button type="button" onClick={onClose} className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Done</button>
         </div>
 
         <label className="mb-4 flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
           Show Deepu (off hides him and his voice)
-          <input type="checkbox" checked={settings.mascotOn} onChange={(e) => { update({ mascotOn: e.target.checked }); if (!e.target.checked) stopSpeaking(); }} className="h-5 w-5 accent-violet-600" />
+          <input type="checkbox" checked={settings.mascotOn} onChange={(e) => { update({ mascotOn: e.target.checked }); if (!e.target.checked) stopSpeaking(); }} className="h-5 w-5 accent-primary" />
         </label>
         <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Focus sound</h3>
         <div className="grid grid-cols-2 gap-2">
@@ -55,7 +55,7 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
               onClick={() => pickSound(s.id)}
               className={`rounded-2xl border-2 px-3 py-3 text-left text-sm font-bold transition ${
                 settings.sound === s.id
-                  ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-500/20 dark:text-violet-100'
+                  ? 'border-primary lab-tint lab-ink'
                   : 'border-border bg-card text-foreground'
               }`}
             >
@@ -79,7 +79,7 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
               update({ volume: v });
               setSoundscapeVolume(v);
             }}
-            className="flex-1 accent-violet-600"
+            className="flex-1 accent-primary"
           />
         </label>
         <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
@@ -89,7 +89,7 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
         <h3 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Companion voice</h3>
         <label className="mb-2 flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
           Deepu talks
-          <input type="checkbox" checked={settings.voiceOn} onChange={(e) => update({ voiceOn: e.target.checked })} className="h-5 w-5 accent-violet-600" />
+          <input type="checkbox" checked={settings.voiceOn} onChange={(e) => update({ voiceOn: e.target.checked })} className="h-5 w-5 accent-primary" />
         </label>
         <div className="grid grid-cols-3 gap-2">
           {VOICE_PRESETS.map((p) => (
@@ -102,7 +102,7 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
               }}
               className={`rounded-2xl border-2 px-2 py-3 text-center text-xs font-bold transition ${
                 settings.voicePreset === p.id
-                  ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-500/20 dark:text-violet-100'
+                  ? 'border-primary lab-tint lab-ink'
                   : 'border-border text-foreground'
               }`}
             >
@@ -129,11 +129,11 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
         <h3 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Extras</h3>
         <label className="mb-2 flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
           Spiritual touches (mantras & Gita verses)
-          <input type="checkbox" checked={settings.spiritual} onChange={(e) => update({ spiritual: e.target.checked })} className="h-5 w-5 accent-violet-600" />
+          <input type="checkbox" checked={settings.spiritual} onChange={(e) => update({ spiritual: e.target.checked })} className="h-5 w-5 accent-primary" />
         </label>
         <label className="flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
           Little chimes
-          <input type="checkbox" checked={settings.chimes} onChange={(e) => update({ chimes: e.target.checked })} className="h-5 w-5 accent-violet-600" />
+          <input type="checkbox" checked={settings.chimes} onChange={(e) => update({ chimes: e.target.checked })} className="h-5 w-5 accent-primary" />
         </label>
       </div>
     </div>

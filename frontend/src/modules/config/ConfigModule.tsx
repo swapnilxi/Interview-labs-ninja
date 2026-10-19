@@ -12,15 +12,30 @@ import {
 } from '@/lib/services/settingsService';
 import { API_BASE_URL } from '@/lib/http/apiClient';
 import AppearanceSettingsCard from './AppearanceSettingsCard';
+import { SETTINGS_CARD, SettingsCardHeader } from './SettingsCard';
 import LabSettingsManager from '@/modules/common/lab/LabSettingsManager';
+import { LAB_CHIP, LAB_CHIP_ACCENT } from '@/modules/common/lab/WikiParts';
+
+/* The Settings page sits in a `.lab-page` frame (app/config/page.tsx): every `border` is the one lab hairline, and the Settings
+   accent (`--color-primary`) is the only interactive colour. Spacing keys 6/12/18/24/36/48 are PIXELS in this repo, so rem
+   values are written `[1.5rem]`. Fields share one recipe (`todo-input` = hairline + accent focus glow). */
+const FIELD = 'todo-input h-10 rounded-md px-3 text-sm';
+/** A field in a nested group (the base-URL boxes): 36px, 12px text. */
+const FIELD_SM = 'todo-input h-9 rounded-md px-3 text-xs';
+/** The model picker's button: looks like a field and grows when a long model name wraps. */
+const FIELD_BUTTON =
+  'todo-input flex min-h-[2.5rem] items-center justify-between gap-2 rounded-md px-3 py-1.5 text-left text-sm';
+/** A segment of the page's tab control: two equal halves on a phone (the label wraps), natural width from `sm`. */
+const TAB =
+  'todo-segment min-w-0 flex-1 justify-center whitespace-normal px-3 py-2 text-center text-sm leading-tight sm:flex-none sm:whitespace-nowrap sm:px-4';
+/** Inline `code` chips. */
+const CODE = 'rounded bg-muted px-1.5 py-0.5 font-code text-xs';
 
 const PROVIDERS = [
   {
     key: 'Google',
     label: 'Google Gemini',
     icon: 'SparklesIcon',
-    color: 'text-blue-500',
-    bg: 'bg-blue-500/10',
     models: [
       { id: 'gemini-flash-latest', name: 'Gemini Flash (Latest)', badge: 'Fast · Auto-updates · Recommended', tier: 'free' },
       { id: 'gemini-pro-latest',   name: 'Gemini Pro (Latest)',   badge: 'High Quality · Auto-updates', tier: 'pro' },
@@ -35,8 +50,6 @@ const PROVIDERS = [
     key: 'Vertex',
     label: 'Vertex AI (GCP $300)',
     icon: 'CloudIcon',
-    color: 'text-sky-500',
-    bg: 'bg-sky-500/10',
     models: [
       { id: 'vertex_gemini_gemini-2.5-flash', name: 'Gemini 2.5 Flash · Vertex', badge: 'Uses GCP $300 credits', tier: 'cheap' },
       { id: 'vertex_gemini_gemini-2.5-pro',   name: 'Gemini 2.5 Pro · Vertex',   badge: 'Uses GCP $300 credits', tier: 'pro' },
@@ -47,8 +60,6 @@ const PROVIDERS = [
     key: 'DeepSeek',
     label: 'DeepSeek',
     icon: 'BoltIcon',
-    color: 'text-teal-500',
-    bg: 'bg-teal-500/10',
     models: [
       { id: 'deepseek-chat',     name: 'DeepSeek V3',   badge: 'Very Cheap', tier: 'cheap' },
       { id: 'deepseek-reasoner', name: 'DeepSeek R1',   badge: 'Reasoning · Cheap', tier: 'cheap' },
@@ -58,8 +69,6 @@ const PROVIDERS = [
     key: 'Groq',
     label: 'Groq (Free Tier)',
     icon: 'RocketLaunchIcon',
-    color: 'text-orange-500',
-    bg: 'bg-orange-500/10',
     models: [
       { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B',   badge: 'Powerful', tier: 'free' },
       { id: 'llama-3.1-8b-instant',    name: 'Llama 3.1 8B',    badge: 'Very Fast', tier: 'free' },
@@ -71,8 +80,6 @@ const PROVIDERS = [
     key: 'OpenAI',
     label: 'OpenAI',
     icon: 'CpuChipIcon',
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-500/10',
     models: [
       { id: 'gpt-4o',      name: 'GPT-4o',      badge: 'Premium', tier: 'pro' },
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini', badge: 'Cost Effective', tier: 'cheap' },
@@ -82,8 +89,6 @@ const PROVIDERS = [
     key: 'Anthropic',
     label: 'Anthropic',
     icon: 'AcademicCapIcon',
-    color: 'text-violet-500',
-    bg: 'bg-violet-500/10',
     models: [
       {
         id: 'claude-sonnet-5',
@@ -99,8 +104,6 @@ const PROVIDERS = [
     key: 'OpenRouter',
     label: 'OpenRouter',
     icon: 'GlobeAltIcon',
-    color: 'text-pink-500',
-    bg: 'bg-pink-500/10',
     models: [
       { id: 'openrouter/auto',                   name: 'OpenRouter Auto',          badge: 'Auto Best · Cost-optimized', tier: 'cheap' },
       { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B · OpenRouter', badge: 'High Quality', tier: 'cheap' },
@@ -115,8 +118,6 @@ const PROVIDERS = [
     key: 'Ollama',
     label: 'Ollama (Local)',
     icon: 'ComputerDesktopIcon',
-    color: 'text-slate-400',
-    bg: 'bg-slate-500/10',
     models: [
       { id: 'ollama', name: 'Ollama — use configured model', badge: 'Local', tier: 'free' },
     ],
@@ -125,8 +126,6 @@ const PROVIDERS = [
     key: 'Custom',
     label: 'Custom (OpenAI-compatible)',
     icon: 'WrenchScrewdriverIcon',
-    color: 'text-fuchsia-500',
-    bg: 'bg-fuchsia-500/10',
     models: [
       { id: 'custom', name: 'Custom endpoint — use configured model', badge: 'Together.ai, Fireworks, local server…', tier: 'free' },
     ],
@@ -209,16 +208,16 @@ function envPinnedOllamaModel(aiDefault: AiDefaultState): string | null {
 
 /** Pricing tier → small colored chip. free = usable at $0, cheap = low-cost paid, pro = premium paid. */
 const TIER_CHIP: Record<string, { label: string; cls: string }> = {
-  free:  { label: 'Free',  cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
-  cheap: { label: 'Cheap', cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
-  pro:   { label: 'Pro',   cls: 'bg-sky-500/15 text-sky-600 dark:text-sky-400' },
+  free:  { label: 'Free',  cls: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
+  cheap: { label: 'Cheap', cls: 'bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  pro:   { label: 'Pro',   cls: 'bg-sky-500/15 text-sky-800 dark:text-sky-300' },
 };
 
 function TierChip({ tier }: { tier?: string }) {
   const chip = tier ? TIER_CHIP[tier] : undefined;
   if (!chip) return null;
   return (
-    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide leading-none shrink-0 ${chip.cls}`}>
+    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide leading-none shrink-0 ${chip.cls}`}>
       {chip.label}
     </span>
   );
@@ -308,12 +307,12 @@ function ModelSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between gap-2 rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring transition-smooth"
+        className={FIELD_BUTTON}
       >
-        <span className="flex items-center gap-2 min-w-0">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           {selected ? (
             <>
-              <span className="truncate">{selected.name}</span>
+              <span className="min-w-0 break-words">{selected.name}</span>
               <TierChip tier={selected.tier} />
             </>
           ) : (
@@ -326,11 +325,11 @@ function ModelSelect({
       {open && (
         <div
           role="listbox"
-          className="absolute z-30 mt-1 w-full max-h-[320px] overflow-auto rounded-md border border-border bg-popover py-1 shadow-lg"
+          className="absolute z-30 mt-1 w-full max-h-[320px] overflow-auto rounded-lg border border-border bg-popover py-1 shadow-lg"
         >
           {groups.map(g => (
             <div key={g.label}>
-              <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g.label}</div>
+              <div className="lab-caption px-3 pb-1 pt-2">{g.label}</div>
               {g.items.map(it => (
                 <button
                   key={it.value}
@@ -338,11 +337,11 @@ function ModelSelect({
                   role="option"
                   aria-selected={it.value === value}
                   onClick={() => { onChange(it.value); setOpen(false); }}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 text-left transition-smooth hover:bg-muted ${it.value === value ? 'bg-muted/60' : ''}`}
+                  className={`todo-focus flex w-full items-start justify-between gap-2 px-3 py-2 text-left transition-smooth hover:mix-bg-foreground/[0.05] focus-visible:ring-inset focus-visible:ring-offset-0 ${it.value === value ? 'mix-bg-primary/[0.08]' : ''}`}
                 >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span className="truncate text-sm text-foreground">{it.name}</span>
-                    <span className="truncate text-[11px] text-muted-foreground">{it.badge}</span>
+                  <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                    <span className="break-words text-sm text-foreground">{it.name}</span>
+                    <span className="break-words text-xs text-muted-foreground">{it.badge}</span>
                   </span>
                   <TierChip tier={it.tier} />
                 </button>
@@ -366,17 +365,17 @@ type ToastState = { type: 'success' | 'warning' | 'error'; message: string };
 
 const TOAST_STYLES: Record<ToastState['type'], { box: string; icon: string; iconCls: string }> = {
   success: {
-    box: 'bg-success/15 border-success text-success-foreground',
+    box: 'mix-bg-success/15 border-success text-foreground',
     icon: 'CheckCircleIcon',
     iconCls: 'text-success',
   },
   warning: {
-    box: 'bg-warning/15 border-warning text-foreground',
+    box: 'mix-bg-warning/15 border-warning text-foreground',
     icon: 'ExclamationTriangleIcon',
     iconCls: 'text-warning',
   },
   error: {
-    box: 'bg-error/15 border-error text-error-foreground',
+    box: 'mix-bg-error/15 border-error text-foreground',
     icon: 'ExclamationTriangleIcon',
     iconCls: 'text-error',
   },
@@ -671,11 +670,11 @@ export default function ConfigInteractive() {
       ? 'missing'
       : null;
   const aiDefaultEnvNote = IS_FASTAPI_MODE && (
-    <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <Icon name="InformationCircleIcon" size={12} className="shrink-0" />
       <span>
         AI_PROVIDER / AI_MODEL are read from{' '}
-        <code className="bg-muted px-1 rounded text-[10px] font-code">backend/.env</code> by the
+        <code className={CODE}>backend/.env</code> by the
         FastAPI backend — importing them only sets models to &quot;Use .env default&quot; (now:{' '}
         {envDefaultText(aiDefault, settings.ollamaModel)}).
       </span>
@@ -691,17 +690,17 @@ export default function ConfigInteractive() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-60">
-        <div className="w-48 h-48 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      <div className="flex items-center justify-center py-[3.75rem]">
+        <div className="h-[3rem] w-[3rem] animate-spin rounded-full border-4 border-border border-t-primary" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-24">
+    <div className="space-y-[1.5rem]">
       {toast && (
         <div
-          className={`p-18 rounded-lg border flex items-center gap-12 animate-fade-in shadow-lg ${
+          className={`flex items-center gap-3 rounded-lg border p-4 animate-fade-in ${
             TOAST_STYLES[toast.type].box
           }`}
         >
@@ -716,34 +715,30 @@ export default function ConfigInteractive() {
       )}
 
       {/* ── Top Tabs: AI Models / Lab Prompts ── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-1.5 rounded-xl bg-card border border-border shadow-sm">
-        <div className="flex items-center gap-1.5">
+      <div className="flex">
+        <div
+          role="group"
+          aria-label="Settings sections"
+          className="todo-segmented todo-segmented-accent w-full sm:w-auto"
+        >
           <button
             type="button"
+            aria-pressed={configTab === 'providers'}
             onClick={() => setConfigTab('providers')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              configTab === 'providers'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-            }`}
+            className={TAB}
           >
             <Icon name="SparklesIcon" size={15} />
             <span>AI Models & API Keys</span>
           </button>
           <button
             type="button"
+            aria-pressed={configTab === 'labs'}
             onClick={() => setConfigTab('labs')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              configTab === 'labs'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-            }`}
+            className={TAB}
           >
             <Icon name="AdjustmentsHorizontalIcon" size={15} />
             <span>Lab Prompts & Sections</span>
-            <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-              configTab === 'labs' ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-primary/10 text-primary'
-            }`}>
+            <span className="hidden whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider lab-tint lab-ink md:inline">
               DSA · Sys Design · CV
             </span>
           </button>
@@ -751,176 +746,177 @@ export default function ConfigInteractive() {
       </div>
 
       {configTab === 'labs' ? (
-        <div className="bg-card border border-border rounded-xl p-6 shadow-md">
+        <div className="rounded-lg border border-border bg-card p-4 sm:p-[1.5rem]">
           <LabSettingsManager />
         </div>
       ) : (
         <>
           {/* ── Import from .env card ─────────────────────────────────────────── */}
-          <div className="bg-card border border-border rounded-lg shadow-md overflow-hidden">
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
             <button
               type="button"
               id="env-import-toggle"
-          onClick={() => envPanel.open ? setEnvPanel(p => ({ ...p, open: false })) : fetchEnvPrefill()}
-          className="w-full flex items-center justify-between p-24 hover:bg-muted/30 transition-smooth text-left"
-        >
-          <div className="flex items-center gap-12">
-            <div className="w-9 h-9 rounded-md bg-amber-500/15 flex items-center justify-center shrink-0">
-              <Icon name="DocumentTextIcon" size={18} className="text-amber-500" />
-            </div>
-            <div>
-              <h3 className="font-heading text-base font-semibold text-foreground">Import from .env</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Auto-fill API keys and model config from environment variables set on this server
-              </p>
-            </div>
-          </div>
-          <Icon
-            name={envPanel.open ? 'ChevronUpIcon' : 'ChevronDownIcon'}
-            size={18}
-            className="text-muted-foreground shrink-0"
-          />
-        </button>
-
-        {envPanel.open && (
-          <div className="border-t border-border p-24 space-y-18">
-
-            {/* How-to banner */}
-            <div className="flex items-start gap-10 p-14 rounded-lg bg-amber-500/8 border border-amber-500/25">
-              <Icon name="InformationCircleIcon" size={18} className="text-amber-500 shrink-0 mt-0.5" />
-              <div className="space-y-6">
-                <p className="text-xs text-foreground font-semibold">How to add keys via .env</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Create or edit <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-code">frontend/.env.local</code> (or set
-                  environment variables in your Vercel / hosting dashboard) using the names shown
-                  below. Restart the server after editing the file — Next.js reads env vars at
-                  startup, not at runtime.
-                </p>
-                <p className="text-xs font-mono bg-muted/60 border border-border rounded p-10 leading-relaxed text-muted-foreground select-all">
-                  {'# frontend/.env.local example\n'}GEMINI_API_KEY=AIzaSy…{'\n'}OPENAI_API_KEY=sk-proj-…{'\n'}GROQ_API_KEY=gsk_…
-                </p>
-              </div>
-            </div>
-
-            {envPanel.loading ? (
-              <div className="flex items-center gap-8 text-sm text-muted-foreground py-12">
-                <span className="w-16 h-16 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                Reading environment variables…
-              </div>
-            ) : (
-              <>
-                {/* Found entries */}
-                {envPanel.found.length > 0 && (
-                  <div className="space-y-8">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                      ✅ Found in environment ({envPanel.found.length})
-                    </p>
-                    <div className="space-y-4">
-                      {envPanel.found.map(e => (
-                        <div key={e.env} className="flex items-center justify-between gap-8 px-12 py-8 rounded-md bg-emerald-500/8 border border-emerald-500/20">
-                          <div className="flex items-center gap-8 min-w-0">
-                            <Icon name="CheckCircleIcon" size={14} className="text-emerald-500 shrink-0" variant="solid" />
-                            <span className="text-xs font-medium text-foreground truncate">{e.label}</span>
-                          </div>
-                          <code className="text-[10px] font-code text-muted-foreground shrink-0">{e.env}</code>
-                        </div>
-                      ))}
-                    </div>
-                    {aiDefaultRowsIn === 'found' && aiDefaultEnvNote}
-                  </div>
-                )}
-
-                {/* Missing entries */}
-                {envPanel.missing.length > 0 && (
-                  <div className="space-y-8">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                      ⚠️ Not set ({envPanel.missing.length}) — add to frontend/.env.local
-                    </p>
-                    <div className="space-y-4">
-                      {envPanel.missing.map(e => (
-                        <div key={e.env} className="flex items-center justify-between gap-8 px-12 py-8 rounded-md bg-muted/40 border border-border">
-                          <div className="flex items-center gap-8 min-w-0">
-                            <Icon name="MinusCircleIcon" size={14} className="text-muted-foreground shrink-0" />
-                            <span className="text-xs text-muted-foreground truncate">{e.label}</span>
-                          </div>
-                          <code className="text-[10px] font-code text-amber-500 shrink-0">{e.env}=</code>
-                        </div>
-                      ))}
-                    </div>
-                    {aiDefaultRowsIn === 'missing' && aiDefaultEnvNote}
-                  </div>
-                )}
-
-                {envPanel.found.length === 0 && envPanel.missing.length > 0 && (
+              aria-expanded={envPanel.open}
+              onClick={() => envPanel.open ? setEnvPanel(p => ({ ...p, open: false })) : fetchEnvPrefill()}
+              className="todo-focus flex w-full items-center justify-between gap-3 p-4 text-left transition-smooth hover:mix-bg-foreground/[0.04] focus-visible:ring-inset focus-visible:ring-offset-0 sm:p-[1.5rem]"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <span aria-hidden="true" className="todo-icon-chip h-9 w-9">
+                  <Icon name="DocumentTextIcon" size={20} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="font-heading text-base font-semibold text-foreground">Import from .env</h3>
                   <p className="text-xs text-muted-foreground">
-                    No environment variables are set yet. Add them to{' '}
-                    <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-code">frontend/.env.local</code>{' '}
-                    and restart the server (or redeploy on Vercel).
+                    Auto-fill API keys and model config from environment variables set on this server
                   </p>
-                )}
+                </div>
+              </div>
+              <Icon
+                name={envPanel.open ? 'ChevronUpIcon' : 'ChevronDownIcon'}
+                size={18}
+                className="shrink-0 text-muted-foreground"
+              />
+            </button>
 
-                {/* Import button */}
-                {envPanel.found.length > 0 && (
-                  <div className="flex items-center gap-12 pt-4">
-                    <button
-                      id="env-import-apply"
-                      type="button"
-                      onClick={importFromEnv}
-                      disabled={envPanel.imported}
-                      className="inline-flex items-center gap-8 px-18 py-9 rounded-md bg-amber-500 hover:bg-amber-500/90 text-white text-sm font-medium transition-smooth disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {envPanel.imported ? (
-                        <><Icon name="CheckIcon" size={14} />Imported — save below</>
-                      ) : (
-                        <>
-                          <Icon name="ArrowDownTrayIcon" size={14} />
-                          Import {envImportPlan.count} value{envImportPlan.count !== 1 ? 's' : ''}{' '}
-                          into fields
-                        </>
-                      )}
-                    </button>
-                    <span className="text-[11px] text-muted-foreground">
-                      Values are copied into the fields below — hit{' '}
-                      <span className="font-semibold text-foreground">Save Configuration</span> to persist them.
-                    </span>
+            {envPanel.open && (
+              <div className="space-y-[1.25rem] border-t border-border p-4 sm:p-[1.5rem]">
+
+                {/* How-to banner */}
+                <div className="flex items-start gap-3 rounded-lg p-4 mix-bg-primary/[0.06]">
+                  <Icon name="InformationCircleIcon" size={18} className="mt-0.5 shrink-0 text-primary" />
+                  <div className="min-w-0 space-y-1.5">
+                    <p className="text-xs font-semibold text-foreground">How to add keys via .env</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Create or edit <code className={CODE}>frontend/.env.local</code> (or set
+                      environment variables in your Vercel / hosting dashboard) using the names shown
+                      below. Restart the server after editing the file — Next.js reads env vars at
+                      startup, not at runtime.
+                    </p>
+                    <p className="select-all whitespace-pre-line break-words rounded-md p-3 font-mono text-xs leading-relaxed text-muted-foreground mix-bg-foreground/[0.06]">
+                      {'# frontend/.env.local example\n'}GEMINI_API_KEY=AIzaSy…{'\n'}OPENAI_API_KEY=sk-proj-…{'\n'}GROQ_API_KEY=gsk_…
+                    </p>
                   </div>
+                </div>
+
+                {envPanel.loading ? (
+                  <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+                    Reading environment variables…
+                  </div>
+                ) : (
+                  <>
+                    {/* Found entries */}
+                    {envPanel.found.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="lab-caption flex items-center gap-1.5">
+                          <Icon name="CheckCircleIcon" size={14} variant="solid" className="shrink-0 text-success" />
+                          Found in environment ({envPanel.found.length})
+                        </p>
+                        <div className="space-y-1.5">
+                          {envPanel.found.map(e => (
+                            <div key={e.env} className="flex items-center justify-between gap-2 rounded-md px-3 py-2 mix-bg-success/10">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <Icon name="CheckCircleIcon" size={14} className="shrink-0 text-success" variant="solid" />
+                                <span className="min-w-0 break-words text-xs font-medium text-foreground">{e.label}</span>
+                              </div>
+                              <code className="shrink-0 font-code text-xs text-muted-foreground">{e.env}</code>
+                            </div>
+                          ))}
+                        </div>
+                        {aiDefaultRowsIn === 'found' && aiDefaultEnvNote}
+                      </div>
+                    )}
+
+                    {/* Missing entries */}
+                    {envPanel.missing.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="lab-caption flex items-center gap-1.5">
+                          <Icon name="ExclamationTriangleIcon" size={14} variant="solid" className="shrink-0 text-warning" />
+                          <span>
+                            Not set ({envPanel.missing.length}){' '}
+                            <span className="font-medium normal-case tracking-normal">— add to frontend/.env.local</span>
+                          </span>
+                        </p>
+                        <div className="space-y-1.5">
+                          {envPanel.missing.map(e => (
+                            <div key={e.env} className="flex items-center justify-between gap-2 rounded-md px-3 py-2 mix-bg-foreground/[0.05]">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <Icon name="MinusCircleIcon" size={14} className="shrink-0 text-muted-foreground" />
+                                <span className="min-w-0 break-words text-xs text-muted-foreground">{e.label}</span>
+                              </div>
+                              <code className="shrink-0 font-code text-xs text-foreground">{e.env}=</code>
+                            </div>
+                          ))}
+                        </div>
+                        {aiDefaultRowsIn === 'missing' && aiDefaultEnvNote}
+                      </div>
+                    )}
+
+                    {envPanel.found.length === 0 && envPanel.missing.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        No environment variables are set yet. Add them to{' '}
+                        <code className={CODE}>frontend/.env.local</code>{' '}
+                        and restart the server (or redeploy on Vercel).
+                      </p>
+                    )}
+
+                    {/* Import button */}
+                    {envPanel.found.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3 pt-1">
+                        <button
+                          id="env-import-apply"
+                          type="button"
+                          onClick={importFromEnv}
+                          disabled={envPanel.imported}
+                          className="todo-btn todo-btn-quiet h-10 gap-2 px-4 text-sm"
+                        >
+                          {envPanel.imported ? (
+                            <><Icon name="CheckIcon" size={14} />Imported — save below</>
+                          ) : (
+                            <>
+                              <Icon name="ArrowDownTrayIcon" size={14} />
+                              Import {envImportPlan.count} value{envImportPlan.count !== 1 ? 's' : ''}{' '}
+                              into fields
+                            </>
+                          )}
+                        </button>
+                        <span className="text-xs text-muted-foreground">
+                          Values are copied into the fields below — hit{' '}
+                          <span className="font-semibold text-foreground">Save Configuration</span> to persist them.
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
-              </>
+              </div>
             )}
           </div>
-        )}
-      </div>
 
-      <form onSubmit={handleSave} className="space-y-24">
+      <form onSubmit={handleSave} className="space-y-[1.5rem]">
 
         {/* Model Configuration */}
-        <div className="bg-card border border-border rounded-lg p-24 shadow-md space-y-18">
-          <div className="flex items-center gap-12 pb-12 border-b border-border">
-            <Icon name="CpuChipIcon" size={24} className="text-primary" />
-            <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">Model Configuration</h3>
-              <p className="text-xs text-muted-foreground">Choose the main LLM used for AI generation across the app, and the model used for answer evaluation</p>
-            </div>
-          </div>
+        <div className={SETTINGS_CARD}>
+          <SettingsCardHeader
+            icon="CpuChipIcon"
+            title="Model Configuration"
+            description="Choose the main LLM used for AI generation across the app, and the model used for answer evaluation"
+          />
 
-          {/* Provider pills */}
+          {/* Provider pills: the providers the two models below resolve to are in the accent */}
           <div className="flex flex-wrap gap-2">
             {PROVIDERS.map(p => {
               const active = activeProviders.includes(p.key);
               return (
-                <span key={p.key}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
-                    active ? `${p.bg} ${p.color} border-current/30` : 'border-border text-muted-foreground bg-muted/30'
-                  }`}>
-                  <Icon name={p.icon} size={11} />
+                <span key={p.key} className={`${active ? LAB_CHIP_ACCENT : LAB_CHIP} gap-1.5`}>
+                  <Icon name={p.icon} size={12} />
                   {p.label}
                 </span>
               );
             })}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-18">
-            <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-[1.25rem] md:grid-cols-2">
+            <div className="space-y-1.5">
               <label htmlFor="textGenerationModel" className="block text-sm font-medium text-foreground">
                 Text Generation Model
               </label>
@@ -933,12 +929,12 @@ export default function ConfigInteractive() {
                 aiDefault={aiDefault}
               />
               {textModelHint && (
-                <span className="text-[11px] text-muted-foreground">{textModelHint}</span>
+                <span className="block text-xs text-muted-foreground">{textModelHint}</span>
               )}
-              <span className="block text-[11px] text-muted-foreground/60">The main LLM for the app — used for daily topic expansion, parsing CV details, and all other AI generation (e.g. LinkedIn Post Generator).</span>
+              <span className="block text-xs text-muted-foreground">The main LLM for the app — used for daily topic expansion, parsing CV details, and all other AI generation (e.g. LinkedIn Post Generator).</span>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-1.5">
               <label htmlFor="answerModel" className="block text-sm font-medium text-foreground">
                 Answer Evaluation Model
               </label>
@@ -951,14 +947,14 @@ export default function ConfigInteractive() {
                 aiDefault={aiDefault}
               />
               {answerModelHint && (
-                <span className="text-[11px] text-muted-foreground">{answerModelHint}</span>
+                <span className="block text-xs text-muted-foreground">{answerModelHint}</span>
               )}
-              <span className="block text-[11px] text-muted-foreground/60">Used to score answers, provide STAR guidelines, and highlight improvements.</span>
+              <span className="block text-xs text-muted-foreground">Used to score answers, provide STAR guidelines, and highlight improvements.</span>
             </div>
           </div>
 
           {aiDefault?.warning && (
-            <p className="flex items-center gap-1.5 text-[11px] text-amber-500">
+            <p className="flex items-center gap-1.5 text-xs text-warning">
               <Icon name="ExclamationTriangleIcon" size={12} className="shrink-0" />
               {aiDefault.warning}
             </p>
@@ -969,50 +965,47 @@ export default function ConfigInteractive() {
 
         {/* Ollama Local Config */}
         {usesOllama && (
-          <div className="bg-card border border-border rounded-lg p-24 shadow-md space-y-18">
-            <div className="flex items-center justify-between pb-12 border-b border-border">
-              <div className="flex items-center gap-12">
-                <Icon name="ComputerDesktopIcon" size={24} className="text-slate-400" />
-                <div>
-                  <h3 className="font-heading text-lg font-semibold text-foreground">Ollama Local Settings</h3>
-                  <p className="text-xs text-muted-foreground">Auto-detects pulled models from your running Ollama instance.</p>
+          <div className={SETTINGS_CARD}>
+            <SettingsCardHeader
+              icon="ComputerDesktopIcon"
+              title="Ollama Local Settings"
+              description="Auto-detects pulled models from your running Ollama instance."
+              trailing={
+                <div className="flex items-center gap-2">
+                  {/* Live status badge */}
+                  {ollamaLoading ? (
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-border border-t-muted-foreground" />
+                      Detecting...
+                    </span>
+                  ) : ollamaStatus?.running ? (
+                    <span className={`${LAB_CHIP} gap-1.5`}>
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
+                      Online · {ollamaStatus.models.length} model{ollamaStatus.models.length !== 1 ? 's' : ''}
+                    </span>
+                  ) : ollamaStatus ? (
+                    <span className={`${LAB_CHIP} gap-1.5`}>
+                      <span className="h-1.5 w-1.5 rounded-full bg-error" />
+                      Offline
+                    </span>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => detectOllama(settings.ollamaUrl)}
+                    disabled={ollamaLoading}
+                    className="todo-focus rounded-md p-2 text-muted-foreground transition-smooth hover:mix-bg-foreground/[0.06] hover:text-foreground disabled:opacity-40"
+                    title="Re-detect Ollama"
+                  >
+                    <Icon name="ArrowPathIcon" size={14} className={ollamaLoading ? 'animate-spin' : ''} />
+                  </button>
                 </div>
-              </div>
+              }
+            />
 
-              {/* Live status badge */}
-              <div className="flex items-center gap-2">
-                {ollamaLoading ? (
-                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                    <span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
-                    Detecting...
-                  </span>
-                ) : ollamaStatus?.running ? (
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Online · {ollamaStatus.models.length} model{ollamaStatus.models.length !== 1 ? 's' : ''}
-                  </span>
-                ) : ollamaStatus ? (
-                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-red-500 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/20">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                    Offline
-                  </span>
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={() => detectOllama(settings.ollamaUrl)}
-                  disabled={ollamaLoading}
-                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-smooth disabled:opacity-40"
-                  title="Re-detect Ollama"
-                >
-                  <Icon name="ArrowPathIcon" size={14} className={ollamaLoading ? 'animate-spin' : ''} />
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-18">
+            <div className="grid grid-cols-1 gap-[1.25rem] md:grid-cols-2">
               {/* URL field */}
-              <div className="space-y-6">
+              <div className="space-y-1.5">
                 <label htmlFor="ollamaUrl" className="block text-sm font-medium text-foreground">Ollama Server URL</label>
                 <input
                   id="ollamaUrl"
@@ -1020,29 +1013,29 @@ export default function ConfigInteractive() {
                   value={settings.ollamaUrl}
                   onChange={e => handleChange('ollamaUrl', e.target.value)}
                   placeholder="http://localhost:11434"
-                  className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring"
+                  className={FIELD}
                 />
                 {ollamaStatus && !ollamaStatus.running && ollamaStatus.error && (
-                  <p className="text-[11px] text-red-500">{ollamaStatus.error}</p>
+                  <p className="text-xs text-error">{ollamaStatus.error}</p>
                 )}
                 {!ollamaStatus?.running && (
-                  <span className="text-[11px] text-muted-foreground/60">
-                    Run <code className="bg-muted px-1 rounded text-[10px]">ollama serve</code> to start the server
+                  <span className="block text-xs text-muted-foreground">
+                    Run <code className={CODE}>ollama serve</code> to start the server
                   </span>
                 )}
               </div>
 
               {/* Model — dropdown if detected, text input if offline */}
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
                   <label htmlFor="ollamaModel" className="block text-sm font-medium text-foreground">Ollama Model Name</label>
                   <button
                     type="button"
                     onClick={() => fetchOllamaModels(settings.ollamaUrl)}
                     disabled={ollamaModelsLoading}
-                    className="flex items-center gap-1 text-[11px] font-medium text-primary hover:opacity-80 transition-smooth disabled:opacity-50"
+                    className="todo-focus flex items-center gap-1 rounded-sm text-xs font-medium lab-ink transition-smooth hover:opacity-80 disabled:opacity-50"
                   >
-                    <Icon name="ArrowPathIcon" size={11} className={ollamaModelsLoading ? 'animate-spin' : ''} />
+                    <Icon name="ArrowPathIcon" size={12} className={ollamaModelsLoading ? 'animate-spin' : ''} />
                     {ollamaModelsLoading ? 'Checking…' : 'Refresh'}
                   </button>
                 </div>
@@ -1057,7 +1050,7 @@ export default function ConfigInteractive() {
                       }
                       handleChange('ollamaModel', e.target.value);
                     }}
-                    className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring"
+                    className={FIELD}
                   >
                     {!ollamaModels.includes(settings.ollamaModel) && settings.ollamaModel && (
                       <option value={settings.ollamaModel}>{settings.ollamaModel} (current)</option>
@@ -1074,34 +1067,34 @@ export default function ConfigInteractive() {
                     value={settings.ollamaModel}
                     onChange={e => handleChange('ollamaModel', e.target.value)}
                     placeholder="llama3.2"
-                    className="w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring"
+                    className={FIELD}
                   />
                 )}
                 {ollamaModelsError ? (
-                  <span className="block text-[11px] text-amber-500">{ollamaModelsError}</span>
+                  <span className="block text-xs text-warning">{ollamaModelsError}</span>
                 ) : ollamaModels.length > 0 ? (
-                  <span className="flex items-center justify-between text-[11px] text-emerald-500">
+                  <span className="flex items-center justify-between gap-2 text-xs text-success">
                     {ollamaModels.length} model{ollamaModels.length > 1 ? 's' : ''} found locally
                     {customOllamaModel && (
                       <button
                         type="button"
                         onClick={() => setCustomOllamaModel(false)}
-                        className="font-medium text-primary hover:opacity-80 transition-smooth"
+                        className="todo-focus rounded-sm font-medium lab-ink transition-smooth hover:opacity-80"
                       >
                         Choose from list
                       </button>
                     )}
                   </span>
                 ) : (
-                  <span className="block text-[11px] text-muted-foreground/60">Any model pulled via <code className="bg-muted px-1 rounded text-[10px]">ollama pull &lt;name&gt;</code></span>
+                  <span className="block text-xs text-muted-foreground">Any model pulled via <code className={CODE}>ollama pull &lt;name&gt;</code></span>
                 )}
                 {envOllamaModel && (
-                  <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
-                    <Icon name="InformationCircleIcon" size={12} className="shrink-0 mt-0.5" />
+                  <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                    <Icon name="InformationCircleIcon" size={12} className="mt-0.5 shrink-0" />
                     <span>
                       Server default uses <span className="font-semibold">{envOllamaModel}</span>{' '}
                       (AI_MODEL); this field applies to models set to plain{' '}
-                      <code className="bg-muted px-1 rounded text-[10px]">ollama</code>, e.g. the
+                      <code className={CODE}>ollama</code>, e.g. the
                       To-Do local toggle.
                     </span>
                   </p>
@@ -1111,26 +1104,27 @@ export default function ConfigInteractive() {
 
             {/* Detected model cards */}
             {ollamaStatus?.running && ollamaStatus.models.length > 0 && (
-              <div className="pt-12 border-t border-border">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-12">Pulled Models</p>
+              <div className="border-t border-border pt-[1.25rem]">
+                <p className="lab-caption mb-3">Pulled Models</p>
                 <div className="flex flex-wrap gap-2">
                   {ollamaStatus.models.map(m => (
                     <button
                       key={m.name}
                       type="button"
+                      aria-pressed={isOllamaChecked(m.name)}
                       onClick={() => handleChange('ollamaModel', m.name)}
-                      className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-smooth ${
+                      className={`todo-focus flex max-w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-left text-xs font-medium transition-smooth ${
                         isOllamaChecked(m.name)
-                          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          : 'border-border text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground'
+                          ? 'mix-border-primary/50 lab-tint lab-ink'
+                          : 'border-border text-muted-foreground hover:mix-bg-foreground/[0.05] hover:text-foreground'
                       }`}
                     >
-                      <span className="font-semibold">{m.name}</span>
+                      <span className="min-w-0 break-words font-semibold">{m.name}</span>
                       {m.size_gb && (
                         <span
-                          className={`text-[9px] font-semibold px-1 rounded ${
+                          className={`rounded px-1.5 text-xs font-semibold ${
                             isOllamaChecked(m.name)
-                              ? 'bg-emerald-500/20 text-emerald-500'
+                              ? 'mix-bg-primary/20 lab-ink'
                               : 'bg-muted text-muted-foreground'
                           }`}
                         >
@@ -1138,12 +1132,12 @@ export default function ConfigInteractive() {
                         </span>
                       )}
                       {m.name === envOllamaModel && (
-                        <span className="text-[9px] font-semibold px-1 rounded bg-muted text-muted-foreground">
+                        <span className="rounded bg-muted px-1.5 text-xs font-semibold text-muted-foreground">
                           AI_MODEL
                         </span>
                       )}
                       {isOllamaChecked(m.name) && (
-                        <Icon name="CheckIcon" size={10} className="text-emerald-500" variant="solid" />
+                        <Icon name="CheckIcon" size={12} className="text-primary" variant="solid" />
                       )}
                     </button>
                   ))}
@@ -1154,30 +1148,24 @@ export default function ConfigInteractive() {
         )}
 
         {/* API Keys */}
-        <div className="bg-card border border-border rounded-lg p-24 shadow-md space-y-18">
-          <div className="flex items-center gap-12 pb-12 border-b border-border">
-            <Icon name="KeyIcon" size={24} className="text-secondary" />
-            <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">API Keys</h3>
-              <p className="text-xs text-muted-foreground">Only enter keys for providers you use.</p>
-            </div>
-          </div>
+        <div className={SETTINGS_CARD}>
+          <SettingsCardHeader icon="KeyIcon" title="API Keys" description="Only enter keys for providers you use." />
 
-          <div className="flex items-start gap-10 p-14 rounded-lg bg-primary/5 border border-primary/20">
-            <Icon name="ShieldCheckIcon" size={18} className="text-primary shrink-0 mt-1" />
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              <span className="font-semibold text-foreground">Stored only in this browser's local storage.</span>{' '}
+          <div className="flex items-start gap-3 rounded-lg p-4 mix-bg-primary/[0.06]">
+            <Icon name="ShieldCheckIcon" size={18} className="mt-0.5 shrink-0 text-primary" />
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-foreground">Stored only in this browser&apos;s local storage.</span>{' '}
               Your keys never touch our servers or database — each request sends the key straight from your
-              browser to the AI provider you chose, for that request only. That also means keys don't sync
+              browser to the AI provider you chose, for that request only. That also means keys don&apos;t sync
               across devices or browsers, and clearing site data will remove them. If other people use this
-              app, everyone brings and stores their own keys locally — nobody shares or sees anyone else's.
+              app, everyone brings and stores their own keys locally — nobody shares or sees anyone else&apos;s.
             </p>
           </div>
 
-          <div className="space-y-18">
+          <div className="space-y-[1.25rem]">
             {API_KEY_FIELDS.map(field => (
-              <div key={field.key} className="space-y-6">
-                <div className="flex justify-between items-center">
+              <div key={field.key} className="space-y-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <label htmlFor={field.key} className="block text-sm font-medium text-foreground">{field.label}</label>
                   <span className="text-xs text-muted-foreground">{field.note}</span>
                 </div>
@@ -1188,26 +1176,26 @@ export default function ConfigInteractive() {
                     value={settings[field.key as keyof UserSettings]}
                     onChange={e => handleChange(field.key as keyof UserSettings, e.target.value)}
                     placeholder={field.placeholder}
-                    className="w-full rounded-md border border-border bg-input pl-12 pr-48 py-9 text-sm text-foreground focus-ring"
+                    className={`${FIELD} pr-[3rem]`}
                   />
                   <button
                     type="button"
                     onClick={() => toggleKeyVisibility(field.key)}
-                    className="absolute right-12 top-1/2 -translate-y-1/2 p-6 text-muted-foreground hover:text-foreground transition-smooth"
+                    className="todo-focus absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-smooth hover:text-foreground"
                     aria-label={visibleKeys[field.key] ? 'Hide key' : 'Show key'}
                   >
                     <Icon name={visibleKeys[field.key] ? 'EyeSlashIcon' : 'EyeIcon'} size={18} />
                   </button>
                 </div>
-                <div className="flex items-center gap-8">
+                <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
                   <button
                     type="button"
                     onClick={() => testKey(field.key)}
                     disabled={!settings[field.key as keyof UserSettings] || testStatus[field.key]?.loading}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary hover:opacity-80 transition-smooth disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="todo-focus inline-flex items-center gap-1.5 rounded-sm text-xs font-medium lab-ink transition-smooth hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {testStatus[field.key]?.loading ? (
-                      <span className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-border border-t-primary" />
                     ) : (
                       <Icon name="BoltIcon" size={12} />
                     )}
@@ -1215,27 +1203,27 @@ export default function ConfigInteractive() {
                   </button>
                   {testStatus[field.key] && !testStatus[field.key].loading && (
                     testStatus[field.key].ok ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-500">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
                         <Icon name="CheckCircleIcon" size={12} variant="solid" /> Connected
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-500 truncate" title={testStatus[field.key].message}>
-                        <Icon name="XCircleIcon" size={12} variant="solid" /> {testStatus[field.key].message}
+                      <span className="inline-flex min-w-0 items-start gap-1 break-words text-xs font-medium text-error" title={testStatus[field.key].message}>
+                        <Icon name="XCircleIcon" size={12} variant="solid" className="mt-0.5 shrink-0" /> {testStatus[field.key].message}
                       </span>
                     )
                   )}
                 </div>
 
                 {field.key === 'openrouterKey' && (
-                  <div className="mt-8 p-12 rounded-md bg-muted/40 border border-border/80 space-y-6">
-                    <div className="flex justify-between items-center">
+                  <div className="space-y-1.5 rounded-md p-3 mix-bg-foreground/[0.05]">
+                    <div className="flex items-center justify-between gap-2">
                       <label htmlFor="openrouterUrl" className="block text-xs font-semibold text-foreground">
                         OpenRouter Base URL
                       </label>
                       <button
                         type="button"
                         onClick={() => handleChange('openrouterUrl', 'https://openrouter.ai/api/v1')}
-                        className="text-[11px] font-medium text-primary hover:opacity-80 transition-smooth"
+                        className="todo-focus rounded-sm text-xs font-medium lab-ink transition-smooth hover:opacity-80"
                       >
                         Reset to default
                       </button>
@@ -1246,17 +1234,17 @@ export default function ConfigInteractive() {
                       value={settings.openrouterUrl}
                       onChange={e => handleChange('openrouterUrl', e.target.value)}
                       placeholder="https://openrouter.ai/api/v1"
-                      className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring"
+                      className={FIELD_SM}
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      Default: <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-code">https://openrouter.ai/api/v1</code>. Supports OpenRouter proxies and compatible endpoints.
+                    <p className="text-xs text-muted-foreground">
+                      Default: <code className={CODE}>https://openrouter.ai/api/v1</code>. Supports OpenRouter proxies and compatible endpoints.
                     </p>
                   </div>
                 )}
 
                 {field.key === 'customKey' && (
-                  <div className="mt-8 p-12 rounded-md bg-muted/40 border border-border/80 space-y-10">
-                    <div className="space-y-6">
+                  <div className="space-y-3 rounded-md p-3 mix-bg-foreground/[0.05]">
+                    <div className="space-y-1.5">
                       <label htmlFor="customBaseUrl" className="block text-xs font-semibold text-foreground">
                         Base URL
                       </label>
@@ -1266,10 +1254,10 @@ export default function ConfigInteractive() {
                         value={settings.customBaseUrl}
                         onChange={e => handleChange('customBaseUrl', e.target.value)}
                         placeholder="https://api.together.xyz/v1"
-                        className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring"
+                        className={FIELD_SM}
                       />
                     </div>
-                    <div className="space-y-6">
+                    <div className="space-y-1.5">
                       <label htmlFor="customModel" className="block text-xs font-semibold text-foreground">
                         Model Name
                       </label>
@@ -1279,11 +1267,11 @@ export default function ConfigInteractive() {
                         value={settings.customModel}
                         onChange={e => handleChange('customModel', e.target.value)}
                         placeholder="meta-llama/Llama-3.3-70B-Instruct-Turbo"
-                        className="w-full rounded-md border border-border bg-input px-12 py-7 text-xs text-foreground focus-ring"
+                        className={FIELD_SM}
                       />
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Any server exposing an OpenAI-compatible <code className="bg-muted px-1 rounded text-[10px] font-code">/chat/completions</code> endpoint — Together.ai, Fireworks, a local LM Studio or vLLM server, etc. Select &quot;Custom endpoint&quot; above as your Text Generation Model to use it.
+                    <p className="text-xs text-muted-foreground">
+                      Any server exposing an OpenAI-compatible <code className={CODE}>/chat/completions</code> endpoint — Together.ai, Fireworks, a local LM Studio or vLLM server, etc. Select &quot;Custom endpoint&quot; above as your Text Generation Model to use it.
                     </p>
                   </div>
                 )}
@@ -1293,18 +1281,16 @@ export default function ConfigInteractive() {
         </div>
 
         {/* YouTube Video Generator */}
-        <div className="bg-card border border-border rounded-lg p-24 shadow-md space-y-18">
-          <div className="flex items-center gap-12 pb-12 border-b border-border">
-            <Icon name="PlayCircleIcon" size={24} className="text-red-500" />
-            <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">YouTube Video Generator</h3>
-              <p className="text-xs text-muted-foreground">Used by the &quot;From YouTube Video&quot; tool in each lab&apos;s question generator.</p>
-            </div>
-          </div>
+        <div className={SETTINGS_CARD}>
+          <SettingsCardHeader
+            icon="PlayCircleIcon"
+            title="YouTube Video Generator"
+            description={<>Used by the &quot;From YouTube Video&quot; tool in each lab&apos;s question generator.</>}
+          />
 
-          <div className="flex items-start gap-10 p-14 rounded-lg bg-primary/5 border border-primary/20">
-            <Icon name="InformationCircleIcon" size={18} className="text-primary shrink-0 mt-1" />
-            <p className="text-xs text-muted-foreground leading-relaxed">
+          <div className="flex items-start gap-3 rounded-lg p-4 mix-bg-primary/[0.06]">
+            <Icon name="InformationCircleIcon" size={18} className="mt-0.5 shrink-0 text-primary" />
+            <p className="text-xs leading-relaxed text-muted-foreground">
               <span className="font-semibold text-foreground">Optional.</span>{' '}
               The video&apos;s transcript is always fetched automatically — no key needed for that. This key only adds
               the video&apos;s title/description as extra context, which can improve generation quality. Without it,
@@ -1312,8 +1298,8 @@ export default function ConfigInteractive() {
             </p>
           </div>
 
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
               <label htmlFor="youtubeApiKey" className="block text-sm font-medium text-foreground">YouTube Data API Key</label>
               <span className="text-xs text-muted-foreground">Optional — enriches context only</span>
             </div>
@@ -1324,20 +1310,20 @@ export default function ConfigInteractive() {
                 value={settings.youtubeApiKey}
                 onChange={e => handleChange('youtubeApiKey', e.target.value)}
                 placeholder="AIzaSy…"
-                className="w-full rounded-md border border-border bg-input pl-12 pr-48 py-9 text-sm text-foreground focus-ring"
+                className={`${FIELD} pr-[3rem]`}
               />
               <button
                 type="button"
                 onClick={() => toggleKeyVisibility('youtubeApiKey')}
-                className="absolute right-12 top-1/2 -translate-y-1/2 p-6 text-muted-foreground hover:text-foreground transition-smooth"
+                className="todo-focus absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-smooth hover:text-foreground"
                 aria-label={visibleKeys.youtubeApiKey ? 'Hide key' : 'Show key'}
               >
                 <Icon name={visibleKeys.youtubeApiKey ? 'EyeSlashIcon' : 'EyeIcon'} size={18} />
               </button>
             </div>
-            <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
+            <p className="text-xs leading-relaxed text-muted-foreground">
               To get one: open the{' '}
-              <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener noreferrer" className="todo-focus rounded-sm lab-ink hover:underline">
                 Google Cloud Console
               </a>{' '}
               → create or select a project → enable <span className="font-semibold">YouTube Data API v3</span> → go to
@@ -1348,14 +1334,14 @@ export default function ConfigInteractive() {
         </div>
 
         {/* Save */}
-        <div className="flex justify-end gap-12">
+        <div className="flex justify-end gap-3">
           <button
             type="submit"
             disabled={saving}
-            className="py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-smooth flex items-center gap-12 focus-ring disabled:opacity-50"
+            className="todo-btn todo-btn-primary h-10 gap-2 px-[1.5rem] text-sm"
           >
             {saving ? (
-              <span className="w-18 h-18 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              <span className="h-[1.125rem] w-[1.125rem] animate-spin rounded-full border-2 border-current border-t-transparent" />
             ) : (
               <Icon name="CheckIcon" size={18} />
             )}
@@ -1363,7 +1349,7 @@ export default function ConfigInteractive() {
           </button>
         </div>
       </form>
-      </>
+        </>
       )}
     </div>
   );

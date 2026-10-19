@@ -1,9 +1,28 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import LabCopilot from '@/components/common/LabCopilot';
-import { LabMobileBar, LabSheetBackdrop, useLabSheets } from '@/modules/common/lab/LabMobile';
+import ConfirmHost from '@/components/ui/ConfirmHost';
+import LabCopilot, { LabCopilotRail } from '@/components/common/LabCopilot';
+import {
+  LabMobileBar,
+  LabSheetBackdrop,
+  useLabPanes,
+  useLabSheets,
+} from '@/modules/common/lab/LabMobile';
+import {
+  LAB_REVEAL,
+  LabAddRow,
+  LabRecentList,
+  LabSidebarHeader,
+} from '@/modules/common/lab/LabSidebarParts';
+import {
+  WIKI_CARD,
+  WIKI_CARD_TITLE_HOVER,
+  WikiHero,
+  WikiIndexNav,
+  WikiSectionHeading,
+} from '@/modules/common/lab/WikiParts';
 import OnDemandSection from '@/components/lab/OnDemandSection';
 import QuizCarousel from '@/components/lab/QuizCarousel';
 import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/GenerateQuestionsPanel';
@@ -12,8 +31,11 @@ import { useLabSections, type SectionState } from '@/modules/common/lab/useLabSe
 import { useLabQuiz } from '@/modules/common/lab/useLabQuiz';
 import { buildPrerequisitesMarkdown } from './prerequisites';
 import { useWeekPlan, type WeekPlanApi } from './useWeekPlan';
-import WeekPlanView from './WeekPlanView';
+import WeekPlanView, { type OrganizeTrigger } from './WeekPlanView';
 import WeekPill from './WeekPill';
+import WeekOrganizer from './organizer/WeekOrganizer';
+import { clearOrganizerUi } from './organizer/uiState';
+import { DifficultyTag, LcTag, Tag, difficultyDotClass, tagClass } from './ui';
 import { CompleteButton, DoneMark, LabProgressSummary } from '@/modules/common/lab/LabProgressUi';
 import { LabSettingsButton, settingsSections } from '@/modules/common/lab/LabSettings';
 import LabSettingsModal from '@/modules/common/lab/LabSettingsModal';
@@ -23,8 +45,14 @@ import SectionPromptModal from '@/modules/common/lab/SectionPromptModal';
 import { useLabSettings } from '@/modules/common/lab/useLabSettings';
 import { DSA_DEFAULT_GUIDANCE } from './sectionGuidance';
 import ApproachTabs from './ApproachTabs';
-import { useUrlState } from '@/lib/navigation/urlState';
-import { LabBackBar, LabScreenLoading, jumpToAnchor, useLabNav, useScrollToTopOnChange } from '@/modules/common/lab/labNavigation';
+import { buildUrl, useUrlState } from '@/lib/navigation/urlState';
+import {
+  LabBackBar,
+  LabScreenLoading,
+  jumpToAnchor,
+  useLabNav,
+  useScrollToTopOnChange,
+} from '@/modules/common/lab/labNavigation';
 import type { ContextMode } from '@/lib/services/labSectionsService';
 import { apiFetch } from '@/lib/http/apiClient';
 
@@ -44,20 +72,9 @@ export interface DSATopic {
 
 /* ─────────────────────────────────────────── helpers ─────────────────────── */
 function parseBrief(brief: string) {
-  const lc   = brief.match(/LC\s+(#\d+)/)?.[1] ?? null;
+  const lc = brief.match(/LC\s+(#\d+)/)?.[1] ?? null;
   const hint = brief.replace(/LC\s+#\d+\s+\[.*?\]\s+[—–-]\s*/, '').trim();
   return { lc, hint };
-}
-
-function diffStyle(d: string): { badge: string; bar: string } {
-  switch (d) {
-    case 'Easy':        return { badge: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30', bar: 'bg-emerald-500' };
-    case 'Easy-Medium': return { badge: 'bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30',           bar: 'bg-teal-500'   };
-    case 'Medium':      return { badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',       bar: 'bg-amber-500'  };
-    case 'Medium-Hard': return { badge: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30',  bar: 'bg-orange-500' };
-    case 'Mixed':       return { badge: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',  bar: 'bg-indigo-500' };
-    default:            return { badge: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30',           bar: 'bg-rose-500'   };
-  }
 }
 
 /* ─────────────────────────────── section definitions ────────────────────── */
@@ -91,31 +108,101 @@ Add **Math / bit tricks** as a fourth group only if the problem needs it.
 Every bullet names ONE concrete skill, never a vague area like "basic Python" or "arrays". Put a tiny example in backticks where it helps (for example \`d[k] = d.get(k, 0) + 1\`). Use 8-14 bullets in total, no paragraphs, and never write that no prerequisites are needed.`;
 
 const SECTION_DEFS = [
-  { id: 'prerequisites',   label: 'Prerequisites',               icon: 'AcademicCapIcon',            subtitle: 'Specific Python, data-structure and algorithm skills to have first', guidance: PREREQUISITES_GUIDANCE },
-  { id: 'theory',          label: 'Core Theory',                 icon: 'CalculatorIcon',             subtitle: 'Mathematical foundations + intuition'      },
-  { id: 'approaches',      label: 'Approaches',                  icon: 'ArrowTrendingUpIcon',        subtitle: 'Brute force → optimal, and why each one gives way', aiGenerated: true, guidance: APPROACHES_GUIDANCE },
-  { id: 'visual',          label: 'Visual Architecture',         icon: 'PhotoIcon',                  subtitle: 'Data flow diagrams + architecture'         },
-  { id: 'implementation',  label: 'Practical Implementation',    icon: 'CodeBracketIcon',            subtitle: 'Python code, walkthrough, dry-run'         },
-  { id: 'hyperparameters', label: 'Design Choices',              icon: 'AdjustmentsHorizontalIcon',  subtitle: 'Patterns, variants, time/space trade-offs' },
-  { id: 'pitfalls',        label: 'Common Pitfalls',             icon: 'BugAntIcon',                 subtitle: 'Edge cases, mistakes, and gotchas'         },
-  { id: 'applications',    label: 'Real-World Applications',     icon: 'BuildingOffice2Icon',        subtitle: 'Industry use cases + company examples'    },
-  { id: 'interview',       label: 'Interview Questions',         icon: 'ChatBubbleLeftRightIcon',    subtitle: 'Conceptual + coding + pattern signals'    },
-  { id: 'comparison',      label: 'Comparison w/ Alternatives',  icon: 'ScaleIcon',                  subtitle: 'Tradeoff table + when to use each'        },
-  { id: 'paper',           label: 'Research Context',            icon: 'DocumentMagnifyingGlassIcon',subtitle: 'References, SOTA, known variants'          },
-  { id: 'quiz',            label: 'Quiz',                        icon: 'TrophyIcon',                 subtitle: '4 questions, score tracked, generate more' },
-  { id: 'references',      label: 'References & Resources',      icon: 'BookOpenIcon',               subtitle: 'NeetCode, LeetCode, Striver, GFG, MIT OCW' },
+  {
+    id: 'prerequisites',
+    label: 'Prerequisites',
+    icon: 'AcademicCapIcon',
+    subtitle: 'Specific Python, data-structure and algorithm skills to have first',
+    guidance: PREREQUISITES_GUIDANCE,
+  },
+  {
+    id: 'theory',
+    label: 'Core Theory',
+    icon: 'CalculatorIcon',
+    subtitle: 'Mathematical foundations + intuition',
+  },
+  {
+    id: 'approaches',
+    label: 'Approaches',
+    icon: 'ArrowTrendingUpIcon',
+    subtitle: 'Brute force → optimal, and why each one gives way',
+    aiGenerated: true,
+    guidance: APPROACHES_GUIDANCE,
+  },
+  {
+    id: 'visual',
+    label: 'Visual Architecture',
+    icon: 'PhotoIcon',
+    subtitle: 'Data flow diagrams + architecture',
+  },
+  {
+    id: 'implementation',
+    label: 'Practical Implementation',
+    icon: 'CodeBracketIcon',
+    subtitle: 'Python code, walkthrough, dry-run',
+  },
+  {
+    id: 'hyperparameters',
+    label: 'Design Choices',
+    icon: 'AdjustmentsHorizontalIcon',
+    subtitle: 'Patterns, variants, time/space trade-offs',
+  },
+  {
+    id: 'pitfalls',
+    label: 'Common Pitfalls',
+    icon: 'BugAntIcon',
+    subtitle: 'Edge cases, mistakes, and gotchas',
+  },
+  {
+    id: 'applications',
+    label: 'Real-World Applications',
+    icon: 'BuildingOffice2Icon',
+    subtitle: 'Industry use cases + company examples',
+  },
+  {
+    id: 'interview',
+    label: 'Interview Questions',
+    icon: 'ChatBubbleLeftRightIcon',
+    subtitle: 'Conceptual + coding + pattern signals',
+  },
+  {
+    id: 'comparison',
+    label: 'Comparison w/ Alternatives',
+    icon: 'ScaleIcon',
+    subtitle: 'Tradeoff table + when to use each',
+  },
+  {
+    id: 'paper',
+    label: 'Research Context',
+    icon: 'DocumentMagnifyingGlassIcon',
+    subtitle: 'References, SOTA, known variants',
+  },
+  {
+    id: 'quiz',
+    label: 'Quiz',
+    icon: 'TrophyIcon',
+    subtitle: '4 questions, score tracked, generate more',
+  },
+  {
+    id: 'references',
+    label: 'References & Resources',
+    icon: 'BookOpenIcon',
+    subtitle: 'NeetCode, LeetCode, Striver, GFG, MIT OCW',
+  },
 ];
 
 // The sections the lab settings dialog lists (each with its built-in instructions as the editable prompt).
 const SETTINGS_SECTIONS = settingsSections(SECTION_DEFS, DSA_DEFAULT_GUIDANCE, {
-  notes: { quiz: 'These instructions and your context are added to the requirements for each new batch of quiz questions.' },
+  notes: {
+    quiz: 'These instructions and your context are added to the requirements for each new batch of quiz questions.',
+  },
 });
 
 /* ─────────────────────────────── content templates ─────────────────────── */
 function getContent(sectionId: string, topic: DSATopic): string {
   const { lc, hint } = parseBrief(topic.brief);
   const n = topic.name;
-  const subs = topic.subtopics.map(s => `- **${s.name}**: ${s.brief}`).join('\n');
+  const subs = topic.subtopics.map((s) => `- **${s.name}**: ${s.brief}`).join('\n');
 
   const templates: Record<string, string> = {
     prerequisites: buildPrerequisitesMarkdown(n, topic.category, topic.prerequisites),
@@ -197,108 +284,226 @@ function getContent(sectionId: string, topic: DSATopic): string {
       `- CLRS (Introduction to Algorithms) — theoretical depth`,
   };
 
-  return templates[sectionId] ?? `**${n} — ${sectionId}**\n\nDetailed content for this section.\nPattern: ${hint}.`;
+  return (
+    templates[sectionId] ??
+    `**${n} — ${sectionId}**\n\nDetailed content for this section.\nPattern: ${hint}.`
+  );
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ══════════════════════════════════════════════════════════════════════════ */
+/**
+ * Where the week plan was when the organizer opened: the content pane's scroll position and which Organize button was
+ * pressed. The organizer replaces the plan page (it unmounts), so Back puts both back instead of landing on <body>.
+ */
+interface OrganizerReturn {
+  scrollTop: number;
+  trigger: OrganizeTrigger;
+}
+
+/**
+ * Focus the Organize button the learner pressed. Right after Back it may not take focus yet: the page behind the organizer is
+ * still inert for a moment, and the sticky toolbar stays inert (and fades in, hidden for its first frame) until the restored
+ * scroll position has shown it. So keep trying for about half a second, and stop as soon as it worked or focus went elsewhere.
+ */
+function focusOrganizeTrigger(trigger: OrganizeTrigger) {
+  const find = (t: OrganizeTrigger) =>
+    document.querySelector<HTMLElement>(`[data-organize-trigger="${t}"]`);
+  let tries = 0;
+  const attempt = () => {
+    const active = document.activeElement;
+    if (active && active !== document.body && !active.closest('[data-organize-trigger]')) return; // the learner moved on
+    const el = find(trigger);
+    if (el && !el.closest('[inert]')) {
+      el.focus({ preventScroll: true });
+      if (document.activeElement === el) return;
+    }
+    if (++tries < 30) requestAnimationFrame(attempt);
+    else find('header')?.focus({ preventScroll: true });
+  };
+  requestAnimationFrame(attempt);
+}
+
 export default function DSALabInteractive() {
-  const [topics,          setTopics]          = useState<DSATopic[]>([]);
-  const [topicsReady,     setTopicsReady]     = useState(false);
-  const [sectionsData,    setSectionsData]    = useState<{ id: number; labName: string; name: string; isCustom: boolean }[]>([]);
+  const [topics, setTopics] = useState<DSATopic[]>([]);
+  const [topicsReady, setTopicsReady] = useState(false);
+  const [sectionsData, setSectionsData] = useState<
+    { id: number; labName: string; name: string; isCustom: boolean }[]
+  >([]);
   // The open screen lives in the URL (?topic=&sub=), see labNavigation.tsx.
   const nav = useLabNav(topics, topicsReady);
   const selectedTopicId = nav.topicId;
-  const selectedSubId   = nav.subId;
-  const [expandedSecs,    setExpandedSecs]    = useState<Set<string>>(new Set());
-  const [expandedTopics,  setExpandedTopics]  = useState<Set<string>>(() => new Set(nav.topicParam ? [nav.topicParam] : []));
+  const selectedSubId = nav.subId;
+  const { pathname, searchParams, get: getParam, update: updateUrl } = useUrlState();
+  const [expandedSecs, setExpandedSecs] = useState<Set<string>>(new Set());
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(
+    () => new Set(nav.topicParam ? [nav.topicParam] : [])
+  );
 
   // add-section
-  const [showAddSec,    setShowAddSec]    = useState(false);
-  const [newSecInput,   setNewSecInput]   = useState('');
-  const [addingSec,     setAddingSec]     = useState(false);
+  const [showAddSec, setShowAddSec] = useState(false);
+  const [newSecInput, setNewSecInput] = useState('');
+  const [addingSec, setAddingSec] = useState(false);
   // add-topic
   const [addingTopicTo, setAddingTopicTo] = useState<string | null>(null);
   const [newTopicInput, setNewTopicInput] = useState('');
-  const [addingTopic,   setAddingTopic]   = useState(false);
+  const [addingTopic, setAddingTopic] = useState(false);
   // add-subtopic
-  const [addingSubTo,   setAddingSubTo]   = useState<string | null>(null);
-  const [newSubInput,   setNewSubInput]   = useState('');
-  const [leftOpen,      setLeftOpen]      = useState(true);
-  const [rightOpen,     setRightOpen]     = useState(true);
+  const [addingSubTo, setAddingSubTo] = useState<string | null>(null);
+  const [newSubInput, setNewSubInput] = useState('');
   const lab = useLabSheets(`${selectedTopicId}|${selectedSubId}`);
-  const leftExpanded = leftOpen || lab.isMobile;
-  const rightExpanded = rightOpen || lab.isMobile;
-  const collapseLeft = () => (lab.isMobile ? lab.close() : setLeftOpen(false));
-  const collapseRight = () => (lab.isMobile ? lab.close() : setRightOpen(false));
-  const [recentTopics,  setRecentTopics]  = useState<{ id: string; name: string; subId?: string; subName?: string }[]>([]);
+  const { leftExpanded, rightExpanded, setLeftOpen, setRightOpen, collapseLeft, collapseRight } =
+    useLabPanes(lab);
+  const [recentTopics, setRecentTopics] = useState<
+    { id: string; name: string; subId?: string; subName?: string }[]
+  >([]);
 
   const mainRef = useRef<HTMLElement>(null);
 
   /* ── fetch ── */
   useEffect(() => {
     apiFetch('/dsa/sections')
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data: { id: number; labName: string; name: string; isCustom: boolean }[]) => {
         setSectionsData(data);
-        setExpandedSecs(new Set(data.map(s => s.name)));
+        setExpandedSecs(new Set(data.map((s) => s.name)));
       })
-      .catch(e => console.error('sections:', e));
+      .catch((e) => console.error('sections:', e));
 
     apiFetch('/dsa/topics')
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then((data: DSATopic[]) => { if (data?.length) { setTopics(data); } else { setTopics(STATIC_DSA_TOPICS); } setTopicsReady(true); })
-      .catch(e => { console.error('topics:', e); setTopics(STATIC_DSA_TOPICS); setTopicsReady(true); });
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((data: DSATopic[]) => {
+        if (data?.length) {
+          setTopics(data);
+        } else {
+          setTopics(STATIC_DSA_TOPICS);
+        }
+        setTopicsReady(true);
+      })
+      .catch((e) => {
+        console.error('topics:', e);
+        setTopics(STATIC_DSA_TOPICS);
+        setTopicsReady(true);
+      });
   }, []);
 
   // Restore the "Recent" chips on mount. Which screen is open is not stored here any more: it lives in the URL.
   useEffect(() => {
     const savedRecent = localStorage.getItem('dsa-lab-recent-topics');
-    if (savedRecent) try { setRecentTopics(JSON.parse(savedRecent)); } catch {}
+    if (savedRecent)
+      try {
+        setRecentTopics(JSON.parse(savedRecent));
+      } catch {
+        /* a corrupt list just starts empty */
+      }
   }, []);
 
   // A different screen opened (also via Back/Forward): the content pane starts at its top.
   useScrollToTopOnChange(mainRef, `${selectedTopicId}|${selectedSubId ?? ''}`);
 
-  /* ── derived ── */
-  const allSecNames = Array.from(new Set([
-    ...sectionsData.map(s => s.name),
-    ...topics.map(t => t.category),
-  ]));
-  const grouped = allSecNames.map(name => ({ name, topics: topics.filter(t => t.category === name) }));
+  // ?view=week&organize=1 is the week organizer, a full-screen board over the lab. It is only valid on the week view; any
+  // other value (or organize without view=week) falls back to the view underneath, and the address bar is corrected.
+  // With a topic open the param stays, so that topic's Back returns to the board it was opened from.
+  const organizeParam = getParam('organize');
+  const weekView = getParam('view') === 'week';
+  const organizing =
+    organizeParam === '1' && weekView && selectedTopicId === 'wiki' && !nav.pending;
+  useEffect(() => {
+    if (organizeParam !== null && (organizeParam !== '1' || !weekView))
+      updateUrl({ organize: null }, 'replace');
+  }, [organizeParam, weekView, updateUrl]);
+  const organizerBackHref = buildUrl(pathname, searchParams.toString(), { organize: null });
+  // Back from the organizer to the week plan: the plan page is mounted fresh, so put the pane back where it was and focus
+  // the button that opened the organizer (a keyboard or screen-reader user would otherwise start again from the document top).
+  const organizerReturn = useRef<OrganizerReturn | null>(null);
+  const wasOrganizing = useRef(false);
+  // The organizer is "in use" while it is the screen and while a question opened from it is (that question's Back returns to it).
+  const organizerRoute = organizeParam === '1' && weekView;
+  useLayoutEffect(() => {
+    if (nav.pending) return;
+    const was = wasOrganizing.current;
+    wasOrganizing.current = organizing;
+    if (organizing) return;
+    if (was && selectedTopicId === 'wiki' && weekView) {
+      const place = organizerReturn.current;
+      if (place && mainRef.current) mainRef.current.scrollTop = place.scrollTop;
+      focusOrganizeTrigger(place?.trigger ?? 'header');
+    }
+    // Left the organizer for good (Back, the Wiki Index, another view): the remembered place is stale from here on, and so is the
+    // board's own state (filters, sort, scroll), which only has to survive opening a question and coming back.
+    if (!organizerRoute) {
+      organizerReturn.current = null;
+      clearOrganizerUi();
+    }
+  }, [organizing, organizerRoute, nav.pending, selectedTopicId, weekView]);
+  const rememberOrganizerPlace = (trigger: OrganizeTrigger) => {
+    organizerReturn.current = { scrollTop: mainRef.current?.scrollTop ?? 0, trigger };
+  };
+  // What a topic's Back returns to: the board, the week plan, or the pattern-wise Wiki.
+  const wikiParentName =
+    organizeParam === '1' && weekView ? 'Week organizer' : weekView ? 'Week plan' : 'Wiki Index';
 
-  const currentTopic = topics.find(t => t.id === selectedTopicId) ?? null;
-  const currentSub   = currentTopic?.subtopics.find(s => s.id === selectedSubId) ?? null;
-  const { sections, generate: generateSection, generateWithContext } = useLabSections({
-    lab: 'dsa', topic: currentTopic, subtopic: currentSub, sectionDefs: SECTION_DEFS,
-    getDefaultContent: id => (currentTopic ? getContent(id, currentTopic) : ''),
+  /* ── derived ── */
+  const allSecNames = Array.from(
+    new Set([...sectionsData.map((s) => s.name), ...topics.map((t) => t.category)])
+  );
+  const grouped = allSecNames.map((name) => ({
+    name,
+    topics: topics.filter((t) => t.category === name),
+  }));
+
+  const currentTopic = topics.find((t) => t.id === selectedTopicId) ?? null;
+  const currentSub = currentTopic?.subtopics.find((s) => s.id === selectedSubId) ?? null;
+  const {
+    sections,
+    generate: generateSection,
+    generateWithContext,
+  } = useLabSections({
+    lab: 'dsa',
+    topic: currentTopic,
+    subtopic: currentSub,
+    sectionDefs: SECTION_DEFS,
+    getDefaultContent: (id) => (currentTopic ? getContent(id, currentTopic) : ''),
     defaultGuidance: DSA_DEFAULT_GUIDANCE,
   });
   const quiz = useLabQuiz({
-    lab: 'dsa', topic: currentTopic, subtopic: currentSub,
+    lab: 'dsa',
+    topic: currentTopic,
+    subtopic: currentSub,
     category: currentTopic?.category ?? '',
     defaultGuidance: DSA_DEFAULT_GUIDANCE.quiz,
     prerequisites: currentTopic?.prerequisites ?? [],
     // the other problems in the same pattern family: what the quiz can compare this one against
     relatedTopics: currentTopic
-      ? topics.filter(t => t.category === currentTopic.category && t.id !== currentTopic.id).map(t => t.name).slice(0, 8)
+      ? topics
+          .filter((t) => t.category === currentTopic.category && t.id !== currentTopic.id)
+          .map((t) => t.name)
+          .slice(0, 8)
       : [],
   });
   const weekPlan = useWeekPlan(topics);
-  const contextLabel = selectedTopicId === 'wiki' ? 'Wiki Index' : (currentSub?.name ?? currentTopic?.name ?? 'DSA Lab');
+  const contextLabel =
+    selectedTopicId === 'wiki'
+      ? 'Wiki Index'
+      : (currentSub?.name ?? currentTopic?.name ?? 'DSA Lab');
 
   const flatItems = [
     { id: 'wiki', type: 'topic' as const, topicId: 'wiki', label: 'Wiki Index' },
-    ...topics.flatMap(t => [
+    ...topics.flatMap((t) => [
       { id: t.id, type: 'topic' as const, topicId: t.id, label: t.name },
-      ...t.subtopics.map(s => ({ id: s.id, type: 'subtopic' as const, topicId: t.id, label: s.name })),
+      ...t.subtopics.map((s) => ({
+        id: s.id,
+        type: 'subtopic' as const,
+        topicId: t.id,
+        label: s.name,
+      })),
     ]),
   ];
-  const activeId   = selectedSubId ?? selectedTopicId;
-  const curIdx     = flatItems.findIndex(x => x.id === activeId);
-  const prevItem   = curIdx > 0 ? flatItems[curIdx - 1] : null;
-  const nextItem   = curIdx >= 0 && curIdx < flatItems.length - 1 ? flatItems[curIdx + 1] : null;
+  const activeId = selectedSubId ?? selectedTopicId;
+  const curIdx = flatItems.findIndex((x) => x.id === activeId);
+  const prevItem = curIdx > 0 ? flatItems[curIdx - 1] : null;
+  const nextItem = curIdx >= 0 && curIdx < flatItems.length - 1 ? flatItems[curIdx + 1] : null;
 
   /* ── actions ── */
   // Scrolling the content pane back to the top is done by useScrollToTopOnChange when the screen changes
@@ -306,8 +511,8 @@ export default function DSALabInteractive() {
 
   const addToRecent = (topicId: string, topicName: string, subId?: string, subName?: string) => {
     const key = subId ?? topicId;
-    setRecentTopics(prev => {
-      const filtered = prev.filter(r => (r.subId ?? r.id) !== key);
+    setRecentTopics((prev) => {
+      const filtered = prev.filter((r) => (r.subId ?? r.id) !== key);
       const next = [{ id: topicId, name: topicName, subId, subName }, ...filtered].slice(0, 10);
       localStorage.setItem('dsa-lab-recent-topics', JSON.stringify(next));
       return next;
@@ -315,8 +520,8 @@ export default function DSALabInteractive() {
   };
 
   const removeRecentTopic = (key: string) => {
-    setRecentTopics(prev => {
-      const next = prev.filter(r => (r.subId ?? r.id) !== key);
+    setRecentTopics((prev) => {
+      const next = prev.filter((r) => (r.subId ?? r.id) !== key);
       localStorage.setItem('dsa-lab-recent-topics', JSON.stringify(next));
       return next;
     });
@@ -325,24 +530,32 @@ export default function DSALabInteractive() {
   const selectTopic = (id: string) => {
     nav.openTopic(id);
     if (id !== 'wiki') {
-      setExpandedTopics(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-      const t = topics.find(tt => tt.id === id);
+      setExpandedTopics((prev) => {
+        const n = new Set(prev);
+        if (n.has(id)) n.delete(id);
+        else n.add(id);
+        return n;
+      });
+      const t = topics.find((tt) => tt.id === id);
       if (t) addToRecent(id, t.name);
     }
   };
 
+  // The sidebar's Wiki Index entry: the Wiki itself (in its current view), never the organizer board.
+  const openWiki = () => updateUrl({ topic: null, sub: null, organize: null });
+
   const selectSub = (topicId: string, subId: string) => {
     nav.openSub(topicId, subId);
-    setExpandedTopics(prev => new Set([...prev, topicId]));
-    const t = topics.find(tt => tt.id === topicId);
-    const s = t?.subtopics.find(ss => ss.id === subId);
+    setExpandedTopics((prev) => new Set([...prev, topicId]));
+    const t = topics.find((tt) => tt.id === topicId);
+    const s = t?.subtopics.find((ss) => ss.id === subId);
     if (t && s) addToRecent(topicId, t.name, subId, s.name);
   };
 
-  const navigateTo = (item: typeof flatItems[0]) => {
+  const navigateTo = (item: (typeof flatItems)[0]) => {
     if (item.type === 'subtopic') nav.openSub(item.topicId, item.id);
     else nav.openTopic(item.topicId);
-    setExpandedTopics(prev => new Set([...prev, item.topicId]));
+    setExpandedTopics((prev) => new Set([...prev, item.topicId]));
   };
 
   const handleAddSection = () => {
@@ -350,16 +563,21 @@ export default function DSALabInteractive() {
     setAddingSec(true);
     const name = newSecInput.trim();
     apiFetch('/dsa/sections', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, isCustom: true }),
     })
-      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(() => {
-        setSectionsData(prev => [...prev, { id: Date.now(), labName: 'dsa', name, isCustom: true }]);
-        setExpandedSecs(prev => new Set([...prev, name]));
-        setNewSecInput(''); setShowAddSec(false);
+        setSectionsData((prev) => [
+          ...prev,
+          { id: Date.now(), labName: 'dsa', name, isCustom: true },
+        ]);
+        setExpandedSecs((prev) => new Set([...prev, name]));
+        setNewSecInput('');
+        setShowAddSec(false);
       })
-      .catch(e => console.error('addSec:', e))
+      .catch((e) => console.error('addSec:', e))
       .finally(() => setAddingSec(false));
   };
 
@@ -367,298 +585,461 @@ export default function DSALabInteractive() {
     if (!newTopicInput.trim()) return;
     setAddingTopic(true);
     const newTopic: DSATopic = {
-      id: `custom-${Date.now()}`, name: newTopicInput.trim(),
-      brief: 'Custom topic.', category: sectionName,
-      difficulty: 'Medium', prerequisites: [], subtopics: [], isCustom: true,
+      id: `custom-${Date.now()}`,
+      name: newTopicInput.trim(),
+      brief: 'Custom topic.',
+      category: sectionName,
+      difficulty: 'Medium',
+      prerequisites: [],
+      subtopics: [],
+      isCustom: true,
     };
     apiFetch('/dsa/topics', {
       method: 'POST',
       body: JSON.stringify(newTopic),
-    }).then(r => { if (!r.ok) console.error('addTopic: HTTP', r.status); }).catch(e => console.error('addTopic:', e)).finally(() => {
-      setTopics(prev => [...prev, newTopic]);
-      setNewTopicInput(''); setAddingTopicTo(null); setAddingTopic(false);
-    });
+    })
+      .then((r) => {
+        if (!r.ok) console.error('addTopic: HTTP', r.status);
+      })
+      .catch((e) => console.error('addTopic:', e))
+      .finally(() => {
+        setTopics((prev) => [...prev, newTopic]);
+        setNewTopicInput('');
+        setAddingTopicTo(null);
+        setAddingTopic(false);
+      });
   };
 
   const handleAddSub = (topicId: string) => {
     if (!newSubInput.trim()) return;
-    const parent = topics.find(t => t.id === topicId);
+    const parent = topics.find((t) => t.id === topicId);
     if (!parent) return;
     const newSub = { id: `sub-${Date.now()}`, name: newSubInput.trim(), brief: 'Custom subtopic.' };
     const updated = { ...parent, subtopics: [...parent.subtopics, newSub] };
     apiFetch('/dsa/topics', {
       method: 'POST',
       body: JSON.stringify(updated),
-    }).then(r => { if (!r.ok) console.error('addSub: HTTP', r.status); }).catch(e => console.error('addSub:', e));
-    setTopics(prev => prev.map(t => t.id === topicId ? updated : t));
-    setNewSubInput(''); setAddingSubTo(null);
-    setExpandedTopics(prev => new Set([...prev, topicId]));
+    })
+      .then((r) => {
+        if (!r.ok) console.error('addSub: HTTP', r.status);
+      })
+      .catch((e) => console.error('addSub:', e));
+    setTopics((prev) => prev.map((t) => (t.id === topicId ? updated : t)));
+    setNewSubInput('');
+    setAddingSubTo(null);
+    setExpandedTopics((prev) => new Set([...prev, topicId]));
   };
 
   const handleAddGeneratedSubtopic = (topicId: string, generated: GeneratedSubtopic) => {
-    const parent = topics.find(t => t.id === topicId);
+    const parent = topics.find((t) => t.id === topicId);
     if (!parent) return;
     const updated = { ...parent, subtopics: [...parent.subtopics, generated] };
     apiFetch('/dsa/topics', {
       method: 'POST',
       body: JSON.stringify(updated),
-    }).then(r => { if (!r.ok) console.error('addGeneratedSub: HTTP', r.status); }).catch(e => console.error('addGeneratedSub:', e));
-    setTopics(prev => prev.map(t => t.id === topicId ? updated : t));
-    setExpandedTopics(prev => new Set([...prev, topicId]));
+    })
+      .then((r) => {
+        if (!r.ok) console.error('addGeneratedSub: HTTP', r.status);
+      })
+      .catch((e) => console.error('addGeneratedSub:', e));
+    setTopics((prev) => prev.map((t) => (t.id === topicId ? updated : t)));
+    setExpandedTopics((prev) => new Set([...prev, topicId]));
   };
 
   /* ── render ── */
   return (
-    <div className="lab-shell flex flex-col">
+    <div className="lab-shell dsa-type flex flex-col">
       <div className="lab-workspace flex">
         {lab.isMobile && lab.sheet && <LabSheetBackdrop onClose={lab.close} />}
 
         {/* ═══════════════════════ LEFT SIDEBAR ═══════════════════════════ */}
-        <aside data-sheet={lab.sheet === 'left' ? 'open' : 'closed'} inert={lab.isMobile && lab.sheet !== 'left' ? true : undefined} className="lab-sidebar border-r flex flex-col overflow-hidden" style={{ width: leftExpanded ? 264 : 48, minWidth: leftExpanded ? 264 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
-
-          {/* Header */}
-          <div className="flex-shrink-0 border-b border-border">
-            <div className="flex items-center gap-2.5 px-3 py-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/20">
-                <Icon name="CodeBracketIcon" size={15} className="text-white" />
-              </div>
-              {leftExpanded && (
-                <>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-sm font-bold text-foreground tracking-tight">DSA Lab</h2>
-                    <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{topics.length} topics · {allSecNames.length} patterns</p>
-                  </div>
-                  <LabSettingsButton lab="dsa" labName="DSA Lab" sections={SETTINGS_SECTIONS} />
-                  <button onClick={() => collapseLeft()} className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Collapse sidebar">
-                    <Icon name="ChevronLeftIcon" size={14} />
-                  </button>
-                </>
-              )}
-            </div>
+        <aside
+          aria-label="DSA topics"
+          data-sheet={lab.sheet === 'left' ? 'open' : 'closed'}
+          inert={lab.isMobile && lab.sheet !== 'left' ? true : undefined}
+          className="lab-sidebar border-r flex flex-col overflow-hidden"
+          style={{
+            width: leftExpanded ? 264 : 48,
+            minWidth: leftExpanded ? 264 : 48,
+            flexShrink: 0,
+            transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)',
+          }}
+        >
+          {/* Header: identity, settings and the collapse control (the 48px rail shows the tile and an expand button) */}
+          <div className="flex-shrink-0">
+            <LabSidebarHeader
+              icon="CodeBracketIcon"
+              title="DSA Lab"
+              subtitle={`${topics.length} topics · ${allSecNames.length} patterns`}
+              expanded={leftExpanded}
+              onCollapse={collapseLeft}
+              onExpand={() => setLeftOpen(true)}
+              collapseLabel={lab.isMobile ? 'Close sidebar' : undefined}
+              settings={
+                <LabSettingsButton lab="dsa" labName="DSA Lab" sections={SETTINGS_SECTIONS} />
+              }
+            />
             {leftExpanded && (
               <div className="px-3 pb-3">
                 {showAddSec ? (
                   <div className="flex gap-1.5">
-                    <input autoFocus value={newSecInput} onChange={e => setNewSecInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleAddSection(); if (e.key === 'Escape') { setShowAddSec(false); setNewSecInput(''); } }}
-                      placeholder="New pattern / section…"
-                      className="flex-1 min-w-0 bg-input border border-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/50" />
-                    <button onClick={handleAddSection} disabled={addingSec || !newSecInput.trim()}
-                      className="px-2.5 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-all disabled:opacity-50">
-                      {addingSec ? '…' : 'Add'}
+                    <input
+                      autoFocus
+                      value={newSecInput}
+                      onChange={(e) => setNewSecInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddSection();
+                        if (e.key === 'Escape') {
+                          setShowAddSec(false);
+                          setNewSecInput('');
+                        }
+                      }}
+                      placeholder="New pattern or section"
+                      aria-label="New pattern or section name"
+                      className="todo-input todo-input-quiet min-w-0 flex-1 px-2.5 py-1.5 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddSection}
+                      disabled={addingSec || !newSecInput.trim()}
+                      className="todo-btn todo-btn-primary"
+                    >
+                      {addingSec ? 'Adding…' : 'Add'}
                     </button>
-                    <button onClick={() => { setShowAddSec(false); setNewSecInput(''); }}
-                      className="px-2 py-1.5 text-muted-foreground hover:text-foreground text-xs rounded-lg hover:bg-muted transition-all">✕</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddSec(false);
+                        setNewSecInput('');
+                      }}
+                      className="todo-btn todo-btn-ghost w-8 px-0"
+                      aria-label="Cancel"
+                      title="Cancel"
+                    >
+                      <Icon name="XMarkIcon" size={14} />
+                    </button>
                   </div>
                 ) : (
-                  <button onClick={() => setShowAddSec(true)}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 border border-dashed border-border rounded-lg text-xs text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all group">
-                    <Icon name="PlusIcon" size={11} className="group-hover:text-primary transition-colors" />
-                    Add pattern / section
-                  </button>
+                  <LabAddRow label="Add pattern / section" onClick={() => setShowAddSec(true)} />
                 )}
               </div>
             )}
           </div>
-          {!leftExpanded && (
-            <div className="flex justify-center py-1.5">
-              <button onClick={() => setLeftOpen(true)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Expand sidebar">
-                <Icon name="ChevronRightIcon" size={14} />
-              </button>
-            </div>
-          )}
 
           {leftExpanded && (
-          <div className="flex-1 overflow-y-auto py-2 scrollbar-clean">
-
-            {/* Wiki Index */}
-            <button onClick={() => selectTopic('wiki')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 mx-1 rounded-xl text-xs font-semibold transition-all my-0.5 ${selectedTopicId === 'wiki' ? 'bg-[var(--lab-dsa-soft)] text-[var(--lab-dsa)]' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}
-              style={{ width: 'calc(100% - 8px)' }}>
-              <Icon name="BookOpenIcon" size={13} className={selectedTopicId === 'wiki' ? 'text-blue-400' : ''} />
-              <span className="flex-1 text-left">Wiki Index</span>
-              {selectedTopicId === 'wiki' && <span className="w-1.5 h-1.5 rounded-full bg-[var(--lab-dsa)] flex-shrink-0" />}
-            </button>
-
-            {/* Recently Opened */}
-            {recentTopics.length > 0 && (
-              <div className="px-2 mt-1 mb-1">
-                <div className="flex items-center gap-1 px-1 mb-1.5">
-                  <Icon name="ClockIcon" size={10} className="text-muted-foreground/50" />
-                  <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest">Recent</span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {recentTopics.map(r => (
-                    <div key={r.subId ?? r.id}
-                      className="group flex items-center gap-0.5 pl-2 pr-1 py-0.5 rounded-full bg-muted/60 hover:bg-muted transition-all">
-                      <button
-                        onClick={() => r.subId ? selectSub(r.id, r.subId) : selectTopic(r.id)}
-                        className="truncate max-w-[130px] text-[11px] text-muted-foreground hover:text-foreground text-left leading-none py-0.5">
-                        {r.subName ?? r.name}
-                      </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); removeRecentTopic(r.subId ?? r.id); }}
-                        className="ml-0.5 p-0.5 rounded-full hover:bg-muted-foreground/20 text-muted-foreground/40 hover:text-foreground transition-all flex-shrink-0">
-                        <Icon name="XMarkIcon" size={8} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+            <nav aria-label="Topics" className="flex-1 overflow-y-auto pb-2 pt-1 scrollbar-clean">
+              {/* Wiki Index */}
+              <div className="px-1.5">
+                <button
+                  type="button"
+                  onClick={openWiki}
+                  aria-current={selectedTopicId === 'wiki' ? 'page' : undefined}
+                  className="lab-row lab-row-tall"
+                >
+                  {selectedTopicId === 'wiki' && <span aria-hidden="true" className="todo-rail" />}
+                  <Icon
+                    name="BookOpenIcon"
+                    size={16}
+                    className={selectedTopicId === 'wiki' ? '' : 'text-muted-foreground'}
+                  />
+                  <span className="flex-1">Wiki Index</span>
+                </button>
               </div>
-            )}
 
-            <div className="mx-3 my-2 h-px bg-border/60" />
-
-            {/* Sections */}
-            {grouped.map(section => {
-              const isExp = expandedSecs.has(section.name);
-              return (
-                <div key={section.name} className="mb-0.5">
-                  {/* Section row */}
-                  <div className="flex items-center gap-1 px-2 py-1.5 mx-1 cursor-pointer group hover:bg-muted/40 rounded-lg transition-all"
-                    onClick={() => setExpandedSecs(prev => { const n = new Set(prev); n.has(section.name) ? n.delete(section.name) : n.add(section.name); return n; })}>
-                    <Icon name={isExp ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={10} className="text-muted-foreground/60 flex-shrink-0 transition-transform duration-150" />
-                    <span className="flex-1 text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest truncate ml-0.5">
-                      {section.name}
-                    </span>
-                    <span className="text-[9px] text-muted-foreground/40 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {section.topics.length}
-                    </span>
-                    <button
-                      onClick={e => { e.stopPropagation(); setAddingTopicTo(addingTopicTo === section.name ? null : section.name); setNewTopicInput(''); }}
-                      className="p-0.5 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 ml-0.5"
-                      title="Add topic to this pattern">
-                      <Icon name="PlusIcon" size={9} />
-                    </button>
-                  </div>
-
-                  {/* Add topic inline */}
-                  {addingTopicTo === section.name && (
-                    <div className="mx-3 mb-1 flex gap-1">
-                      <input autoFocus value={newTopicInput} onChange={e => setNewTopicInput(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') handleAddTopic(section.name); if (e.key === 'Escape') setAddingTopicTo(null); }}
-                        placeholder="Topic name…"
-                        className="flex-1 min-w-0 bg-input border border-border rounded-md px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/50" />
-                      <button onClick={() => handleAddTopic(section.name)} disabled={addingTopic || !newTopicInput.trim()}
-                        className="px-1.5 py-1 bg-primary/20 text-primary rounded-md text-[11px] hover:bg-primary/30 disabled:opacity-40 transition-all">✓</button>
-                    </div>
-                  )}
-
-                  {/* Topics */}
-                  {isExp && (
-                    <div className="space-y-px pb-1">
-                      {section.topics.map((topic, ti) => {
-                        const { lc } = parseBrief(topic.brief);
-                        const ds = diffStyle(topic.difficulty);
-                        const isActive = selectedTopicId === topic.id && !selectedSubId;
-                        const isTopExp = expandedTopics.has(topic.id);
-
-                        return (
-                          <div key={topic.id}>
-                            {/* Topic row */}
-                            <div className="flex items-start mx-1">
-                              <button onClick={() => selectTopic(topic.id)}
-                                className={`flex-1 min-w-0 flex items-start gap-2 px-2.5 py-2 rounded-xl text-left transition-all ${isActive ? 'bg-[var(--lab-dsa-soft)] shadow-sm' : 'hover:bg-muted/50'}`}>
-                                <span className={`flex-shrink-0 text-[9px] mt-0.5 w-4 text-right leading-none ${isActive ? 'text-blue-400/80' : 'text-muted-foreground/30'}`}>
-                                  {ti + 1}
-                                </span>
-                                <div className="flex-1 min-w-0">
-                                  <span className={`block text-[12px] font-medium leading-tight truncate ${isActive ? 'text-[var(--lab-dsa)]' : 'text-foreground/90'}`}>
-                                    {topic.name}
-                                  </span>
-                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                    {lc && <span className="text-[9px] text-muted-foreground/50 leading-none">{lc}</span>}
-                                    <span className={`text-[8px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{topic.difficulty}</span>
-                                    <WeekPill week={weekPlan.weekOf(topic.id)} className="!text-[8px]" />
-                                    <DoneMark lab="dsa" topicId={topic.id} />
-                                    {topic.isCustom && <span className="text-[8px] text-amber-500/80">custom</span>}
-                                  </div>
-                                </div>
-                              </button>
-                              <button
-                                onClick={() => setExpandedTopics(prev => { const n = new Set(prev); n.has(topic.id) ? n.delete(topic.id) : n.add(topic.id); return n; })}
-                                className="flex-shrink-0 p-1.5 mt-0.5 rounded-lg text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/60 transition-all">
-                                <Icon name={isTopExp ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={9} />
-                              </button>
-                            </div>
-
-                            {/* Subtopics */}
-                            {isTopExp && (
-                              <div className="ml-9 mr-2 space-y-px mb-1">
-                                {topic.subtopics.map((sub, idx) => {
-                                  const isSubAct = selectedSubId === sub.id;
-                                  return (
-                                    <button key={sub.id} onClick={() => selectSub(topic.id, sub.id)}
-                                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] leading-tight transition-all ${isSubAct ? 'bg-[var(--lab-dsa-soft)] text-[var(--lab-dsa)]' : 'text-muted-foreground/70 hover:text-foreground hover:bg-muted/40'}`}>
-                                      <span className={`text-[8px] mr-1.5 ${isSubAct ? 'text-[var(--lab-dsa)]' : 'text-muted-foreground/30'}`}>
-                                        {(idx + 1).toString().padStart(2, '0')}
-                                      </span>
-                                      <span className="truncate">{sub.name}</span>
-                                      <DoneMark lab="dsa" topicId={topic.id} subtopicId={sub.id} className="ml-1.5 align-middle" />
-                                    </button>
-                                  );
-                                })}
-                                {/* Add subtopic */}
-                                {addingSubTo === topic.id ? (
-                                  <div className="flex gap-1 mt-1">
-                                    <input autoFocus value={newSubInput} onChange={e => setNewSubInput(e.target.value)}
-                                      onKeyDown={e => { if (e.key === 'Enter') handleAddSub(topic.id); if (e.key === 'Escape') setAddingSubTo(null); }}
-                                      placeholder="Subtopic…"
-                                      className="flex-1 min-w-0 bg-input border border-border rounded-md px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-violet-500/40 placeholder:text-muted-foreground/50" />
-                                    <button onClick={() => handleAddSub(topic.id)}
-                                      className="px-1.5 py-1 bg-violet-500/20 text-violet-400 rounded-md text-[10px] hover:bg-violet-500/30 transition-all">✓</button>
-                                  </div>
-                                ) : (
-                                  <button onClick={() => setAddingSubTo(topic.id)}
-                                    className="w-full flex items-center gap-1.5 px-2 py-1 text-[9px] text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/30 rounded-lg transition-all">
-                                    <Icon name="PlusIcon" size={8} />
-                                    Add subtopic
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+              {/* Recently opened: a collapsible list (the stored ten, the newest four shown) */}
+              {recentTopics.length > 0 && (
+                <div className="mt-2">
+                  <LabRecentList
+                    items={recentTopics.map((r) => ({
+                      key: r.subId ?? r.id,
+                      label: r.subName ?? r.name,
+                      onOpen: () => (r.subId ? selectSub(r.id, r.subId) : selectTopic(r.id)),
+                    }))}
+                    onRemove={removeRecentTopic}
+                    storageKey="dsa-lab-recent-open"
+                  />
                 </div>
-              );
-            })}
-          </div>
+              )}
+
+              {/* Sections */}
+              <div className="mt-3">
+                {grouped.map((section) => {
+                  const isExp = expandedSecs.has(section.name);
+                  const adding = addingTopicTo === section.name;
+                  return (
+                    <div key={section.name} className="mb-1">
+                      {/* Section row: the name toggles the list; "+" adds a topic */}
+                      <div className="group mx-1.5 flex items-center rounded-md transition-smooth hover:mix-bg-foreground/[0.05]">
+                        <button
+                          type="button"
+                          aria-expanded={isExp}
+                          onClick={() =>
+                            setExpandedSecs((prev) => {
+                              const n = new Set(prev);
+                              if (n.has(section.name)) n.delete(section.name);
+                              else n.add(section.name);
+                              return n;
+                            })
+                          }
+                          className="todo-focus flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-2 pl-2 pr-1 text-left"
+                        >
+                          <Icon
+                            name={isExp ? 'ChevronDownIcon' : 'ChevronRightIcon'}
+                            size={12}
+                            className="flex-shrink-0 text-muted-foreground"
+                          />
+                          <span className="dsa-caption min-w-0 flex-1 break-words text-muted-foreground">
+                            {section.name}
+                          </span>
+                          <span className="flex-shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+                            {section.topics.length}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-expanded={adding}
+                          aria-label={`Add a topic to ${section.name}`}
+                          title="Add topic to this pattern"
+                          onClick={() => {
+                            setAddingTopicTo(adding ? null : section.name);
+                            setNewTopicInput('');
+                          }}
+                          className={`todo-focus mr-1 flex-shrink-0 rounded-md p-1.5 text-muted-foreground hover:lab-tint hover:lab-ink ${LAB_REVEAL}`}
+                        >
+                          <Icon name="PlusIcon" size={14} />
+                        </button>
+                      </div>
+
+                      {/* Add topic inline */}
+                      {adding && (
+                        <div className="mx-3 mb-1.5 mt-1 flex gap-1.5">
+                          <input
+                            autoFocus
+                            value={newTopicInput}
+                            onChange={(e) => setNewTopicInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleAddTopic(section.name);
+                              if (e.key === 'Escape') setAddingTopicTo(null);
+                            }}
+                            placeholder="Topic name"
+                            aria-label={`New topic in ${section.name}`}
+                            className="todo-input todo-input-quiet min-w-0 flex-1 px-2.5 py-1.5 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddTopic(section.name)}
+                            disabled={addingTopic || !newTopicInput.trim()}
+                            className="todo-btn todo-btn-quiet w-8 px-0"
+                            aria-label="Add topic"
+                            title="Add topic"
+                          >
+                            <Icon name="CheckIcon" size={14} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Topics */}
+                      {isExp && (
+                        <ul className="space-y-0.5 pb-1">
+                          {section.topics.map((topic, ti) => {
+                            const isActive = selectedTopicId === topic.id && !selectedSubId;
+                            const isTopExp = expandedTopics.has(topic.id);
+
+                            return (
+                              <li key={topic.id}>
+                                {/* Topic row */}
+                                <div className="mx-1.5 flex items-start gap-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => selectTopic(topic.id)}
+                                    aria-current={isActive ? 'page' : undefined}
+                                    className="lab-row flex-1 items-start py-2 pr-2"
+                                  >
+                                    {isActive && <span aria-hidden="true" className="todo-rail" />}
+                                    <span
+                                      aria-hidden="true"
+                                      className="w-4 flex-shrink-0 pt-px text-right text-xs font-medium tabular-nums text-muted-foreground"
+                                    >
+                                      {ti + 1}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      {/* The title takes its colour from the row: foreground, or the accent ink when it is the open page. */}
+                                      <span className="dsa-heading block break-words text-[13px] leading-snug">
+                                        {topic.name}
+                                      </span>
+                                      <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <LcTag brief={topic.brief} />
+                                        <DifficultyTag difficulty={topic.difficulty} />
+                                        <DoneMark lab="dsa" topicId={topic.id} />
+                                        {topic.isCustom && (
+                                          <span className="text-xs font-medium text-muted-foreground">
+                                            Custom
+                                          </span>
+                                        )}
+                                      </span>
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-expanded={isTopExp}
+                                    aria-label={`${isTopExp ? 'Hide' : 'Show'} subtopics of ${topic.name}`}
+                                    onClick={() =>
+                                      setExpandedTopics((prev) => {
+                                        const n = new Set(prev);
+                                        if (n.has(topic.id)) n.delete(topic.id);
+                                        else n.add(topic.id);
+                                        return n;
+                                      })
+                                    }
+                                    className="todo-focus mt-1 flex-shrink-0 rounded-md p-1.5 text-muted-foreground transition-smooth hover:text-foreground hover:mix-bg-foreground/[0.05]"
+                                  >
+                                    <Icon
+                                      name={isTopExp ? 'ChevronDownIcon' : 'ChevronRightIcon'}
+                                      size={14}
+                                    />
+                                  </button>
+                                </div>
+
+                                {/* Subtopics */}
+                                {isTopExp && (
+                                  <ul className="mb-1 ml-[2.25rem] mr-2 mt-0.5 space-y-0.5">
+                                    {topic.subtopics.map((sub, idx) => {
+                                      const isSubAct = selectedSubId === sub.id;
+                                      return (
+                                        <li key={sub.id}>
+                                          <button
+                                            type="button"
+                                            onClick={() => selectSub(topic.id, sub.id)}
+                                            aria-current={isSubAct ? 'page' : undefined}
+                                            className="lab-row lab-row-muted min-h-8 py-1.5 text-xs leading-snug"
+                                          >
+                                            {isSubAct && (
+                                              <span aria-hidden="true" className="todo-rail" />
+                                            )}
+                                            <span
+                                              aria-hidden="true"
+                                              className="flex-shrink-0 tabular-nums"
+                                            >
+                                              {(idx + 1).toString().padStart(2, '0')}
+                                            </span>
+                                            <span className="min-w-0 flex-1 break-words">
+                                              {sub.name}
+                                            </span>
+                                            <DoneMark
+                                              lab="dsa"
+                                              topicId={topic.id}
+                                              subtopicId={sub.id}
+                                            />
+                                          </button>
+                                        </li>
+                                      );
+                                    })}
+                                    {/* Add subtopic */}
+                                    <li>
+                                      {addingSubTo === topic.id ? (
+                                        <div className="mt-1 flex gap-1.5">
+                                          <input
+                                            autoFocus
+                                            value={newSubInput}
+                                            onChange={(e) => setNewSubInput(e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') handleAddSub(topic.id);
+                                              if (e.key === 'Escape') setAddingSubTo(null);
+                                            }}
+                                            placeholder="Subtopic name"
+                                            aria-label={`New subtopic of ${topic.name}`}
+                                            className="todo-input todo-input-quiet min-w-0 flex-1 px-2.5 py-1.5 text-xs"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddSub(topic.id)}
+                                            disabled={!newSubInput.trim()}
+                                            className="todo-btn todo-btn-quiet w-8 px-0"
+                                            aria-label="Add subtopic"
+                                            title="Add subtopic"
+                                          >
+                                            <Icon name="CheckIcon" size={14} />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => setAddingSubTo(topic.id)}
+                                          className="lab-row lab-row-muted min-h-8 gap-1.5 py-1.5 text-xs"
+                                        >
+                                          <Icon name="PlusIcon" size={12} />
+                                          Add subtopic
+                                        </button>
+                                      )}
+                                    </li>
+                                  </ul>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </nav>
           )}
         </aside>
 
         {/* ═══════════════════════ CENTER PANEL ═══════════════════════════ */}
         <main ref={mainRef} className="lab-main scrollbar-clean">
-          {lab.isMobile && <LabMobileBar title={contextLabel} onTopics={lab.openTopics} onCopilot={lab.openCopilot} />}
-          {/* Back to the parent screen: a topic goes back to the Wiki Index, a subtopic to its topic */}
+          {lab.isMobile && (
+            <LabMobileBar
+              title={contextLabel}
+              onTopics={lab.openTopics}
+              onCopilot={lab.openCopilot}
+            />
+          )}
+          {/* Back to the parent screen: a topic goes back to the Wiki Index (or the week plan / organizer it was opened from), a subtopic to its topic */}
           {selectedTopicId !== 'wiki' && currentTopic && (
             <LabBackBar
               href={currentSub ? nav.topicHref : nav.wikiHref}
-              parentName={currentSub ? currentTopic.name : 'Wiki Index'}
+              parentName={currentSub ? currentTopic.name : wikiParentName}
               currentName={currentSub ? currentSub.name : currentTopic.name}
             />
           )}
           {nav.pending ? (
             <LabScreenLoading />
+          ) : organizing ? (
+            <WeekOrganizer
+              topics={topics}
+              weekPlan={weekPlan}
+              backHref={organizerBackHref}
+              onOpenTopic={selectTopic}
+            />
           ) : selectedTopicId === 'wiki' ? (
-            <WikiIndex grouped={grouped} topics={topics} weekPlan={weekPlan} onSelectTopic={selectTopic} onSelectSub={selectSub} />
+            <WikiIndex
+              grouped={grouped}
+              topics={topics}
+              weekPlan={weekPlan}
+              onSelectTopic={selectTopic}
+              onSelectSub={selectSub}
+              onBeforeOrganize={rememberOrganizerPlace}
+            />
           ) : !currentTopic ? (
-            <div className="flex flex-col items-center justify-center h-full text-center px-8">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                <Icon name="CodeBracketIcon" size={28} className="text-primary/40" />
-              </div>
-              <h2 className="text-lg font-bold text-foreground mb-2">Select a Topic</h2>
-              <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-                Choose a topic from the sidebar. Sections generate on-demand — click ✨ to load any section.
+            <div className="flex h-full flex-col items-center justify-center px-8 text-center">
+              <Icon name="CodeBracketIcon" size={28} className="mb-3 text-muted-foreground" />
+              <h2 className="text-base font-semibold text-foreground">Select a topic</h2>
+              <p className="mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
+                Choose a topic from the sidebar. Its sections are written on demand: open one and
+                press Generate.
               </p>
             </div>
           ) : (
             <TopicDetail
-              topic={currentTopic} subtopic={currentSub}
-              sections={sections} quiz={quiz} week={weekPlan.weekOf(currentTopic.id)}
-              prevItem={prevItem} nextItem={nextItem}
+              topic={currentTopic}
+              subtopic={currentSub}
+              sections={sections}
+              quiz={quiz}
+              week={weekPlan.weekOf(currentTopic.id)}
+              prevItem={prevItem}
+              nextItem={nextItem}
               onGenerate={generateSection}
               onGenerateWithContext={generateWithContext}
               onNavigate={navigateTo}
@@ -668,21 +1049,35 @@ export default function DSALabInteractive() {
         </main>
 
         {/* ═══════════════════════ RIGHT COPILOT ══════════════════════════ */}
-        <aside data-sheet={lab.sheet === 'right' ? 'open' : 'closed'} inert={lab.isMobile && lab.sheet !== 'right' ? true : undefined} className="lab-copilot border-l flex flex-col overflow-hidden" style={{ width: rightExpanded ? 300 : 48, minWidth: rightExpanded ? 300 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
-          {rightExpanded ? (
-            <LabCopilot context={contextLabel} labType="dsa" onCollapse={() => collapseRight()} />
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-3">
-              <button onClick={() => setRightOpen(true)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Show Copilot">
-                <Icon name="ChevronLeftIcon" size={14} />
-              </button>
-              <div className="w-7 h-7 rounded-full bg-secondary/20 flex items-center justify-center mt-1">
-                <Icon name="SparklesIcon" size={12} className="text-secondary" variant="solid" />
-              </div>
-            </div>
-          )}
+        <aside
+          aria-label="AI Copilot"
+          role={lab.isMobile && lab.sheet === 'right' ? 'dialog' : undefined}
+          aria-modal={lab.isMobile && lab.sheet === 'right' ? true : undefined}
+          data-sheet={lab.sheet === 'right' ? 'open' : 'closed'}
+          inert={lab.isMobile && lab.sheet !== 'right' ? true : undefined}
+          className="lab-copilot border-l flex flex-col overflow-hidden"
+          style={{
+            width: rightExpanded ? 300 : 48,
+            minWidth: rightExpanded ? 300 : 48,
+            flexShrink: 0,
+            transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)',
+          }}
+        >
+          {/* Stays mounted while collapsed (hidden), so the conversation survives a collapse. */}
+          <div className={rightExpanded ? 'h-full w-[300px] max-md:w-full' : 'hidden'}>
+            <LabCopilot
+              context={contextLabel}
+              labType="dsa"
+              collapseLabel={lab.isMobile ? 'Close' : 'Collapse'}
+              onCollapse={() => collapseRight()}
+            />
+          </div>
+          {!rightExpanded && <LabCopilotRail onOpen={() => setRightOpen(true)} />}
         </aside>
       </div>
+
+      {/* Answers confirmDialog() (deleting a plan, removing a week with questions): it is not mounted app-wide. */}
+      <ConfirmHost panelClassName="dsa-type" />
     </div>
   );
 }
@@ -690,149 +1085,207 @@ export default function DSALabInteractive() {
 /* ══════════════════════════════════════════════════════════════════════════
    WIKI INDEX
 ══════════════════════════════════════════════════════════════════════════ */
+const patternAnchor = (name: string) => `pattern-${name.replace(/[\s&/()]/g, '-')}`;
+
 function WikiIndex({
-  grouped, topics, weekPlan, onSelectTopic, onSelectSub,
+  grouped,
+  topics,
+  weekPlan,
+  onSelectTopic,
+  onSelectSub,
+  onBeforeOrganize,
 }: {
   grouped: { name: string; topics: DSATopic[] }[];
   topics: DSATopic[];
   weekPlan: WeekPlanApi;
   onSelectTopic: (id: string) => void;
   onSelectSub: (topicId: string, subId: string) => void;
+  onBeforeOrganize: (trigger: OrganizeTrigger) => void;
 }) {
   // ?view=week shows the week-by-week plan; no param is the pattern-wise handbook.
   const { get: getParam, update: updateUrl } = useUrlState();
   const view = getParam('view') === 'week' ? 'week' : 'pattern';
-  const totalSubs   = topics.reduce((a, t) => a + t.subtopics.length, 0);
-  const hardCount   = topics.filter(t => t.difficulty === 'Hard' || t.difficulty === 'Medium-Hard').length;
-  const easyCount   = topics.filter(t => t.difficulty === 'Easy' || t.difficulty === 'Easy-Medium').length;
+  const totalSubs = topics.reduce((a, t) => a + t.subtopics.length, 0);
+  const hardCount = topics.filter(
+    (t) => t.difficulty === 'Hard' || t.difficulty === 'Medium-Hard'
+  ).length;
+  const easyCount = topics.filter(
+    (t) => t.difficulty === 'Easy' || t.difficulty === 'Easy-Medium'
+  ).length;
 
   return (
-    <div className="lab-container space-y-10">
+    // 24px between the hero, the view switch and the index; the pattern sections below sit 32px apart.
+    <div className="lab-container space-y-[1.5rem]">
+      {/* ── Hero: identity, a compact row of numbers and one line of progress, in a single surface with the signature wash ── */}
+      <WikiHero
+        icon="BookOpenIcon"
+        title="DSA Lab Wiki"
+        description="Pattern-wise interview preparation handbook"
+        metrics={[
+          { label: 'Patterns', value: grouped.length },
+          { label: 'Topics', value: topics.length },
+          { label: 'Subtopics', value: totalSubs },
+          { label: 'Hard', value: hardCount, tone: 'hard' },
+          { label: 'Easy', value: easyCount, tone: 'easy' },
+        ]}
+      >
+        <LabProgressSummary lab="dsa" topicIds={topics.map((t) => t.id)} noun="questions" />
+      </WikiHero>
 
-      {/* ── Hero banner ── */}
-      <div className="lab-hero p-8">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.18),transparent_60%)] pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-              <Icon name="BookOpenIcon" size={22} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">DSA Lab Wiki</h1>
-              <p className="text-sm text-muted-foreground">Pattern-wise interview preparation handbook</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {[
-              { label: 'Patterns',  value: grouped.length,    color: 'text-blue-600 dark:text-blue-400',    bg: 'bg-blue-500/10'    },
-              { label: 'Topics',    value: topics.length,     color: 'text-violet-600 dark:text-violet-400',  bg: 'bg-violet-500/10'  },
-              { label: 'Subtopics', value: totalSubs,         color: 'text-cyan-600 dark:text-cyan-400',    bg: 'bg-cyan-500/10'    },
-              { label: 'Hard',      value: hardCount,         color: 'text-rose-600 dark:text-rose-400',    bg: 'bg-rose-500/10'    },
-              { label: 'Easy',      value: easyCount,         color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
-            ].map(stat => (
-              <div key={stat.label} className={`${stat.bg} border border-border rounded-xl px-4 py-2.5 backdrop-blur-sm min-w-[64px]`}>
-                <div className={`text-2xl font-bold ${stat.color} leading-none`}>{stat.value}</div>
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <LabProgressSummary lab="dsa" topicIds={topics.map(t => t.id)} noun="questions" />
-
-      {/* ── View switch: by pattern / by week ── */}
-      <div role="tablist" aria-label="Wiki view" className="flex items-center gap-2">
-        {(['pattern', 'week'] as const).map(v => (
-          <button key={v} type="button" role="tab" aria-selected={view === v}
-            onClick={() => updateUrl({ view: v === 'week' ? 'week' : null }, 'replace')}
-            className={`text-xs font-semibold px-3.5 py-2 rounded-xl border transition-colors ${view === v ? 'border-primary text-primary mix-bg-primary/10' : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+      {/* ── View switch: by pattern / by week (same screen, so `replace`) ── */}
+      <div
+        role="group"
+        aria-label="Wiki view"
+        className="todo-segmented todo-segmented-quiet todo-segmented-accent"
+      >
+        {(['pattern', 'week'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={view === v}
+            onClick={() =>
+              updateUrl({ view: v === 'week' ? 'week' : null, organize: null }, 'replace')
+            }
+            className="todo-segment"
+          >
+            <Icon name={v === 'week' ? 'CalendarDaysIcon' : 'Squares2X2Icon'} size={14} />
             {v === 'week' ? 'By week' : 'By pattern'}
           </button>
         ))}
       </div>
 
       {view === 'week' ? (
-        <WeekPlanView topics={topics} weekPlan={weekPlan} onOpen={onSelectTopic} />
-      ) : (<>
-      {/* ── Clickable Pattern Index ── */}
-      <div className="lab-card overflow-hidden">
-        <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
-          <Icon name="ListBulletIcon" size={14} className="text-muted-foreground" />
-          <span className="text-xs font-bold text-foreground uppercase tracking-wider">Pattern Index</span>
-          <span className="ml-auto text-[10px] text-muted-foreground">{grouped.length} patterns</span>
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-2 gap-0.5">
-            {grouped.map((section, i) => (
-              <a key={section.name}
-                href={`#pattern-${section.name.replace(/[\s&/()]/g, '-')}`} onClick={jumpToAnchor}
-                className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all group">
-                <span className="text-[9px] text-muted-foreground/30 w-4 text-right flex-shrink-0">{i + 1}</span>
-                <span className="flex-1 truncate group-hover:text-blue-400 transition-colors">{section.name}</span>
-                <span className="text-[9px] text-muted-foreground/40 flex-shrink-0">{section.topics.length}</span>
-              </a>
-            ))}
-          </div>
-        </div>
-      </div>
+        <WeekPlanView
+          topics={topics}
+          weekPlan={weekPlan}
+          onOpen={onSelectTopic}
+          onBeforeOrganize={onBeforeOrganize}
+        />
+      ) : (
+        <>
+          {/* ── Pattern index: the page's main block (all patterns, same anchors) ── */}
+          <WikiIndexNav
+            id="dsa-pattern-index"
+            title="Pattern index"
+            countLabel={`${grouped.length} patterns`}
+            items={grouped.map((section) => ({
+              name: section.name,
+              count: section.topics.length,
+              href: `#${patternAnchor(section.name)}`,
+            }))}
+          />
 
-      {/* ── Per-pattern topic cards ── */}
-      {grouped.map(section => (
-        <div key={section.name} id={`pattern-${section.name.replace(/[\s&/()]/g, '-')}`} className="space-y-3 scroll-mt-6">
-          <div className="flex items-center gap-3">
-            <h2 className="text-base font-bold text-foreground whitespace-nowrap">{section.name}</h2>
-            <div className="flex-1 h-px bg-gradient-to-r from-border via-border/50 to-transparent" />
-            <span className="text-[10px] text-muted-foreground flex-shrink-0">{section.topics.length} topics</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-5 gap-y-6">
-            {section.topics.map(t => {
-              const { lc, hint } = parseBrief(t.brief);
-              const ds = diffStyle(t.difficulty);
+          {/* ── Per-pattern topic cards ── */}
+          <div className="space-y-[2rem]">
+            {grouped.map((section) => {
+              const anchor = patternAnchor(section.name);
               return (
-                <div key={t.id}
-                    className={`display-card group relative overflow-hidden cursor-pointer h-full`}
-                  onClick={() => onSelectTopic(t.id)}>
-                  {/* Diff accent */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${ds.bar} opacity-40 group-hover:opacity-80 transition-opacity rounded-l-xl`} />
-                  <div className="pl-4 pr-4 pt-3.5 pb-3">
-                    <div className="flex items-start justify-between gap-3 mb-1.5">
-                      <h3 className="text-sm font-semibold text-foreground group-hover:text-[var(--wiki-dsa-hover)] dark:group-hover:text-[var(--wiki-dsa-hover)] transition-colors leading-snug flex-1 min-w-0">
-                        {t.name}
-                      </h3>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {lc && (
-                          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-md border border-border">{lc}</span>
-                        )}
-                        <WeekPill week={weekPlan.weekOf(t.id)} />
-                        <DoneMark lab="dsa" topicId={t.id} />
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{t.difficulty}</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed mb-3">{hint || t.brief}</p>
+                <section
+                  key={section.name}
+                  id={anchor}
+                  aria-labelledby={`${anchor}-title`}
+                  className="scroll-mt-[4.5rem] space-y-[1rem] md:scroll-mt-[1.5rem]"
+                >
+                  <WikiSectionHeading
+                    id={`${anchor}-title`}
+                    name={section.name}
+                    count={`${section.topics.length} ${section.topics.length === 1 ? 'question' : 'questions'}`}
+                  />
 
-                    {t.subtopics.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {t.subtopics.map(s => (
-                          <button key={s.id}
-                            onClick={e => { e.stopPropagation(); onSelectSub(t.id, s.id); }}
-                            title={s.brief}
-                            className="text-[9px] px-2 py-1 rounded-md bg-muted/80 text-muted-foreground hover:bg-blue-500/15 hover:text-blue-400 transition-all border border-transparent hover:border-blue-500/20 leading-none">
-                            {s.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  {section.topics.length === 0 ? (
+                    <p className="text-sm font-medium text-muted-foreground">
+                      No questions in this pattern yet. Add one with the + next to it in the
+                      sidebar.
+                    </p>
+                  ) : (
+                    <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-[1rem]">
+                      {section.topics.map((t) => (
+                        <li key={t.id}>
+                          <TopicCard
+                            topic={t}
+                            week={weekPlan.weekOf(t.id)}
+                            onOpen={onSelectTopic}
+                            onOpenSub={onSelectSub}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
               );
             })}
           </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A question in the pattern-wise Wiki: title, one meta row, the hint, and its subtopics as chips. Flat card: no shadow, no lift. */
+function TopicCard({
+  topic: t,
+  week,
+  onOpen,
+  onOpenSub,
+}: {
+  topic: DSATopic;
+  week: number | null;
+  onOpen: (id: string) => void;
+  onOpenSub: (topicId: string, subId: string) => void;
+}) {
+  const { hint } = parseBrief(t.brief);
+  return (
+    // The whole card opens the question for a pointer; the title is the real button for keyboard and screen readers.
+    <div data-wiki-card className={WIKI_CARD} onClick={() => onOpen(t.id)}>
+      {/* Difficulty rail: the one coloured edge on a card (semantic, not the accent) */}
+      <span
+        aria-hidden="true"
+        data-semantic="difficulty"
+        className={`absolute bottom-4 left-0 top-4 w-[3px] rounded-r-full opacity-50 transition-opacity group-hover:opacity-90 ${difficultyDotClass(t.difficulty)}`}
+      />
+      <div className="flex h-full flex-col px-[1.25rem] py-[1rem]">
+        <h3 className="text-sm font-semibold leading-snug text-foreground">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen(t.id);
+            }}
+            className={`todo-focus rounded text-left transition-colors ${WIKI_CARD_TITLE_HOVER}`}
+          >
+            {t.name}
+          </button>
+        </h3>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <DifficultyTag difficulty={t.difficulty} />
+          <LcTag brief={t.brief} />
+          <WeekPill week={week} />
+          <DoneMark lab="dsa" topicId={t.id} />
+          {t.isCustom && <Tag>Custom</Tag>}
         </div>
-      ))}
-      </>)}
+        <p className="mt-2.5 text-[13px] font-semibold leading-relaxed mix-text-foreground/[0.78]">
+          {hint || t.brief}
+        </p>
+
+        {t.subtopics.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {t.subtopics.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenSub(t.id, s.id);
+                }}
+                title={s.brief}
+                className={`todo-focus ${tagClass('neutral', { interactive: true, wrap: true })}`}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -840,125 +1293,147 @@ function WikiIndex({
 /* ══════════════════════════════════════════════════════════════════════════
    TOPIC DETAIL
 ══════════════════════════════════════════════════════════════════════════ */
+/** A page Previous / Next can go to: a topic or one of its subtopics. */
+type NavItem = { id: string; label: string; topicId: string; type: 'topic' | 'subtopic' };
+
 function TopicDetail({
-  topic, subtopic, sections: baseSections, quiz, week, prevItem, nextItem,
-  onGenerate, onGenerateWithContext, onNavigate, onAddGeneratedSubtopic,
+  topic,
+  subtopic,
+  sections: baseSections,
+  quiz,
+  week,
+  prevItem,
+  nextItem,
+  onGenerate,
+  onGenerateWithContext,
+  onNavigate,
+  onAddGeneratedSubtopic,
 }: {
   topic: DSATopic;
   subtopic: DSATopic['subtopics'][0] | null;
   sections: Record<string, SectionState>;
   quiz: ReturnType<typeof useLabQuiz>;
   week: number | null;
-  prevItem: { id: string; label: string; topicId: string; type: 'topic' | 'subtopic' } | null;
-  nextItem: { id: string; label: string; topicId: string; type: 'topic' | 'subtopic' } | null;
+  prevItem: NavItem | null;
+  nextItem: NavItem | null;
   onGenerate: (id: string) => void;
   onGenerateWithContext: (id: string, context: string, mode: ContextMode) => Promise<void>;
-  onNavigate: (item: any) => void;
+  onNavigate: (item: NavItem) => void;
   onAddGeneratedSubtopic: (topicId: string, generated: GeneratedSubtopic) => void;
 }) {
-  const { lc, hint } = parseBrief(topic.brief);
-  const ds = diffStyle(topic.difficulty);
+  const { hint } = parseBrief(topic.brief);
   const name = subtopic?.name ?? topic.name;
   const desc = subtopic?.brief ?? hint ?? topic.brief;
   const labSettings = useLabSettings('dsa');
-  const [promptModalSection, setPromptModalSection] = useState<any | null>(null);
+  const [promptModalSection, setPromptModalSection] = useState<
+    (typeof SECTION_DEFS)[number] | null
+  >(null);
   const [labSettingsModalOpen, setLabSettingsModalOpen] = useState(false);
   // The quiz isn't a template section: its state comes from the AI quiz, not from `sections`.
   const sections: Record<string, SectionState> = {
     ...baseSections,
-    quiz: { generated: quiz.questions.length > 0, generating: quiz.generating && quiz.questions.length === 0, content: '', context: '', error: quiz.error },
+    quiz: {
+      generated: quiz.questions.length > 0,
+      generating: quiz.generating && quiz.questions.length === 0,
+      content: '',
+      context: '',
+      error: quiz.error,
+    },
   };
-  const genCount = Object.values(sections).filter(s => s.generated).length;
+  const genCount = Object.values(sections).filter((s) => s.generated).length;
+  const navCard =
+    'todo-focus group flex min-w-0 flex-1 items-center gap-3 rounded-lg border bg-card px-4 py-3 transition-smooth hover:mix-border-primary/40';
 
   return (
-    <div className="lab-container max-w-card space-y-5">
-
-      {/* ── Header card ── */}
-      <div className="lab-hero">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.07),transparent_55%)] pointer-events-none" />
-        <div className="relative">
-          {/* Badges */}
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium leading-none">
-              {topic.category}
-            </span>
-            <WeekPill week={week} />
-            {lc && (
-              <span className="text-xs px-2.5 py-1 rounded-lg bg-muted text-muted-foreground border border-border leading-none">
-                LeetCode {lc}
-              </span>
-            )}
-            <span className={`text-xs px-2.5 py-1 rounded-lg border font-semibold leading-none ${ds.badge}`}>
-              {topic.difficulty}
-            </span>
-            {subtopic && (
-              <span className="text-xs px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-400 border border-violet-500/20 leading-none">
-                Subtopic
-              </span>
-            )}
-            {topic.isCustom && (
-              <span className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 leading-none">
-                Custom
-              </span>
-            )}
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              <ProjectSelector />
-              <button
-                type="button"
-                onClick={() => setLabSettingsModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 text-xs font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-all shadow-sm"
-                title="DSA Lab Settings & Prompts"
-              >
-                <Icon name="AdjustmentsHorizontalIcon" size={13} className="text-primary" />
-                <span>Lab Settings</span>
-                {labSettings.hasAny && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                )}
-              </button>
-              <CompleteButton lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} />
-            </div>
-          </div>
-
-          <h1 className="text-xl font-bold text-foreground mb-2 leading-snug tracking-tight">{name}</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
-
-          {/* Prerequisites */}
-          {topic.prerequisites.length > 0 && (
-            <div className="mt-3.5 flex flex-wrap gap-1.5 items-center">
-              <span className="text-xs text-muted-foreground font-medium">Prereqs:</span>
-              {topic.prerequisites.map(p => (
-                <span key={p} className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">{p}</span>
-              ))}
-            </div>
-          )}
-
-          {/* Progress */}
-          {genCount > 0 && (
-            <div className="mt-4">
-              <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
-                <span>Sections generated</span>
-                <span className="font-medium text-foreground/80">{genCount} / {SECTION_DEFS.length}</span>
-              </div>
-              <div className="h-1 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-violet-500 rounded-full transition-all duration-700 ease-out"
-                  style={{ width: `${(genCount / SECTION_DEFS.length) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
+    <div className="lab-container max-w-card space-y-[1.5rem]">
+      {/* ── Header: a plain hairline card (the signature wash is the wiki hero's); meta chips, title and description, prerequisites, progress, actions ── */}
+      <header className="rounded-lg border bg-card p-[1.25rem] sm:p-[1.5rem]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Tag tone="accent">{topic.category}</Tag>
+          <DifficultyTag difficulty={topic.difficulty} />
+          <LcTag brief={topic.brief} />
+          <WeekPill week={week} />
+          {subtopic && <Tag>Subtopic</Tag>}
+          {topic.isCustom && <Tag>Custom</Tag>}
         </div>
-      </div>
+
+        <h1 className="mt-3.5 text-xl font-semibold leading-snug tracking-tight text-foreground">
+          {name}
+        </h1>
+        <p className="mt-1.5 text-sm font-semibold leading-relaxed mix-text-foreground/[0.78]">
+          {desc}
+        </p>
+
+        {/* Prerequisites */}
+        {topic.prerequisites.length > 0 && (
+          <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-medium mix-text-foreground/[0.74]">Prereqs:</span>
+            {topic.prerequisites.map((p) => (
+              <Tag key={p}>{p}</Tag>
+            ))}
+          </div>
+        )}
+
+        {/* Progress: always there, so the card does not change height when the first section is written */}
+        <div className="mt-4">
+          <div className="mb-1.5 flex justify-between text-xs font-medium text-muted-foreground">
+            <span>Sections generated</span>
+            <span className="font-semibold tabular-nums text-foreground">
+              {genCount} / {SECTION_DEFS.length}
+            </span>
+          </div>
+          <div
+            className="h-1.5 overflow-hidden rounded-full mix-bg-foreground/10"
+            role="progressbar"
+            aria-label="Sections generated"
+            aria-valuemin={0}
+            aria-valuemax={SECTION_DEFS.length}
+            aria-valuenow={genCount}
+          >
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-700 ease-out motion-reduce:transition-none"
+              style={{ width: `${(genCount / SECTION_DEFS.length) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="mt-[1.25rem] flex flex-wrap items-start gap-2">
+          <ProjectSelector />
+          <button
+            type="button"
+            onClick={() => setLabSettingsModalOpen(true)}
+            className="todo-btn todo-btn-secondary"
+            title="DSA Lab Settings & Prompts"
+          >
+            <Icon name="AdjustmentsHorizontalIcon" size={14} className="text-primary" />
+            <span>Lab Settings</span>
+            {labSettings.hasAny && (
+              <>
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="sr-only">(customised)</span>
+              </>
+            )}
+          </button>
+          <div className="ml-auto">
+            <CompleteButton lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} />
+          </div>
+        </div>
+      </header>
 
       {/* ── Video-based lab content (from YouTube generator) ── */}
       {subtopic?.content && (
-        <div className="lab-card border border-border p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Video-based Lab</p>
+        <div className="lab-card p-4 sm:p-[1.25rem]">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="dsa-caption text-muted-foreground">Video-based lab</p>
             {subtopic.sourceUrl && (
-              <a href={subtopic.sourceUrl} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[11px] text-blue-400 hover:underline">
-                <Icon name="PlayCircleIcon" size={12} />
+              <a
+                href={subtopic.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="todo-focus flex items-center gap-1 rounded text-xs font-medium lab-ink hover:underline"
+              >
+                <Icon name="PlayCircleIcon" size={14} />
                 Watch source video
               </a>
             )}
@@ -968,49 +1443,96 @@ function TopicDetail({
       )}
 
       {/* ── Content outline (quick-jump) ── */}
-      <div className="lab-card-muted p-4">
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Content Outline</p>
-        <div className="grid grid-cols-3 gap-1">
-          {SECTION_DEFS.map(def => {
+      <nav aria-labelledby="dsa-content-outline" className="lab-card-muted p-4 sm:p-[1.25rem]">
+        <p id="dsa-content-outline" className="dsa-caption mb-3 text-muted-foreground">
+          Content outline
+        </p>
+        <ol className="grid grid-cols-[repeat(auto-fill,minmax(min(10rem,100%),1fr))] gap-1">
+          {SECTION_DEFS.map((def) => {
             const s = sections[def.id];
             return (
-              <a key={def.id} href={`#sec-${def.id}`} onClick={jumpToAnchor}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] transition-all leading-tight ${s?.generated ? 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s?.generated ? 'bg-emerald-400' : s?.generating ? 'bg-blue-400 animate-pulse' : 'bg-muted-foreground/20'}`} />
-                <span className="truncate">{def.label}</span>
-              </a>
+              <li key={def.id}>
+                <a
+                  href={`#sec-${def.id}`}
+                  onClick={jumpToAnchor}
+                  title={def.label}
+                  data-semantic={s?.generated ? 'done' : undefined}
+                  className={`todo-focus flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs leading-snug transition-smooth ${s?.generated ? 'text-success mix-bg-success/10 hover:mix-bg-success/[0.16]' : 'text-muted-foreground hover:text-foreground hover:mix-bg-foreground/[0.05]'}`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${s?.generated ? 'bg-success' : s?.generating ? 'bg-primary motion-safe:animate-pulse' : 'mix-bg-muted-foreground/30'}`}
+                  />
+                  <span className="min-w-0 break-words leading-snug">{def.label}</span>
+                  {s?.generated && <span className="sr-only">(generated)</span>}
+                </a>
+              </li>
             );
           })}
-        </div>
-      </div>
+        </ol>
+      </nav>
 
       {/* ── Generate Questions ── */}
       <GenerateQuestionsPanel
         topicName={topic.name}
         subtopicName={subtopic?.name}
         labName="dsa"
-        accentVar="--lab-dsa"
-        onAddSubtopic={generated => onAddGeneratedSubtopic(topic.id, generated)}
+        accentVar="--lab-accent"
+        onAddSubtopic={(generated) => onAddGeneratedSubtopic(topic.id, generated)}
       />
 
       {/* ── On-demand sections ── */}
       <div className="space-y-4">
         {SECTION_DEFS.map((def, idx) => {
-          const s = sections[def.id] ?? { generated: false, generating: false, content: '', context: '', error: null };
+          const s = sections[def.id] ?? {
+            generated: false,
+            generating: false,
+            content: '',
+            context: '',
+            error: null,
+          };
           return (
-            <div key={def.id} id={`sec-${def.id}`} className="scroll-mt-4">
+            // scroll-mt clears the sticky Back bar (md and up) or the Topics bar (phones) when the outline jumps here
+            <div key={def.id} id={`sec-${def.id}`} className="scroll-mt-[4.5rem]">
               <OnDemandSection
-                sectionIndex={idx + 1} icon={def.icon} title={def.label} subtitle={def.subtitle}
-                content={s.content} isGenerated={s.generated} isGenerating={s.generating}
+                sectionIndex={idx + 1}
+                icon={def.icon}
+                title={def.label}
+                subtitle={def.subtitle}
+                content={s.content}
+                isGenerated={s.generated}
+                isGenerating={s.generating}
                 onGenerate={def.id === 'quiz' ? quiz.generateFirst : () => onGenerate(def.id)}
-                onGenerateWithContext={def.id === 'quiz' ? undefined : (context, mode) => onGenerateWithContext(def.id, context, mode)}
-                onOpenPromptSettings={def.id === 'quiz' ? undefined : () => setPromptModalSection(def)}
+                onGenerateWithContext={
+                  def.id === 'quiz'
+                    ? undefined
+                    : (context, mode) => onGenerateWithContext(def.id, context, mode)
+                }
+                onOpenPromptSettings={
+                  def.id === 'quiz' ? undefined : () => setPromptModalSection(def)
+                }
                 savedContext={s.context}
                 customised={labSettings.isCustomised(def.id)}
-                allowEmptyRegenerate={def.id !== 'quiz' && !!(def.guidance || DSA_DEFAULT_GUIDANCE[def.id])}
-                projectSave={def.id === 'quiz' ? undefined : sectionSaveInfo({ lab: 'dsa', topic, subtopic, sectionId: def.id, sectionLabel: def.label, state: s })}
-                renderContent={def.id === 'approaches' ? c => <ApproachTabs content={c} /> : undefined}
-                error={s.error}>
+                allowEmptyRegenerate={
+                  def.id !== 'quiz' && !!(def.guidance || DSA_DEFAULT_GUIDANCE[def.id])
+                }
+                projectSave={
+                  def.id === 'quiz'
+                    ? undefined
+                    : sectionSaveInfo({
+                        lab: 'dsa',
+                        topic,
+                        subtopic,
+                        sectionId: def.id,
+                        sectionLabel: def.label,
+                        state: s,
+                      })
+                }
+                renderContent={
+                  def.id === 'approaches' ? (c) => <ApproachTabs content={c} /> : undefined
+                }
+                error={s.error}
+              >
                 {def.id === 'quiz' && s.generated ? (
                   <QuizCarousel
                     key={`${topic.id}|${subtopic?.id ?? ''}`}
@@ -1031,24 +1553,53 @@ function TopicDetail({
       </div>
 
       {/* ── Prev / Next navigation ── */}
-      <div className="flex items-stretch justify-between pt-6 border-t border-border gap-3">
-        <button disabled={!prevItem} onClick={() => prevItem && onNavigate(prevItem)}
-          className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-card text-sm text-foreground hover:bg-muted hover:border-blue-500/25 transition-all disabled:opacity-25 disabled:pointer-events-none group text-left">
-          <Icon name="ArrowLeftIcon" size={14} className="flex-shrink-0 text-muted-foreground group-hover:text-blue-400 transition-colors" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[9px] text-muted-foreground uppercase tracking-wide mb-0.5">Previous</span>
-            <span className="block text-xs font-medium truncate">{prevItem?.label ?? ''}</span>
-          </span>
-        </button>
-        <button disabled={!nextItem} onClick={() => nextItem && onNavigate(nextItem)}
-          className="flex-1 flex items-center justify-end gap-3 px-4 py-3 rounded-xl border border-border bg-card text-sm text-foreground hover:bg-muted hover:border-blue-500/25 transition-all disabled:opacity-25 disabled:pointer-events-none group text-right">
-          <span className="min-w-0 flex-1">
-            <span className="block text-[9px] text-muted-foreground uppercase tracking-wide mb-0.5">Next</span>
-            <span className="block text-xs font-medium truncate">{nextItem?.label ?? ''}</span>
-          </span>
-          <Icon name="ArrowRightIcon" size={14} className="flex-shrink-0 text-muted-foreground group-hover:text-blue-400 transition-colors" />
-        </button>
-      </div>
+      <nav
+        aria-label="Previous and next page"
+        className="flex items-stretch justify-between gap-3 border-t pt-[1.5rem]"
+      >
+        {prevItem ? (
+          <button
+            type="button"
+            onClick={() => onNavigate(prevItem)}
+            className={`${navCard} text-left`}
+          >
+            <Icon
+              name="ArrowLeftIcon"
+              size={16}
+              className="flex-shrink-0 text-muted-foreground transition-colors group-hover:lab-ink"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="dsa-caption block text-muted-foreground">Previous</span>
+              <span className="mt-0.5 block break-words text-sm font-medium leading-snug text-foreground">
+                {prevItem.label}
+              </span>
+            </span>
+          </button>
+        ) : (
+          <span className="flex-1" />
+        )}
+        {nextItem ? (
+          <button
+            type="button"
+            onClick={() => onNavigate(nextItem)}
+            className={`${navCard} justify-end text-right`}
+          >
+            <span className="min-w-0 flex-1">
+              <span className="dsa-caption block text-muted-foreground">Next</span>
+              <span className="mt-0.5 block break-words text-sm font-medium leading-snug text-foreground">
+                {nextItem.label}
+              </span>
+            </span>
+            <Icon
+              name="ArrowRightIcon"
+              size={16}
+              className="flex-shrink-0 text-muted-foreground transition-colors group-hover:lab-ink"
+            />
+          </button>
+        ) : (
+          <span className="flex-1" />
+        )}
+      </nav>
 
       {promptModalSection && (
         <SectionPromptModal

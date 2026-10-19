@@ -53,7 +53,7 @@ export default function SectionContextPanel({
   );
 
   return (
-    <div className="px-4 py-3.5 border-b border-border mix-bg-muted/30 animate-fade-in">
+    <div className="px-[1.25rem] py-[0.875rem] border-b mix-bg-foreground/[0.04] animate-fade-in">
       <label
         htmlFor="section-context"
         className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5"
@@ -70,10 +70,9 @@ export default function SectionContextPanel({
         onKeyDown={(e) => e.key === 'Escape' && !pending && onClose()}
         disabled={pending !== null}
         placeholder="e.g. Focus on 2D grid problems, show the Java version, assume I know BFS but not DP…"
-        className="w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-[13px] leading-relaxed text-foreground
-          placeholder:mix-text-muted-foreground/60 focus:outline-none focus:border-primary disabled:opacity-60"
+        className="todo-input resize-y px-3 py-2 text-[13px] leading-relaxed disabled:opacity-60"
       />
-      <p className="mt-1.5 text-[11px] mix-text-muted-foreground/80">
+      <p className="mt-1.5 text-xs font-medium text-muted-foreground">
         {hasContent
           ? `Update works your context into the current section. Regenerate writes it again from scratch${
               allowEmptyRegenerate ? '; leave the box empty to use just your lab settings' : ''
@@ -83,7 +82,7 @@ export default function SectionContextPanel({
             }.`}
       </p>
       {error && (
-        <p role="alert" className="mt-2 text-[12px] text-error">
+        <p role="alert" className="mt-2 text-xs font-medium text-error">
           {error}
         </p>
       )}
@@ -93,7 +92,7 @@ export default function SectionContextPanel({
             type="button"
             onClick={onOpenPromptSettings}
             disabled={pending !== null}
-            className="text-xs text-primary hover:underline font-medium flex items-center gap-1.5 py-1"
+            className="todo-focus rounded-md text-xs lab-ink hover:underline font-semibold flex items-center gap-1.5 py-1"
           >
             <Icon name="AdjustmentsHorizontalIcon" size={14} />
             Configure prompt & add-ons
@@ -101,12 +100,12 @@ export default function SectionContextPanel({
         ) : (
           <div />
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onClose}
             disabled={pending !== null}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+            className="todo-btn todo-btn-ghost"
           >
             Cancel
           </button>
@@ -115,8 +114,7 @@ export default function SectionContextPanel({
               type="button"
               onClick={() => submit('update')}
               disabled={updateDisabled}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-foreground
-              hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="todo-btn todo-btn-secondary"
             >
               {pending === 'update' ? spinner : <Icon name="PencilSquareIcon" size={13} />}
               {pending === 'update' ? 'Updating…' : 'Update with context'}
@@ -126,8 +124,7 @@ export default function SectionContextPanel({
             type="button"
             onClick={() => submit('regenerate')}
             disabled={regenerateDisabled}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold mix-bg-primary/10 border mix-border-primary/25 text-primary
-            hover:mix-bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="todo-btn todo-btn-primary"
           >
             {pending === 'regenerate' ? spinner : <Icon name="SparklesIcon" size={13} />}
             {pending === 'regenerate'

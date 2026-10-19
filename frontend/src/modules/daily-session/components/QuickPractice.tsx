@@ -15,6 +15,7 @@ import { apiFetch, parseApiError } from '@/lib/http/apiClient';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
 import { openLoginModal } from '@/components/auth/LoginModal';
+import { DifficultyTag } from '@/modules/common/lab/LabTags';
 import { DECK_CATEGORY, cardsFromAi, MAX_IMPORT_BYTES, loadDeck, mergeDeck, parseDeckJson, saveDeck, type ParseResult, type QuickCard } from './quickDeck';
 
 const QUICK_FLASHCARD_POOL: QuickCard[] = [
@@ -287,15 +288,8 @@ export default function QuickPractice() {
     handleNext();
   };
 
-  const difficultyColor =
-    currentCard.difficulty === 'Hard'
-      ? 'text-rose-500 bg-rose-500/10 border-rose-500/30'
-      : currentCard.difficulty === 'Medium'
-      ? 'text-amber-500 bg-amber-500/10 border-amber-500/30'
-      : 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30';
-
   return (
-    <div className="mx-auto max-w-3xl space-y-6 animate-fade-in">
+    <div className="mx-auto max-w-3xl space-y-[1.5rem] animate-fade-in">
       <div className="flex items-end justify-between gap-3">
         <div className="flex-1">
           <CompanionBubble text={msg} mood={msgMood} onSpeak={() => say(msg, msgMood)} />
@@ -303,48 +297,30 @@ export default function QuickPractice() {
         <CompanionControls settings={settings} update={updateSettings} onOpenSettings={() => setSheetOpen(true)} />
       </div>
       <CompanionSettings open={sheetOpen} onClose={() => setSheetOpen(false)} settings={settings} update={updateSettings} />
-      {/* Top Blitz Scoreboard */}
-      <div className="grid grid-cols-3 gap-3 rounded-2xl border border-border bg-card/80 p-4 backdrop-blur-md shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-500 font-bold">
-            <Icon name="FireIcon" size={20} variant="solid" />
-          </div>
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Streak
-            </div>
-            <div className="text-lg font-bold text-foreground">{streak} 🔥</div>
+      {/* Top Blitz Scoreboard: one quiet row (caption over value), no tinted tiles */}
+      <div className="grid grid-cols-3 divide-x divide-border">
+        <div className="pr-3">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Streak</div>
+          <div className="mt-0.5 flex items-center gap-1 text-lg font-semibold tabular-nums text-foreground">
+            {streak}
+            <Icon name="FireIcon" size={18} variant="solid" className="text-amber-500" aria-hidden="true" />
           </div>
         </div>
 
-        <div className="flex items-center gap-3 border-x border-border/60 px-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-500 font-bold">
-            <Icon name="CheckCircleIcon" size={20} variant="solid" />
-          </div>
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Mastered
-            </div>
-            <div className="text-lg font-bold text-foreground">{masteredCount}</div>
-          </div>
+        <div className="px-3 sm:px-[1.5rem]">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mastered</div>
+          <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{masteredCount}</div>
         </div>
 
-        <div className="flex items-center gap-3 pl-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/15 text-rose-500 font-bold">
-            <Icon name="ArrowPathIcon" size={20} />
-          </div>
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Review
-            </div>
-            <div className="text-lg font-bold text-foreground">{reviewCount}</div>
-          </div>
+        <div className="pl-3 sm:pl-[1.5rem]">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Review</div>
+          <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{reviewCount}</div>
         </div>
       </div>
 
       {/* Filter and Shuffle Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-muted/30 p-1">
+        <div className="todo-segmented todo-segmented-accent flex-wrap">
           {(['All', 'Interview', 'CV Skill', ...(deck.length ? [DECK_CATEGORY] : [])]).map((cat) => (
             <button
               key={cat}
@@ -355,11 +331,8 @@ export default function QuickPractice() {
                 setCurrentIndex(0);
                 setIsRevealed(false);
               }}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                categoryFilter === cat
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              aria-pressed={categoryFilter === cat}
+              className="todo-segment"
             >
               {cat === 'All' ? 'All Questions' : cat === DECK_CATEGORY ? `${DECK_CATEGORY} (${deck.length})` : cat}
             </button>
@@ -375,7 +348,7 @@ export default function QuickPractice() {
               setIsRevealed(false);
             }}
             aria-label="Filter deck by topic"
-            className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground"
+            className="todo-focus rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground"
           >
             <option value="All">All topics</option>
             {deckTopics.map((t) => (
@@ -391,7 +364,7 @@ export default function QuickPractice() {
             setImportNote(null);
           }}
           aria-expanded={importOpen}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors shadow-sm"
+          className="todo-btn todo-btn-secondary"
         >
           <Icon name="ArrowUpTrayIcon" size={14} />
           Import JSON
@@ -400,7 +373,7 @@ export default function QuickPractice() {
         <button
           type="button"
           onClick={handleShuffle}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors shadow-sm"
+          className="todo-btn todo-btn-secondary"
         >
           <Icon name="ArrowPathIcon" size={14} />
           Random Shuffle
@@ -417,12 +390,12 @@ export default function QuickPractice() {
       )}
 
       {importOpen && (
-        <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm animate-fade-in">
+        <div className="space-y-3 rounded-xl border border-border bg-card p-4 animate-fade-in">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span>Import Flashcard Deck</span>
-                <span className="text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full">
+                <span className="rounded-full px-2 py-0.5 text-xs font-medium lab-tint lab-ink ring-1 ring-inset mix-ring-primary/25">
                   Auto-syncs to Question Bank
                 </span>
               </h4>
@@ -432,12 +405,12 @@ export default function QuickPractice() {
                 Questions are loaded into your practice deck and automatically saved to your Question Bank with SQL deduplication.
               </p>
             </div>
-            <button type="button" onClick={() => setImportOpen(false)} aria-label="Close import" className="text-muted-foreground hover:text-foreground">✕</button>
+            <button type="button" onClick={() => setImportOpen(false)} aria-label="Close import" className="todo-focus rounded-md p-1 text-muted-foreground hover:text-foreground"><Icon name="XMarkIcon" size={16} /></button>
           </div>
 
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3 text-xs font-semibold text-muted-foreground hover:border-primary/50">
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3 text-xs font-semibold text-muted-foreground hover:mix-border-primary/50">
             <span>{importFileName || 'Choose a JSON file (.json, .txt, .csv, .md)…'}</span>
-            <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-primary">Browse</span>
+            <span className="rounded-lg px-2.5 py-1 lab-tint lab-ink">Browse</span>
             <input type="file" accept=".json,.jsonl,.csv,.tsv,.txt,.md,application/json,text/plain,text/csv" className="hidden" onChange={(e) => { void pickFile(e.target.files?.[0]); e.target.value = ''; }} />
           </label>
 
@@ -452,7 +425,7 @@ export default function QuickPractice() {
             rows={8}
             placeholder={`{\n  "date": "2026-09-22",\n  "session": "Daily Interview Revision",\n  "format": "2-minute quick learning",\n  "questions": [\n    {\n      "id": 1,\n      "topic": "DSA",\n      "title": "Sliding Window",\n      "question": "When should you use a sliding window?",\n      "answer": "Use it for contiguous subarrays or substrings when you can maintain a condition while expanding and shrinking the window.",\n      "remember": [\n        "Expand right",\n        "Shrink left when constraint breaks",\n        "Often reduces O(n²) to O(n)"\n      ],\n      "example": "Longest substring without repeating characters.",\n      "interview_tip": "First ask whether the problem involves a contiguous range."\n    }\n  ]\n}`}
             aria-label="Paste flashcards JSON"
-            className="w-full resize-y rounded-xl border border-border bg-input px-3.5 py-2.5 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none"
+            className="todo-input resize-y px-3.5 py-2.5 font-mono text-xs"
           />
 
           {importResult?.error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-300">{importResult.error}</p>}
@@ -461,9 +434,14 @@ export default function QuickPractice() {
               type="button"
               onClick={convertWithAi}
               disabled={converting}
-              className="inline-flex items-center gap-2 rounded-xl border-2 border-violet-300 bg-violet-50 px-4 py-2 text-xs font-bold text-violet-800 disabled:opacity-60 dark:border-violet-500/40 dark:bg-violet-500/10 dark:text-violet-200"
+              className="todo-focus inline-flex items-center gap-2 rounded-lg border mix-border-primary/30 lab-tint px-4 py-2 text-xs font-semibold lab-ink disabled:opacity-60"
             >
-              {converting ? 'Converting…' : '✨ Convert with AI'}
+              {converting ? 'Converting…' : (
+                <>
+                  <Icon name="SparklesIcon" size={14} />
+                  Convert with AI
+                </>
+              )}
               <span className="font-medium opacity-70">restructures your text, adds nothing</span>
             </button>
           )}
@@ -497,7 +475,7 @@ export default function QuickPractice() {
               type="button"
               disabled={!importResult || !!importResult.error || isSyncingToBank}
               onClick={() => applyImport('add')}
-              className="rounded-xl bg-gradient-to-r from-primary to-violet-600 px-4 py-2 text-xs font-bold text-white shadow-sm disabled:opacity-40 flex items-center gap-1.5"
+              className="todo-btn todo-btn-primary px-4 py-2"
             >
               {isSyncingToBank ? (
                 <>
@@ -516,7 +494,7 @@ export default function QuickPractice() {
                   type="button"
                   disabled={!importResult || !!importResult.error || isSyncingToBank}
                   onClick={() => applyImport('replace')}
-                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-foreground disabled:opacity-40"
+                  className="todo-btn todo-btn-secondary px-4 py-2"
                 >
                   Replace my deck
                 </button>
@@ -530,26 +508,21 @@ export default function QuickPractice() {
       )}
 
       {/* Main Flashcard Container */}
-      <div className="relative min-h-[340px] rounded-3xl border border-border bg-card p-6 sm:p-10 shadow-md flex flex-col justify-between overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary via-violet-500 to-emerald-500" />
+      <div className="relative min-h-[340px] rounded-xl border border-border bg-card p-4 sm:p-[2rem] flex flex-col justify-between">
 
         {/* Card Header Meta */}
         <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
             <div className="flex items-center gap-2">
-              <span className="rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              <span className="rounded-full px-2.5 py-1 text-xs font-semibold lab-tint lab-ink">
                 {currentCard.category}
               </span>
-              <span className="rounded-md border border-border bg-muted/60 px-2.5 py-1 text-xs font-medium text-foreground">
+              <span className="rounded-full mix-bg-foreground/[0.06] px-2.5 py-1 text-xs font-medium text-foreground">
                 {currentCard.subType}
               </span>
-              {currentCard.difficulty && (
-                <span className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${difficultyColor}`}>
-                  {currentCard.difficulty}
-                </span>
-              )}
+              {currentCard.difficulty && <DifficultyTag difficulty={currentCard.difficulty} />}
               {currentCard.imported && (
-                <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
                   Deck & Bank
                 </span>
               )}
@@ -560,11 +533,11 @@ export default function QuickPractice() {
           </div>
 
           {/* Question Text */}
-          <div className="my-6">
+          <div className="my-[1.5rem]">
             {currentCard.title && (
-              <div className="mb-1.5 text-xs font-bold uppercase tracking-wider text-primary">{currentCard.title}</div>
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider lab-ink">{currentCard.title}</div>
             )}
-            <h3 className="font-heading text-lg sm:text-2xl font-bold text-foreground leading-relaxed">
+            <h3 className="font-heading text-lg sm:text-2xl font-semibold text-foreground leading-relaxed">
               {currentCard.question}
             </h3>
           </div>
@@ -572,28 +545,28 @@ export default function QuickPractice() {
 
         {/* Revealed Answer Box */}
         {isRevealed ? (
-          <div className="my-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5 animate-fade-in space-y-3">
+          <div className="my-4 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-5 animate-fade-in space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
+              <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm">
                 <Icon name="CheckCircleIcon" size={18} variant="solid" />
                 Model Answer & Key Takeaway:
               </div>
               <Link
                 href="/daily-session?tab=question-bank"
-                className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1"
+                className="text-xs font-semibold lab-ink hover:underline flex items-center gap-1"
               >
                 Question Bank
                 <Icon name="ArrowTopRightOnSquareIcon" size={12} />
               </Link>
             </div>
-            <div className="text-xs sm:text-sm text-foreground/90 whitespace-pre-line leading-relaxed font-body">
+            <div className="text-xs sm:text-sm text-foreground whitespace-pre-line leading-relaxed font-body">
               {currentCard.answer}
             </div>
 
             {/* Formula */}
             {currentCard.formula && (
-              <div className="rounded-xl border border-border bg-muted/50 px-3.5 py-2.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <div className="rounded-lg mix-bg-foreground/[0.05] px-3.5 py-2.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Icon name="CalculatorIcon" size={13} />
                   Formula
                 </div>
@@ -603,15 +576,15 @@ export default function QuickPractice() {
 
             {/* Example */}
             {currentCard.example && (
-              <div className="rounded-xl border border-border/80 bg-muted/40 px-3.5 py-2 text-xs sm:text-sm text-foreground/90 leading-relaxed">
-                <span className="font-bold text-foreground">Example: </span>{currentCard.example}
+              <div className="rounded-lg mix-bg-foreground/[0.05] px-3.5 py-2 text-xs sm:text-sm text-foreground leading-relaxed">
+                <span className="font-semibold text-foreground">Example: </span>{currentCard.example}
               </div>
             )}
 
             {/* Remember */}
             {currentCard.remember && currentCard.remember.length > 0 && (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
                   <Icon name="LightBulbIcon" size={13} />
                   Remember
                 </div>
@@ -625,8 +598,8 @@ export default function QuickPractice() {
 
             {/* Interview Tip */}
             {currentCard.interviewTip && (
-              <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3.5 py-2.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
+              <div className="rounded-xl border mix-border-primary/30 lab-tint px-3.5 py-2.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider lab-ink flex items-center gap-1.5">
                   <Icon name="SparklesIcon" size={13} />
                   Interview Tip
                 </div>
@@ -639,7 +612,7 @@ export default function QuickPractice() {
             {/* Trade-offs */}
             {currentCard.tradeoffs && currentCard.tradeoffs.length > 0 && (
               <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 px-3.5 py-2.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300 flex items-center gap-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-orange-700 dark:text-orange-300 flex items-center gap-1.5">
                   <Icon name="ScaleIcon" size={13} />
                   Key Trade-offs
                 </div>
@@ -654,7 +627,7 @@ export default function QuickPractice() {
             {/* Checklist */}
             {currentCard.checklist && currentCard.checklist.length > 0 && (
               <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-2.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300 flex items-center gap-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-cyan-700 dark:text-cyan-300 flex items-center gap-1.5">
                   <Icon name="ClipboardDocumentCheckIcon" size={13} />
                   Checklist
                 </div>
@@ -668,8 +641,8 @@ export default function QuickPractice() {
 
             {/* Steps */}
             {currentCard.steps && currentCard.steps.length > 0 && (
-              <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3.5 py-2.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+              <div className="rounded-xl border border-border mix-bg-foreground/[0.05] px-3.5 py-2.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Icon name="QueueListIcon" size={13} />
                   Execution Steps
                 </div>
@@ -682,11 +655,11 @@ export default function QuickPractice() {
             )}
           </div>
         ) : (
-          <div className="my-6 flex items-center justify-center">
+          <div className="my-[1.5rem] flex items-center justify-center">
             <button
               type="button"
               onClick={() => { ensureSound(); setIsRevealed(true); }}
-              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-violet-600 px-8 py-4 text-sm font-bold text-white shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+              className="todo-btn todo-btn-primary gap-2 px-[2rem] py-4 text-sm"
             >
               <Icon name="EyeIcon" size={18} variant="solid" />
               Reveal Answer
@@ -695,7 +668,7 @@ export default function QuickPractice() {
         )}
 
         {/* Card Footer Actions */}
-        <div className="border-t border-border/60 pt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="border-t border-border pt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           {isRevealed ? (
             <>
               <div className="text-xs font-medium text-muted-foreground">
@@ -728,7 +701,7 @@ export default function QuickPractice() {
               <button
                 type="button"
                 onClick={handleNext}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                className="todo-focus inline-flex items-center gap-1 text-xs font-semibold lab-ink hover:underline"
               >
                 Skip Question
                 <Icon name="ChevronRightIcon" size={14} />

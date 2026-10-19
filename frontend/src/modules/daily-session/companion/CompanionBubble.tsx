@@ -23,7 +23,7 @@ export default function CompanionBubble({ text, mood = 'happy', speaking, size =
       <button
         type="button"
         onClick={onSpeak}
-        className="relative flex-1 rounded-2xl rounded-bl-md border-2 border-violet-200 bg-white px-4 py-3 text-left text-sm font-semibold leading-snug text-violet-950 shadow-sm dark:border-violet-500/40 dark:bg-violet-950/60 dark:text-violet-50"
+        className="relative flex-1 rounded-2xl rounded-bl-md border-2 mix-border-primary/30 bg-card px-4 py-3 text-left text-sm font-semibold leading-snug text-foreground"
         aria-label="Companion message. Tap to hear it."
       >
         {text}

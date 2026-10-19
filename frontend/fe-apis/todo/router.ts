@@ -51,12 +51,26 @@ export function compileRoutes(routes: TodoRoute[]): CompiledRoute[] {
     .sort((a, b) => a.paramCount - b.paramCount);
 }
 
+/**
+ * Next hands a catch-all route its segments already URL-decoded, so this is a second decode: it throws
+ * (an uncaught URIError, a bare 500) for a value that decodes to a stray '%', such as '/profiles/%25zz'
+ * arriving here as '%zz'. A segment that can't be decoded is used as it is, so the handler's own
+ * validation answers it (`intParam` -> 422, a lookup -> 404), like FastAPI does.
+ */
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 function match(route: CompiledRoute, segments: string[]): Record<string, string> | null {
   if (route.parts.length !== segments.length) return null;
   const params: Record<string, string> = {};
   for (let i = 0; i < segments.length; i++) {
     const part = route.parts[i];
-    if (part.startsWith(':')) params[part.slice(1)] = decodeURIComponent(segments[i]);
+    if (part.startsWith(':')) params[part.slice(1)] = decodeSegment(segments[i]);
     else if (part !== segments[i]) return null;
   }
   return params;

@@ -1,0 +1,4 @@
+{
+  "/api/health/route": "app/api/health/route.js",
+  "/dsa-lab/page": "app/dsa-lab/page.js"
+}

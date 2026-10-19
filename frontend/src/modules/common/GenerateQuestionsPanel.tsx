@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import MarkdownLite from '@/modules/common/lab/MarkdownLite';
+import { DifficultyTag } from '@/modules/common/lab/LabTags';
+import { LAB_REVEAL } from '@/modules/common/lab/LabSidebarParts';
 import { notify } from '@/lib/ui/notifications';
 import { questionsService } from '@/lib/services/questionsService';
 import { defaultAIRequestFields, settingsService } from '@/lib/services/settingsService';
@@ -20,19 +22,14 @@ interface Props {
   topicName: string;
   subtopicName?: string;
   labName: string;
-  accentVar?: string; // e.g. '--lab-cv', '--lab-dsa', '--lab-system'
+  /** The colour token the panel is drawn in; the labs pass '--lab-accent' (the Settings accent), which is the default. */
+  accentVar?: string;
   /** Called when the learner confirms adding an AI-generated (e.g. from YouTube) subtopic to the current topic. */
   onAddSubtopic?: (subtopic: GeneratedSubtopic) => void;
 }
 
 type GenQ = { id: string; text: string; difficulty: string; subType: string; deleted: boolean };
 type Mode = 'questions' | 'youtube';
-
-function diffBadge(d: string) {
-  if (d === 'Easy') return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
-  if (d === 'Hard') return 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30';
-  return 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30';
-}
 
 function questionListToGenQ(questions: { text: string; difficulty: string; sub_type: string }[]): GenQ[] {
   return questions.map((q, i) => ({
@@ -44,7 +41,7 @@ function questionListToGenQ(questions: { text: string; difficulty: string; sub_t
   }));
 }
 
-export default function GenerateQuestionsPanel({ topicName, subtopicName, labName, accentVar = '--lab-dsa', onAddSubtopic }: Props) {
+export default function GenerateQuestionsPanel({ topicName, subtopicName, labName, accentVar = '--lab-accent', onAddSubtopic }: Props) {
   const [open,       setOpen]       = useState(false);
   const [mode,       setMode]       = useState<Mode>('questions');
   const [showCtx,    setShowCtx]    = useState(false);
@@ -66,8 +63,12 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
   const [ytSaving,             setYtSaving]           = useState(false);
   const [ytSaved,               setYtSaved]           = useState(false);
 
-  const accent = `var(${accentVar})`;
-  const accentSoft = `var(${accentVar}-soft, color-mix(in srgb, var(${accentVar}) 12%, transparent))`;
+  // The lab identity hues (--lab-cv, --lab-system) only feed the hero glow and the icon tile, never a control: map them to the accent.
+  const tokenVar = accentVar === '--lab-cv' || accentVar === '--lab-system' ? '--lab-accent' : accentVar;
+  const accent = `var(${tokenVar})`;
+  const accentSoft = `var(${tokenVar}-soft, color-mix(in srgb, var(${tokenVar}) 12%, transparent))`;
+  // Text drawn in the accent uses its ink (>= 4.5:1 on its own tint for every preset); icons, borders and fills use the raw accent.
+  const accentInk = `var(${tokenVar}-ink, color-mix(in srgb, var(${tokenVar}) 55%, var(--color-foreground)))`;
 
   const activeCount = questions.filter(q => !q.deleted).length;
   const ytActiveCount = ytResult ? ytResult.questions.filter(q => !q.deleted).length : 0;
@@ -228,11 +229,12 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
   }
 
   return (
-    <div className="lab-card border border-border overflow-hidden">
+    <div className="lab-card overflow-hidden">
       {/* Header toggle */}
       <button
         onClick={() => { setOpen(o => !o); setSavedCount(null); setYtSaved(false); setError(null); }}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-all group"
+        aria-expanded={open}
+        className="todo-focus w-full flex items-center gap-3 px-4 py-3 hover:mix-bg-foreground/[0.04] focus-visible:ring-inset focus-visible:ring-offset-0 transition-all group"
       >
         <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: accentSoft }}>
@@ -240,7 +242,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
         </div>
         <div className="flex-1 text-left">
           <span className="text-sm font-semibold text-foreground">Generate Practice Material</span>
-          <span className="text-xs text-muted-foreground ml-2">Questions, or a full lab from a YouTube video</span>
+          <span className="text-xs font-medium text-muted-foreground ml-2">Questions, or a full lab from a YouTube video</span>
         </div>
         <Icon
           name={open ? 'ChevronUpIcon' : 'ChevronDownIcon'}
@@ -251,24 +253,22 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
 
       {/* Expanded panel */}
       {open && (
-        <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
+        <div className="border-t px-4 pb-4 pt-3 space-y-3">
 
           {/* Mode tabs */}
-          <div className="flex gap-1.5 p-1 rounded-lg bg-muted/40 w-fit">
+          <div className="todo-segmented todo-segmented-accent">
             <button
               onClick={() => switchMode('questions')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                mode === 'questions' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
+              aria-pressed={mode === 'questions'}
+              className="todo-segment"
             >
               <Icon name="QuestionMarkCircleIcon" size={13} />
               Generate Questions
             </button>
             <button
               onClick={() => switchMode('youtube')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                mode === 'youtube' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
+              aria-pressed={mode === 'youtube'}
+              className="todo-segment"
             >
               <Icon name="PlayCircleIcon" size={13} />
               From YouTube Video
@@ -278,7 +278,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
           {/* Shared context toggle */}
           <button
             onClick={() => setShowCtx(s => !s)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="todo-focus flex items-center gap-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
             <Icon name={showCtx ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={11} />
             {showCtx ? 'Hide context' : 'Add context / document (optional)'}
@@ -294,8 +294,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
                   : 'Optional: extra notes to combine with the video — e.g. what to focus on, your current skill level…'
               }
               rows={4}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 resize-none scrollbar-clean"
-              style={{ '--tw-ring-color': accent } as React.CSSProperties}
+              className="todo-input px-3 py-2 text-sm resize-none scrollbar-clean"
             />
           )}
 
@@ -305,11 +304,10 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
               <button
                 onClick={generate}
                 disabled={generating}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-50"
-                style={{ background: accent }}
+                className="todo-btn todo-btn-primary gap-2 px-4 py-2 text-sm"
               >
                 {generating ? (
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Icon name="SparklesIcon" size={14} />
                 )}
@@ -318,27 +316,26 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
 
               {questions.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  <p className="lab-caption">
                     Generated — {activeCount} remaining
                   </p>
                   {questions.map((q, idx) =>
                     q.deleted ? null : (
                       <div
                         key={q.id}
-                        className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-muted/40 border border-border group"
+                        className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg mix-bg-foreground/[0.04] group"
                       >
-                        <span className="flex-shrink-0 text-[10px] text-muted-foreground/40 mt-0.5 w-4 text-right leading-5">
+                        <span className="flex-shrink-0 text-xs font-medium tabular-nums text-muted-foreground mt-0.5 w-5 text-right leading-5">
                           {idx + 1}
                         </span>
                         <p className="flex-1 text-sm text-foreground leading-relaxed min-w-0">{q.text}</p>
                         <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold leading-none ${diffBadge(q.difficulty)}`}>
-                            {q.difficulty}
-                          </span>
+                          <DifficultyTag difficulty={q.difficulty} />
                           <button
                             onClick={() => setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, deleted: true } : p))}
                             title="Remove question"
-                            className="p-1 rounded-md text-muted-foreground/40 hover:text-rose-400 hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
+                            aria-label="Remove question"
+                            className={`todo-focus p-1 rounded-md text-muted-foreground hover:text-error hover:mix-bg-error/10 ${LAB_REVEAL}`}
                           >
                             <Icon name="XMarkIcon" size={13} />
                           </button>
@@ -351,11 +348,11 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
                     <button
                       onClick={saveToBank}
                       disabled={saving || activeCount === 0}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40"
-                      style={{ borderColor: accent, color: accent }}
+                      className="todo-btn gap-2 border px-4 py-2 text-sm hover:mix-bg-foreground/[0.04]"
+                      style={{ borderColor: accent, color: accentInk }}
                     >
                       {saving ? (
-                        <span className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <Icon name="BookmarkIcon" size={14} />
                       )}
@@ -363,7 +360,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
                     </button>
                     <button
                       onClick={() => setQuestions([])}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      className="todo-btn todo-btn-ghost"
                     >
                       Clear
                     </button>
@@ -372,8 +369,8 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
               )}
 
               {savedCount !== null && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
-                  <Icon name="CheckCircleIcon" size={13} />
+                <div data-semantic="done" className="flex items-center gap-2 px-3 py-2 rounded-lg mix-bg-success/10 text-xs font-medium text-foreground">
+                  <Icon name="CheckCircleIcon" size={13} className="flex-shrink-0 text-success" />
                   <span>{savedCount} question{savedCount !== 1 ? 's' : ''} saved to Question Bank</span>
                 </div>
               )}
@@ -390,14 +387,13 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
                     value={youtubeUrl}
                     onChange={e => setYoutubeUrl(e.target.value)}
                     placeholder="https://www.youtube.com/watch?v=…"
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1"
-                    style={{ '--tw-ring-color': accent } as React.CSSProperties}
+                    className="todo-input px-3 py-2 text-sm"
                   />
 
                   {needsManualTranscript && (
                     <div className="space-y-1.5">
-                      <p className="text-xs text-amber-500 flex items-start gap-1.5">
-                        <Icon name="ExclamationTriangleIcon" size={13} className="flex-shrink-0 mt-0.5" />
+                      <p data-semantic="hint" className="text-xs font-medium text-foreground flex items-start gap-1.5">
+                        <Icon name="ExclamationTriangleIcon" size={13} className="flex-shrink-0 mt-0.5 text-warning" />
                         Couldn&apos;t auto-fetch captions for this video. Paste the transcript (or a detailed summary) below.
                       </p>
                       <textarea
@@ -405,8 +401,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
                         onChange={e => setManualTranscript(e.target.value)}
                         placeholder="Paste the video transcript here…"
                         rows={5}
-                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 resize-none scrollbar-clean"
-                        style={{ '--tw-ring-color': accent } as React.CSSProperties}
+                        className="todo-input px-3 py-2 text-sm resize-none scrollbar-clean"
                       />
                     </div>
                   )}
@@ -414,11 +409,10 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
                   <button
                     onClick={generateFromYoutube}
                     disabled={ytGenerating || !youtubeUrl.trim()}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-50"
-                    style={{ background: accent }}
+                    className="todo-btn todo-btn-primary gap-2 px-4 py-2 text-sm"
                   >
                     {ytGenerating ? (
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <Icon name="SparklesIcon" size={14} />
                     )}
@@ -429,39 +423,38 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
 
               {ytResult && (
                 <div className="space-y-3">
-                  <div className="px-3 py-2.5 rounded-lg border" style={{ borderColor: accent, background: accentSoft }}>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: accent }}>New subtopic</p>
+                  <div className="px-3 py-2.5 rounded-lg" style={{ background: accentSoft }}>
+                    <p className="lab-caption mb-1" style={{ color: accentInk }}>New subtopic</p>
                     <p className="text-sm font-semibold text-foreground">{ytResult.subtopic.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{ytResult.subtopic.brief}</p>
+                    <p className="text-xs font-medium text-muted-foreground mt-0.5">{ytResult.subtopic.brief}</p>
                   </div>
 
-                  <div className="rounded-lg border border-border bg-muted/20 p-4 max-h-96 overflow-y-auto scrollbar-clean">
+                  <div className="rounded-lg border p-4 max-h-[24rem] overflow-y-auto scrollbar-clean">
                     <MarkdownLite content={ytResult.contentMarkdown} />
                   </div>
 
                   {ytResult.questions.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                      <p className="lab-caption">
                         Generated questions — {ytActiveCount} remaining
                       </p>
                       {ytResult.questions.map((q, idx) =>
                         q.deleted ? null : (
                           <div
                             key={q.id}
-                            className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-muted/40 border border-border group"
+                            className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg mix-bg-foreground/[0.04] group"
                           >
-                            <span className="flex-shrink-0 text-[10px] text-muted-foreground/40 mt-0.5 w-4 text-right leading-5">
+                            <span className="flex-shrink-0 text-xs font-medium tabular-nums text-muted-foreground mt-0.5 w-5 text-right leading-5">
                               {idx + 1}
                             </span>
                             <p className="flex-1 text-sm text-foreground leading-relaxed min-w-0">{q.text}</p>
                             <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold leading-none ${diffBadge(q.difficulty)}`}>
-                                {q.difficulty}
-                              </span>
+                              <DifficultyTag difficulty={q.difficulty} />
                               <button
                                 onClick={() => setYtResult(prev => prev ? { ...prev, questions: prev.questions.map(p => p.id === q.id ? { ...p, deleted: true } : p) } : prev)}
                                 title="Remove question"
-                                className="p-1 rounded-md text-muted-foreground/40 hover:text-rose-400 hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
+                                aria-label="Remove question"
+                                className={`todo-focus p-1 rounded-md text-muted-foreground hover:text-error hover:mix-bg-error/10 ${LAB_REVEAL}`}
                               >
                                 <Icon name="XMarkIcon" size={13} />
                               </button>
@@ -476,11 +469,11 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
                     <button
                       onClick={addYoutubeSubtopic}
                       disabled={ytSaving}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40"
-                      style={{ borderColor: accent, color: accent }}
+                      className="todo-btn gap-2 border px-4 py-2 text-sm hover:mix-bg-foreground/[0.04]"
+                      style={{ borderColor: accent, color: accentInk }}
                     >
                       {ytSaving ? (
-                        <span className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <Icon name="BookmarkIcon" size={14} />
                       )}
@@ -488,7 +481,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
                     </button>
                     <button
                       onClick={() => setYtResult(null)}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      className="todo-btn todo-btn-ghost"
                     >
                       Discard
                     </button>
@@ -497,8 +490,8 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
               )}
 
               {ytSaved && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
-                  <Icon name="CheckCircleIcon" size={13} />
+                <div data-semantic="done" className="flex items-center gap-2 px-3 py-2 rounded-lg mix-bg-success/10 text-xs font-medium text-foreground">
+                  <Icon name="CheckCircleIcon" size={13} className="flex-shrink-0 text-success" />
                   <span>Subtopic added — ready to practice like any other subtopic.</span>
                 </div>
               )}
@@ -507,8 +500,8 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
 
           {/* Error (shared) */}
           {error && (
-            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400">
-              <Icon name="ExclamationTriangleIcon" size={13} className="flex-shrink-0 mt-0.5" />
+            <div role="alert" className="flex items-start gap-2 px-3 py-2 rounded-lg mix-bg-error/10 text-xs font-medium text-foreground">
+              <Icon name="ExclamationTriangleIcon" size={13} className="flex-shrink-0 mt-0.5 text-error" />
               <span>{error}</span>
             </div>
           )}

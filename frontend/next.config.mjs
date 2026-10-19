@@ -75,8 +75,9 @@ const nextConfig = {
       { source: '/lab-sections/:path*', destination: '/api/lab-sections/:path*' },
       // Labs Projects + their saved sections (fe-apis/labProjects).
       { source: '/lab-projects/:path*', destination: '/api/lab-projects/:path*' },
-      // DSA lab: only the week plan has a Next.js twin (exact path, so /dsa/topics etc. are untouched).
-      { source: '/dsa/week-plan', destination: '/api/dsa/week-plan' },
+      // DSA lab: only the week plan has a Next.js twin (fe-apis/dsaLab: the active plan, profiles, AI
+      // organizer). ':path*' also matches the bare /dsa/week-plan; /dsa/topics etc. stay untouched.
+      { source: '/dsa/week-plan/:path*', destination: '/api/dsa/week-plan/:path*' },
     ];
   },
   // Cross-Origin Isolation headers required by PDF.js 4.x (SharedArrayBuffer)

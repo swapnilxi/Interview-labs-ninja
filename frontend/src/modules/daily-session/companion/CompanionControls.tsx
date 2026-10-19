@@ -44,7 +44,7 @@ export default function CompanionControls({ settings, update, onOpenSettings }: 
         aria-pressed={!soundOff}
         aria-label={soundOff ? 'Turn sound on' : 'Mute sound'}
         title={soundOff ? 'Sound off. Tap to turn on' : 'Tap to mute sound'}
-        className={`${BTN} ${soundOff ? 'border-border bg-muted text-muted-foreground' : 'border-violet-300 bg-violet-50 dark:border-violet-500/40 dark:bg-violet-500/20'}`}
+        className={`${BTN} ${soundOff ? 'border-border bg-muted text-muted-foreground' : 'mix-border-primary/40 lab-tint'}`}
       >
         {soundOff ? '🔇' : '🔊'}
       </button>

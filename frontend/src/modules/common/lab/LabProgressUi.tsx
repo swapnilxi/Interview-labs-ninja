@@ -13,7 +13,11 @@ function completedOn(serverTime: string | null): string {
     : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** A small green check for a page the user has completed; renders nothing otherwise, like the optional week pill. */
+/**
+ * A small green check for a page the user has completed; renders nothing otherwise, like the optional week pill.
+ * Green here means "done", not "interactive", so it stays emerald whatever the Settings accent is (`data-semantic="done"`
+ * lets the accent-leak scan skip it).
+ */
 export function DoneMark({
   lab,
   topicId,
@@ -32,6 +36,7 @@ export function DoneMark({
       role="img"
       aria-label="Completed"
       title="Completed"
+      data-semantic="done"
       className={`inline-flex flex-shrink-0 ${className}`}
     >
       <Icon name="CheckCircleIcon" variant="solid" size={13} className="text-emerald-500" />
@@ -39,7 +44,11 @@ export function DoneMark({
   );
 }
 
-/** Marks the open page (a topic, or one of its subtopics) as complete, and back. */
+/**
+ * Marks the open page (a topic, or one of its subtopics) as complete, and back. At rest it is a neutral outline button;
+ * once done it turns green (a semantic "done" colour, not the accent). The light text is emerald-800: -600 is 2.7:1 and
+ * -700 is 4.0-4.6:1 on the done tint, -800 is >= 5.6:1.
+ */
 export function CompleteButton({
   lab,
   topicId,
@@ -70,10 +79,11 @@ export function CompleteButton({
             ? `${on ? `Completed on ${on}. ` : ''}Click to mark as not complete`
             : 'Mark this page as complete'
         }
-        className={`flex items-center gap-1.5 rounded-lg border font-semibold transition-colors disabled:opacity-60 disabled:cursor-wait ${pad} ${
+        data-semantic={done ? 'done' : undefined}
+        className={`todo-focus flex items-center gap-1.5 rounded-lg border font-semibold transition-colors disabled:cursor-wait disabled:opacity-60 ${pad} ${
           done
-            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-            : 'border-border text-foreground hover:bg-muted'
+            ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25 dark:text-emerald-400'
+            : 'border-border text-foreground hover:mix-bg-muted'
         }`}
       >
         <Icon
@@ -84,7 +94,7 @@ export function CompleteButton({
         {done ? 'Completed' : 'Mark as complete'}
       </button>
       {error && (
-        <p role="alert" className="text-[11px] text-error max-w-[260px] text-right">
+        <p role="alert" className="max-w-[260px] text-right text-xs text-error">
           {error}
         </p>
       )}
@@ -92,7 +102,12 @@ export function CompleteButton({
   );
 }
 
-/** "12 of 80 completed" with a bar, for a lab's Wiki. Counts topic pages only. */
+/**
+ * "12 of 80 questions completed" as ONE line with a bar: the progress row inside a lab's wiki hero (`WikiHero` children), so
+ * it has no card, border or shadow of its own. The bar is the Settings accent (`bg-primary`); the green check on a finished
+ * page (`DoneMark`) is a different, semantic job. Counts topic pages only. Text on the hero's wash uses the foreground mix,
+ * not `text-muted-foreground` (that fails contrast on the tint).
+ */
 export function LabProgressSummary({
   lab,
   topicIds,
@@ -108,19 +123,16 @@ export function LabProgressSummary({
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   return (
     <div
-      className="lab-card px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2"
+      role="group"
       aria-label="Your progress"
+      className="flex flex-wrap items-center gap-x-[0.75rem] gap-y-[0.5rem]"
     >
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-          Your progress
-        </p>
-        <p className="text-sm text-foreground">
-          <span className="font-bold">{done}</span> of {total} {noun} completed
-        </p>
-      </div>
+      <p className="flex-shrink-0 text-[13px] font-medium mix-text-foreground/[0.74]">
+        <span className="font-semibold tabular-nums text-foreground">{done}</span> of {total} {noun}{' '}
+        completed
+      </p>
       <div
-        className="flex-1 min-w-[120px] h-2 rounded-full bg-muted overflow-hidden"
+        className="h-1.5 min-w-[8rem] flex-1 overflow-hidden rounded-full mix-bg-foreground/10"
         role="progressbar"
         aria-label={`${done} of ${total} ${noun} completed`}
         aria-valuemin={0}
@@ -128,11 +140,13 @@ export function LabProgressSummary({
         aria-valuenow={done}
       >
         <div
-          className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+          className="h-full rounded-full bg-primary transition-[width] duration-500 motion-reduce:transition-none"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-xs font-semibold text-muted-foreground tabular-nums">{pct}%</span>
+      <span className="w-9 flex-shrink-0 text-right text-xs font-semibold tabular-nums mix-text-foreground/[0.74]">
+        {pct}%
+      </span>
     </div>
   );
 }

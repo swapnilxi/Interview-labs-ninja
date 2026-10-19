@@ -11,7 +11,7 @@ import {
   setArchived,
   toggleUseInLabs,
 } from '@/modules/labs-project/projectActions';
-import { dangerButton, quietButton, StatusBadge } from '@/modules/labs-project/ui';
+import { dangerButton, quietButton, StatusBadge, UsedBadge } from '@/modules/labs-project/ui';
 
 export type ProjectTab = 'context' | 'sections';
 
@@ -48,26 +48,21 @@ export default function ProjectScreen({
   ];
 
   return (
-    <div>
+    <div className="max-w-[880px]">
       <div className="mb-4">
         <BackButton href="/labs-project" label="Projects" />
       </div>
 
-      <header className="mb-5 rounded-xl border border-border bg-card p-4 sm:p-5">
+      <header className="mb-[1.5rem]">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={project.status} />
-          {inUse && (
-            <span className="inline-flex items-center gap-1 rounded-md border mix-border-primary/30 mix-bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-              <Icon name="CheckIcon" size={12} />
-              Used by the labs
-            </span>
-          )}
+          {inUse && <UsedBadge />}
         </div>
         <h2 className="mt-2 break-words font-heading text-xl font-semibold text-foreground">
           {project.name}
         </h2>
         {project.description && (
-          <p className="mt-1 text-sm text-muted-foreground">{project.description}</p>
+          <p className="mt-1 text-sm mix-text-foreground/[0.74]">{project.description}</p>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
           {!archived && (
@@ -104,7 +99,7 @@ export default function ProjectScreen({
           </button>
         </div>
         {archived && (
-          <p className="mt-4 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+          <p className="mt-4 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
             This project is archived. The labs don&apos;t offer it and it takes no new sections;
             everything in it is kept. Restore it to use it again.
           </p>
@@ -125,9 +120,9 @@ export default function ProjectScreen({
             aria-selected={tab === t.id}
             aria-controls={`project-panel-${t.id}`}
             onClick={() => onTab(t.id)}
-            className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+            className={`todo-focus -mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
               tab === t.id
-                ? 'border-primary text-primary'
+                ? 'border-primary lab-ink'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >

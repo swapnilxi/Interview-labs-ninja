@@ -16,17 +16,17 @@ export default function LabsProjectPage() {
     <>
       <Header />
       <RequireAuth feature="Labs Project">
-        <div className="min-h-screen bg-background pt-[60px]">
-          <div className="mx-auto max-w-[1100px] px-4 py-[1.5rem] sm:px-[1.5rem]">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-[2.75rem] w-[2.75rem] flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-md">
-                <Icon name="FolderOpenIcon" size={22} className="text-white" />
+        <div className="lab-page min-h-screen bg-background pt-[60px]">
+          <div className="mx-auto max-w-[1100px] px-4 py-[1.5rem] sm:px-[2rem] sm:py-[2rem]">
+            <div className="mb-[1.5rem] flex items-center gap-3">
+              <div aria-hidden="true" className="lab-tile h-[2.75rem] w-[2.75rem]">
+                <Icon name="FolderOpenIcon" size={22} />
               </div>
               <div>
-                <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
+                <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground">
                   Labs Project
                 </h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="mt-1 text-sm font-medium mix-text-foreground/[0.74]">
                   Projects, their context, and what you saved from the labs.
                 </p>
               </div>

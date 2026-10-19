@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Poppins:wght@500;600&family=Fira+Code:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -48,17 +48,24 @@
     --color-depth-3: #0891a5;
     --color-depth-4: #cc7400;
     --color-depth-5: #d9559f;
-    /* Lab accent colors – light */
-    --lab-dsa: #6d6be8;
+    /* Lab accents. DSA IS the Settings accent. appearanceService.applyAccent() and the inline script in app/layout.tsx write
+       --color-primary on <html>; these resolve on <html> too, so they follow live and in both themes, and they exist outside
+       .lab-shell on purpose (dialogs, menus and sheets are portalled to <body>). */
+    --lab-accent: var(--color-primary);
+    --lab-accent-soft: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    /* ink = accent text that stays >= 4.5:1 on its own tint for every preset (SP/polish-spec/ink.cjs) */
+    --lab-accent-ink: color-mix(in srgb, var(--color-primary) 55%, var(--color-foreground));
+    --lab-dsa: var(--lab-accent);            /* alias kept: tailwind.config.js maps the `lab-dsa` colour to it (no component reads it now) */
+    --lab-dsa-soft: var(--lab-accent-soft);
+    --wiki-dsa-hover: var(--lab-accent-ink);
+    /* CV / System Design keep an IDENTITY hue, read only through --lab-identity (hero glow + icon tile). Their -soft / -hover
+       aliases follow the accent, so a class string that is missed cannot leak teal or amber into a button, row or link. */
     --lab-cv: #1a9d8f;
     --lab-system: #b36b17;
-    --lab-dsa-soft: rgba(109, 107, 232, 0.12);
-    --lab-cv-soft: rgba(26, 157, 143, 0.13);
-    --lab-system-soft: rgba(179, 107, 23, 0.13);
-    /* Wiki index per-lab hover colors (darker for light mode readability) */
-    --wiki-dsa-hover: #4040c0;
-    --wiki-cv-hover: #0f6b62;
-    --wiki-system-hover: #8a4f0e;
+    --lab-cv-soft: var(--lab-accent-soft);
+    --lab-system-soft: var(--lab-accent-soft);
+    --wiki-cv-hover: var(--lab-accent-ink);
+    --wiki-system-hover: var(--lab-accent-ink);
     /* Card accent bar opacity ramp */
     --card-bar-idle: 0.35;
     --card-bar-hover: 0.75;
@@ -107,17 +114,11 @@
     --color-depth-3: #2cd6e5;
     --color-depth-4: #ffb547;
     --color-depth-5: #e879b9;
-    /* Lab accent colors – dark */
-    --lab-dsa: #8f8cf7;
+    /* Lab accents, dark: only what differs. --lab-accent*, --lab-dsa*, --wiki-* stay the :root aliases (a dark copy of one
+       would override the alias here, same specificity and later, and freeze the labs on a fixed colour). */
+    --lab-accent-ink: color-mix(in srgb, var(--color-primary) 60%, var(--color-foreground));
     --lab-cv: #5fc6bd;
     --lab-system: #f1ad55;
-    --lab-dsa-soft: rgba(143, 140, 247, 0.14);
-    --lab-cv-soft: rgba(95, 198, 189, 0.13);
-    --lab-system-soft: rgba(241, 173, 85, 0.14);
-    /* Wiki index per-lab hover colors (lighter for dark mode) */
-    --wiki-dsa-hover: #a8a6ff;
-    --wiki-cv-hover: #7ad8d0;
-    --wiki-system-hover: #ffc87a;
     --card-bar-idle: 0.45;
     --card-bar-hover: 0.90;
   }
@@ -280,7 +281,7 @@
 
   .app-nav-link-active {
     background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
-    color: var(--color-primary);
+    color: var(--lab-accent-ink); /* ink, not the raw accent: 13px text, raw Orange is 3.4:1 on the header in light */
     &:hover {
       background-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
     }
@@ -319,14 +320,26 @@
 
   .lab-shell {
     @apply h-app-screen overflow-hidden bg-background pt-[60px] text-foreground;
+    --lab-identity: var(--color-primary);   /* hero glow + icon tile only; CV / SD override below */
+    --rail: var(--lab-accent);              /* .todo-rail colour: the active-row rail follows the accent in every lab */
+  }
+
+  .lab-shell[data-lab='cv'] {
+    --lab-identity: var(--lab-cv);
+  }
+
+  .lab-shell[data-lab='system-design'] {
+    --lab-identity: var(--lab-system);
   }
 
   .lab-workspace {
     @apply flex-1 overflow-hidden;
   }
 
+  /* Both side panes use the recessed sidebar tone; the centre (bg-background) is the only paper surface. */
   .lab-sidebar {
-    @apply flex-shrink-0 border-border bg-[var(--color-sidebar)] text-foreground;
+    @apply flex-shrink-0 border-border text-foreground;
+    background: var(--color-sidebar);
   }
 
   .lab-main {
@@ -334,11 +347,13 @@
   }
 
   .lab-copilot {
-    @apply flex-shrink-0 border-border bg-card overflow-hidden;
+    @apply flex-shrink-0 overflow-hidden border-border text-foreground;
+    background: var(--color-sidebar);
   }
 
+  /* px unchanged: WeekPlanView bleeds with -mx-5 sm:-mx-8 */
   .lab-container {
-    @apply mx-auto w-full max-w-readable px-5 py-7 sm:px-8 sm:py-9;
+    @apply mx-auto w-full max-w-readable px-5 py-7 sm:px-8 sm:py-8;
   }
 
   .lab-card {
@@ -368,16 +383,31 @@
     @apply text-sm text-muted-foreground max-w-xl leading-relaxed;
   }
 
+  /* Hero band: hairline card with the signature wash (peak 26% radial top-right, 10% linear top-left of --hero-tint). Padding is
+     explicit (1.5rem: Tailwind's `p-6` is 6px in this repo). Children sit in a `relative` wrapper: the ::before is absolutely
+     positioned and would paint over non-positioned siblings. Text on it uses mix-text-foreground/[0.74], not muted text.
+     .lab-glow is the same wash for any other band (Daily Session). */
   .lab-hero {
-    @apply relative overflow-hidden rounded-lg border border-border bg-card p-6 shadow-card;
+    @apply relative overflow-hidden rounded-lg border border-border bg-card;
+    padding: 1.5rem;
   }
 
-  .lab-hero::before {
+  .lab-hero,
+  .lab-glow {
+    --hero-tint: var(--lab-identity, var(--color-primary));
+  }
+
+  .lab-glow {
+    @apply relative overflow-hidden;
+  }
+
+  .lab-hero::before,
+  .lab-glow::before {
     content: '';
     @apply pointer-events-none absolute inset-0;
     background:
-      linear-gradient(135deg, var(--lab-dsa-soft), transparent 42%),
-      radial-gradient(circle at 95% 10%, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 34%);
+      radial-gradient(ellipse 70% 140% at 100% 0%, color-mix(in srgb, var(--hero-tint) 26%, transparent), transparent 64%),
+      linear-gradient(135deg, color-mix(in srgb, var(--hero-tint) 10%, transparent), transparent 48%);
   }
 
   .lab-section-title {
@@ -401,7 +431,7 @@
   }
 
   .reading-card {
-    @apply rounded-lg border border-border bg-card p-5 shadow-card;
+    @apply rounded-lg border border-border bg-card p-5;
   }
 
   /* Career Studio — shared visual primitives (hero, segmented tabs, empty states) */
@@ -2027,5 +2057,216 @@
   @keyframes slideInUp {
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Lab accent helpers (tokens in :root). hover: and group-hover: variants work on both. */
+  .lab-ink {
+    color: var(--lab-accent-ink); /* small accent TEXT (>= 4.5:1). Icons, rails, borders and fills use primary / mix-*-primary. */
+  }
+
+  .lab-tint {
+    background-color: var(--lab-accent-soft); /* soft accent fill (12%) */
+  }
+}
+
+@layer components {
+  /* DSA lab type: Poppins Medium for headings and item titles, Montserrat for running text. Scoped to the lab's
+     roots (the shell, the organizer layer, its dialogs), so no other module changes. */
+  .dsa-type {
+    --dsa-heading-font: 'Poppins', 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 500; /* Montserrat 400 reads thin at the lab's small sizes; explicit font-* classes still win */
+  }
+  .dsa-type :is(h1, h2, h3, h4),
+  .dsa-type .dsa-heading {
+    font-family: var(--dsa-heading-font);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+  }
+
+  /* Caption recipe (uppercase labels such as "WEEKS 1-4", "Suggested", "Recent"): the whole style lives here, so every
+     caption is the same whatever tag it is. Out-specifies the h1-h4 rule above (a caption that is an <h3> looks like one
+     that is a <p>) and any size or weight utility left on the element. Colour stays with the element. */
+  .dsa-type .dsa-caption {
+    font-family: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* A truncated title clips at its line box (overflow: hidden). Poppins' ascenders, descenders and accents can reach past a tight
+     line height (and past it by a pixel at fractional zoom / display scaling), so give the clip box a little room and cancel it with
+     the same negative margin: the glyphs are never cut and the layout does not move. Headings only: padding on other .truncate
+     elements (buttons, chips) is theirs. */
+  .dsa-type .dsa-heading.truncate,
+  .dsa-type :is(h1, h2, h3, h4).truncate {
+    padding-block: 0.2em;
+    margin-block: -0.2em;
+  }
+
+  /* Week plan page: a control reached with Tab / Shift+Tab must not end up under the sticky toolbar (3.5rem; on phones the Topics
+     bar above it makes it 7.5rem). The room is `scroll-margin` on the controls, not `scroll-padding` on the pane: with padding the
+     browser also tries to "reveal" the toolbar's own controls (they sit inside the padded edge) and jumps the whole pane back
+     up, which hides the toolbar and drops focus. The toolbar's controls therefore keep no margin. */
+  .dsa-plan-page :is(button, a[href], select, input, textarea, summary) {
+    scroll-margin-top: 7.5rem;
+  }
+  @media (min-width: 768px) {
+    .dsa-plan-page :is(button, a[href], select, input, textarea, summary) {
+      scroll-margin-top: 3.5rem;
+    }
+  }
+  .dsa-plan-page .dsa-glass-bar :is(button, a[href], select, input, textarea, summary) {
+    scroll-margin-top: 0;
+  }
+
+  /* Headings inside generated Markdown (MdHeading) stay heavier than the paragraph and the inline bold under them. */
+  .dsa-type .md-heading {
+    font-weight: 600;
+  }
+
+  /* DSA lab — subtle glass, only for floating / sticky surfaces (toolbars, sticky headers, drag overlay, wizard panel). */
+  .dsa-glass {
+    background: color-mix(in srgb, var(--color-card) 78%, transparent);
+    border: 1px solid var(--color-border); /* the one lab hairline (see :is(.lab-shell, .lab-page, .dsa-type) below) */
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 6%, transparent),
+      0 10px 28px -20px rgba(15, 12, 8, 0.4);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    backdrop-filter: blur(12px) saturate(140%);
+  }
+
+  /* Sticky bars: hairline bottom edge only, no radius, no drop shadow. */
+  .dsa-glass-bar {
+    background: color-mix(in srgb, var(--color-background) 76%, transparent);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 4%, transparent);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    backdrop-filter: blur(12px) saturate(140%);
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .dsa-glass {
+      background: var(--color-card);
+    }
+    .dsa-glass-bar {
+      background: var(--color-background);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .dsa-glass {
+      background: var(--color-card);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+    .dsa-glass-bar {
+      background: var(--color-background);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  /* ═══ Lab visual system (DSA, CV, System Design, Daily Session, Labs Project, Config) ═══
+     .lab-page = the page frame of a module that is not a .lab-shell (add it to the root of Daily Session, Labs Project, Config
+     and to the panel of lab dialogs). .dsa-type already marks the DSA portals. */
+  :is(.lab-shell, .lab-page, .dsa-type) {
+    --color-border: color-mix(in srgb, var(--color-foreground) 13%, transparent); /* ONE hairline, adapts to light/dark */
+  }
+
+  :is(.lab-shell, .lab-page) {
+    font-weight: 500; /* 400 reads thin in Montserrat at 12-14px; explicit font-* still wins */
+  }
+
+  html:not(.dark) :is(.lab-shell, .lab-page, .dsa-type) {
+    --color-muted-foreground: #655d53; /* >= 4.5:1 on the sidebar tone and hovered rows */
+  }
+
+  /* Cards inside the labs: hairline only. Scoped because Career Studio (8 files) and LinkedIn also use .lab-card. */
+  .lab-shell .lab-card {
+    box-shadow: none;
+  }
+
+  .lab-shell .lab-card-muted {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent); /* soft group, no outline */
+  }
+
+  /* Identity tile: hero, sidebar header, page headers. Size with utilities (h-11 w-11 / h-8 w-8). --tile = the lab hue (accent for DSA,
+     teal for CV, amber for System Design, set by .lab-shell[data-lab]); pages outside a lab fall back to the accent. */
+  .lab-tile {
+    --tile: var(--lab-identity, var(--color-primary));
+    @apply inline-flex flex-shrink-0 items-center justify-center rounded-lg;
+    color: color-mix(in srgb, var(--tile) 80%, var(--color-foreground));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--tile) 24%, transparent), color-mix(in srgb, var(--tile) 10%, transparent));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 24%, transparent);
+  }
+
+  /* 11px uppercase group label ("Recent", "Suggested", pattern names in the sidebar). The DSA organizer keeps .dsa-caption. */
+  .lab-caption {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-muted-foreground);
+  }
+
+  /* Sidebar rows, one geometry for every lab (32px; add .lab-row-tall for 36px; topic rows add items-start py-2). Active = accent tint + ink text
+     (+ <span className="todo-rail" /> for the 3px rail). aria-current="page" or data-active="true" marks it. */
+  .lab-row {
+    @apply todo-focus relative flex w-full min-w-0 items-center gap-2 rounded-md py-1 pl-3 pr-2 text-left text-[13px] font-medium leading-5 text-foreground transition-smooth;
+    min-height: 2rem;
+  }
+
+  .lab-row-tall {
+    min-height: 2.25rem;
+  }
+
+  .lab-row:focus-visible {
+    --tw-ring-inset: inset;
+    --tw-ring-offset-width: 0px; /* the nav scrolls: an offset ring would clip */
+  }
+
+  .lab-row:hover {
+    background: color-mix(in srgb, var(--color-foreground) 5%, transparent);
+  }
+
+  .lab-row-muted:not([aria-current='page']):not([data-active='true']) {
+    color: var(--color-muted-foreground);
+  }
+
+  .lab-row-muted:not([aria-current='page']):not([data-active='true']):hover {
+    color: var(--color-foreground);
+  }
+
+  /* After :hover so the active row keeps its tint. */
+  .lab-row[aria-current='page'],
+  .lab-row[data-active='true'] {
+    background: var(--lab-accent-soft);
+    color: var(--lab-accent-ink);
+  }
+
+  /* Selected segment / pressed toggle: ink text. The shared rules mix 76% in light only (below 4.5:1 for Orange, Emerald, Sky) and use the raw accent in dark
+     (2.4:1 for Indigo/Violet). `html` lifts the specificity to (0,4,1) = html:not(.dark) ...; this block is later in the file, so it wins. KEEP THE ORDER. */
+  html :is(.lab-shell, .lab-page, .dsa-type) :is(.todo-segmented-accent .todo-segment[aria-pressed='true'], .todo-segmented-accent .todo-segment[aria-current='page'], .todo-btn-active) {
+    color: var(--lab-accent-ink);
+  }
+
+  /* Radii: controls 8px, a segment inside its track 6px, cards 12px (utilities in markup still win: rounded-full pills, rounded-xl floating). */
+  :is(.lab-shell, .lab-page, .dsa-type) :where(.todo-btn, .todo-input, .todo-segmented) {
+    border-radius: var(--radius-md);
+  }
+
+  :is(.lab-shell, .lab-page, .dsa-type) :where(.todo-segment) {
+    border-radius: var(--radius-sm);
+  }
+
+  /* Beats the inline width transition and the phone sheet's !important. */
+  @media (prefers-reduced-motion: reduce) {
+    .lab-sidebar,
+    .lab-copilot {
+      transition: none !important;
+    }
   }
 }

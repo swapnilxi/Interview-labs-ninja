@@ -9,6 +9,7 @@ import {
   setStoredSidebarMode,
   subscribeSidebarMode,
 } from '@/lib/services/sidebarService';
+import { SETTINGS_CARD, SettingsCardHeader } from './SettingsCard';
 
 const DEFAULT_SWATCH = '#5b5bd6';
 
@@ -40,16 +41,12 @@ export default function AppearanceSettingsCard() {
   const isCustomActive = hydrated && !!accentHex && !ACCENT_PRESETS.some((p) => p.hex?.toLowerCase() === accentHex.toLowerCase());
 
   return (
-    <div className="bg-card border border-border rounded-lg p-24 shadow-md space-y-18">
-      <div className="flex items-center gap-12 pb-12 border-b border-border">
-        <Icon name="SwatchIcon" size={24} className="text-primary" />
-        <div>
-          <h3 className="font-heading text-lg font-semibold text-foreground">Appearance</h3>
-          <p className="text-xs text-muted-foreground">
-            Pick an accent color for buttons, highlights, focus rings, and glow effects across the whole app
-          </p>
-        </div>
-      </div>
+    <div className={SETTINGS_CARD}>
+      <SettingsCardHeader
+        icon="SwatchIcon"
+        title="Appearance"
+        description="Pick an accent color for buttons, highlights, focus rings, and glow effects across the whole app"
+      />
 
       <div className="flex flex-wrap gap-3">
         {ACCENT_PRESETS.map((preset) => {
@@ -61,8 +58,9 @@ export default function AppearanceSettingsCard() {
               type="button"
               onClick={() => choose(preset.hex)}
               title={preset.label}
-              className={`flex flex-col items-center gap-1.5 w-20 rounded-lg border p-2 transition-smooth ${
-                isActive ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-primary/30'
+              aria-pressed={isActive}
+              className={`todo-focus flex flex-col items-center gap-1.5 w-20 rounded-lg border p-2 transition-smooth ${
+                isActive ? 'mix-border-primary/60 mix-bg-primary/[0.08]' : 'border-border hover:mix-border-primary/30'
               }`}
             >
               <span
@@ -79,7 +77,7 @@ export default function AppearanceSettingsCard() {
                   </svg>
                 )}
               </span>
-              <span className="text-[11px] font-medium text-muted-foreground truncate w-full text-center">
+              <span className="w-full break-words text-center text-xs font-medium leading-tight text-muted-foreground">
                 {preset.label}
               </span>
             </button>
@@ -87,8 +85,8 @@ export default function AppearanceSettingsCard() {
         })}
 
         <label
-          className={`flex flex-col items-center gap-1.5 w-20 rounded-lg border p-2 cursor-pointer transition-smooth ${
-            isCustomActive ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-primary/30'
+          className={`flex flex-col items-center gap-1.5 w-20 rounded-lg border p-2 cursor-pointer transition-smooth focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background ${
+            isCustomActive ? 'mix-border-primary/60 mix-bg-primary/[0.08]' : 'border-border hover:mix-border-primary/30'
           }`}
         >
           <span
@@ -107,14 +105,14 @@ export default function AppearanceSettingsCard() {
               aria-label="Custom accent color"
             />
           </span>
-          <span className="text-[11px] font-medium text-muted-foreground">Custom</span>
+          <span className="text-xs font-medium leading-tight text-muted-foreground">Custom</span>
         </label>
       </div>
 
       {/* Sidebar Navigation Layout Mode */}
-      <div className="pt-4 border-t border-border space-y-3">
+      <div className="pt-[1.25rem] border-t border-border space-y-3">
         <div className="flex items-center gap-2.5">
-          <Icon name="Bars3BottomLeftIcon" size={20} className="text-primary" />
+          <Icon name="Bars3BottomLeftIcon" size={20} className="text-primary shrink-0" />
           <div>
             <h4 className="font-heading text-sm font-semibold text-foreground">Left-Hand Menu Layout</h4>
             <p className="text-xs text-muted-foreground">
@@ -128,16 +126,17 @@ export default function AppearanceSettingsCard() {
           <button
             type="button"
             onClick={() => handleSidebarModeChange('icon-only')}
-            className={`flex items-start gap-3 p-3.5 rounded-lg border text-left transition-smooth ${
+            aria-pressed={sidebarMode === 'icon-only'}
+            className={`todo-focus flex items-start gap-3 p-3.5 rounded-lg border text-left transition-smooth ${
               sidebarMode === 'icon-only'
-                ? 'border-primary/60 bg-primary/5 shadow-xs'
-                : 'border-border hover:border-primary/30 bg-card'
+                ? 'mix-border-primary/60 mix-bg-primary/[0.08]'
+                : 'border-border hover:mix-border-primary/30 bg-card'
             }`}
           >
             <div
               className={`w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 transition-smooth ${
                 sidebarMode === 'icon-only'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground'
               }`}
             >
@@ -145,14 +144,14 @@ export default function AppearanceSettingsCard() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-foreground">Icon-Only Sidebar</span>
+                <span className="text-sm font-semibold text-foreground">Icon-Only Sidebar</span>
                 {sidebarMode === 'icon-only' && (
-                  <span className="text-[10px] font-bold text-primary uppercase tracking-wider bg-primary/10 px-1.5 py-0.2 rounded">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider lab-ink lab-tint px-1.5 py-0.5 rounded">
                     Active
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
                 Keeps a compact 60px icon rail docked on the left with instant tooltips, popovers, and quick access to all labs and tools.
               </p>
             </div>
@@ -162,16 +161,17 @@ export default function AppearanceSettingsCard() {
           <button
             type="button"
             onClick={() => handleSidebarModeChange('hidden')}
-            className={`flex items-start gap-3 p-3.5 rounded-lg border text-left transition-smooth ${
+            aria-pressed={sidebarMode === 'hidden'}
+            className={`todo-focus flex items-start gap-3 p-3.5 rounded-lg border text-left transition-smooth ${
               sidebarMode === 'hidden'
-                ? 'border-primary/60 bg-primary/5 shadow-xs'
-                : 'border-border hover:border-primary/30 bg-card'
+                ? 'mix-border-primary/60 mix-bg-primary/[0.08]'
+                : 'border-border hover:mix-border-primary/30 bg-card'
             }`}
           >
             <div
               className={`w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 transition-smooth ${
                 sidebarMode === 'hidden'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground'
               }`}
             >
@@ -179,14 +179,14 @@ export default function AppearanceSettingsCard() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-foreground">Completely Hidden</span>
+                <span className="text-sm font-semibold text-foreground">Completely Hidden</span>
                 {sidebarMode === 'hidden' && (
-                  <span className="text-[10px] font-bold text-primary uppercase tracking-wider bg-primary/10 px-1.5 py-0.2 rounded">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider lab-ink lab-tint px-1.5 py-0.5 rounded">
                     Active
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
                 Leaves the left screen completely clear until you explicitly click the hamburger button in the header.
               </p>
             </div>
@@ -194,7 +194,7 @@ export default function AppearanceSettingsCard() {
         </div>
       </div>
 
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Applies instantly and is saved to this browser only — it doesn&apos;t sync across devices.
       </p>
     </div>

@@ -373,7 +373,7 @@ const BASELINE: PrereqSet = {
 };
 
 // First match wins, so the narrower names (trie, 2D) come before the broader ones (tree, DP).
-const CATEGORY_KEYS: [RegExp, string][] = [
+export const CATEGORY_KEYS: [RegExp, string][] = [
   [/\btrie\b/, 'trie'],
   [/union/, 'unionFind'],
   [/graph/, 'graph'],

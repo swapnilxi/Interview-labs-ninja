@@ -17,6 +17,7 @@ import { sessionService, SessionAnswer } from '@/lib/services/sessionService';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
 import AnswerWorkspace from './coach/AnswerWorkspace';
 import RichText from './coach/RichText';
+import { DifficultyTag } from '@/modules/common/lab/LabTags';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
 import { backendFetch, isBackendKnownDown, isNetworkFailure, checkBackendHealth } from '@/lib/http/backendAvailability';
 import { parseApiError } from '@/lib/http/apiClient';
@@ -804,31 +805,26 @@ export default function DailySessionInteractive() {
   if (screen === 'loading' || (screen === 'setup' && (loading || navigating))) {
     return (
       <div className="flex items-center justify-center h-[500px]">
-        <div className="w-48 h-48 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <div className="w-[3rem] h-[3rem] border-4 border-border border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
 
   // Phase 1: Setup Form
   if (screen === 'setup') {
-    const difficultyColor: Record<string, string> = {
-      Hard: 'bg-red-500/10 text-red-400 border-red-500/20',
-      Medium: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-      Easy: 'bg-green-500/10 text-green-400 border-green-500/20',
-    };
-
+    // Selected difficulty = the same soft tint + hairline as DifficultyTag (semantic colours; Mixed is neutral slate, never an accent chip).
     const difficultyOptions = [
-      { label: 'Easy',   active: 'bg-gradient-to-br from-emerald-500/20 to-green-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 shadow-sm' },
-      { label: 'Medium', active: 'bg-gradient-to-br from-amber-500/20 to-yellow-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm' },
-      { label: 'Hard',   active: 'bg-gradient-to-br from-rose-500/20 to-red-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400 shadow-sm' },
-      { label: 'Mixed',  active: 'bg-gradient-to-br from-violet-500/20 to-blue-500/10 border-violet-500/40 text-violet-600 dark:text-violet-400 shadow-sm' },
+      { label: 'Easy',   active: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
+      { label: 'Medium', active: 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300' },
+      { label: 'Hard',   active: 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300' },
+      { label: 'Mixed',  active: 'border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300' },
     ];
 
     return (
-      <div className="space-y-24">
+      <div className="space-y-[1.5rem]">
         <CompanionStrip c={companion} />
         {backendOffline && (
-          <div className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/10 px-6 py-4 text-sm text-warning">
+          <div className="flex items-center gap-3 rounded-xl border mix-border-warning/30 mix-bg-warning/10 px-4 py-3 text-sm text-warning">
             <Icon name="ExclamationTriangleIcon" size={18} variant="outline" className="flex-shrink-0" />
             <span>
               Backend unreachable — Daily Session will run in offline mode. Your session and answers are saved in this browser only, and won&apos;t sync once the backend is back.
@@ -836,23 +832,22 @@ export default function DailySessionInteractive() {
           </div>
         )}
         {/* ── Setup Card ── */}
-        <div className="relative todo-lit lit-soft bg-card rounded-2xl border border-border overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-violet-500/[0.03] pointer-events-none" />
-          <div className="relative p-5 sm:p-9">
+        <div className="todo-lit lit-static rounded-xl border bg-card">
+          <div className="p-4 sm:p-[1.5rem]">
             <h2 className="font-heading text-lg font-semibold text-foreground mb-7 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500/20 to-primary/20 flex items-center justify-center flex-shrink-0">
-                <Icon name="AcademicCapIcon" size={17} className="text-primary" />
+              <div className="todo-icon-chip h-9 w-9">
+                <Icon name="AcademicCapIcon" size={17} />
               </div>
               Configure Your Session
             </h2>
-            <form onSubmit={handleStartSession} className="space-y-6 sm:space-y-7">
+            <form onSubmit={handleStartSession} className="space-y-[1.25rem] sm:space-y-[1.5rem]">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-3">Difficulty</label>
+                <label className="block text-sm font-semibold text-foreground mb-3">Difficulty</label>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {difficultyOptions.map(({ label, active }) => (
                     <button key={label} type="button" onClick={() => setDifficulty(label)}
-                      className={`min-h-[48px] py-3 rounded-xl border text-sm font-semibold transition-all ${
-                        difficulty === label ? active : 'bg-muted/40 border-border text-muted-foreground hover:bg-muted hover:border-muted-foreground/40'
+                      className={`todo-focus min-h-[48px] py-3 rounded-lg border text-sm font-semibold transition-smooth ${
+                        difficulty === label ? active : 'mix-bg-foreground/[0.04] border-border text-muted-foreground hover:mix-bg-foreground/[0.08] hover:text-foreground'
                       }`}>
                       {label}
                     </button>
@@ -862,11 +857,11 @@ export default function DailySessionInteractive() {
 
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <label htmlFor="cv-text" className="flex items-center gap-2 text-sm font-medium text-foreground whitespace-nowrap">
+                  <label htmlFor="cv-text" className="flex items-center gap-2 text-sm font-semibold text-foreground whitespace-nowrap">
                     Context / Resume
-                    <span className="text-xs text-muted-foreground font-normal">Optional</span>
+                    <span className="text-xs text-muted-foreground font-medium">Optional</span>
                   </label>
-                  <label className="cursor-pointer inline-flex min-h-[40px] items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-smooth border border-primary/20">
+                  <label className="cursor-pointer inline-flex min-h-[40px] items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg lab-tint lab-ink hover:mix-bg-primary/[0.18] transition-smooth border mix-border-primary/25">
                     <Icon name="DocumentArrowUpIcon" size={14} />
                     {uploadingResume ? 'Extracting...' : 'Upload Resume (.pdf/.docx/.txt)'}
                     <input
@@ -886,23 +881,23 @@ export default function DailySessionInteractive() {
                 )}
                 <textarea id="cv-text" rows={4} value={cvText} onChange={(e) => setCvText(e.target.value)}
                   placeholder="Paste your resume, project context, or upload a document using the button above..."
-                  className="w-full rounded-xl border border-border bg-input px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 placeholder:text-muted-foreground/50 resize-none transition-all" />
+                  className="todo-input px-4 py-3 text-sm resize-none" />
               </div>
 
               <div>
-                <label htmlFor="jd-text" className="flex items-center gap-3 text-sm font-medium text-foreground mb-2">
+                <label htmlFor="jd-text" className="flex items-center gap-3 text-sm font-semibold text-foreground mb-2">
                   Job Description
-                  <span className="text-xs text-muted-foreground font-normal">Optional — tailors focus</span>
+                  <span className="text-xs text-muted-foreground font-medium">Optional — tailors focus</span>
                 </label>
                 <textarea id="jd-text" rows={4} value={jdText} onChange={(e) => setJdText(e.target.value)}
                   placeholder="Paste target job description to customise question focus areas..."
-                  className="w-full rounded-xl border border-border bg-input px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 placeholder:text-muted-foreground/50 resize-none transition-all" />
+                  className="todo-input px-4 py-3 text-sm resize-none" />
               </div>
 
               <button type="submit" disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-primary-foreground font-semibold transition-smooth flex items-center justify-center gap-3 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:pointer-events-none focus-ring">
+                className="todo-btn todo-btn-primary w-full gap-3 px-4 py-3.5 text-sm disabled:pointer-events-none">
                 {loading ? (
-                  <span className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Icon name="PlayIcon" size={17} variant="solid" />
                 )}
@@ -913,7 +908,7 @@ export default function DailySessionInteractive() {
         </div>
 
         {loadError && (
-          <div role="alert" className="flex items-center gap-3 rounded-xl border border-error/30 bg-error/10 px-6 py-4 text-sm text-error">
+          <div role="alert" className="flex items-center gap-3 rounded-xl border mix-border-error/30 mix-bg-error/10 px-4 py-3 text-sm text-error">
             <Icon name="ExclamationTriangleIcon" size={18} variant="outline" className="flex-shrink-0" />
             <span>{loadError}</span>
           </div>
@@ -921,12 +916,12 @@ export default function DailySessionInteractive() {
 
         {/* ── Recent Sessions ── */}
         {recentSessions.length > 0 && (
-          <div className="bg-card rounded-2xl border border-border overflow-hidden">
-            <div className="p-[1.5rem] sm:p-[2rem]">
+          <div className="bg-card rounded-xl border border-border">
+            <div className="p-4 sm:p-[1.5rem]">
               <h3 className="font-heading text-base font-semibold text-foreground flex items-center gap-3 mb-[1rem]">
                 <Icon name="ClockIcon" size={18} variant="outline" className="text-primary flex-shrink-0" />
                 Recent Sessions
-                <span className="text-xs font-normal text-muted-foreground">last {recentSessions.length}</span>
+                <span className="text-xs font-medium text-muted-foreground">last {recentSessions.length}</span>
               </h3>
               <ul className="divide-y divide-border">
                 {recentSessions.map((r) => {
@@ -938,7 +933,7 @@ export default function DailySessionInteractive() {
                         href={recentHref(r)}
                         prefetch={false}
                         scroll={false}
-                        className="flex w-full items-center gap-[1rem] py-[0.75rem] text-left hover:bg-muted/40 rounded-lg px-[0.5rem] transition-smooth"
+                        className="todo-focus flex w-full items-center gap-[1rem] py-[0.75rem] text-left hover:mix-bg-foreground/[0.05] rounded-lg px-[0.5rem] transition-smooth"
                       >
                         <span className="min-w-[6.5rem] text-sm font-medium text-foreground">
                           {new Date(`${r.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -960,27 +955,27 @@ export default function DailySessionInteractive() {
         )}
 
         {/* ── Question Preview from DB ── */}
-        <div className="todo-lit lit-soft bg-card rounded-2xl border border-border overflow-hidden">
-          <div className="p-9">
+        <section aria-label="Questions from Database">
+          <div>
             {/* Header row */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
               <h3 className="font-heading text-base font-semibold text-foreground flex items-center gap-3">
                 <Icon name="CircleStackIcon" size={18} variant="outline" className="text-primary flex-shrink-0" />
                 Questions from Database
                 {dbQuestions.length > 0 && (
-                  <span className="text-xs font-normal text-muted-foreground">({dbQuestions.length} total)</span>
+                  <span className="text-xs font-medium text-muted-foreground">({dbQuestions.length} total)</span>
                 )}
               </h3>
               <div className="flex gap-3">
                 <button onClick={handleRegenerateFromDb}
                   disabled={isLoadingDbQuestions || dbQuestions.length === 0}
-                  className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none">
+                  className="todo-focus px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none">
                   <Icon name="ArrowPathIcon" size={14} variant="outline" />
                   Regenerate
                 </button>
                 <button onClick={handleExportCSV}
                   disabled={displayedDbQuestions.length === 0}
-                  className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:bg-secondary/90 transition-smooth flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none">
+                  className="todo-focus px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none">
                   <Icon name="ArrowDownTrayIcon" size={14} variant="outline" />
                   Export CSV
                 </button>
@@ -1009,13 +1004,13 @@ export default function DailySessionInteractive() {
             {/* Question cards */}
             {isLoadingDbQuestions ? (
               <div className="flex justify-center py-10">
-                <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
               </div>
             ) : displayedDbQuestions.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
                 <Icon name="InboxIcon" size={36} variant="outline" className="mx-auto mb-4 opacity-30" />
                 <p className="text-sm">No questions in the database yet.</p>
-                <p className="text-xs mt-2 opacity-60">Generate your first session above to populate the question bank.</p>
+                <p className="text-xs mt-2">Generate your first session above to populate the question bank.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1023,38 +1018,34 @@ export default function DailySessionInteractive() {
                   <div 
                     key={q.id}
                     onClick={() => router.push(`/question-review?id=${q.id}`)}
-                    className="todo-lit lit-soft bg-background border border-border rounded-xl p-5 flex flex-col gap-3 cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all group"
+                    className="todo-lit lit-soft bg-card border border-border rounded-xl p-4 flex flex-col gap-3 cursor-pointer transition-all group"
                     title="Click to open question review & AI breakdown"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 flex-wrap min-w-0">
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary shrink-0">
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full lab-tint lab-ink shrink-0">
                           {q.category}
                         </span>
                         <span className="text-xs text-muted-foreground truncate">{q.subType}</span>
                       </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-md border shrink-0 ${
-                        difficultyColor[q.difficulty] ?? 'bg-muted text-muted-foreground border-border'
-                      }`}>
-                        {q.difficulty}
-                      </span>
+                      <DifficultyTag difficulty={q.difficulty} className="shrink-0" />
                     </div>
-                    <p className="text-sm text-foreground leading-relaxed group-hover:text-primary transition-colors">
+                    <p className="text-sm text-foreground leading-relaxed group-hover:lab-ink transition-colors">
                       <span className="text-muted-foreground font-medium mr-2">Q{idx + 1}.</span>
                       {q.questionText}
                     </p>
-                    <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs text-muted-foreground mt-auto">
-                      <span className="group-hover:text-primary font-medium flex items-center gap-1">
+                    <div className="flex items-center justify-between pt-1 text-xs text-muted-foreground mt-auto">
+                      <span className="group-hover:lab-ink font-medium flex items-center gap-1">
                         Review Question & AI Feedback &rarr;
                       </span>
-                      <span className="text-[11px] opacity-75 font-mono">#{q.id}</span>
+                      <span className="text-xs font-mono">#{q.id}</span>
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-        </div>
+        </section>
       </div>
     );
   }
@@ -1062,21 +1053,21 @@ export default function DailySessionInteractive() {
   // Phase 2: Ready / Interstitial
   if (screen === 'ready') {
     return (
-      <div className="max-w-2xl mx-auto mt-[1rem] sm:mt-36 space-y-[1rem] animate-fade-in">
+      <div className="max-w-2xl mx-auto mt-[1rem] sm:mt-9 space-y-[1rem] animate-fade-in">
       <div>
         <BackButton href={setupUrl} label="Back" />
       </div>
       <CompanionStrip c={companion} />
-      <div className="todo-lit lit-soft bg-card rounded-lg p-[1.25rem] sm:p-36 border border-border text-center">
-        <Icon name="CheckBadgeIcon" size={64} className="text-success mx-auto mb-18" variant="outline" />
-        <h2 className="font-heading text-3xl font-semibold text-foreground mb-12">Session Ready!</h2>
-        <p className="text-muted-foreground mb-24 font-body">
+      <div className="todo-lit lit-soft bg-card rounded-lg p-[1.25rem] sm:p-9 border border-border text-center">
+        <Icon name="CheckBadgeIcon" size={64} className="text-success mx-auto mb-[1.125rem]" variant="outline" />
+        <h2 className="font-heading text-3xl font-semibold text-foreground mb-3">Session Ready!</h2>
+        <p className="text-muted-foreground mb-[1.5rem] font-body">
           Your custom interview questions have been generated and securely saved. This quiz mode will record your session duration and track your completion.
         </p>
-        <div className="flex flex-col-reverse items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:gap-12">
+        <div className="flex flex-col-reverse items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:gap-3">
           <button
             onClick={() => goBack(setupUrl)}
-            className="py-12 px-24 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth inline-flex items-center justify-center gap-12 focus-ring"
+            className="py-3 px-[1.5rem] rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth inline-flex items-center justify-center gap-3 focus-ring"
           >
             <Icon name="ArrowLeftIcon" size={18} variant="outline" />
             Back
@@ -1088,7 +1079,7 @@ export default function DailySessionInteractive() {
               setElapsedSeconds(0);
               update({ q: 1 }, 'push');
             }}
-            className="py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-lg font-medium transition-smooth inline-flex items-center justify-center gap-12 focus-ring shadow-glow"
+            className="py-3 px-[1.5rem] rounded-md bg-primary hover:opacity-90 text-primary-foreground text-lg font-medium transition-smooth inline-flex items-center justify-center gap-3 focus-ring shadow-glow"
           >
             <Icon name="PlayCircleIcon" size={24} variant="solid" />
             Start Practicing
@@ -1101,15 +1092,15 @@ export default function DailySessionInteractive() {
 
   // Phase 3: Active Session (Quiz Mode)
   return (
-    <div className="space-y-24 mt-24 animate-fade-in">
+    <div className="space-y-[1.5rem] mt-[1.5rem] animate-fade-in">
       <div>
         {/* quiz -> the setup; the all-questions overview -> the quiz, at the question it was opened from */}
         <BackButton href={viewAll ? quizUrl : setupUrl} label="Back" />
       </div>
       <CompanionStrip c={companion} />
-      <div className="h-[1rem] w-full overflow-hidden rounded-full bg-muted" aria-label="Session progress">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-muted" aria-label="Session progress">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-lime-400 transition-all duration-500"
+          className="h-full rounded-full bg-primary transition-all duration-500"
           style={{ width: `${Math.max(4, Math.min(100, (Object.keys(answers).length / Math.max(1, questions.length)) * 100))}%` }}
         />
       </div>
@@ -1120,43 +1111,43 @@ export default function DailySessionInteractive() {
         </div>
       )}
       {/* Session Controls Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-12 bg-muted/40 p-18 border border-border rounded-lg shadow-sm">
-        <div className="flex items-center gap-12">
-          <span className="px-12 py-6 rounded-md bg-primary/10 text-primary font-medium text-sm flex items-center gap-6">
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold tabular-nums lab-tint lab-ink">
             <Icon name="ClockIcon" size={16} />
             {formatTime(elapsedSeconds)}
           </span>
-          <span className="px-12 py-6 rounded-md bg-card border border-border text-foreground font-semibold text-sm">
+          <span className="text-sm font-semibold text-foreground">
             Session ID: {sessionCodeFor(sessionDate)}
           </span>
           <span className="text-sm text-muted-foreground">
             {Object.keys(answers).length} of 10 answered
           </span>
           {isOfflineSession && (
-            <span className="px-12 py-6 rounded-md bg-warning/10 text-warning border border-warning/20 font-medium text-xs flex items-center gap-6">
+            <span className="flex items-center gap-1.5 rounded-md border mix-border-warning/30 mix-bg-warning/10 px-3 py-1.5 text-xs font-medium text-warning">
               <Icon name="ExclamationTriangleIcon" size={14} variant="outline" />
               Offline — saved locally
             </span>
           )}
         </div>
-        <div className="flex gap-12">
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={() => (viewAll ? goBack(quizUrl) : update({ view: 'all' }, 'push'))}
-            className="px-12 py-6 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth flex items-center gap-6"
+            className="todo-btn todo-btn-secondary text-sm"
           >
             <Icon name={viewAll ? "BookOpenIcon" : "ListBulletIcon"} size={16} variant="outline" />
             {viewAll ? 'Back to Quiz' : 'View All Questions'}
           </button>
           <button
             onClick={handleExport}
-            className="px-12 py-6 rounded-md bg-secondary text-secondary-foreground text-sm font-medium hover:bg-secondary/90 transition-smooth flex items-center gap-6"
+            className="todo-btn todo-btn-secondary text-sm"
           >
             <Icon name="ArrowDownTrayIcon" size={16} variant="outline" />
             Export Markdown
           </button>
           <button
             onClick={handleClearSession}
-            className="px-12 py-6 rounded-md border border-error text-error text-sm font-medium hover:bg-error/10 transition-smooth"
+            className="todo-btn border border-error text-sm text-error hover:mix-bg-error/10"
           >
             Reset Session
           </button>
@@ -1165,23 +1156,21 @@ export default function DailySessionInteractive() {
 
       {viewAll ? (
         // Grid View of All Questions
-        <div className="space-y-18">
+        <div className="space-y-[1.125rem]">
           <h3 className="text-xl font-semibold text-foreground font-heading">All Questions Overview</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-18">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-[1.125rem]">
             {questions.map((q, idx) => (
-              <div key={q.id} className="todo-lit lit-soft bg-card border border-border rounded-lg p-18 flex flex-col justify-between">
+              <div key={q.id} className="todo-lit lit-soft bg-card border border-border rounded-lg p-[1.125rem] flex flex-col justify-between">
                 <div>
-                  <div className="flex justify-between items-center mb-12">
+                  <div className="flex justify-between items-center gap-3 mb-3">
                     <span className="text-xs font-caption text-muted-foreground">
                       Q{idx + 1} • {q.category} ({q.subType})
                     </span>
-                    <span className="text-xs font-semibold px-9 py-3 rounded-md bg-muted text-foreground">
-                      {q.difficulty}
-                    </span>
+                    <DifficultyTag difficulty={q.difficulty} className="shrink-0" />
                   </div>
                   <p 
                     onClick={() => router.push(`/question-review?id=${q.id || idx + 1}`)}
-                    className="text-sm font-medium text-foreground leading-relaxed mb-18 cursor-pointer hover:text-primary transition-colors"
+                    className="text-sm font-medium text-foreground leading-relaxed mb-[1.125rem] cursor-pointer hover:lab-ink transition-colors"
                     title="Click to open question review & AI breakdown"
                   >
                     {q.questionText}
@@ -1196,7 +1185,7 @@ export default function DailySessionInteractive() {
                       const text = e.target.value;
                       setAnswers((prev) => ({ ...prev, [q.questionText]: text }));
                     }}
-                    className="w-full rounded-md border border-border bg-input px-12 py-6 text-xs text-foreground focus-ring placeholder:text-muted-foreground mb-12"
+                    className="w-full rounded-md border border-border bg-input px-3 py-1.5 text-xs text-foreground focus-ring placeholder:text-muted-foreground mb-3"
                   />
                   <button
                     onClick={async () => {
@@ -1212,7 +1201,7 @@ export default function DailySessionInteractive() {
                       };
                       await persistAnswer(payload);
                     }}
-                    className="py-6 px-12 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/95 transition-smooth"
+                    className="todo-btn todo-btn-primary"
                   >
                     Save Answer
                   </button>
@@ -1239,10 +1228,10 @@ export default function DailySessionInteractive() {
                     aria-current={current}
                     className={`h-9 w-9 rounded-full text-xs font-extrabold transition ${
                       current
-                        ? 'scale-110 bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-md'
+                        ? 'scale-110 bg-primary text-primary-foreground shadow-md'
                         : done
                           ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                          : 'bg-muted text-muted-foreground hover:mix-bg-foreground/10 hover:text-foreground'
                     }`}
                   >
                     {done && !current ? '✓' : idx + 1}
@@ -1252,29 +1241,27 @@ export default function DailySessionInteractive() {
             </div>
 
             {/* Question hero */}
-            <div className="rounded-[1.75rem] bg-gradient-to-br from-violet-600 via-fuchsia-500 to-amber-400 p-[2px] shadow-lg">
-              <div className="rounded-[1.65rem] bg-card p-[1.5rem]">
-                <div className="mb-[0.75rem] flex flex-wrap items-center gap-2 text-xs font-extrabold">
-                  <span className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
-                    Question {currentIndex + 1} of {questions.length}
-                  </span>
-                  <span className="rounded-full bg-muted px-3 py-1 text-foreground">{activeQuestion?.subType}</span>
-                  <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">{activeQuestion?.difficulty}</span>
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/question-review?id=${activeQuestion?.id || currentIndex + 1}`)}
-                    className="ml-auto rounded-full border border-border px-3 py-1 text-muted-foreground hover:text-foreground"
-                  >
-                    Full review →
-                  </button>
-                </div>
-                <h3 className="font-heading text-xl font-bold leading-snug text-foreground">{activeQuestion?.questionText}</h3>
+            <div className="rounded-xl border border-border bg-card p-[1.5rem]">
+              <div className="mb-[0.75rem] flex flex-wrap items-center gap-2 text-xs font-extrabold">
+                <span className="rounded-full px-3 py-1 lab-tint lab-ink">
+                  Question {currentIndex + 1} of {questions.length}
+                </span>
+                <span className="rounded-full mix-bg-foreground/[0.06] px-3 py-1 text-foreground">{activeQuestion?.subType}</span>
+                {activeQuestion?.difficulty && <DifficultyTag difficulty={activeQuestion.difficulty} size="md" />}
+                <button
+                  type="button"
+                  onClick={() => router.push(`/question-review?id=${activeQuestion?.id || currentIndex + 1}`)}
+                  className="todo-focus ml-auto rounded-full border border-border px-3 py-1 text-muted-foreground hover:text-foreground"
+                >
+                  Full review →
+                </button>
               </div>
+              <h3 className="font-heading text-xl font-bold leading-snug text-foreground">{activeQuestion?.questionText}</h3>
             </div>
 
             {/* Answer + code space + AI coach */}
             {activeQuestion && (
-              <div className="space-y-[1rem] rounded-[1.75rem] border-2 border-border bg-card p-[1.25rem] shadow-[0_4px_0_0_rgba(124,58,237,0.12)] sm:p-[1.5rem]">
+              <div className="space-y-[1rem] rounded-xl border border-border bg-card p-[1.25rem] sm:p-[1.5rem]">
                 <AnswerWorkspace
                   question={{
                     questionText: activeQuestion.questionText,
@@ -1290,7 +1277,7 @@ export default function DailySessionInteractive() {
                 <div className="flex justify-end">
                   <button
                     onClick={handleSaveAnswer}
-                    className="flex items-center gap-2 rounded-2xl bg-emerald-500 px-[1.25rem] py-[0.65rem] text-sm font-extrabold text-white shadow-[0_4px_0_0_rgba(4,120,87,0.6)] transition active:translate-y-[2px] active:shadow-none"
+                    className="flex items-center gap-2 rounded-2xl bg-primary px-[1.25rem] py-[0.65rem] text-sm font-extrabold text-primary-foreground shadow-[0_4px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] transition active:translate-y-[2px] active:shadow-none"
                   >
                     <Icon name="CheckIcon" size={16} variant="outline" />
                     Save answer
@@ -1312,7 +1299,7 @@ export default function DailySessionInteractive() {
               <button
                 disabled={currentIndex === questions.length - 1}
                 onClick={() => update({ q: currentIndex + 2 }, 'replace')}
-                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-[1.1rem] py-[0.6rem] text-sm font-extrabold text-white shadow-[0_4px_0_0_rgba(91,33,182,0.5)] transition active:translate-y-[2px] active:shadow-none disabled:pointer-events-none disabled:opacity-30"
+                className="flex items-center gap-2 rounded-2xl bg-primary px-[1.1rem] py-[0.6rem] text-sm font-extrabold text-primary-foreground shadow-[0_4px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] transition active:translate-y-[2px] active:shadow-none disabled:pointer-events-none disabled:opacity-30"
               >
                 Next
                 <Icon name="ArrowRightIcon" size={16} variant="outline" />
@@ -1322,9 +1309,9 @@ export default function DailySessionInteractive() {
 
           {/* Hint / model answer panel */}
           <aside className="space-y-[1rem] self-start lg:sticky lg:top-[5rem]">
-            <div className="rounded-[1.75rem] border-2 border-amber-300 bg-amber-50 p-[1.25rem] dark:border-amber-500/40 dark:bg-amber-500/10">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-[1.25rem]" data-semantic="hint">
               <div className="mb-[0.5rem] flex items-center gap-2 text-sm font-extrabold text-amber-900 dark:text-amber-100">
-                <span aria-hidden>💡</span> Stuck? Ask for a hint
+                <Icon name="LightBulbIcon" size={18} variant="outline" className="flex-shrink-0" aria-hidden="true" /> Stuck? Ask for a hint
               </div>
               {!showHint ? (
                 <>

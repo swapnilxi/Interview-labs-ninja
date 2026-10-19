@@ -16,6 +16,7 @@ import {
   fieldClass,
   LabBadge,
   LoadingBlock,
+  quietButton,
 } from '@/modules/labs-project/ui';
 
 /**
@@ -95,11 +96,7 @@ export default function ProjectSections({ project }: { project: LabProject }) {
             ['CV Lab', '/cv-lab'],
             ['System Design', '/system-design-lab'],
           ].map(([label, href]) => (
-            <Link
-              key={href}
-              href={href}
-              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-            >
+            <Link key={href} href={href} className={quietButton}>
               {label}
             </Link>
           ))}
@@ -161,23 +158,23 @@ export default function ProjectSections({ project }: { project: LabProject }) {
           <p>Try a different search or choose “All labs”.</p>
         </EmptyState>
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
           {shown.map((s) => (
             <li key={s.id}>
               <Link
                 href={sectionHref(project.id, s.id)}
-                className="block rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="todo-focus block px-4 py-3 transition-colors hover:mix-bg-foreground/[0.05] focus-visible:ring-inset focus-visible:ring-offset-0"
               >
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                   <h3 className="min-w-0 break-words font-heading text-base font-semibold text-foreground">
                     {s.title}
                   </h3>
                   <LabBadge name={s.sourceLabName} />
-                  <span className="text-xs text-muted-foreground sm:ml-auto">
+                  <span className="text-xs font-medium text-muted-foreground sm:ml-auto">
                     Updated {formatServerDate(s.updatedAt)}
                   </span>
                 </div>
-                <p className="mt-2 line-clamp-2 break-words text-sm text-muted-foreground">
+                <p className="mt-2 line-clamp-2 break-words text-sm mix-text-foreground/[0.74]">
                   {s.excerpt}
                 </p>
               </Link>

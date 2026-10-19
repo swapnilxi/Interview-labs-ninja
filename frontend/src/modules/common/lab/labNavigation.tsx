@@ -107,7 +107,10 @@ export function jumpToAnchor(e: MouseEvent<HTMLAnchorElement>) {
 /**
  * The bar above a topic or subtopic screen: Back to the parent screen, then where you are. It stays at the
  * top of the content pane while scrolling from `md` up; on phones it scrolls with the page, so it never
- * stacks under (and hides) the sticky Topics / Copilot bar.
+ * stacks under (and hides) the sticky Topics / Copilot bar. The inner row has the content column's width and
+ * gutters (`max-w-card px-5 sm:px-8`, the container of the topic and subtopic screens), so the arrow lines up
+ * with the page below. Names wrap instead of being cut with an ellipsis; the bar is 52px high for a normal name
+ * and only grows when a name needs a second line.
  */
 export function LabBackBar({
   href,
@@ -119,21 +122,23 @@ export function LabBackBar({
   currentName: string;
 }) {
   return (
-    <div className="md:sticky md:top-0 z-20 flex items-center gap-2 px-4 py-2.5 border-b border-border mix-bg-background/95 backdrop-blur-sm">
-      <BackButton
-        href={href}
-        label={`Back to ${parentName}`}
-        className="min-w-0 shrink [&>span]:truncate"
-      />
-      {/* "where you are" is shown from sm up; on phones the sticky Topics bar above and the heading below already say it */}
-      <Icon
-        name="ChevronRightIcon"
-        size={10}
-        className="hidden sm:block flex-shrink-0 text-muted-foreground"
-      />
-      <span className="hidden sm:block min-w-0 shrink-[4] text-xs font-medium text-foreground truncate">
-        {currentName}
-      </span>
+    <div className="z-20 border-b border-border mix-bg-background/95 backdrop-blur-sm md:sticky md:top-0">
+      <div className="mx-auto flex w-full max-w-card items-center gap-2 px-5 py-2.5 sm:px-8">
+        <BackButton
+          href={href}
+          label={`Back to ${parentName}`}
+          className="min-w-0 shrink [&>span]:break-words [&>span]:leading-snug [&>svg]:flex-shrink-0"
+        />
+        {/* "where you are" is shown from sm up; on phones the sticky Topics bar above and the heading below already say it */}
+        <Icon
+          name="ChevronRightIcon"
+          size={10}
+          className="hidden flex-shrink-0 text-muted-foreground sm:block"
+        />
+        <span className="hidden min-w-0 shrink-[4] break-words text-xs font-medium leading-snug text-foreground sm:block">
+          {currentName}
+        </span>
+      </div>
     </div>
   );
 }
@@ -146,7 +151,8 @@ export function LabScreenLoading() {
       role="status"
       aria-label="Loading"
     >
-      <div className="h-[40px] w-[40px] animate-spin rounded-full border-4 border-border border-t-primary" />
+      {/* A calm ring: the track is the hairline, the arc is the Settings accent. Reduced motion slows it down instead of stopping it, because it is the only sign that something is loading. */}
+      <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-border border-t-primary motion-reduce:[animation-duration:2.4s]" />
     </div>
   );
 }

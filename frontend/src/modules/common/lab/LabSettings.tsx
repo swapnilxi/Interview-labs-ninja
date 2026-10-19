@@ -36,11 +36,8 @@ export function settingsSections(
 
 const LIMITS = { prompt: 4000, addon: 2000, context: 2000 };
 
-const fieldClass =
-  'w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-[13px] leading-relaxed text-foreground ' +
-  'placeholder:mix-text-muted-foreground/60 focus:outline-none focus:border-primary disabled:opacity-60';
-const smallButton =
-  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const fieldClass = 'todo-input resize-y px-3 py-2 text-[13px] leading-relaxed disabled:opacity-60';
+const smallButton = 'todo-btn';
 
 function Field({
   id,
@@ -67,7 +64,7 @@ function Field({
         {action}
       </div>
       {children}
-      <p className="mt-1 text-[11px] mix-text-muted-foreground/80">{help}</p>
+      <p className="mt-1 text-xs font-medium text-muted-foreground">{help}</p>
     </div>
   );
 }
@@ -125,7 +122,7 @@ function SectionEditor({
 
   return (
     <div className="px-4 pb-4 pt-1 space-y-3">
-      {row.note && <p className="text-[12px] text-muted-foreground">{row.note}</p>}
+      {row.note && <p className="text-xs font-medium text-muted-foreground">{row.note}</p>}
 
       {!isLabWide && (
         <Field
@@ -137,7 +134,7 @@ function SectionEditor({
               <button
                 type="button"
                 onClick={() => setPrompt(row.defaultGuidance)}
-                className="text-[11px] font-semibold text-primary hover:underline"
+                className="todo-focus rounded-md text-xs font-semibold lab-ink hover:underline"
               >
                 Restore default prompt
               </button>
@@ -194,7 +191,7 @@ function SectionEditor({
         />
       </Field>
 
-      <details className="rounded-lg border border-border mix-bg-muted/30">
+      <details className="rounded-lg mix-bg-foreground/[0.04]">
         <summary className="cursor-pointer select-none px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
           What the AI receives
         </summary>
@@ -207,7 +204,7 @@ function SectionEditor({
           ) : (
             <>
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                   Instructions
                 </p>
                 <pre className="whitespace-pre-wrap font-body leading-relaxed">
@@ -216,7 +213,7 @@ function SectionEditor({
               </div>
               {preview.standingContext && (
                 <div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                     Context about you
                   </p>
                   <pre className="whitespace-pre-wrap font-body leading-relaxed">
@@ -239,7 +236,8 @@ function SectionEditor({
         {justSaved && (
           <span
             role="status"
-            className="mr-auto text-[12px] font-medium text-emerald-600 dark:text-emerald-400"
+            data-semantic="done"
+            className="mr-auto text-xs font-semibold text-success"
           >
             Saved
           </span>
@@ -254,7 +252,7 @@ function SectionEditor({
               setContext('');
               persist({ prompt: '', addon: '', context: '' });
             }}
-            className={`${smallButton} border border-border text-foreground hover:bg-muted`}
+            className={`${smallButton} todo-btn-secondary`}
           >
             Reset to defaults
           </button>
@@ -263,7 +261,7 @@ function SectionEditor({
           type="button"
           disabled={busy || !dirty}
           onClick={() => persist(draft)}
-          className={`${smallButton} border mix-border-primary/25 mix-bg-primary/10 text-primary hover:mix-bg-primary/20`}
+          className={`${smallButton} todo-btn-primary`}
         >
           {busy ? 'Saving…' : 'Save'}
         </button>
@@ -321,7 +319,7 @@ export function LabSettingsButton({
         title="Lab settings"
         aria-label="Lab settings"
         aria-haspopup="dialog"
-        className="relative flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+        className="todo-focus relative flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:mix-bg-foreground/[0.06] transition-all"
       >
         <Icon name="Cog6ToothIcon" size={14} />
         {settings.hasAny && (
@@ -334,14 +332,14 @@ export function LabSettingsButton({
         onClose={() => setOpen(false)}
         labelledBy={titleId}
         closeOnBackdrop={false}
-        className="w-full max-w-[780px] max-h-[90vh] flex flex-col rounded-2xl bg-card border border-border shadow-2xl overflow-hidden"
+        className="lab-page w-full max-w-[780px] max-h-[90vh] flex flex-col rounded-xl bg-card border border-border shadow-lg overflow-hidden"
       >
-        <div className="flex items-start gap-3 px-5 py-4 border-b border-border flex-shrink-0">
+        <div className="flex items-start gap-3 px-5 py-4 border-b flex-shrink-0">
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-base font-bold text-foreground">
+            <h2 id={titleId} className="text-base font-semibold text-foreground">
               Lab settings · {labName}
             </h2>
-            <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
+            <p className="mt-1 text-xs font-medium text-muted-foreground leading-relaxed">
               Shape how each section is written: edit its prompt, add to it, or tell the AI about
               yourself. A section you customise is written by the AI when you press Generate (this
               needs an AI key in Config); sections you leave alone keep their built-in text. Changes
@@ -353,7 +351,7 @@ export function LabSettingsButton({
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close lab settings"
-            className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="todo-focus flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:mix-bg-foreground/[0.06] transition-colors"
           >
             <Icon name="XMarkIcon" size={16} />
           </button>
@@ -367,16 +365,12 @@ export function LabSettingsButton({
               ? !!(settings.labWide.addon || settings.labWide.context)
               : settings.isCustomised(row.id);
             return (
-              <section
-                key={row.id}
-                aria-label={row.label}
-                className="border-b border-border last:border-b-0"
-              >
+              <section key={row.id} aria-label={row.label} className="border-b last:border-b-0">
                 <button
                   type="button"
                   onClick={() => setOpenId(expanded ? '' : row.id)}
                   aria-expanded={expanded}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors"
+                  className="todo-focus w-full flex items-center gap-3 px-4 py-3 text-left hover:mix-bg-foreground/[0.05] focus-visible:ring-inset focus-visible:ring-offset-0 transition-colors"
                 >
                   <Icon
                     name={expanded ? 'ChevronDownIcon' : 'ChevronRightIcon'}
@@ -384,17 +378,17 @@ export function LabSettingsButton({
                     className="text-muted-foreground flex-shrink-0"
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-semibold text-foreground truncate">
+                    <span className="block break-words text-[13px] font-semibold leading-snug text-foreground">
                       {row.label}
                     </span>
                     {row.subtitle && (
-                      <span className="block text-[11px] text-muted-foreground truncate">
+                      <span className="block break-words text-xs font-medium leading-snug text-muted-foreground">
                         {row.subtitle}
                       </span>
                     )}
                   </span>
                   {custom && (
-                    <span className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30">
+                    <span className="flex-shrink-0 text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md lab-tint lab-ink">
                       {wide ? 'Active' : 'Custom'}
                     </span>
                   )}
@@ -406,7 +400,7 @@ export function LabSettingsButton({
         </div>
 
         {settings.hasAny && (
-          <div className="flex flex-wrap items-center justify-end gap-3 px-5 py-3 border-t border-border flex-shrink-0">
+          <div className="flex flex-wrap items-center justify-end gap-3 px-5 py-3 border-t flex-shrink-0">
             {resetError && (
               <p role="alert" className="mr-auto text-[12px] text-error">
                 {resetError}
@@ -421,7 +415,7 @@ export function LabSettingsButton({
                   type="button"
                   disabled={resetting}
                   onClick={resetAll}
-                  className={`${smallButton} border border-error text-error hover:mix-bg-error/10`}
+                  className={`${smallButton} border border-error text-error hover:mix-bg-error/[0.06]`}
                 >
                   {resetting ? 'Resetting…' : 'Yes, reset all'}
                 </button>
@@ -429,7 +423,7 @@ export function LabSettingsButton({
                   type="button"
                   disabled={resetting}
                   onClick={() => setConfirmReset(false)}
-                  className={`${smallButton} border border-border text-foreground hover:bg-muted`}
+                  className={`${smallButton} todo-btn-secondary`}
                 >
                   Cancel
                 </button>
@@ -438,7 +432,7 @@ export function LabSettingsButton({
               <button
                 type="button"
                 onClick={() => setConfirmReset(true)}
-                className={`${smallButton} border border-border text-foreground hover:bg-muted`}
+                className={`${smallButton} todo-btn-secondary`}
               >
                 Reset all settings
               </button>

@@ -229,7 +229,7 @@ const writeRun = (run: StoredRun | null) => {
   }
 };
 
-const CARD = 'rounded-3xl border-2 border-border bg-card shadow-[0_4px_0_0_rgba(124,58,237,0.12)]';
+const CARD = 'rounded-xl border border-border bg-card';
 
 export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
@@ -605,7 +605,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
           <BackButton href={PRACTICE_URL} label="Back" preferHistory />
         </div>
         <div className={`${CARD} overflow-hidden text-center`}>
-          <div className="bg-gradient-to-b from-amber-200 via-orange-100 to-transparent px-4 pb-2 pt-6 dark:from-amber-500/25 dark:via-orange-500/10">
+          <div className="bg-gradient-to-b from-amber-200 via-orange-100 to-transparent px-4 pb-2 pt-[1.5rem] dark:from-amber-500/25 dark:via-orange-500/10">
             {settings.mascotOn && <div className="flex justify-center"><Mascot mood="cheer" size={120} speaking={speaking} /></div>}
             <h2 className="mt-2 font-heading text-2xl font-extrabold text-foreground">Lesson complete! 🎉</h2>
             <p className="mx-auto mt-1 max-w-sm text-sm font-semibold text-muted-foreground">{msg}</p>
@@ -614,7 +614,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
             {[
               { k: 'XP earned', v: `+${sessionXp}`, c: 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300', e: '⭐' },
               { k: 'Accuracy', v: `${accuracy}%`, c: 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300', e: '🎯' },
-              { k: 'Time', v: fmt(elapsedSeconds), c: 'border-sky-300 bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300', e: '⏱️' },
+              { k: 'Time', v: fmt(elapsedSeconds), c: 'border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-500/40 dark:bg-slate-500/10 dark:text-slate-300', e: '⏱️' },
             ].map((s) => (
               <div key={s.k} className={`rounded-2xl border-2 px-2 py-3 ${s.c}`}>
                 <div className="text-[11px] font-extrabold uppercase tracking-wide">{s.e} {s.k}</div>
@@ -626,8 +626,8 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
             🔥 {finishInfo?.streak ?? stats.streak}-day streak{finishInfo?.grew ? ' (extended today!)' : ''}
           </div>
           {settings.spiritual && (
-            <div className="mx-4 mb-4 rounded-2xl border-2 border-violet-200 bg-violet-50 p-4 text-left dark:border-violet-500/30 dark:bg-violet-500/10">
-              <div className="text-xs font-extrabold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+            <div className="mx-4 mb-4 rounded-2xl border-2 mix-border-primary/30 lab-tint p-4 text-left">
+              <div className="text-xs font-extrabold uppercase tracking-wide lab-ink">
                 {lakshmi.emoji} Closing blessing
               </div>
               <p className="mt-1 text-sm font-bold text-foreground">{lakshmi.mantra}</p>
@@ -637,7 +637,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
           )}
         </div>
         <div className="flex flex-col gap-2">
-          <button type="button" onClick={() => startPractice('replace')} className="rounded-2xl bg-violet-600 py-4 text-base font-extrabold uppercase tracking-wide text-white shadow-[0_5px_0_0_#5b21b6] active:translate-y-[2px] active:shadow-[0_3px_0_0_#5b21b6]">
+          <button type="button" onClick={() => startPractice('replace')} className="rounded-2xl bg-primary py-4 text-base font-extrabold uppercase tracking-wide text-primary-foreground shadow-[0_5px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] active:translate-y-[2px] active:shadow-[0_3px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)]">
             Practice again
           </button>
           <button type="button" onClick={exitPractice} className="rounded-2xl border-2 border-border py-3.5 text-sm font-extrabold uppercase tracking-wide text-muted-foreground">
@@ -676,7 +676,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
         <div className="flex items-center gap-3">
           <button type="button" onClick={exitPractice} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center rounded-2xl border-2 border-border bg-card text-lg font-bold text-muted-foreground" aria-label="Exit practice">✕</button>
           <div className="h-4 flex-1 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-lime-400 transition-all duration-500" style={{ width: `${Math.max(pct, 4)}%` }} />
+            <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${Math.max(pct, 4)}%` }} />
           </div>
           <span className="rounded-2xl bg-amber-100 px-3 py-2 text-sm font-extrabold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">⭐ {sessionXp}</span>
           {SoundButton}
@@ -690,7 +690,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
 
         <div className={`${CARD} space-y-4 p-5`}>
           <div className="flex flex-wrap items-center gap-2 text-xs font-extrabold">
-            <span className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">{q.subType}</span>
+            <span className="rounded-full px-3 py-1 lab-tint lab-ink">{q.subType}</span>
             <span className={`rounded-full px-3 py-1 ${diffColor}`}>{q.difficulty}</span>
           </div>
           <h3 className="font-heading text-lg font-extrabold leading-snug text-foreground sm:text-xl">{q.questionText}</h3>
@@ -705,7 +705,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
                     role="tab"
                     aria-selected={answerMode === m}
                     onClick={() => setAnswerMode(m)}
-                    className={`rounded-xl py-2 transition ${answerMode === m ? 'bg-card text-violet-700 shadow-sm dark:text-violet-300' : 'text-muted-foreground'}`}
+                    className={`rounded-xl py-2 transition ${answerMode === m ? 'bg-card lab-ink shadow-sm' : 'text-muted-foreground'}`}
                   >
                     {label}
                   </button>
@@ -732,7 +732,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
                 <button type="button" onClick={() => setShowHint((h) => !h)} className="rounded-full border-2 border-amber-300 bg-amber-50 px-4 py-2 text-xs font-extrabold text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
                   💡 {showHint ? 'Hide hint' : 'Hint'}
                 </button>
-                <button type="button" onClick={() => say(line('stuck'), 'comfort')} className="rounded-full border-2 border-sky-300 bg-sky-50 px-4 py-2 text-xs font-extrabold text-sky-800 dark:bg-sky-500/10 dark:text-sky-200">
+                <button type="button" onClick={() => say(line('stuck'), 'comfort')} className="rounded-full border-2 mix-border-primary/40 lab-tint px-4 py-2 text-xs font-extrabold lab-ink">
                   😵 I&apos;m stuck
                 </button>
               </div>
@@ -745,14 +745,14 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
           )}
 
           {phase !== 'question' && (
-            <div className="space-y-2 rounded-2xl border-2 border-violet-200 bg-violet-50 p-4 text-sm dark:border-violet-500/30 dark:bg-violet-500/10">
-              <div className="font-extrabold text-violet-800 dark:text-violet-200">🎓 What a strong answer covers</div>
+            <div className="space-y-2 rounded-2xl border-2 mix-border-primary/30 lab-tint p-4 text-sm">
+              <div className="font-extrabold lab-ink">🎓 What a strong answer covers</div>
               <ul className="list-disc space-y-1 pl-5 text-foreground">
                 <li>State the problem, constraints and assumptions up front.</li>
                 <li>Walk through the logic, data flow or derivation step by step.</li>
                 <li>Name the trade-offs, failure points and optimisations.</li>
               </ul>
-              {notes[q.id] && <p className="border-t border-violet-200 pt-2 text-xs text-muted-foreground dark:border-violet-500/30"><b>Your draft:</b> {notes[q.id]}</p>}
+              {notes[q.id] && <p className="border-t mix-border-primary/30 pt-2 text-xs text-muted-foreground"><b>Your draft:</b> {notes[q.id]}</p>}
             </div>
           )}
         </div>
@@ -807,8 +807,8 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
       <CompanionBubble text={msg || hello} mood={msgMood} speaking={speaking} size={84} onSpeak={() => say(msg || hello, msgMood)} />
 
       {settings.spiritual && (
-        <div className="rounded-2xl border-2 border-violet-200 bg-gradient-to-br from-violet-50 to-amber-50 p-4 dark:border-violet-500/30 dark:from-violet-500/10 dark:to-amber-500/5">
-          <div className="text-xs font-extrabold uppercase tracking-wide text-violet-700 dark:text-violet-300">🪔 Today&apos;s thought</div>
+        <div className="rounded-2xl border-2 mix-border-primary/30 lab-tint p-4">
+          <div className="text-xs font-extrabold uppercase tracking-wide lab-ink">🪔 Today&apos;s thought</div>
           <p className="mt-1 text-sm font-semibold italic text-foreground">{shloka.sanskrit}</p>
           <p className="mt-1 text-xs text-muted-foreground">{shloka.meaning} <span className="font-semibold">({shloka.source})</span></p>
           <p className="mt-2 text-[11px] text-muted-foreground">Before you start: <span className="italic">{SARASWATI_VANDANA}</span></p>
@@ -841,7 +841,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
         <h3 className="text-sm font-extrabold text-foreground">How are you feeling today?</h3>
         <div className="grid grid-cols-4 gap-2">
           {MOODS.map((m) => (
-            <button key={m.id} type="button" onClick={() => pickMood(m.id)} className={`rounded-2xl border-2 py-3 text-center text-[11px] font-extrabold transition ${mood === m.id ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-500/20 dark:text-violet-100' : 'border-border text-muted-foreground'}`}>
+            <button key={m.id} type="button" onClick={() => pickMood(m.id)} className={`rounded-2xl border-2 py-3 text-center text-[11px] font-extrabold transition ${mood === m.id ? 'border-primary lab-tint lab-ink' : 'border-border text-muted-foreground'}`}>
               <div className="text-2xl">{m.emoji}</div>
               {m.label}
             </button>
@@ -853,7 +853,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
         <h3 className="text-sm font-extrabold text-foreground">How do you want to answer?</h3>
         <div className="grid grid-cols-2 gap-2">
           {([['write', '✍️', 'Write it out', 'Type your answer, then get AI feedback'], ['chat', '💬', 'AI Learn Chat', 'Learn it in depth with an AI tutor, step by step']] as const).map(([m, emoji, title, sub]) => (
-            <button key={m} type="button" onClick={() => setAnswerMode(m)} className={`rounded-2xl border-2 px-3 py-3 text-left transition ${answerMode === m ? 'border-violet-500 bg-violet-50 dark:bg-violet-500/20' : 'border-border'}`}>
+            <button key={m} type="button" onClick={() => setAnswerMode(m)} className={`rounded-2xl border-2 px-3 py-3 text-left transition ${answerMode === m ? 'border-primary lab-tint' : 'border-border'}`}>
               <div className="text-xl">{emoji}</div>
               <div className="text-sm font-extrabold text-foreground">{title}</div>
               <div className="text-[11px] leading-snug text-muted-foreground">{sub}</div>
@@ -868,7 +868,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
           {CATEGORY_CHIPS.map((c) => {
             const active = selectedCategory === c.value;
             return (
-              <button key={c.value} type="button" onClick={() => setSelectedCategory(c.value)} className={`flex items-center gap-2 rounded-2xl border-2 px-3 py-3 text-left text-sm font-extrabold transition ${active ? 'border-transparent bg-gradient-to-br text-white shadow-md ' + c.color : 'border-border bg-card text-foreground'}`}>
+              <button key={c.value} type="button" onClick={() => setSelectedCategory(c.value)} data-accent-exempt={active ? '' : undefined} className={`flex items-center gap-2 rounded-2xl border-2 px-3 py-3 text-left text-sm font-extrabold transition ${active ? 'border-transparent bg-gradient-to-br text-white shadow-md ' + c.color : 'border-border bg-card text-foreground'}`}>
                 <span className="text-xl">{c.emoji}</span>
                 {c.label}
               </button>
@@ -882,7 +882,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
           <h3 className="mb-2 text-sm font-extrabold text-foreground">Difficulty</h3>
           <div className="grid grid-cols-4 gap-2">
             {DIFFICULTY_OPTIONS.map((d) => (
-              <button key={d.value} type="button" onClick={() => setSelectedDifficulty(d.value)} className={`rounded-2xl border-2 py-2.5 text-center text-xs font-extrabold transition ${selectedDifficulty === d.value ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-500/20 dark:text-violet-100' : 'border-border text-muted-foreground'}`}>
+              <button key={d.value} type="button" onClick={() => setSelectedDifficulty(d.value)} className={`rounded-2xl border-2 py-2.5 text-center text-xs font-extrabold transition ${selectedDifficulty === d.value ? 'border-primary lab-tint lab-ink' : 'border-border text-muted-foreground'}`}>
                 <div className="text-lg">{d.emoji}</div>
                 {d.label}
               </button>
@@ -893,7 +893,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
           <h3 className="mb-2 text-sm font-extrabold text-foreground">How many questions?</h3>
           <div className="grid grid-cols-4 gap-2">
             {QUESTION_COUNT_OPTIONS.map((n) => (
-              <button key={n} type="button" onClick={() => setQuestionCount(n)} className={`rounded-2xl border-2 py-2.5 text-sm font-extrabold transition ${questionCount === n ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-500/20 dark:text-violet-100' : 'border-border text-muted-foreground'}`}>
+              <button key={n} type="button" onClick={() => setQuestionCount(n)} className={`rounded-2xl border-2 py-2.5 text-sm font-extrabold transition ${questionCount === n ? 'border-primary lab-tint lab-ink' : 'border-border text-muted-foreground'}`}>
                 {n}
               </button>
             ))}

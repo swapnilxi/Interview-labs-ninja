@@ -154,7 +154,7 @@ export default function SectionDetail({
   const back = projectHref(project.id, 'sections');
 
   return (
-    <div>
+    <div className="max-w-[880px]">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <BackButton href={back} label={project.name} />
       </div>
@@ -164,7 +164,7 @@ export default function SectionDetail({
       ) : !section ? (
         <LoadingBlock label="Loading section…" />
       ) : (
-        <article className="rounded-xl border border-border bg-card">
+        <article className="rounded-lg border border-border bg-card">
           <header className="border-b border-border p-4 sm:p-5">
             {editing ? (
               <div>
@@ -189,7 +189,7 @@ export default function SectionDetail({
                 {section.title}
               </h2>
             )}
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-medium text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 Generated in <LabBadge name={section.sourceLabName} />
               </span>
@@ -239,9 +239,9 @@ export default function SectionDetail({
                     Content (Markdown)
                   </label>
                   <div
-                    role="tablist"
+                    role="group"
                     aria-label="Editor view"
-                    className="inline-flex rounded-lg border border-border p-0.5 text-xs"
+                    className="todo-segmented todo-segmented-accent"
                   >
                     {[
                       ['Write', false],
@@ -250,14 +250,9 @@ export default function SectionDetail({
                       <button
                         key={String(label)}
                         type="button"
-                        role="tab"
-                        aria-selected={preview === value}
+                        aria-pressed={preview === value}
                         onClick={() => setPreview(value as boolean)}
-                        className={`rounded-md px-2.5 py-1 font-medium ${
-                          preview === value
-                            ? 'bg-primary text-primary-foreground'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
+                        className="todo-segment"
                       >
                         {label as string}
                       </button>
@@ -265,7 +260,7 @@ export default function SectionDetail({
                   </div>
                 </div>
                 {preview ? (
-                  <div className="min-h-[16rem] rounded-lg border border-border p-3">
+                  <div className="min-h-[16rem] rounded-md border border-border p-3">
                     <Markdown content={content} />
                   </div>
                 ) : (
@@ -293,7 +288,7 @@ export default function SectionDetail({
                 )}
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {dirty && (
-                    <span className="mr-auto text-xs font-medium text-amber-600 dark:text-amber-400">
+                    <span className="mr-auto text-xs font-medium text-warning">
                       Unsaved changes
                     </span>
                   )}

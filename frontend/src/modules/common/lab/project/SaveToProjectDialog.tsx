@@ -101,8 +101,7 @@ export default function SaveToProjectDialog({
     }
   };
 
-  const field =
-    'w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  const field = 'todo-input px-3 py-2 text-sm';
 
   return (
     <Modal
@@ -111,7 +110,7 @@ export default function SaveToProjectDialog({
       labelledBy={headingId}
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
-      className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl"
+      className="lab-page w-full max-w-md rounded-xl border border-border bg-card shadow-lg"
     >
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
@@ -122,7 +121,7 @@ export default function SaveToProjectDialog({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="todo-focus rounded-lg p-1.5 text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground"
           >
             <Icon name="XMarkIcon" size={16} />
           </button>
@@ -130,7 +129,10 @@ export default function SaveToProjectDialog({
 
         {done ? (
           <div className="mt-4 space-y-4" role="status">
-            <div className="flex items-start gap-3 rounded-xl border mix-border-success/30 mix-bg-success/10 p-3">
+            <div
+              data-semantic="done"
+              className="flex items-start gap-3 rounded-lg mix-bg-success/10 p-3"
+            >
               <Icon
                 name="CheckCircleIcon"
                 variant="solid"
@@ -147,13 +149,13 @@ export default function SaveToProjectDialog({
                 type="button"
                 onClick={onClose}
                 data-autofocus
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="todo-btn todo-btn-ghost px-4 py-2 text-sm"
               >
                 Done
               </button>
               <Link
                 href={sectionHref(done.project.id, done.section.id)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                className="todo-btn todo-btn-primary px-4 py-2 text-sm"
               >
                 Open section
                 <Icon name="ArrowRightIcon" size={14} />
@@ -191,14 +193,14 @@ export default function SaveToProjectDialog({
                 Destination project
               </label>
               {loaded && projects.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed p-3 text-sm font-medium text-muted-foreground">
                   <p>
                     You don&apos;t have a project yet. Create one first, then save this response to
                     it.
                   </p>
                   <Link
                     href="/labs-project?new=1"
-                    className="mt-2 inline-flex items-center gap-1.5 font-semibold text-primary hover:underline"
+                    className="todo-focus mt-2 inline-flex items-center gap-1.5 rounded-md font-semibold lab-ink hover:underline"
                   >
                     <Icon name="FolderPlusIcon" size={14} />
                     Create a project
@@ -221,7 +223,7 @@ export default function SaveToProjectDialog({
                 </select>
               )}
               {loadError && (
-                <p className="mt-1 text-xs text-error" role="alert">
+                <p className="mt-1 text-xs font-medium text-error" role="alert">
                   {loadError}{' '}
                   <button
                     type="button"
@@ -233,27 +235,37 @@ export default function SaveToProjectDialog({
                 </p>
               )}
               {!selected && projects.length > 0 && !destination && (
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs font-medium text-muted-foreground">
                   No project is selected in this lab, so pick where this should go.
                 </p>
               )}
             </div>
 
             {writtenForOther && (
-              <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                This response was written for a different project than “{destination?.name}”. Check
-                that it fits before you keep it there.
+              <p
+                data-semantic="hint"
+                className="flex items-start gap-2 rounded-lg mix-bg-warning/10 px-3 py-2 text-xs font-medium text-foreground"
+              >
+                <Icon
+                  name="ExclamationTriangleIcon"
+                  size={14}
+                  className="mt-px flex-shrink-0 text-warning"
+                />
+                <span>
+                  This response was written for a different project than “{destination?.name}”.
+                  Check that it fits before you keep it there.
+                </span>
               </p>
             )}
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Saved as a copy ({source.content.length.toLocaleString()} characters, formatting
               kept). Regenerating this lab page later won&apos;t change it, and you can edit or
               delete it in Labs Project.
             </p>
 
             {error && (
-              <p className="text-sm text-error" role="alert">
+              <p className="text-sm font-medium text-error" role="alert">
                 {error}
               </p>
             )}
@@ -263,14 +275,14 @@ export default function SaveToProjectDialog({
                 type="button"
                 onClick={onClose}
                 disabled={busy}
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                className="todo-btn todo-btn-ghost px-4 py-2 text-sm"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={!canSave}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="todo-btn todo-btn-primary gap-2 px-4 py-2 text-sm"
               >
                 {busy && (
                   <span className="h-3.5 w-3.5 flex-shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent" />

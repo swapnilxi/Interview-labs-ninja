@@ -8,8 +8,8 @@ import remarkGfm from 'remark-gfm';
  * Full markdown renderer for AI-generated lab content (headings, **bold**, `code`, fenced code, lists,
  * tables, blockquotes, links). Raw HTML in the source is NOT rendered — react-markdown escapes it.
  *
- * Styling uses theme tokens via the `mix-*` utilities (a plain `bg-primary/60` compiles to nothing here)
- * and explicit-pixel-safe spacing (no `px-6`/`py-12`: those keys are redefined in px in this app).
+ * Styling uses theme tokens via the `mix-*` utilities (a plain opacity modifier on a theme colour compiles to
+ * nothing here) and rem-safe spacing (the 6/12/18/24... keys are redefined in px in this app: see CLAUDE.md).
  */
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
@@ -25,20 +25,15 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
     }
   };
   return (
-    <div className="my-3 rounded-xl overflow-hidden border border-border shadow-sm">
+    <div className="my-3 rounded-xl overflow-hidden border border-border">
       <div className="flex items-center justify-between px-4 py-2 mix-bg-muted/80 border-b border-border">
         <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-400/60" />
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400/60" />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/60" />
-          </div>
-          <span className="text-xs text-muted-foreground ml-1">{lang || 'text'}</span>
+          <span className="text-xs font-medium text-muted-foreground">{lang || 'text'}</span>
         </div>
         <button
           type="button"
           onClick={copy}
-          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          className="todo-focus rounded-md px-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           {copied ? 'Copied' : 'Copy'}
         </button>
@@ -81,7 +76,7 @@ const components: Components = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-primary underline underline-offset-2 hover:opacity-80"
+      className="lab-ink underline underline-offset-2 hover:opacity-80"
     >
       {children}
     </a>
@@ -90,7 +85,7 @@ const components: Components = {
     <ul className="list-disc pl-5 space-y-1.5 marker:text-primary">{children}</ul>
   ),
   ol: ({ children }) => (
-    <ol className="list-decimal pl-5 space-y-1.5 marker:text-primary marker:font-bold">
+    <ol className="list-decimal pl-5 space-y-1.5 marker:text-primary marker:font-semibold">
       {children}
     </ol>
   ),
@@ -131,7 +126,9 @@ const components: Components = {
 
 function MdHeading({ size, children }: { size: string; children?: React.ReactNode }) {
   return (
-    <h4 className={`font-semibold text-foreground mt-5 mb-2 flex items-center gap-2 ${size}`}>
+    <h4
+      className={`md-heading font-semibold text-foreground mt-5 mb-2 flex items-center gap-2 ${size}`}
+    >
       <span className="w-1 h-4 rounded-full mix-bg-primary/60 flex-shrink-0" />
       <span>{children}</span>
     </h4>

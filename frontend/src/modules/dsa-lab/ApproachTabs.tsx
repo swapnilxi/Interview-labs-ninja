@@ -1,11 +1,10 @@
 'use client';
 
 import { useId, useMemo, useState } from 'react';
+import Icon from '@/components/ui/AppIcon';
 import Markdown from '@/modules/common/lab/Markdown';
 import { parseApproachTabs } from './parseApproaches';
-
-const optimalPill =
-  'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
+import { Tag } from './ui';
 
 /**
  * The Approaches section as horizontal tabs, one per approach plus a Summary, in the order a learner
@@ -74,18 +73,19 @@ export default function ApproachTabs({ content }: { content: string }) {
               aria-controls={panelId(n)}
               tabIndex={active ? 0 : -1}
               onClick={() => go(n)}
-              className={`flex-shrink-0 flex flex-col items-start gap-0.5 rounded-xl border px-3.5 py-2 text-left transition-colors ${
+              className={`todo-focus flex-shrink-0 flex flex-col items-start gap-0.5 rounded-lg border px-3.5 py-2 text-left transition-colors ${
                 active
-                  ? 'border-primary text-primary mix-bg-primary/10'
-                  : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+                  ? 'border-primary mix-bg-primary/10 lab-ink'
+                  : 'border-border mix-text-foreground/[0.78] hover:text-foreground hover:mix-bg-foreground/[0.05]'
               }`}
             >
-              <span className="flex items-center gap-2 text-[12px] font-bold leading-tight whitespace-nowrap">
+              <span className="flex items-center gap-2 text-xs font-semibold leading-tight whitespace-nowrap">
                 {t.label}
-                {t.optimal && <span className={optimalPill}>Optimal</span>}
+                {/* The lab's accent, not emerald: emerald is the colour of Easy. */}
+                {t.optimal && <Tag tone="accent">Optimal</Tag>}
               </span>
               {t.name && (
-                <span className="text-[11px] font-medium leading-tight max-w-[22ch] truncate">
+                <span className="text-xs font-medium leading-tight max-w-[22ch] break-words">
                   {t.name}
                 </span>
               )}
@@ -110,9 +110,10 @@ export default function ApproachTabs({ content }: { content: string }) {
             <button
               type="button"
               onClick={() => go(index - 1)}
-              className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+              className="todo-focus inline-flex items-center gap-1.5 rounded text-xs font-semibold mix-text-foreground/[0.78] hover:text-foreground transition-colors"
             >
-              ← {prev.label}
+              <Icon name="ArrowLeftIcon" size={14} />
+              {prev.label}
             </button>
           ) : (
             <span />
@@ -121,9 +122,10 @@ export default function ApproachTabs({ content }: { content: string }) {
             <button
               type="button"
               onClick={() => go(index + 1)}
-              className="text-xs font-semibold text-primary hover:underline"
+              className="todo-focus inline-flex items-center gap-1.5 rounded text-xs font-semibold lab-ink hover:underline"
             >
-              {next.kind === 'summary' ? 'Summary →' : `Next: ${next.label} →`}
+              {next.kind === 'summary' ? 'Summary' : `Next: ${next.label}`}
+              <Icon name="ArrowRightIcon" size={14} />
             </button>
           )}
         </div>

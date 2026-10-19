@@ -22,6 +22,7 @@ export default function Mascot({ mood = 'happy', speaking = false, size = 96, cl
       style={{ width: size, height: size }}
       role="img"
       aria-label="Deepu the owl companion"
+      data-accent-exempt=""
     >
       <style>{`
         .deepu svg{overflow:visible}

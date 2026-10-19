@@ -13,6 +13,7 @@ import {
 import {
   LABS_CONFIG,
   getSectionDefsForLab,
+  labTileStyle,
   type SectionDef,
 } from './labSectionDefaults';
 import SectionPromptModal from './SectionPromptModal';
@@ -146,19 +147,20 @@ export default function LabSettingsManager({
   const customizedCount = Object.keys(settings).filter((k) => k !== LAB_WIDE_SECTION).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-[1.5rem]">
       {/* ── Toast Notification ── */}
       {toast && (
         <div
-          className={`p-3.5 rounded-lg border flex items-center gap-2.5 text-xs font-medium animate-fade-in shadow-md ${
-            toast.type === 'success'
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-              : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          data-semantic={toast.type === 'success' ? 'done' : undefined}
+          className={`p-3.5 rounded-lg flex items-center gap-2.5 text-xs font-medium text-foreground animate-fade-in ${
+            toast.type === 'success' ? 'mix-bg-success/10' : 'mix-bg-error/10'
           }`}
         >
           <Icon
             name={toast.type === 'success' ? 'CheckCircleIcon' : 'ExclamationCircleIcon'}
             size={16}
+            className={toast.type === 'success' ? 'text-success' : 'text-error'}
           />
           <span>{toast.message}</span>
         </div>
@@ -175,36 +177,32 @@ export default function LabSettingsManager({
                 key={labKey}
                 type="button"
                 onClick={() => setSelectedLab(labKey)}
-                className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${
+                aria-pressed={isSelected}
+                className={`todo-focus p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${
                   isSelected
-                    ? `${meta.bg} ${meta.border} border-2 shadow-sm ring-1 ring-primary/20`
-                    : 'bg-card border-border hover:bg-muted/40'
+                    ? 'lab-tint mix-border-primary/50 ring-1 mix-ring-primary/25'
+                    : 'bg-card border-border hover:mix-bg-foreground/[0.04]'
                 }`}
               >
                 <div className="flex items-center gap-3 mb-2">
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${meta.bg} ${meta.border} border`}
-                  >
-                    <Icon name={meta.icon as any} size={18} className={meta.color} />
+                  <div className="lab-tile h-8 w-8" style={labTileStyle(labKey)}>
+                    <Icon name={meta.icon as any} size={18} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground leading-tight">
+                    <h3 className="text-sm font-semibold text-foreground leading-snug">
                       {meta.shortName}
                     </h3>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
                       {labKey.toUpperCase()}
                     </span>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
                   {meta.description}
                 </p>
                 {isSelected && (
                   <div className="absolute top-3 right-3">
-                    <span className="flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                    </span>
+                    <span className="block h-2 w-2 rounded-full bg-primary" />
                   </div>
                 )}
               </button>
@@ -214,30 +212,30 @@ export default function LabSettingsManager({
       )}
 
       {/* ── Lab Overview & Global Addons ── */}
-      <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border">
+      <div className="bg-card border rounded-xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b">
           <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${labMeta.bg}`}>
-              <Icon name={labMeta.icon as any} size={18} className={labMeta.color} />
+            <div className="lab-tile h-8 w-8" style={labTileStyle(selectedLab)}>
+              <Icon name={labMeta.icon as any} size={18} />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-foreground">
                 {labMeta.name} — Global Configuration
               </h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 Instructions and learner context set here automatically apply to every section of {labMeta.shortName}.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground font-medium">
+            <span className="text-xs px-2.5 py-1 rounded-full mix-bg-foreground/[0.06] text-muted-foreground font-medium">
               {customizedCount} / {sectionDefs.length} sections customized
             </span>
             {customizedCount > 0 && (
               <button
                 type="button"
                 onClick={handleResetEntireLab}
-                className="text-xs px-2.5 py-1 rounded-lg border border-border text-muted-foreground hover:text-rose-400 hover:border-rose-500/30 transition-colors flex items-center gap-1"
+                className="todo-btn todo-btn-secondary hover:text-error"
                 title="Reset all sections to defaults"
               >
                 <Icon name="ArrowPathIcon" size={12} />
@@ -250,10 +248,10 @@ export default function LabSettingsManager({
         {/* Global Prompt Add-on */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-foreground/90">
+            <label className="block text-xs font-semibold text-foreground">
               Lab-Wide Prompt Add-on
             </label>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Always appended to the AI instructions for all sections in this lab:
             </p>
             <textarea
@@ -262,15 +260,15 @@ export default function LabSettingsManager({
               maxLength={2000}
               onChange={(e) => setLabWideAddon(e.target.value)}
               placeholder="e.g. Always write solutions in clean C++20 with complexity analysis, or focus on Staff-level distributed systems questions."
-              className="w-full resize-y rounded-lg border border-border bg-surface px-3 py-2 text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
+              className="todo-input resize-y px-3 py-2 text-[13px] leading-relaxed"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-foreground/90">
+            <label className="block text-xs font-semibold text-foreground">
               Standing Learner Context
             </label>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Your background, target companies, or areas of focus:
             </p>
             <textarea
@@ -279,7 +277,7 @@ export default function LabSettingsManager({
               maxLength={2000}
               onChange={(e) => setLabWideContext(e.target.value)}
               placeholder="e.g. 7 years experience in backend engineering, preparing for Google/Meta L5 interviews, strong in systems but rusty on dynamic programming."
-              className="w-full resize-y rounded-lg border border-border bg-surface px-3 py-2 text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
+              className="todo-input resize-y px-3 py-2 text-[13px] leading-relaxed"
             />
           </div>
         </div>
@@ -298,10 +296,10 @@ export default function LabSettingsManager({
                   if (labWideAddon.includes(item.text)) return;
                   setLabWideAddon((p) => (p ? `${p.trim()}\n${item.text}` : item.text));
                 }}
-                className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                className={`todo-focus text-xs px-2 py-1 rounded-md border transition-colors ${
                   labWideAddon.includes(item.text)
-                    ? 'bg-primary/10 border-primary/30 text-primary font-medium'
-                    : 'bg-muted/40 border-border text-foreground/70 hover:bg-muted'
+                    ? 'lab-tint mix-border-primary/30 lab-ink font-semibold'
+                    : 'mix-bg-foreground/[0.04] border-border text-foreground font-medium hover:mix-bg-foreground/[0.08]'
                 }`}
               >
                 + {item.label}
@@ -315,11 +313,11 @@ export default function LabSettingsManager({
             type="button"
             onClick={handleSaveLabWide}
             disabled={savingLabWide}
-            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+            className="todo-btn todo-btn-primary"
           >
             {savingLabWide ? (
               <>
-                <span className="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 Saving…
               </>
             ) : (
@@ -339,7 +337,7 @@ export default function LabSettingsManager({
             <h3 className="text-sm font-semibold text-foreground">
               {labMeta.shortName} Sections ({sectionDefs.length})
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Click any section to inspect, edit its prompt instructions, add prompt add-ons, or test live output.
             </p>
           </div>
@@ -354,7 +352,7 @@ export default function LabSettingsManager({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter sections..."
-              className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-card text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary"
+              className="todo-input pl-9 pr-3 py-1.5 text-xs"
             />
           </div>
         </div>
@@ -372,10 +370,10 @@ export default function LabSettingsManager({
               <div
                 key={sec.id}
                 onClick={() => setSelectedSectionForModal(sec)}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer group hover:border-primary/50 hover:shadow-sm ${
+                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer group hover:mix-border-primary/40 ${
                   isCustomized
-                    ? 'bg-amber-500/5 border-amber-500/30'
-                    : 'bg-card border-border hover:bg-muted/30'
+                    ? 'mix-bg-primary/[0.06] mix-border-primary/30'
+                    : 'bg-card border-border hover:mix-bg-foreground/[0.04]'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -383,28 +381,29 @@ export default function LabSettingsManager({
                     <div
                       className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                         isCustomized
-                          ? 'bg-amber-500/15 text-amber-500'
-                          : 'bg-muted text-muted-foreground'
+                          ? 'lab-tint text-primary'
+                          : 'mix-bg-foreground/[0.06] text-muted-foreground'
                       }`}
                     >
                       <Icon name={sec.icon as any} size={15} />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="text-xs font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                        <h4 className="break-words text-[13px] font-semibold leading-snug text-foreground group-hover:lab-ink transition-colors">
                           {sec.label}
                         </h4>
                         {isCustomized ? (
-                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
-                            Customized ✨
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-full lab-tint lab-ink">
+                            <Icon name="SparklesIcon" size={11} />
+                            Customized
                           </span>
                         ) : (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground/60">
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-full mix-bg-foreground/[0.06] text-muted-foreground">
                             Default
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+                      <p className="mt-0.5 break-words text-xs font-medium leading-snug text-muted-foreground">
                         {sec.subtitle || sec.id}
                       </p>
                     </div>
@@ -416,33 +415,34 @@ export default function LabSettingsManager({
                       e.stopPropagation();
                       setSelectedSectionForModal(sec);
                     }}
-                    className="p-1 rounded-md text-muted-foreground group-hover:text-primary hover:bg-muted transition-colors shrink-0"
+                    className="todo-focus p-1 rounded-md text-muted-foreground group-hover:text-primary hover:mix-bg-foreground/[0.06] transition-colors shrink-0"
                     title="Edit prompt and addons"
+                    aria-label={`Edit prompt and add-ons for ${sec.label}`}
                   >
                     <Icon name="PencilSquareIcon" size={15} />
                   </button>
                 </div>
 
                 {/* Badges preview */}
-                <div className="mt-2.5 pt-2 border-t border-border/50 flex flex-wrap items-center justify-between text-[10px] text-muted-foreground">
-                  <div className="flex items-center gap-2">
+                <div className="mt-2.5 pt-2 border-t flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     {hasCustomPrompt && (
-                      <span className="text-primary font-medium flex items-center gap-1">
-                        <Icon name="DocumentTextIcon" size={11} /> Custom Prompt
+                      <span className="lab-ink font-semibold flex items-center gap-1">
+                        <Icon name="DocumentTextIcon" size={12} /> Custom Prompt
                       </span>
                     )}
                     {hasAddon && (
-                      <span className="text-emerald-400 font-medium flex items-center gap-1">
-                        <Icon name="SparklesIcon" size={11} /> Add-on Active
+                      <span className="lab-ink font-semibold flex items-center gap-1">
+                        <Icon name="SparklesIcon" size={12} /> Add-on Active
                       </span>
                     )}
                     {hasContext && (
-                      <span className="text-violet-400 font-medium flex items-center gap-1">
-                        <Icon name="UserIcon" size={11} /> Standing Context
+                      <span className="lab-ink font-semibold flex items-center gap-1">
+                        <Icon name="UserIcon" size={12} /> Standing Context
                       </span>
                     )}
                     {!isCustomized && (
-                      <span className="text-muted-foreground/60">Using standard template instructions</span>
+                      <span className="font-medium text-muted-foreground">Using standard template instructions</span>
                     )}
                   </div>
                   {isCustomized && (
@@ -452,7 +452,7 @@ export default function LabSettingsManager({
                         e.stopPropagation();
                         handleResetSection(sec.id);
                       }}
-                      className="text-[10px] text-muted-foreground hover:text-rose-400 transition-colors"
+                      className="todo-focus rounded-md px-1 text-xs font-medium text-muted-foreground hover:text-error transition-colors"
                     >
                       Reset
                     </button>

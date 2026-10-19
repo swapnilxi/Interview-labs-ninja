@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocationSearch } from '@/lib/navigation/useLocationSearch';
 import Icon from '@/components/ui/AppIcon';
+import ThemeToggleIcon from '@/modules/common/ThemeToggleIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   SidebarMode,
@@ -53,7 +54,8 @@ const AI_TODO_LINKS: SidebarLink[] = [
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  theme: 'light' | 'dark';
+  /** null until the header has read the stored theme (first render): the toggle then draws both icons and CSS picks one. */
+  theme: 'light' | 'dark' | null;
   onToggleTheme: () => void;
   mode?: SidebarMode;
   onModeChange?: (mode: SidebarMode) => void;
@@ -290,10 +292,10 @@ export default function Sidebar({
       {mode === 'icon-only' && (
         <aside
           aria-label="Icon Sidebar"
-          className="fixed top-0 left-0 bottom-0 z-[110] w-[60px] border-r border-border bg-card/95 backdrop-blur-md hidden md:flex flex-col justify-between items-center shadow-sm transition-transform duration-200"
+          className="fixed top-0 left-0 bottom-0 z-[110] w-[60px] border-r border-border backdrop-blur-md hidden md:flex flex-col justify-between items-center shadow-sm transition-transform duration-200"
         >
           {/* Top header: 60px height to perfectly match app-header height end-to-end */}
-          <div className="flex items-center justify-center w-full h-[60px] border-b border-border/60 flex-shrink-0">
+          <div className="flex items-center justify-center w-full h-[60px] border-b border-border flex-shrink-0">
             <button
               type="button"
               onClick={onOpenDrawer ?? onClose}
@@ -318,7 +320,7 @@ export default function Sidebar({
               {...tip('SwipeLearn · Feed')}
             >
               <Icon name="Square3Stack3DIcon" size={19} variant="outline" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
             </Link>
 
             {/* Swipe PDF Reader */}
@@ -335,7 +337,7 @@ export default function Sidebar({
             {/* Labs Popover Group */}
             {renderRailGroup('labs', '/cv-lab', 'RectangleGroupIcon', 'Specialized Labs', LAB_LINKS, isLabRoute, (path) => pathname === path)}
 
-            <div className="w-6 h-[1px] bg-border my-1" />
+            <div className="w-[1.5rem] h-[1px] bg-border my-1" />
 
             {/* Personalised To-do Popover Group */}
             {renderRailGroup('todo', '/ai-todo', 'ClipboardDocumentCheckIcon', 'Personalised To-Do', AI_TODO_LINKS, isAiTodoRoute, isAiTodoTabActive)}
@@ -377,7 +379,7 @@ export default function Sidebar({
           </nav>
 
           {/* Bottom actions */}
-          <div className="flex flex-col items-center gap-1 w-full py-1.5 border-t border-border/60 flex-shrink-0">
+          <div className="flex flex-col items-center gap-1 w-full py-1.5 border-t border-border flex-shrink-0">
             {/* Settings */}
             <Link
               href="/config"
@@ -396,7 +398,7 @@ export default function Sidebar({
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             
               {...tip(theme === 'dark' ? 'Light Theme' : 'Dark Theme')}>
-              <Icon name={theme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} variant="outline" />
+              <ThemeToggleIcon theme={theme} size={18} variant="outline" />
             </button>
 
             {/* Auth */}
@@ -554,10 +556,10 @@ export default function Sidebar({
                       <span>{link.label}</span>
                     </span>
                     {(link.label === 'swapnilxi space' || link.label === 'MySpace') && (
-                      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                      <span className={`text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
                         link.label === 'swapnilxi space'
                           ? 'bg-amber-500/20 text-amber-500'
-                          : 'bg-primary/15 text-primary'
+                          : 'mix-bg-primary/15 lab-ink'
                       }`}>
                         {link.label === 'swapnilxi space' ? 'VIP' : 'Private'}
                       </span>
@@ -571,7 +573,7 @@ export default function Sidebar({
               <Icon name="Square3Stack3DIcon" size={18} variant="outline" />
               <div className="flex items-center justify-between flex-1">
                 <span>SwipeLearn</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                <span className="text-[11px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full mix-bg-primary/15 lab-ink">
                   Feed
                 </span>
               </div>
@@ -581,7 +583,7 @@ export default function Sidebar({
               <Icon name="DocumentTextIcon" size={18} variant="outline" />
               <div className="flex items-center justify-between flex-1">
                 <span>Swipe PDF Reader</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <span className="text-[11px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                   New
                 </span>
               </div>
@@ -752,7 +754,7 @@ export default function Sidebar({
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
           >
-            <Icon name={theme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} variant="outline" />
+            <ThemeToggleIcon theme={theme} size={18} variant="outline" />
           </button>
           <button
             type="button"

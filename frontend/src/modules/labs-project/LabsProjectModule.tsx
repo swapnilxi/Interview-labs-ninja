@@ -76,8 +76,8 @@ export default function LabsProjectModule() {
   } else {
     body = (
       <>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <p className="max-w-2xl text-sm text-muted-foreground">
+        <div className="mb-[1.5rem] flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-2xl text-sm mix-text-foreground/[0.74]">
             Projects give the labs something real to work on. Pick one in a lab and its answers are
             written for it; save the ones you want to keep and they become knowledge the next lab
             can build on.
@@ -109,7 +109,8 @@ export default function LabsProjectModule() {
           update({ new: null, project: created.id, tab: created.context ? 'sections' : 'context' });
         }}
       />
-      <ConfirmHost />
+      {/* the question dialog is portalled to <body>, outside the page frame: give it the same hairline and weight */}
+      <ConfirmHost panelClassName="lab-page" />
     </>
   );
 }

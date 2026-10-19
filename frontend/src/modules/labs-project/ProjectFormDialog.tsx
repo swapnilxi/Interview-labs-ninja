@@ -62,7 +62,7 @@ export default function ProjectFormDialog({
       labelledBy={headingId}
       closeOnBackdrop={false}
       closeOnEscape={!busy}
-      className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl"
+      className="lab-page w-full max-w-lg rounded-xl border border-border bg-card shadow-lg"
     >
       <form
         className="p-5"
@@ -76,7 +76,7 @@ export default function ProjectFormDialog({
             <h2 id={headingId} className="font-heading text-base font-semibold text-foreground">
               New project
             </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
+            <p className="mt-0.5 text-sm mix-text-foreground/[0.74]">
               Every lab can generate for it, using what you write here.
             </p>
           </div>
@@ -85,7 +85,7 @@ export default function ProjectFormDialog({
             onClick={onClose}
             disabled={busy}
             aria-label="Close"
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="todo-focus rounded-md p-1.5 text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground"
           >
             <Icon name="XMarkIcon" size={16} />
           </button>
@@ -152,7 +152,7 @@ export default function ProjectFormDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+            className="todo-focus rounded-md px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground disabled:opacity-50"
           >
             Cancel
           </button>

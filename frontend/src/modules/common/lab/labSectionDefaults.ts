@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { LabName } from '@/lib/services/labSectionsService';
 
 export interface SectionDef {
@@ -15,9 +16,11 @@ export interface LabMeta {
   shortName: string;
   icon: string;
   description: string;
-  color: string;
-  bg: string;
-  border: string;
+  /**
+   * The lab's identity colour, as a CSS value for `--lab-identity` (read by `.lab-tile`): DSA is the Settings accent,
+   * CV and System Design keep their own hue. Never use it for a button, row, link or progress bar.
+   */
+  identity: string;
   defaultPromptAddons: { label: string; text: string }[];
   sampleTopic: { name: string; brief: string; subtopic?: string };
 }
@@ -121,9 +124,7 @@ export const LABS_CONFIG: Record<LabName, LabMeta> = {
     shortName: 'DSA Lab',
     icon: 'CpuChipIcon',
     description: 'LeetCode patterns, optimal algorithms, time/space complexity, and coding interview walkthroughs.',
-    color: 'text-indigo-400',
-    bg: 'bg-indigo-500/10',
-    border: 'border-indigo-500/20',
+    identity: 'var(--color-primary)',
     sampleTopic: { name: 'Two Pointer Technique', brief: 'Shrink or expand opposite ends of a sorted array to find target sum in O(n) time.', subtopic: 'Container With Most Water' },
     defaultPromptAddons: [
       { label: '🐍 Idiomatic Python 3', text: 'Write all code solutions in modern, highly-readable Python 3 with type hints and concise docstrings.' },
@@ -141,9 +142,7 @@ export const LABS_CONFIG: Record<LabName, LabMeta> = {
     shortName: 'System Design',
     icon: 'ServerStackIcon',
     description: 'High-level architecture, back-of-envelope calculations, distributed systems, and FAANG design rounds.',
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/20',
+    identity: 'var(--lab-system)',
     sampleTopic: { name: 'Distributed Rate Limiter', brief: 'Protect services from abuse across a global cluster of API gateways.', subtopic: 'Token Bucket with Redis Cluster' },
     defaultPromptAddons: [
       { label: '📊 Detailed Capacity Math', text: 'Show explicit back-of-envelope math for QPS (reads/writes), 5-year storage retention, ingress/egress bandwidth, and RAM.' },
@@ -161,9 +160,7 @@ export const LABS_CONFIG: Record<LabName, LabMeta> = {
     shortName: 'Computer Vision',
     icon: 'EyeIcon',
     description: 'Image processing, mathematical filters, OpenCV operations, PyTorch neural vision, and SOTA models.',
-    color: 'text-sky-400',
-    bg: 'bg-sky-500/10',
-    border: 'border-sky-500/20',
+    identity: 'var(--lab-cv)',
     sampleTopic: { name: 'Canny Edge Detection', brief: 'Multi-stage edge detector using Gaussian smoothing, Sobel gradients, non-max suppression, and hysteresis.', subtopic: 'Non-Maximum Suppression' },
     defaultPromptAddons: [
       { label: '👁️ OpenCV Python Idioms', text: 'Provide ready-to-run OpenCV (cv2) code with proper color conversions (BGR vs RGB) and NumPy array indexing.' },
@@ -182,4 +179,13 @@ export function getSectionDefsForLab(lab: LabName): readonly SectionDef[] {
     case 'cv': return CV_SECTION_DEFS;
     case 'system_design': return SYSTEM_DESIGN_SECTION_DEFS;
   }
+}
+
+/**
+ * Inline style for a `.lab-tile` that stands for a lab (`<span className="lab-tile h-8 w-8" style={labTileStyle(lab)}>`).
+ * Without a lab the tile is the Settings accent. The value is always set, so a tile rendered inside the CV or System Design
+ * shell does not inherit that lab's hue by accident.
+ */
+export function labTileStyle(lab?: LabName): CSSProperties {
+  return { '--lab-identity': lab ? LABS_CONFIG[lab].identity : 'var(--color-primary)' } as CSSProperties;
 }

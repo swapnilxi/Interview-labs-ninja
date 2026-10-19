@@ -44,7 +44,7 @@ function ScoreRing({ value, level }: { value: number; level: Evaluation['level']
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-black leading-none text-foreground">{value}</span>
+        <span className="text-xl font-extrabold leading-none text-foreground">{value}</span>
         <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">/ 100</span>
       </div>
     </div>
@@ -117,7 +117,7 @@ export default function AnswerCoach({ input, onUseExpanded }: Props) {
     <div className="space-y-4">
       <div className="flex items-end gap-3">
         <Mascot mood={mood} speaking={!!busy} size={64} className="flex-shrink-0" />
-        <div className="relative flex-1 rounded-2xl rounded-bl-md border-2 border-violet-200 bg-white px-4 py-3 text-sm font-semibold leading-snug text-violet-950 shadow-sm dark:border-violet-500/40 dark:bg-violet-950/60 dark:text-violet-50">
+        <div className="relative flex-1 rounded-2xl rounded-bl-md border-2 mix-border-primary/30 bg-card px-4 py-3 text-sm font-semibold leading-snug text-foreground">
           {bubble}
         </div>
       </div>
@@ -127,7 +127,7 @@ export default function AnswerCoach({ input, onUseExpanded }: Props) {
           type="button"
           onClick={() => run('eval')}
           disabled={!!busy || !hasContent}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_0_rgba(91,33,182,0.5)] transition active:translate-y-[2px] active:shadow-none disabled:opacity-50"
+          className="flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-extrabold text-primary-foreground shadow-[0_4px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] transition active:translate-y-[2px] active:shadow-none disabled:opacity-50"
         >
           {busy === 'eval' ? <Spinner /> : <span aria-hidden>🎯</span>}
           Evaluate with AI
@@ -136,7 +136,7 @@ export default function AnswerCoach({ input, onUseExpanded }: Props) {
           type="button"
           onClick={() => run('expand')}
           disabled={!!busy}
-          className="flex items-center justify-center gap-2 rounded-2xl border-2 border-violet-300 bg-violet-50 px-4 py-3 text-sm font-extrabold text-violet-800 transition hover:bg-violet-100 disabled:opacity-50 dark:border-violet-500/40 dark:bg-violet-500/10 dark:text-violet-200"
+          className="flex items-center justify-center gap-2 rounded-2xl border-2 mix-border-primary/40 lab-tint px-4 py-3 text-sm font-extrabold lab-ink transition hover:mix-bg-primary/[0.18] disabled:opacity-50"
         >
           {busy === 'expand' ? <Spinner dark /> : <span aria-hidden>🪄</span>}
           Expand answer with AI
@@ -149,12 +149,12 @@ export default function AnswerCoach({ input, onUseExpanded }: Props) {
 
       {ex && (
         <div className="space-y-3 animate-fade-in">
-          <Section title="Expanded answer" tone="border-violet-300 bg-violet-50/40 dark:border-violet-500/40 dark:bg-violet-500/10">
+          <Section title="Expanded answer" tone="mix-border-primary/30 lab-tint">
             {ex.summary && <p className="mb-2 text-xs font-semibold italic text-muted-foreground">{ex.summary}</p>}
             <RichText text={ex.expanded_answer} />
             <div className="mt-3 flex flex-wrap gap-2">
               {onUseExpanded && (
-                <button type="button" onClick={() => onUseExpanded(ex.expanded_answer)} className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-extrabold text-white">
+                <button type="button" onClick={() => onUseExpanded(ex.expanded_answer)} className="rounded-full bg-primary px-3 py-1.5 text-xs font-extrabold text-primary-foreground">
                   Use as my answer
                 </button>
               )}
@@ -207,7 +207,7 @@ export function EvaluationView({ ev, onUseExpanded }: { ev: Evaluation; onUseExp
             <div className="flex w-full items-center gap-4 rounded-[1.4rem] bg-card p-4">
               <ScoreRing value={ev.overall} level={ev.level} />
               <div>
-                <div className="text-lg font-black text-foreground">{ev.level}</div>
+                <div className="text-lg font-extrabold text-foreground">{ev.level}</div>
                 <p className="text-xs text-muted-foreground">Weighted across the rubric below. Be honest with yourself: each point is tied to what you wrote.</p>
               </div>
             </div>
@@ -225,7 +225,7 @@ export function EvaluationView({ ev, onUseExpanded }: { ev: Evaluation; onUseExp
                     <div className={`h-full rounded-full ${barColor(c.score)} transition-all duration-700`} style={{ width: `${(c.score / 5) * 100}%` }} />
                   </div>
                   {c.comment && <p className="mt-1 text-xs text-muted-foreground">{c.comment}</p>}
-                  {c.improve && c.score < 5 && <p className="mt-0.5 text-xs font-semibold text-violet-700 dark:text-violet-300">↗ {c.improve}</p>}
+                  {c.improve && c.score < 5 && <p className="mt-0.5 text-xs font-semibold lab-ink">↗ {c.improve}</p>}
                 </div>
               ))}
             </div>
@@ -256,7 +256,7 @@ export function EvaluationView({ ev, onUseExpanded }: { ev: Evaluation; onUseExp
             </Section>
           )}
           {ev.improvements.length > 0 && (
-            <Section title="How to improve (highest impact first)" tone="border-violet-300 bg-violet-50/60 dark:border-violet-500/40 dark:bg-violet-500/10">
+            <Section title="How to improve (highest impact first)" tone="mix-border-primary/30 lab-tint">
               <ol className="list-decimal space-y-1 pl-5 text-sm leading-relaxed text-foreground">
                 {ev.improvements.map((t, i) => (
                   <li key={i}>{t}</li>
@@ -268,7 +268,7 @@ export function EvaluationView({ ev, onUseExpanded }: { ev: Evaluation; onUseExp
             <Section title="A stronger version of your answer">
               <RichText text={ev.better_answer} />
               {onUseExpanded && (
-                <button type="button" onClick={() => onUseExpanded(ev.better_answer)} className="mt-3 rounded-full border-2 border-violet-300 px-3 py-1.5 text-xs font-extrabold text-violet-800 dark:text-violet-200">
+                <button type="button" onClick={() => onUseExpanded(ev.better_answer)} className="mt-3 rounded-full border-2 mix-border-primary/40 px-3 py-1.5 text-xs font-extrabold lab-ink">
                   Use as my answer
                 </button>
               )}
@@ -285,5 +285,5 @@ export function EvaluationView({ ev, onUseExpanded }: { ev: Evaluation; onUseExp
 }
 
 function Spinner({ dark }: { dark?: boolean }) {
-  return <span className={`h-4 w-4 animate-spin rounded-full border-2 ${dark ? 'border-violet-300 border-t-violet-700' : 'border-white/40 border-t-white'}`} />;
+  return <span className={`h-4 w-4 animate-spin rounded-full border-2 ${dark ? 'border-border border-t-primary' : 'border-current border-t-transparent'}`} />;
 }

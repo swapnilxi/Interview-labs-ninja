@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Sidebar from '@/modules/common/Sidebar';
+import ThemeToggleIcon from '@/modules/common/ThemeToggleIcon';
 import NotificationBell from '@/components/ui/NotificationCenter';
 import { OPEN_NAV_EVENT } from '@/components/ui/MobileTabBar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -143,7 +144,7 @@ function SystemStatus() {
   );
 
   return (
-    <div className="flex flex-col gap-0.5 px-2 py-1 rounded-md bg-muted/50 border border-border mr-3">
+    <div className="flex flex-col gap-0.5 px-2 py-1 rounded-md border border-border mr-3">
       <StatusRow label="API" status={apiStatus} />
       <StatusRow label="FE-API" status={feApiStatus} />
       <StatusRow label="DB" status={dbStatus} />
@@ -223,10 +224,10 @@ export default function Header() {
     }
   };
 
-  // Derive resolved theme: if state not yet hydrated, read from DOM
-  const resolvedTheme: 'light' | 'dark' = theme ?? (
-    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-  );
+  // `theme` stays null until the effect above has read the stored theme, so the first client render matches the server
+  // (which cannot know it): reading the DOM here instead made the toggle's label and icon differ from the server HTML
+  // on a dark first paint (a hydration warning). <ThemeToggleIcon> bridges that gap without showing the wrong icon.
+  const resolvedTheme: 'light' | 'dark' = theme ?? 'light';
 
   const isActivePath = (path: string) => {
     if (path === '/swipe-learn') {
@@ -259,7 +260,7 @@ export default function Header() {
   return (
     <>
       <header className={`app-header transition-[left] duration-200 ${sidebarMode === 'icon-only' ? 'md:left-[60px]' : 'left-0'}`}>
-        <nav className="h-[60px] px-3 sm:px-6 xl:px-8 flex items-center justify-between gap-2 sm:gap-4">
+        <nav className="h-[60px] px-3 sm:px-[1.5rem] xl:px-8 flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -349,7 +350,7 @@ export default function Header() {
               aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
               title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
             >
-              <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
+              <ThemeToggleIcon theme={theme} size={18} />
             </button>
             <AuthStatus />
           </div>
@@ -361,7 +362,7 @@ export default function Header() {
               className="theme-toggle"
               aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
             >
-              <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
+              <ThemeToggleIcon theme={theme} size={18} />
             </button>
             <AuthStatus />
           </div>
@@ -371,7 +372,7 @@ export default function Header() {
       <Sidebar
         isOpen={sidebarOpen}
         onClose={closeSidebar}
-        theme={resolvedTheme}
+        theme={theme}
         onToggleTheme={toggleTheme}
         mode={sidebarMode}
         onModeChange={handleModeChange}

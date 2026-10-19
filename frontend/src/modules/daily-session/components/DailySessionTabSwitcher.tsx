@@ -88,10 +88,7 @@ export default function DailySessionTabSwitcher({
   const visibleTabs = [...DAILY_SESSION_TABS, mySpaceTab];
 
   return (
-    <nav
-      aria-label="Daily Session sections"
-      className="flex w-full items-center gap-1.5 overflow-x-auto scrollbar-none rounded-2xl border border-border bg-card/80 p-1.5 backdrop-blur-md shadow-sm"
-    >
+    <nav aria-label="Daily Session sections" className="todo-segmented todo-segmented-accent flex w-full">
       {visibleTabs.map((tab) => {
         const isMySpaceTab = tab.id === 'myspace' || tab.id === 'swapnilxi-space';
         const isActive = activeTab === tab.id || (isMySpaceTab && (activeTab === 'myspace' || activeTab === 'swapnilxi-space'));
@@ -102,31 +99,19 @@ export default function DailySessionTabSwitcher({
             onClick={() => onTabChange(tab.id)}
             aria-current={isActive ? 'page' : undefined}
             title={tab.description}
-            className={`group relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-200 sm:px-4 sm:py-2.5 sm:text-sm whitespace-nowrap ${
-              isActive
-                ? 'bg-gradient-to-r from-primary to-violet-600 text-white shadow-md shadow-primary/25 font-bold'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-            }`}
+            className="todo-segment flex-1 justify-center gap-2 px-3 py-2 text-xs sm:px-4 sm:text-sm"
           >
             <Icon
               name={tab.icon as any}
               size={17}
               variant={isActive ? 'solid' : 'outline'}
-              className={`flex-shrink-0 transition-transform ${
-                isActive ? 'scale-105 text-white' : 'text-muted-foreground group-hover:text-foreground'
-              }`}
+              className="flex-shrink-0"
             />
             <span className="hidden md:inline">{tab.label}</span>
             <span className="inline md:hidden">{tab.short}</span>
 
             {tab.badge && (
-              <span
-                className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold uppercase tracking-wider ${
-                  isActive
-                    ? 'bg-white/20 text-white'
-                    : 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-foreground'
-                }`}
-              >
+              <span className="ml-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider lab-tint lab-ink">
                 {tab.badge}
               </span>
             )}

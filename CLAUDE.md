@@ -67,8 +67,19 @@ further down in `README.md` — check there before assuming a module's shape.
   *nothing*, no warning. Use the `mix-*` utilities from `frontend/tailwind/mix-colors.js`: `mix-bg-muted/20`,
   `hover:mix-bg-primary/90`, `mix-border-*`, `mix-text-*`, `mix-ring-*`. Palette colours (`bg-amber-500/10`) are fine.
   (2) The spacing keys 6, 12, 18, 24, 36, 48, 72, 96, 144 are redefined in **pixels** (`px-6` = 6px, `w-12` = 12px):
-  write `px-[1.5rem]`. The To-Do area is clean and `npm run check:tailwind` (from `frontend/`) keeps it so; `-- --all`
-  lists the rest of the app, which still has both.
+  write `px-[1.5rem]`. The enforced area (To-Do, shared UI, the three labs, Daily Session, Labs Project, Config and the
+  shared lab components: `TODO_ROOTS` in `frontend/scripts/check-tailwind-traps.mjs`) is clean and
+  `npm run check:tailwind` (from `frontend/`) keeps it so. The same script also flags a palette colour with an off-scale
+  alpha (`bg-white/12`), `shadow-xs` / `py-0.2`, and `mix-bg-amber-500/15` (`mix-*` only knows theme tokens). `-- --all`
+  lists the rest of the app, which still has these traps.
+- **Lab visual system (DSA, CV, System Design, Daily Session, Labs Project, Config).** Interactive colour in a lab is the
+  Settings accent: use `--lab-accent*`, `lab-ink` (small text) and `lab-tint`; `--lab-cv`/`--lab-system` feed only
+  `--lab-identity` (hero glow and `.lab-tile`), never buttons, rows, links or progress. Inside `.lab-shell`/`.lab-page`/
+  `.dsa-type` `--color-border` is redefined to ONE hairline: use bare `border`; a dialog or popover that portals to
+  `<body>` needs `lab-page` (DSA: `dsa-type`) on its panel or it shows the global border. Wiki/sidebar pieces live in
+  `modules/common/lab/{WikiParts,LabSidebarParts,LabTags}`; pane collapsing is `useLabPanes`. Names wrap, they are never
+  cut with an ellipsis (chips and one-line UI labels may truncate). `check:tailwind` enforces these folders; details in
+  `README.md` ("Lab visual system").
 - **`backend/modules/todo/` and `frontend/src/modules/todo/` are dead leftovers from
   the rename to `ai_todo`/`ai-todo`.** Nothing imports from either (check with grep
   before assuming otherwise) — `backend/main.py` only wires up `modules.ai_todo.*`, and
@@ -187,8 +198,11 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   "Mark as complete" state, and each user's per-section generation settings: prompt, add-on, standing
   context, `'*'` = the lab-wide row; `/lab-sections/*`) ↔ `frontend/fe-apis/labSections/` (its catch-all route
   must export every verb the twin serves: a missing `PUT` was a 405 until the progress check caught
-  it), and the DSA week plan (`/dsa/week-plan`, in `dsa_lab/`) ↔
-  `frontend/fe-apis/dsaLab/`. Prompts, limits and error texts are copied verbatim, so change both. To
+  it), and the DSA week plan (`/dsa/week-plan/*`: the active plan, named plan profiles and the AI
+  `POST /dsa/week-plan/auto`, in `dsa_lab/`) ↔ `frontend/fe-apis/dsaLab/` (its route file must export
+  GET/POST/PUT/PATCH/DELETE and `next.config.mjs` rewrites `/dsa/week-plan/:path*`; the rest of `/dsa/*`
+  has no twin). Prompts, limits and error texts are copied verbatim, so change both; see README
+  ("DSA Week Plan, Organizer and Auto Organizer"). To
   check them: point both at a mock OpenAI-compatible provider (`customBaseUrl`), send the same requests
   to each, and diff statuses, bodies and the prompts the mock received.
 - **Labs Project** is the third lab twin: `backend/modules/lab_projects/` (`/lab-projects/*`: projects and the

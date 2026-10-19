@@ -16,7 +16,7 @@ export default function AiError({
   className?: string;
 }) {
   return (
-    <p role="alert" className={`text-xs text-error ${className}`}>
+    <p role="alert" className={`text-xs font-medium text-error ${className}`}>
       {message}
       {isMissingKeyError(message) && (
         <>

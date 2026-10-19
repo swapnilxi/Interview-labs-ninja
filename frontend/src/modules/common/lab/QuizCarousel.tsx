@@ -72,30 +72,42 @@ export default function QuizCarousel({ questions, onGenerateMore, generateMore, 
   };
 
   return (
-    <div className="space-y-18">
-      {/* Score + Progress bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-12">
-          <span className="text-xs font-caption text-muted-foreground">
+    <div className="space-y-[1.125rem]">
+      {/* Score + Progress dots */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs font-caption font-medium text-muted-foreground">
             Question {idx + 1} / {questions.length}
           </span>
-          <span className={`text-xs font-semibold px-9 py-4 rounded-full ${
-            score === 0 ? 'bg-muted text-muted-foreground' : 'bg-success/15 text-success'
-          }`}>
+          <span
+            data-semantic="done"
+            className={`text-xs font-semibold px-3 py-1 rounded-full ${
+              score === 0 ? 'mix-bg-foreground/[0.06] text-muted-foreground' : 'mix-bg-success/15 text-success'
+            }`}
+          >
             Score: {score} / {Object.keys(answers).length}
           </span>
         </div>
-        <div className="flex gap-6">
+        <div className="flex flex-wrap items-center gap-1.5">
           {questions.map((_, i) => (
             <button
               key={i}
+              type="button"
               onClick={() => setIdx(i)}
-              className={`w-8 h-8 rounded-full transition-smooth ${
-                i === idx ? 'bg-primary' : answers[i] !== undefined
-                  ? questions[i].answer === answers[i] ? 'bg-success' : 'bg-error'
-                  : 'bg-muted'
-              }`}
-            />
+              aria-label={`Question ${i + 1}`}
+              aria-current={i === idx ? 'step' : undefined}
+              className="todo-focus flex h-[1.5rem] w-[1.5rem] items-center justify-center rounded-full"
+            >
+              <span
+                className={`block h-2.5 w-2.5 rounded-full transition-smooth ${
+                  i === idx
+                    ? 'bg-primary ring-[3px] mix-ring-primary/25'
+                    : answers[i] !== undefined
+                      ? questions[i].answer === answers[i] ? 'bg-success' : 'bg-error'
+                      : 'mix-bg-foreground/20'
+                }`}
+              />
+            </button>
           ))}
         </div>
       </div>
@@ -103,7 +115,7 @@ export default function QuizCarousel({ questions, onGenerateMore, generateMore, 
       {/* Question card */}
       <div className="lab-card-muted p-5">
         <p className="text-base font-semibold text-foreground mb-4 leading-relaxed">{current.q}</p>
-        <div className="space-y-9">
+        <div className="space-y-2">
           {current.options.map((opt, i) => {
             const isSelected = answers[idx] === i;
             const isRight = i === current.answer;
@@ -112,24 +124,24 @@ export default function QuizCarousel({ questions, onGenerateMore, generateMore, 
                 key={i}
                 onClick={() => handleAnswer(i)}
                 disabled={hasAnswered}
-                className={`w-full text-left text-sm px-3 py-2.5 rounded-md border transition-smooth flex items-center gap-3 ${
+                className={`todo-focus w-full text-left text-sm px-3 py-2.5 rounded-md border transition-smooth flex items-center gap-3 ${
                   hasAnswered
                     ? isRight
-                      ? 'bg-success/10 border-success text-success font-medium'
+                      ? 'mix-bg-success/10 border-success text-foreground font-semibold'
                       : isSelected
-                        ? 'bg-error/10 border-error text-error'
-                        : 'bg-card border-border text-muted-foreground opacity-60'
-                    : 'bg-card border-border text-foreground hover:border-primary/50 hover:bg-primary/5 cursor-pointer'
+                        ? 'mix-bg-error/[0.06] border-error text-foreground'
+                        : 'bg-card border-border text-muted-foreground'
+                    : 'bg-card border-border text-foreground hover:mix-border-primary/50 hover:mix-bg-primary/5 cursor-pointer'
                 }`}
               >
-                <span className={`w-20 h-20 rounded-full border flex-shrink-0 flex items-center justify-center text-xs font-bold ${
-                  hasAnswered && isRight ? 'border-success bg-success text-white'
-                    : hasAnswered && isSelected ? 'border-error bg-error text-white'
+                <span className={`h-[1.5rem] w-[1.5rem] rounded-full border flex-shrink-0 flex items-center justify-center text-xs font-semibold ${
+                  hasAnswered && isRight ? 'border-success bg-success text-success-foreground'
+                    : hasAnswered && isSelected ? 'border-error bg-error text-error-foreground'
                     : 'border-current'
                 }`}>
                   {String.fromCharCode(65 + i)}
                 </span>
-                {opt}
+                <span className="min-w-0 flex-1 break-words">{opt}</span>
               </button>
             );
           })}
@@ -138,10 +150,13 @@ export default function QuizCarousel({ questions, onGenerateMore, generateMore, 
 
       {/* Explanation */}
       {showExplanation[idx] && (
-        <div className={`p-14 rounded-lg border text-xs leading-relaxed animate-fade-in ${
-          isCorrect ? 'bg-success/5 border-success/30 text-foreground' : 'bg-warning/5 border-warning/30 text-foreground'
-        }`}>
-          <div className="flex items-center gap-6 mb-6 font-semibold">
+        <div
+          data-semantic={isCorrect ? 'done' : 'hint'}
+          className={`p-3.5 rounded-lg border text-sm leading-relaxed animate-fade-in text-foreground ${
+            isCorrect ? 'mix-bg-success/[0.06] mix-border-success/30' : 'mix-bg-warning/[0.06] mix-border-warning/30'
+          }`}
+        >
+          <div className="flex items-center gap-1.5 mb-1.5 font-semibold">
             <Icon name={isCorrect ? 'CheckCircleIcon' : 'ExclamationCircleIcon'} size={14} className={isCorrect ? 'text-success' : 'text-warning'} />
             {isCorrect ? 'Correct!' : 'Not quite — here\'s why:'}
           </div>
@@ -150,11 +165,11 @@ export default function QuizCarousel({ questions, onGenerateMore, generateMore, 
       )}
 
       {/* Navigation */}
-      <div className="flex items-center justify-between pt-6">
+      <div className="flex items-center justify-between pt-1.5">
         <button
           disabled={idx === 0}
           onClick={() => setIdx(i => i - 1)}
-          className="flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted transition-smooth disabled:opacity-30 disabled:pointer-events-none"
+          className="todo-btn todo-btn-secondary py-2 text-sm"
         >
           <Icon name="ArrowLeftIcon" size={14} /> Previous
         </button>
@@ -162,7 +177,7 @@ export default function QuizCarousel({ questions, onGenerateMore, generateMore, 
         {idx < questions.length - 1 ? (
           <button
             onClick={() => setIdx(i => i + 1)}
-            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted transition-smooth"
+            className="todo-btn todo-btn-secondary py-2 text-sm"
           >
             Next <Icon name="ArrowRightIcon" size={14} />
           </button>
@@ -170,16 +185,16 @@ export default function QuizCarousel({ questions, onGenerateMore, generateMore, 
           <button
             onClick={handleGenerateMore}
             disabled={generatingMore}
-            className="flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground text-xs font-semibold hover:bg-secondary/90 transition-smooth disabled:opacity-60"
+            className="todo-btn todo-btn-primary py-2"
           >
             {generatingMore ? (
-              <><span className="w-10 h-10 border-2 border-secondary-foreground/30 border-t-secondary-foreground rounded-full animate-spin" /> Generating...</>
+              <><span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" /> Generating...</>
             ) : (
               <><Icon name="SparklesIcon" size={12} /> Generate 4 More</>
             )}
           </button>
         ) : (
-          <span className="text-xs text-success flex items-center gap-6">
+          <span data-semantic="done" className="text-xs font-semibold text-success flex items-center gap-1.5">
             <Icon name="TrophyIcon" size={14} /> Quiz Complete! {score}/{questions.length} correct
           </span>
         )}

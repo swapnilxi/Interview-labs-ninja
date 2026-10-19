@@ -9,7 +9,13 @@ import {
   setArchived,
   toggleUseInLabs,
 } from '@/modules/labs-project/projectActions';
-import { EmptyState, fieldClass, primaryButton, StatusBadge } from '@/modules/labs-project/ui';
+import {
+  EmptyState,
+  fieldClass,
+  primaryButton,
+  StatusBadge,
+  UsedBadge,
+} from '@/modules/labs-project/ui';
 
 export type StatusFilter = 'active' | 'archived' | 'all';
 
@@ -80,7 +86,7 @@ export default function ProjectsList({
   }
 
   const iconButton =
-    'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
+    'todo-focus inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground disabled:opacity-50';
 
   return (
     <section aria-labelledby="projects-heading">
@@ -89,24 +95,19 @@ export default function ProjectsList({
       </h2>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div
-          role="tablist"
+          role="group"
           aria-label="Filter projects by status"
-          className="inline-flex rounded-lg border border-border bg-card p-0.5"
+          className="todo-segmented todo-segmented-accent"
         >
           {FILTERS.map((f) => (
             <button
               key={f.id}
               type="button"
-              role="tab"
-              aria-selected={status === f.id}
+              aria-pressed={status === f.id}
               onClick={() => onStatusChange(f.id)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                status === f.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              className="todo-segment text-sm"
             >
-              {f.label} <span className="opacity-70">{counts[f.id]}</span>
+              {f.label} <span className="font-normal tabular-nums">{counts[f.id]}</span>
             </button>
           ))}
         </div>
@@ -145,35 +146,29 @@ export default function ProjectsList({
             return (
               <li
                 key={p.id}
-                className={`flex flex-col rounded-xl border bg-card transition-shadow hover:shadow-md ${
-                  inUse ? 'mix-border-primary/50 ring-1 mix-ring-primary/30' : 'border-border'
+                className={`flex flex-col rounded-lg border bg-card transition-colors ${
+                  inUse
+                    ? 'mix-border-primary/50 ring-1 mix-ring-primary/30'
+                    : 'border-border hover:mix-border-foreground/25'
                 }`}
               >
-                <Link
-                  href={projectHref(p.id)}
-                  className="flex-1 rounded-t-xl p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
+                <Link href={projectHref(p.id)} className="todo-focus flex-1 rounded-t-lg p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={p.status} />
-                    {inUse && (
-                      <span className="inline-flex items-center gap-1 rounded-md border mix-border-primary/30 mix-bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                        <Icon name="CheckIcon" size={12} />
-                        Used by the labs
-                      </span>
-                    )}
+                    {inUse && <UsedBadge />}
                   </div>
                   <h3 className="mt-2 break-words font-heading text-base font-semibold text-foreground">
                     {p.name}
                   </h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                  <p className="mt-1 line-clamp-2 text-sm mix-text-foreground/[0.74]">
                     {p.description || (p.context ? p.context : 'No description yet.')}
                   </p>
-                  <p className="mt-3 text-xs text-muted-foreground">
+                  <p className="mt-3 text-xs font-medium text-muted-foreground">
                     {p.sectionCount} saved section{p.sectionCount === 1 ? '' : 's'} · updated{' '}
                     {formatServerDate(p.updatedAt)}
                   </p>
                 </Link>
-                <div className="flex flex-wrap items-center gap-1 border-t border-border px-2 py-1.5">
+                <div className="flex flex-wrap items-center gap-1 px-2 pb-2">
                   {p.status === 'active' && (
                     <button
                       type="button"

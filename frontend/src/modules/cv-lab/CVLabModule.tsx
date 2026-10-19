@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import LabCopilot from '@/components/common/LabCopilot';
-import { LabMobileBar, LabSheetBackdrop, useLabSheets } from '@/modules/common/lab/LabMobile';
+import LabCopilot, { LabCopilotRail } from '@/components/common/LabCopilot';
+import { LabMobileBar, LabSheetBackdrop, useLabPanes, useLabSheets } from '@/modules/common/lab/LabMobile';
 import OnDemandSection from '@/components/lab/OnDemandSection';
 import QuizCarousel from '@/components/lab/QuizCarousel';
 import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/common/GenerateQuestionsPanel';
@@ -11,6 +11,9 @@ import MarkdownLite from '@/modules/common/lab/MarkdownLite';
 import { useLabSections } from '@/modules/common/lab/useLabSections';
 import { LabBackBar, LabScreenLoading, jumpToAnchor, useLabNav, useScrollToTopOnChange } from '@/modules/common/lab/labNavigation';
 import { CompleteButton, DoneMark, LabProgressSummary } from '@/modules/common/lab/LabProgressUi';
+import { DifficultyTag, difficultyDotClass } from '@/modules/common/lab/LabTags';
+import { LAB_REVEAL, LabAddRow, LabInlineAdd, LabRecentList, LabSidebarHeader } from '@/modules/common/lab/LabSidebarParts';
+import { LAB_CHIP, LAB_CHIP_ACCENT, WIKI_CARD, WIKI_CARD_TITLE_HOVER, WIKI_CHIP, WikiHero, WikiIndexNav, WikiSectionHeading } from '@/modules/common/lab/WikiParts';
 import { LabSettingsButton, settingsSections } from '@/modules/common/lab/LabSettings';
 import LabSettingsModal from '@/modules/common/lab/LabSettingsModal';
 import ProjectSelector from '@/modules/common/lab/project/ProjectSelector';
@@ -556,20 +559,11 @@ const QUIZ_BANK = [
   { q: 'What is the main difference between Erosion and Dilation in mathematical morphology?', options: ['Erosion expands white regions; Dilation shrinks them', 'Erosion shrinks white regions; Dilation expands them', 'Dilation is only for color images', 'Erosion removes high frequencies'], answer: 1, explanation: 'Erosion shrinks foreground objects (binary 1s) by requiring all structural element pixels to fit, while Dilation expands boundaries.' },
 ];
 
-function cvDiffStyle(d: string): { badge: string; bar: string } {
-  switch (d) {
-    case 'Easy':        return { badge: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30', bar: 'bg-emerald-500' };
-    case 'Easy-Medium': return { badge: 'bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30',           bar: 'bg-teal-500'   };
-    case 'Medium':      return { badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',       bar: 'bg-amber-500'  };
-    case 'Medium-Hard': return { badge: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30',  bar: 'bg-orange-500' };
-    case 'Mixed':       return { badge: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',  bar: 'bg-indigo-500' };
-    default:            return { badge: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30',           bar: 'bg-rose-500'   };
-  }
-}
-
 /* ══════════════════════════════════════════════════════════════════════
    CV WIKI INDEX
 ══════════════════════════════════════════════════════════════════════ */
+const cvAnchor = (name: string) => `cv-cat-${name.replace(/[\s&/()']/g, '-')}`;
+
 function CVWikiIndex({
   groupedSections, allTopics, onSelectTopic, onSelectSub,
 }: {
@@ -583,122 +577,100 @@ function CVWikiIndex({
   const easyCount  = allTopics.filter(t => t.difficulty === 'Easy' || t.difficulty === 'Easy-Medium').length;
 
   return (
-    <div className="lab-container space-y-10">
+    <div className="lab-container space-y-[1.5rem]">
+      <WikiHero
+        icon="EyeIcon"
+        title="CV Lab Wiki"
+        description="Computer vision interview preparation handbook"
+        metrics={[
+          { label: 'Categories', value: groupedSections.length },
+          { label: 'Topics', value: allTopics.length },
+          { label: 'Subtopics', value: totalSubs },
+          { label: 'Hard', value: hardCount, tone: 'hard' },
+          { label: 'Easy', value: easyCount, tone: 'easy' },
+        ]}
+      >
+        <LabProgressSummary lab="cv" topicIds={allTopics.map(t => t.id)} noun="topics" />
+      </WikiHero>
 
-      {/* ── Hero banner ── */}
-      <div className="lab-hero p-8">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(26,157,143,0.18),transparent_60%)] pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-500/25">
-              <Icon name="EyeIcon" size={22} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">CV Lab Wiki</h1>
-              <p className="text-sm text-muted-foreground">Computer vision interview preparation handbook</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {[
-              { label: 'Categories', value: groupedSections.length, color: 'text-teal-600 dark:text-teal-400',    bg: 'bg-teal-500/10'    },
-              { label: 'Topics',     value: allTopics.length,        color: 'text-cyan-600 dark:text-cyan-400',    bg: 'bg-cyan-500/10'    },
-              { label: 'Subtopics', value: totalSubs,                color: 'text-sky-600 dark:text-sky-400',     bg: 'bg-sky-500/10'     },
-              { label: 'Hard',       value: hardCount,               color: 'text-rose-600 dark:text-rose-400',    bg: 'bg-rose-500/10'    },
-              { label: 'Easy',       value: easyCount,               color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
-            ].map(stat => (
-              <div key={stat.label} className={`${stat.bg} border border-border rounded-xl px-4 py-2.5 backdrop-blur-sm min-w-[64px]`}>
-                <div className={`text-2xl font-bold ${stat.color} leading-none`}>{stat.value}</div>
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <LabProgressSummary lab="cv" topicIds={allTopics.map(t => t.id)} noun="topics" />
-
-      {/* ── Clickable Category Index ── */}
-      <div className="lab-card overflow-hidden">
-        <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
-          <Icon name="ListBulletIcon" size={14} className="text-muted-foreground" />
-          <span className="text-xs font-bold text-foreground uppercase tracking-wider">Category Index</span>
-          <span className="ml-auto text-[10px] text-muted-foreground">{groupedSections.length} categories</span>
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-2 gap-0.5">
-            {groupedSections.map((section, i) => (
-              <a key={section.name}
-                href={`#cv-cat-${section.name.replace(/[\s&/()']/g, '-')}`} onClick={jumpToAnchor}
-                className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all group">
-                <span className="text-[9px] text-muted-foreground/30 w-4 text-right flex-shrink-0">{i + 1}</span>
-                <span className="flex-1 truncate group-hover:text-teal-400 transition-colors">{section.name}</span>
-                <span className="text-[9px] text-muted-foreground/40 flex-shrink-0">{section.topics.length}</span>
-              </a>
-            ))}
-          </div>
-        </div>
-      </div>
+      <WikiIndexNav
+        id="cv-category-index"
+        title="Category index"
+        countLabel={`${groupedSections.length} categories`}
+        items={groupedSections.map(s => ({ name: s.name, count: s.topics.length, href: `#${cvAnchor(s.name)}` }))}
+      />
 
       {/* ── Per-category topic cards ── */}
-      {groupedSections.map(section => (
-        <div key={section.name} id={`cv-cat-${section.name.replace(/[\s&/()']/g, '-')}`} className="space-y-3 scroll-mt-6">
-          <div className="flex items-center gap-3">
-            <h2 className="text-base font-bold text-foreground whitespace-nowrap">{section.name}</h2>
-            <div className="flex-1 h-px bg-gradient-to-r from-border via-border/50 to-transparent" />
-            <span className="text-[10px] text-muted-foreground flex-shrink-0">{section.topics.length} topics</span>
-          </div>
+      <div className="space-y-[2rem]">
+        {groupedSections.map(section => (
+          <section
+            key={section.name}
+            id={cvAnchor(section.name)}
+            aria-labelledby={`${cvAnchor(section.name)}-title`}
+            className="scroll-mt-[4.5rem] space-y-[1rem] md:scroll-mt-[1.5rem]"
+          >
+            <WikiSectionHeading
+              id={`${cvAnchor(section.name)}-title`}
+              name={section.name}
+              count={`${section.topics.length} ${section.topics.length === 1 ? 'topic' : 'topics'}`}
+            />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-5 gap-y-6">
-            {section.topics.map(t => {
-              const ds = cvDiffStyle(t.difficulty);
-              return (
-                <div key={t.id}
-                  className="display-card group relative overflow-hidden cursor-pointer h-full"
-                  onClick={() => onSelectTopic(t.id)}>
-                  {/* Difficulty accent bar */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${ds.bar} opacity-40 group-hover:opacity-80 transition-opacity rounded-l-xl`} />
-                  <div className="pl-4 pr-4 pt-3.5 pb-3">
-                    <div className="flex items-start justify-between gap-3 mb-1.5">
-                      <h3 className="text-sm font-semibold text-foreground group-hover:text-[var(--wiki-cv-hover)] transition-colors leading-snug flex-1 min-w-0">
-                        {t.name}
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-[1rem]">
+              {section.topics.map(t => (
+                <li key={t.id}>
+                  <div className={WIKI_CARD} onClick={() => onSelectTopic(t.id)}>
+                    {/* Difficulty rail (semantic colour) */}
+                    <span
+                      aria-hidden="true"
+                      data-semantic="difficulty"
+                      className={`absolute bottom-4 left-0 top-4 w-[3px] rounded-r-full opacity-50 transition-opacity group-hover:opacity-90 ${difficultyDotClass(t.difficulty)}`}
+                    />
+                    <div className="flex h-full flex-col px-[1.25rem] py-[1rem]">
+                      <h3 className="text-sm font-semibold leading-snug text-foreground">
+                        {/* a real button: the title used to be a mouse-only heading */}
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); onSelectTopic(t.id); }}
+                          className={`todo-focus rounded text-left transition-colors ${WIKI_CARD_TITLE_HOVER}`}
+                        >
+                          {t.name}
+                        </button>
                       </h3>
-                      <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border leading-none">{t.category}</span>
+                      {/* the category pill is gone: the section heading above already says it */}
+                      <div className="mt-[0.5rem] flex flex-wrap items-center gap-x-[0.5rem] gap-y-[0.25rem]">
+                        <DifficultyTag difficulty={t.difficulty} />
                         <DoneMark lab="cv" topicId={t.id} />
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{t.difficulty}</span>
                       </div>
+                      <p className="mt-[0.625rem] text-[13px] font-medium leading-relaxed mix-text-foreground/[0.78]">{t.brief}</p>
+
+                      {t.prerequisites.length > 0 && (
+                        <p className="mt-[0.5rem] text-xs font-medium text-muted-foreground">
+                          <span className="font-semibold">Prereqs</span>{' '}
+                          {t.prerequisites.join(' · ')}
+                        </p>
+                      )}
+
+                      {t.subtopics.length > 0 && (
+                        <div className="mt-[0.75rem] flex flex-wrap gap-1.5">
+                          {t.subtopics.map(s => (
+                            <button key={s.id}
+                              type="button"
+                              onClick={e => { e.stopPropagation(); onSelectSub(t.id, s.id); }}
+                              title={s.brief}
+                              className={WIKI_CHIP}>
+                              {s.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed mb-2">{t.brief}</p>
-
-                    {t.prerequisites.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        <span className="text-[9px] text-muted-foreground/60 self-center">Prereqs:</span>
-                        {t.prerequisites.map(p => (
-                          <span key={p} className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary/5 text-primary/70 border border-primary/10 leading-none">{p}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {t.subtopics.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {t.subtopics.map(s => (
-                          <button key={s.id}
-                            onClick={e => { e.stopPropagation(); onSelectSub(t.id, s.id); }}
-                            title={s.brief}
-                            className="text-[9px] px-2 py-1 rounded-md bg-muted/80 text-muted-foreground hover:bg-teal-500/15 hover:text-teal-400 transition-all border border-transparent hover:border-teal-500/20 leading-none">
-                            {s.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
@@ -725,13 +697,8 @@ export default function CVLabInteractive() {
   const [addingTopicToSection, setAddingTopicToSection] = useState<string | null>(null);
   const [newTopicInputSection, setNewTopicInputSection] = useState('');
   const [showAddSec, setShowAddSec] = useState(false);
-  const [leftOpen,      setLeftOpen]      = useState(true);
-  const [rightOpen,     setRightOpen]     = useState(true);
   const lab = useLabSheets(`${selectedTopicId}|${selectedSubtopicId}`);
-  const leftExpanded = leftOpen || lab.isMobile;
-  const rightExpanded = rightOpen || lab.isMobile;
-  const collapseLeft = () => (lab.isMobile ? lab.close() : setLeftOpen(false));
-  const collapseRight = () => (lab.isMobile ? lab.close() : setRightOpen(false));
+  const { leftExpanded, rightExpanded, setLeftOpen, setRightOpen, collapseLeft, collapseRight } = useLabPanes(lab);
   const [recentTopics,  setRecentTopics]  = useState<{ id: string; name: string; subId?: string; subName?: string }[]>([]);
 
   useEffect(() => {
@@ -1021,220 +988,213 @@ export default function CVLabInteractive() {
   };
 
   return (
-    <div className="lab-shell flex flex-col">
+    <div className="lab-shell flex flex-col" data-lab="cv">
       <div className="lab-workspace flex">
         {lab.isMobile && lab.sheet && <LabSheetBackdrop onClose={lab.close} />}
 
         {/* ── LEFT: Topic Tree ────────────────────────────────────────────── */}
-        <aside data-sheet={lab.sheet === 'left' ? 'open' : 'closed'} inert={lab.isMobile && lab.sheet !== 'left' ? true : undefined} className="lab-sidebar border-r flex flex-col overflow-hidden" style={{ width: leftExpanded ? 264 : 48, minWidth: leftExpanded ? 264 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
+        <aside
+          aria-label="Topics"
+          data-sheet={lab.sheet === 'left' ? 'open' : 'closed'}
+          inert={lab.isMobile && lab.sheet !== 'left' ? true : undefined}
+          className="lab-sidebar border-r flex flex-col overflow-hidden"
+          style={{ width: leftExpanded ? 264 : 48, minWidth: leftExpanded ? 264 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
 
-          {/* Header */}
-          <div className="flex-shrink-0 border-b border-border">
-            <div className="flex items-center gap-2.5 px-3 py-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-teal-500/20">
-                <Icon name="EyeIcon" size={15} className="text-white" />
-              </div>
-              {leftExpanded && (
-                <>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-sm font-bold text-foreground tracking-tight">Computer Vision</h2>
-                    <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{allTopics.length} topics · {groupedSections.length} categories</p>
-                  </div>
-                  <LabSettingsButton lab="cv" labName="Computer Vision" sections={SETTINGS_SECTIONS} />
-                  <button onClick={() => collapseLeft()} className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Collapse sidebar">
-                    <Icon name="ChevronLeftIcon" size={14} />
-                  </button>
-                </>
-              )}
-            </div>
+          {/* Header (collapsed: the tile with an expand button under it) */}
+          <div className="flex-shrink-0">
+            <LabSidebarHeader
+              icon="EyeIcon"
+              title="Computer Vision"
+              subtitle={`${allTopics.length} topics · ${groupedSections.length} categories`}
+              expanded={leftExpanded}
+              onCollapse={() => collapseLeft()}
+              onExpand={() => setLeftOpen(true)}
+              collapseLabel={lab.isMobile ? 'Close sidebar' : undefined}
+              settings={<LabSettingsButton lab="cv" labName="Computer Vision" sections={SETTINGS_SECTIONS} />}
+            />
             {leftExpanded && (
               <div className="px-3 pb-3">
                 {showAddSec ? (
-                  <div className="flex gap-1.5">
-                    <input autoFocus value={customSectionInput} onChange={e => setCustomSectionInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { handleAddCustomSection(); setShowAddSec(false); } if (e.key === 'Escape') { setShowAddSec(false); setCustomSectionInput(''); } }}
-                      placeholder="New category…"
-                      className="flex-1 min-w-0 bg-input border border-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--lab-cv)]/50 placeholder:text-muted-foreground/50" />
-                    <button onClick={() => { handleAddCustomSection(); setShowAddSec(false); }} disabled={addingSection || !customSectionInput.trim()}
-                      className="px-2.5 py-1.5 bg-[var(--lab-cv)] text-white rounded-lg text-xs font-medium hover:opacity-90 transition-all disabled:opacity-50">
-                      {addingSection ? '…' : 'Add'}
-                    </button>
-                    <button onClick={() => { setShowAddSec(false); setCustomSectionInput(''); }}
-                      className="px-2 py-1.5 text-muted-foreground hover:text-foreground text-xs rounded-lg hover:bg-muted transition-all">✕</button>
-                  </div>
+                  <LabInlineAdd
+                    value={customSectionInput}
+                    onChange={setCustomSectionInput}
+                    onSubmit={() => { handleAddCustomSection(); setShowAddSec(false); }}
+                    onCancel={() => { setShowAddSec(false); setCustomSectionInput(''); }}
+                    placeholder="New category…"
+                    ariaLabel="New category name"
+                    busy={addingSection || !customSectionInput.trim()}
+                    submitLabel={addingSection ? 'Adding…' : 'Add'}
+                  />
                 ) : (
-                  <button onClick={() => setShowAddSec(true)}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 border border-dashed border-border rounded-lg text-xs text-muted-foreground hover:text-[var(--lab-cv)] hover:border-[var(--lab-cv)]/40 hover:bg-[var(--lab-cv-soft)] transition-all group">
-                    <Icon name="PlusIcon" size={11} className="group-hover:text-[var(--lab-cv)] transition-colors" />
-                    Add category / section
-                  </button>
+                  <LabAddRow label="Add category / section" onClick={() => setShowAddSec(true)} />
                 )}
               </div>
             )}
           </div>
-          {!leftExpanded && (
-            <div className="flex justify-center py-1.5">
-              <button onClick={() => setLeftOpen(true)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Expand sidebar">
-                <Icon name="ChevronRightIcon" size={14} />
-              </button>
-            </div>
-          )}
 
           {leftExpanded && (
-          <div className="flex-1 overflow-y-auto py-2 scrollbar-clean">
+          <nav aria-label="Categories and topics" className="flex-1 overflow-y-auto py-2 scrollbar-clean">
 
             {/* Wiki Index */}
-            <button onClick={() => selectTopic('wiki')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 mx-1 rounded-xl text-xs font-semibold transition-all my-0.5 ${selectedTopicId === 'wiki' ? 'bg-[var(--lab-cv-soft)] text-[var(--lab-cv)]' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}
-              style={{ width: 'calc(100% - 8px)' }}>
-              <Icon name="BookOpenIcon" size={13} className={selectedTopicId === 'wiki' ? 'text-[var(--lab-cv)]' : ''} />
-              <span className="flex-1 text-left">Wiki Index</span>
-              {selectedTopicId === 'wiki' && <span className="w-1.5 h-1.5 rounded-full bg-[var(--lab-cv)] flex-shrink-0" />}
-            </button>
+            <div className="px-1.5">
+              <button type="button" onClick={() => selectTopic('wiki')}
+                aria-current={selectedTopicId === 'wiki' ? 'page' : undefined}
+                className="lab-row lab-row-tall gap-2.5">
+                {selectedTopicId === 'wiki' && <span aria-hidden="true" className="todo-rail" />}
+                <Icon name="BookOpenIcon" size={16} className={selectedTopicId === 'wiki' ? '' : 'text-muted-foreground'} />
+                <span className="flex-1">Wiki Index</span>
+              </button>
+            </div>
 
             {/* Recently Opened */}
             {recentTopics.length > 0 && (
-              <div className="px-2 mt-1 mb-1">
-                <div className="flex items-center gap-1 px-1 mb-1.5">
-                  <Icon name="ClockIcon" size={10} className="text-muted-foreground/50" />
-                  <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest">Recent</span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {recentTopics.map(r => (
-                    <div key={r.subId ?? r.id}
-                      className="group flex items-center gap-0.5 pl-2 pr-1 py-0.5 rounded-full bg-muted/60 hover:bg-muted transition-all">
-                      <button
-                        onClick={() => r.subId ? selectSubtopic(r.id, r.subId) : selectTopic(r.id)}
-                        className="truncate max-w-[130px] text-[11px] text-muted-foreground hover:text-foreground text-left leading-none py-0.5">
-                        {r.subName ?? r.name}
-                      </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); removeRecentTopic(r.subId ?? r.id); }}
-                        className="ml-0.5 p-0.5 rounded-full hover:bg-muted-foreground/20 text-muted-foreground/40 hover:text-foreground transition-all flex-shrink-0">
-                        <Icon name="XMarkIcon" size={8} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+              <div className="mt-3">
+                <LabRecentList
+                  storageKey="cv-lab-recent-open"
+                  items={recentTopics.map(r => ({
+                    key: r.subId ?? r.id,
+                    label: r.subName ?? r.name,
+                    onOpen: () => (r.subId ? selectSubtopic(r.id, r.subId) : selectTopic(r.id)),
+                  }))}
+                  onRemove={removeRecentTopic}
+                />
               </div>
             )}
 
-            <div className="mx-3 my-2 h-px bg-border/60" />
-
             {/* Sections */}
-            {groupedSections.map(section => {
-              const isExp = expandedSections.has(section.name);
-              return (
-                <div key={section.name} className="mb-0.5">
-                  {/* Section row */}
-                  <div className="flex items-center gap-1 px-2 py-1.5 mx-1 cursor-pointer group hover:bg-muted/40 rounded-lg transition-all"
-                    onClick={() => setExpandedSections(prev => { const n = new Set(prev); n.has(section.name) ? n.delete(section.name) : n.add(section.name); return n; })}>
-                    <Icon name={isExp ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={10} className="text-muted-foreground/60 flex-shrink-0 transition-transform duration-150" />
-                    <span className="flex-1 text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest truncate ml-0.5">
-                      {section.name}
-                    </span>
-                    <span className="text-[9px] text-muted-foreground/40 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {section.topics.length}
-                    </span>
-                    <button
-                      onClick={e => { e.stopPropagation(); setAddingTopicToSection(addingTopicToSection === section.name ? null : section.name); setNewTopicInputSection(''); }}
-                      className="p-0.5 rounded-md text-muted-foreground/40 hover:text-[var(--lab-cv)] hover:bg-[var(--lab-cv-soft)] opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 ml-0.5"
-                      title="Add topic">
-                      <Icon name="PlusIcon" size={9} />
-                    </button>
-                  </div>
+            <div className="mt-3">
+              {groupedSections.map(section => {
+                const isExp = expandedSections.has(section.name);
+                const adding = addingTopicToSection === section.name;
+                return (
+                  <div key={section.name} className="mb-1">
+                    {/* Section row: the name toggles the list; "+" adds a topic */}
+                    <div className="group mx-1.5 flex items-center rounded-md transition-smooth hover:mix-bg-foreground/[0.05]">
+                      <button type="button" aria-expanded={isExp}
+                        onClick={() => setExpandedSections(prev => { const n = new Set(prev); if (n.has(section.name)) n.delete(section.name); else n.add(section.name); return n; })}
+                        className="todo-focus flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-2 pl-2 pr-1 text-left">
+                        <Icon name={isExp ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={12} className="flex-shrink-0 text-muted-foreground" />
+                        <span className="lab-caption min-w-0 flex-1 break-words">{section.name}</span>
+                        <span className="flex-shrink-0 text-xs tabular-nums text-muted-foreground">{section.topics.length}</span>
+                      </button>
+                      <button type="button" aria-expanded={adding}
+                        aria-label={`Add a topic to ${section.name}`}
+                        title="Add topic to this category"
+                        onClick={() => { setAddingTopicToSection(adding ? null : section.name); setNewTopicInputSection(''); }}
+                        className={`todo-focus mr-1 flex-shrink-0 rounded-md p-1.5 text-muted-foreground hover:lab-tint hover:lab-ink ${LAB_REVEAL}`}>
+                        <Icon name="PlusIcon" size={14} />
+                      </button>
+                    </div>
 
-                  {/* Add topic inline */}
-                  {addingTopicToSection === section.name && (
-                    <div className="mx-3 mb-1 flex gap-1">
-                      <input autoFocus value={newTopicInputSection} onChange={e => setNewTopicInputSection(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') handleAddTopicToSection(section.name); if (e.key === 'Escape') setAddingTopicToSection(null); }}
+                    {/* Add topic inline */}
+                    {adding && (
+                      <LabInlineAdd
+                        className="mx-3 mb-1.5 mt-1"
+                        iconOnly
+                        value={newTopicInputSection}
+                        onChange={setNewTopicInputSection}
+                        onSubmit={() => handleAddTopicToSection(section.name)}
+                        onCancel={() => setAddingTopicToSection(null)}
                         placeholder="Topic name…"
-                        className="flex-1 min-w-0 bg-input border border-border rounded-md px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--lab-cv)]/40 placeholder:text-muted-foreground/50" />
-                      <button onClick={() => handleAddTopicToSection(section.name)} disabled={!newTopicInputSection.trim()}
-                        className="px-1.5 py-1 bg-[var(--lab-cv)]/20 text-[var(--lab-cv)] rounded-md text-[11px] hover:bg-[var(--lab-cv)]/30 disabled:opacity-40 transition-all">✓</button>
-                    </div>
-                  )}
+                        ariaLabel={`New topic in ${section.name}`}
+                        busy={!newTopicInputSection.trim()}
+                        submitLabel="Add topic"
+                      />
+                    )}
 
-                  {/* Topics */}
-                  {isExp && (
-                    <div className="space-y-px pb-1">
-                      {section.topics.map((topic, ti) => {
-                        const isActive = selectedTopicId === topic.id && !selectedSubtopicId;
-                        const isTopExp = expandedTopics.has(topic.id);
-                        const ds = cvDiffStyle(topic.difficulty);
-                        return (
-                          <div key={topic.id}>
-                            {/* Topic row */}
-                            <div className="flex items-start mx-1">
-                              <button onClick={() => selectTopic(topic.id)}
-                                className={`flex-1 min-w-0 flex items-start gap-2 px-2.5 py-2 rounded-xl text-left transition-all ${isActive ? 'bg-[var(--lab-cv-soft)] shadow-sm' : 'hover:bg-muted/50'}`}>
-                                <span className={`flex-shrink-0 text-[9px] mt-0.5 w-4 text-right leading-none ${isActive ? 'text-[var(--lab-cv)]/80' : 'text-muted-foreground/30'}`}>
-                                  {ti + 1}
-                                </span>
-                                <div className="flex-1 min-w-0">
-                                  <span className={`block text-[12px] font-medium leading-tight truncate ${isActive ? 'text-[var(--lab-cv)]' : 'text-foreground/90'}`}>
-                                    {topic.name}
+                    {/* Topics */}
+                    {isExp && (
+                      <ul className="space-y-0.5 pb-1">
+                        {section.topics.map((topic, ti) => {
+                          const isActive = selectedTopicId === topic.id && !selectedSubtopicId;
+                          const isTopExp = expandedTopics.has(topic.id);
+                          return (
+                            <li key={topic.id}>
+                              {/* Topic row: select + a separate toggle for its subtopics */}
+                              <div className="mx-1.5 flex items-start gap-0.5">
+                                <button type="button" onClick={() => selectTopic(topic.id)}
+                                  aria-current={isActive ? 'page' : undefined}
+                                  className="lab-row flex-1 items-start py-2 pr-2">
+                                  {isActive && <span aria-hidden="true" className="todo-rail" />}
+                                  <span aria-hidden="true" className="w-4 flex-shrink-0 pt-px text-right text-xs font-medium tabular-nums text-muted-foreground">
+                                    {ti + 1}
                                   </span>
-                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                    <span className={`text-[8px] px-1.5 py-0.5 rounded-md border font-bold leading-none ${ds.badge}`}>{topic.difficulty}</span>
-                                    <span className="text-[8px] text-muted-foreground/50 leading-none">{topic.category}</span>
-                                    <DoneMark lab="cv" topicId={topic.id} />
-                                  </div>
-                                </div>
-                              </button>
-                              <button
-                                onClick={() => setExpandedTopics(prev => { const n = new Set(prev); n.has(topic.id) ? n.delete(topic.id) : n.add(topic.id); return n; })}
-                                className="flex-shrink-0 p-1.5 mt-0.5 rounded-lg text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/60 transition-all">
-                                <Icon name={isTopExp ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={9} />
-                              </button>
-                            </div>
-
-                            {/* Subtopics */}
-                            {isTopExp && (
-                              <div className="ml-9 mr-2 space-y-px mb-1">
-                                {topic.subtopics.map((sub, idx) => {
-                                  const isSubAct = selectedSubtopicId === sub.id;
-                                  return (
-                                    <button key={sub.id}
-                                      onClick={() => selectSubtopic(topic.id, sub.id)}
-                                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] leading-tight transition-all ${isSubAct ? 'bg-[var(--lab-cv-soft)] text-[var(--lab-cv)]' : 'text-muted-foreground/70 hover:text-foreground hover:bg-muted/40'}`}>
-                                      <span className={`text-[8px] mr-1.5 ${isSubAct ? 'text-[var(--lab-cv)]' : 'text-muted-foreground/30'}`}>
-                                        {(idx + 1).toString().padStart(2, '0')}
-                                      </span>
-                                      <span className="truncate">{sub.name}</span>
-                                      <DoneMark lab="cv" topicId={topic.id} subtopicId={sub.id} className="ml-1.5 align-middle" />
-                                    </button>
-                                  );
-                                })}
-                                {/* Add subtopic */}
-                                {addingSubtopicTo === topic.id ? (
-                                  <div className="flex gap-1 mt-1">
-                                    <input autoFocus value={newSubtopicInput} onChange={e => setNewSubtopicInput(e.target.value)}
-                                      onKeyDown={e => { if (e.key === 'Enter') handleAddSubtopic(topic.id); if (e.key === 'Escape') setAddingSubtopicTo(null); }}
-                                      placeholder="Subtopic…"
-                                      className="flex-1 min-w-0 bg-input border border-border rounded-md px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--lab-cv)]/40 placeholder:text-muted-foreground/50" />
-                                    <button onClick={() => handleAddSubtopic(topic.id)}
-                                      className="px-1.5 py-1 bg-[var(--lab-cv)]/20 text-[var(--lab-cv)] rounded-md text-[11px] hover:bg-[var(--lab-cv)]/30 transition-all">✓</button>
-                                  </div>
-                                ) : (
-                                  <button onClick={() => setAddingSubtopicTo(topic.id)}
-                                    className="w-full flex items-center gap-1.5 px-2 py-1 text-[9px] text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/30 rounded-lg transition-all">
-                                    <Icon name="PlusIcon" size={8} />
-                                    Add subtopic
-                                  </button>
-                                )}
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block break-words text-[13px] font-semibold leading-snug">
+                                      {topic.name}
+                                    </span>
+                                    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                      <DifficultyTag difficulty={topic.difficulty} />
+                                      <span className="text-xs font-medium text-muted-foreground">{topic.category}</span>
+                                      <DoneMark lab="cv" topicId={topic.id} />
+                                    </span>
+                                  </span>
+                                </button>
+                                <button type="button"
+                                  aria-expanded={isTopExp}
+                                  aria-label={`${isTopExp ? 'Hide' : 'Show'} subtopics of ${topic.name}`}
+                                  onClick={() => setExpandedTopics(prev => { const n = new Set(prev); if (n.has(topic.id)) n.delete(topic.id); else n.add(topic.id); return n; })}
+                                  className="todo-focus mt-1 flex-shrink-0 rounded-md p-1.5 text-muted-foreground transition-smooth hover:text-foreground hover:mix-bg-foreground/[0.05]">
+                                  <Icon name={isTopExp ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={14} />
+                                </button>
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+
+                              {/* Subtopics */}
+                              {isTopExp && (
+                                <ul className="mb-1 ml-[2.25rem] mr-2 mt-0.5 space-y-0.5">
+                                  {topic.subtopics.map((sub, idx) => {
+                                    const isSubAct = selectedSubtopicId === sub.id;
+                                    return (
+                                      <li key={sub.id}>
+                                        <button type="button"
+                                          onClick={() => selectSubtopic(topic.id, sub.id)}
+                                          aria-current={isSubAct ? 'page' : undefined}
+                                          className="lab-row lab-row-muted py-1.5 text-xs leading-snug">
+                                          {isSubAct && <span aria-hidden="true" className="todo-rail" />}
+                                          <span aria-hidden="true" className="flex-shrink-0 tabular-nums">
+                                            {(idx + 1).toString().padStart(2, '0')}
+                                          </span>
+                                          <span className="min-w-0 flex-1 break-words">{sub.name}</span>
+                                          <DoneMark lab="cv" topicId={topic.id} subtopicId={sub.id} />
+                                        </button>
+                                      </li>
+                                    );
+                                  })}
+                                  {/* Add subtopic */}
+                                  <li>
+                                    {addingSubtopicTo === topic.id ? (
+                                      <LabInlineAdd
+                                        className="mt-1"
+                                        iconOnly
+                                        value={newSubtopicInput}
+                                        onChange={setNewSubtopicInput}
+                                        onSubmit={() => handleAddSubtopic(topic.id)}
+                                        onCancel={() => setAddingSubtopicTo(null)}
+                                        placeholder="Subtopic…"
+                                        ariaLabel={`New subtopic of ${topic.name}`}
+                                        busy={!newSubtopicInput.trim()}
+                                        submitLabel="Add subtopic"
+                                      />
+                                    ) : (
+                                      <button type="button" onClick={() => setAddingSubtopicTo(topic.id)}
+                                        className="lab-row lab-row-muted gap-1.5 text-xs">
+                                        <Icon name="PlusIcon" size={12} />
+                                        Add subtopic
+                                      </button>
+                                    )}
+                                  </li>
+                                </ul>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </nav>
           )}
         </aside>
 
@@ -1259,100 +1219,90 @@ export default function CVLabInteractive() {
               onSelectSub={selectSubtopic}
             />
           ) : !currentTopic ? (
-            <div className="flex flex-col items-center justify-center h-full text-center px-24">
-              <Icon name="EyeIcon" size={48} variant="outline" className="text-muted-foreground/30 mb-18" />
+            <div className="flex flex-col items-center justify-center h-full text-center px-[1.5rem]">
+              <Icon name="EyeIcon" size={48} variant="outline" className="text-muted-foreground mb-[1.125rem]" />
               <h2 className="font-heading text-xl font-semibold text-foreground mb-9">Select a CV Topic</h2>
               <p className="text-sm text-muted-foreground max-w-sm">Choose a topic from the sidebar. Content generates on-demand per section.</p>
             </div>
           ) : (
-            <div className="lab-container max-w-card space-y-5">
-              {/* ── Hero Topic Header ── */}
-              <div className="lab-hero relative overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(26,157,143,0.12),transparent_60%)] pointer-events-none" />
-                <div className="absolute bottom-0 right-0 w-48 h-48 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
-                <div className="relative">
-                  {/* Badges */}
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center flex-shrink-0 shadow shadow-teal-500/30 mr-1">
-                      <Icon name="EyeIcon" size={15} className="text-white" />
-                    </div>
-                    <span className="text-xs px-2.5 py-1 rounded-lg bg-[var(--lab-cv-soft)] text-[var(--lab-cv)] border border-[var(--lab-cv)]/20 font-medium leading-none">
-                      {currentTopic.category}
-                    </span>
-                    {(() => { const ds = cvDiffStyle(currentTopic.difficulty); return (
-                      <span className={`text-xs px-2.5 py-1 rounded-lg border font-semibold leading-none ${ds.badge}`}>
-                        {currentTopic.difficulty}
-                      </span>
-                    ); })()}
-                    {currentSubtopic && (
-                      <span className="text-xs px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-400 border border-violet-500/20 leading-none">Subtopic</span>
-                    )}
-                    {currentTopic.isCustom && (
-                      <span className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 leading-none">Custom</span>
-                    )}
-                    <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                      <ProjectSelector />
-                      <button
-                        type="button"
-                        onClick={() => setLabSettingsModalOpen(true)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/80 text-xs font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-all shadow-sm"
-                        title="CV Lab Settings & Prompts"
-                      >
-                        <Icon name="AdjustmentsHorizontalIcon" size={13} className="text-primary" />
-                        <span>Lab Settings</span>
-                        {labSettings.hasAny && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                        )}
-                      </button>
-                      <CompleteButton lab="cv" topicId={currentTopic.id} subtopicId={currentSubtopic?.id ?? ''} />
-                    </div>
+            <div className="lab-container max-w-card space-y-[1.5rem]">
+              {/* ── Topic header ── */}
+              <header className="rounded-lg border bg-card p-[1.25rem] sm:p-[1.5rem]">
+                {/* Badges + actions */}
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className={LAB_CHIP_ACCENT}>{currentTopic.category}</span>
+                  <DifficultyTag difficulty={currentTopic.difficulty} />
+                  {currentSubtopic && <span className={LAB_CHIP}>Subtopic</span>}
+                  {currentTopic.isCustom && <span className={LAB_CHIP}>Custom</span>}
+                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                    <ProjectSelector />
+                    <button
+                      type="button"
+                      onClick={() => setLabSettingsModalOpen(true)}
+                      className="todo-btn todo-btn-secondary"
+                      title="CV Lab Settings & Prompts"
+                    >
+                      <Icon name="AdjustmentsHorizontalIcon" size={14} className="text-primary" />
+                      <span>Lab Settings</span>
+                      {labSettings.hasAny && (
+                        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      )}
+                    </button>
+                    <CompleteButton lab="cv" topicId={currentTopic.id} subtopicId={currentSubtopic?.id ?? ''} />
                   </div>
-
-                  <h1 className="text-xl font-bold text-foreground mb-2 leading-snug tracking-tight">
-                    {currentSubtopic?.name ?? currentTopic.name}
-                  </h1>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {currentSubtopic?.brief ?? currentTopic.brief}
-                  </p>
-
-                  {currentTopic.prerequisites.length > 0 && (
-                    <div className="mt-3.5 flex flex-wrap gap-1.5 items-center">
-                      <span className="text-xs text-muted-foreground font-medium">Prereqs:</span>
-                      {currentTopic.prerequisites.map(p => (
-                        <span key={p} className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">{p}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {(() => {
-                    const genCount = SECTION_DEFS.filter(d => sections[d.id]?.generated).length;
-                    return genCount > 0 ? (
-                      <div className="mt-4">
-                        <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
-                          <span>Sections generated</span>
-                          <span className="font-medium text-foreground/80">{genCount} / {SECTION_DEFS.length}</span>
-                        </div>
-                        <div className="h-1 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full transition-all duration-700 ease-out"
-                            style={{ width: `${(genCount / SECTION_DEFS.length) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    ) : null;
-                  })()}
                 </div>
-              </div>
+
+                <h1 className="break-words text-xl font-semibold text-foreground mb-2 leading-snug tracking-tight">
+                  {currentSubtopic?.name ?? currentTopic.name}
+                </h1>
+                <p className="text-sm font-semibold leading-relaxed mix-text-foreground/[0.78]">
+                  {currentSubtopic?.brief ?? currentTopic.brief}
+                </p>
+
+                {currentTopic.prerequisites.length > 0 && (
+                  <div className="mt-[1rem] flex flex-wrap gap-1.5 items-center">
+                    <span className="text-xs font-semibold text-muted-foreground">Prereqs</span>
+                    {currentTopic.prerequisites.map(p => (
+                      <span key={p} className={LAB_CHIP}>{p}</span>
+                    ))}
+                  </div>
+                )}
+
+                {(() => {
+                  const genCount = SECTION_DEFS.filter(d => sections[d.id]?.generated).length;
+                  return (
+                    <div className="mt-[1.25rem]">
+                      <div className="flex justify-between text-xs font-medium text-muted-foreground mb-1.5">
+                        <span>Sections generated</span>
+                        <span className="font-semibold tabular-nums text-foreground">{genCount} / {SECTION_DEFS.length}</span>
+                      </div>
+                      <div
+                        className="h-1.5 overflow-hidden rounded-full mix-bg-foreground/10"
+                        role="progressbar"
+                        aria-label="Sections generated"
+                        aria-valuemin={0}
+                        aria-valuemax={SECTION_DEFS.length}
+                        aria-valuenow={genCount}
+                      >
+                        <div
+                          className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out motion-reduce:transition-none"
+                          style={{ width: `${(genCount / SECTION_DEFS.length) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+              </header>
 
               {/* ── Video-based lab content (from YouTube generator) ── */}
               {currentSubtopic?.content && (
-                <div className="lab-card border border-border p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Video-based Lab</p>
+                <div className="lab-card p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-2">
+                    <p className="lab-caption">Video-based Lab</p>
                     {currentSubtopic.sourceUrl && (
                       <a href={currentSubtopic.sourceUrl} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[11px] text-[var(--lab-cv)] hover:underline">
-                        <Icon name="PlayCircleIcon" size={12} />
+                        className="todo-focus flex items-center gap-1 rounded text-xs font-medium lab-ink hover:underline">
+                        <Icon name="PlayCircleIcon" size={14} />
                         Watch source video
                       </a>
                     )}
@@ -1363,15 +1313,16 @@ export default function CVLabInteractive() {
 
               {/* ── Content Outline (quick-jump) ── */}
               <div className="lab-card-muted p-4">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Content Outline</p>
-                <div className="grid grid-cols-3 gap-1">
+                <p className="lab-caption mb-3">Content Outline</p>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(13rem,100%),1fr))] gap-1">
                   {SECTION_DEFS.map(def => {
                     const s = sections[def.id];
                     return (
                       <a key={def.id} href={`#sec-${def.id}`} onClick={jumpToAnchor}
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] transition-all leading-tight ${s?.generated ? 'text-teal-400 bg-teal-500/10 hover:bg-teal-500/15' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s?.generated ? 'bg-teal-400' : s?.generating ? 'bg-blue-400 animate-pulse' : 'bg-muted-foreground/20'}`} />
-                        <span className="truncate">{def.label}</span>
+                        className={`todo-focus flex items-start gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium leading-snug transition-smooth ${s?.generated ? 'lab-ink lab-tint hover:mix-bg-primary/[0.18]' : 'text-muted-foreground hover:text-foreground hover:mix-bg-foreground/[0.05]'}`}>
+                        <span aria-hidden="true" className={`mt-[0.3125rem] h-1.5 w-1.5 flex-shrink-0 rounded-full ${s?.generated ? 'bg-primary' : s?.generating ? 'bg-primary animate-pulse motion-reduce:animate-none' : 'mix-bg-foreground/[0.25]'}`} />
+                        <span className="min-w-0 break-words">{def.label}</span>
+                        {s?.generated && <span className="sr-only">(generated)</span>}
                       </a>
                     );
                   })}
@@ -1383,7 +1334,7 @@ export default function CVLabInteractive() {
                 topicName={currentTopic.name}
                 subtopicName={currentSubtopic?.name}
                 labName="cv"
-                accentVar="--lab-cv"
+                accentVar="--lab-accent"
                 onAddSubtopic={generated => handleAddGeneratedSubtopic(currentTopic.id, generated)}
               />
 
@@ -1392,7 +1343,7 @@ export default function CVLabInteractive() {
                 {SECTION_DEFS.map((def, idx) => {
                   const s = sections[def.id] ?? { generated: false, generating: false, content: '', context: '' };
                   return (
-                    <div key={def.id} id={`sec-${def.id}`} className="scroll-mt-4">
+                    <div key={def.id} id={`sec-${def.id}`} className="scroll-mt-[4.5rem]">
                       <OnDemandSection sectionIndex={idx + 1} icon={def.icon} title={def.label} subtitle={def.subtitle}
                         content={s.content} isGenerated={s.generated} isGenerating={s.generating} onGenerate={() => generateSection(def.id)}
                         onGenerateWithContext={def.id === 'quiz' ? undefined : (context, mode) => generateWithContext(def.id, context, mode)}
@@ -1416,15 +1367,17 @@ export default function CVLabInteractive() {
                 <CompleteButton lab="cv" topicId={currentTopic.id} subtopicId={currentSubtopic?.id ?? ''} size="lg" />
               </div>
 
-              {/* ── Prev / Next ── */}
-              <div className="flex items-center justify-between py-4 border-t border-border mt-2">
-                <button disabled={!prevItem} onClick={() => prevItem && navigateTo(prevItem)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-30 disabled:pointer-events-none">
-                  <Icon name="ArrowLeftIcon" size={14} />{prevItem?.label ?? 'No previous'}
+              {/* ── Prev / Next (labels wrap, never cut) ── */}
+              <div className="grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-2">
+                <button type="button" disabled={!prevItem} onClick={() => prevItem && navigateTo(prevItem)}
+                  className="todo-focus flex max-w-full items-center gap-2 justify-self-start rounded-md border border-border px-4 py-2 text-left text-sm font-medium leading-snug text-foreground transition-smooth hover:mix-bg-foreground/[0.05] disabled:pointer-events-none disabled:opacity-40">
+                  <Icon name="ArrowLeftIcon" size={14} className="flex-shrink-0" />
+                  <span className="min-w-0 break-words">{prevItem?.label ?? 'No previous'}</span>
                 </button>
-                <button disabled={!nextItem} onClick={() => nextItem && navigateTo(nextItem)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-30 disabled:pointer-events-none">
-                  {nextItem?.label ?? 'No next'}<Icon name="ArrowRightIcon" size={14} />
+                <button type="button" disabled={!nextItem} onClick={() => nextItem && navigateTo(nextItem)}
+                  className="todo-focus flex max-w-full items-center gap-2 justify-self-end rounded-md border border-border px-4 py-2 text-right text-sm font-medium leading-snug text-foreground transition-smooth hover:mix-bg-foreground/[0.05] disabled:pointer-events-none disabled:opacity-40">
+                  <span className="min-w-0 break-words">{nextItem?.label ?? 'No next'}</span>
+                  <Icon name="ArrowRightIcon" size={14} className="flex-shrink-0" />
                 </button>
               </div>
 
@@ -1466,19 +1419,19 @@ export default function CVLabInteractive() {
         </main>
 
         {/* ── RIGHT: Copilot ─────────────────────────────────────────────── */}
-        <aside data-sheet={lab.sheet === 'right' ? 'open' : 'closed'} inert={lab.isMobile && lab.sheet !== 'right' ? true : undefined} className="lab-copilot border-l flex flex-col overflow-hidden" style={{ width: rightExpanded ? 300 : 48, minWidth: rightExpanded ? 300 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
-          {rightExpanded ? (
-            <LabCopilot context={contextLabel} labType="cv" onCollapse={() => collapseRight()} />
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-3">
-              <button onClick={() => setRightOpen(true)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Show Copilot">
-                <Icon name="ChevronLeftIcon" size={14} />
-              </button>
-              <div className="w-7 h-7 rounded-full bg-secondary/20 flex items-center justify-center mt-1">
-                <Icon name="SparklesIcon" size={12} className="text-secondary" variant="solid" />
-              </div>
-            </div>
-          )}
+        <aside
+          aria-label="AI Copilot"
+          role={lab.isMobile && lab.sheet === 'right' ? 'dialog' : undefined}
+          aria-modal={lab.isMobile && lab.sheet === 'right' ? true : undefined}
+          data-sheet={lab.sheet === 'right' ? 'open' : 'closed'}
+          inert={lab.isMobile && lab.sheet !== 'right' ? true : undefined}
+          className="lab-copilot border-l flex flex-col overflow-hidden"
+          style={{ width: rightExpanded ? 300 : 48, minWidth: rightExpanded ? 300 : 48, flexShrink: 0, transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)' }}>
+          {/* Stays mounted while collapsed, so the conversation survives a collapse */}
+          <div className={rightExpanded ? 'h-full w-[300px] max-md:w-full' : 'hidden'}>
+            <LabCopilot context={contextLabel} labType="cv" collapseLabel={lab.isMobile ? 'Close' : 'Collapse'} onCollapse={() => collapseRight()} />
+          </div>
+          {!rightExpanded && <LabCopilotRail onOpen={() => setRightOpen(true)} />}
         </aside>
       </div>
     </div>

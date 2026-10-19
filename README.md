@@ -402,6 +402,105 @@ generations (in any lab) can build on. Everything is per user and login-required
   modules (LinkedIn, Career, LMS), the static quizzes in the CV and System Design labs (there is nothing AI-written to adapt), and guests (the labs
   need a login anyway).
 
+## DSA Week Plan, Organizer and Auto Organizer (`/dsa-lab?view=week`)
+
+The DSA lab's **By week** view lays questions out week by week, in blocks of four weeks. A learner can keep several named
+**plans** (Plan 1, Plan 2 ... the same questions can sit in different weeks in each), open the **Week organizer** to drag
+questions between weeks and a question queue, and let an **AI auto organizer** draft a plan from their answers. Everything is
+per user and login-required (the lab itself needs a login). A week holds at most **7** questions; a plan has 1-24 weeks.
+
+- **Screens (URL per screen):** `?view=week` is the week view; `?view=week&organize=1` is the organizer (a full-screen layer with its
+  own Back). The plan menu, the wizard and the dialogs are not screens, so they have no URL.
+- **Week view** (`src/modules/dsa-lab/WeekPlanView.tsx`): weeks in blocks of four with a progress line each, a "Jump to week"
+  select, the plan menu, Auto organize and Organize buttons, and on every question the original per-question week `<select>` (full
+  weeks are disabled, "Not in a week" takes it out).
+- **Organizer** (`src/modules/dsa-lab/organizer/`): question queue on the left (search, pattern, difficulty, hide done, sort
+  including a recommended order), weeks on the right. Drag with @dnd-kit (pointer, touch via the grip, keyboard with Space and
+  arrows); a drop into a full week is refused with a message, a drop on a card inside a full week swaps the two. Each week has a menu
+  (rename focus, fill with suggestions, clear, move earlier/later, insert after, remove), an editable focus label, a capacity bar and
+  suggested questions. An **Insights** strip points out empty weeks, uneven load, a prerequisite pattern placed after the pattern that
+  needs it, and patterns not planned yet. Undo/redo (Ctrl/Cmd+Z), and on phones a Queue | Weeks toggle.
+- **Plan profiles** (`PlanProfileMenu.tsx`): save as new plan, rename, duplicate, delete, switch. At most 20 per user, names are
+  unique per user (case-insensitive, 409 otherwise). "Suggested plan" is the built-in plan (it deactivates the saved ones, nothing is
+  deleted). The first edit of the suggested plan creates "My plan".
+- **Auto organizer** (`AutoOrganizerWizard.tsx`): five steps (timeline or interview date, level and goal, patterns to emphasise and
+  find hard, difficulty and style, review). **Plan with AI** saves the result immediately as an inactive "AI plan" so nothing is lost,
+  then offers to switch to it; **Quick plan (no AI)** builds a deterministic plan in the browser (`localOrganize` in `weekPlan.ts`).
+- **API** (`backend/modules/dsa_lab/router.py`, twin `frontend/fe-apis/dsaLab/`, route `src/app/api/dsa/[...path]` which must export
+  GET/POST/PUT/PATCH/DELETE, rewrite `/dsa/week-plan/:path*` in `next.config.mjs`): `GET/PUT/DELETE /dsa/week-plan` (the active plan),
+  `GET/POST /dsa/week-plan/profiles`, `GET/PATCH/DELETE /dsa/week-plan/profiles/{id}`, `POST .../{id}/activate`, and
+  `POST /dsa/week-plan/auto`. A plan is `{ weeks, assignments: {topicId: week}, order: [topicId], labels: {"<week>": "<focus>"} }`.
+  Someone else's plan is a **404**. Storage: `dsa_week_plan_profiles` (one row per plan, one active per user); the older one-row-per-user
+  `dsa_week_plans` is migrated into a "My plan" profile the first time the user touches any week-plan route.
+- **The auto route** takes the user's AI settings in the body like every AI endpoint, plus `answers` and the lab's `topics` (id, name,
+  pattern, difficulty, done), builds the prompt in `auto_plan.py` (twin `fe-apis/dsaLab/autoPlan.ts`), and **normalises whatever
+  the model answers**: unknown or repeated ids are dropped, weeks outside the timeline are dropped, and no week gets more than the
+  per-week limit (at most 7). It does not save anything; the client saves the plan as a profile.
+- **Twin rules:** routes, status codes, error texts, the prompt and the normalisation are identical in both backends; change both and
+  diff them against a mock provider (see CLAUDE.md). `backend/tests/dsa_week_plan_test.py` covers the Python side.
+- **Saved plans use topic ids.** In `fastapi` mode topics come from the database (`ps-subarray-sum-k`); in `nextjs-api` mode the lab
+  falls back to its built-in list (`dsa-1` ... `dsa-80`), so a plan saved in one mode does not show its questions in the other.
+- **Type and look:** the DSA lab uses Poppins Medium for headings and Montserrat for text (the scoped `.dsa-type` class), and subtle glass
+  (`.dsa-glass`, `.dsa-glass-bar`) only on floating or sticky surfaces: the organizer's top bar and block headers, the card being dragged
+  (and its swap hint), and the week view's sticky toolbar. The queue panel, the week columns and the wizard panel are plain
+  `border bg-card` surfaces. Colours, borders and spacing follow the "Lab visual system" below.
+
+## Lab visual system (DSA, CV, System Design, Daily Session, Labs Project, Config)
+
+The three practice labs and the pages around them (Daily Session, Labs Project, Config) share one visual language: calm surfaces, one
+hairline border, and the **Settings accent as the only interactive colour**. It lives in the "Lab visual system" block of
+`frontend/src/styles/tailwind.css` plus a few shared parts in `frontend/src/modules/common/lab/`, so a change there restyles every lab.
+
+- **Tokens.** `--lab-accent` is `--color-primary` (so `applyAccent()` and the inline script in `app/layout.tsx` drive it live, in
+  light and dark, with no reload). `--lab-accent-soft` is a 12% tint of it, `--lab-accent-ink` is the accent mixed with the text colour
+  (55% in light, 60% in dark): use it for small accent **text**, because the raw accent fails 4.5:1 for several presets (it is guaranteed
+  for the seven presets, not for an arbitrary custom hex). `--lab-identity` is the hue of the hero glow and the icon tile only: the
+  accent for DSA and every page, teal (`--lab-cv`) on `.lab-shell[data-lab="cv"]`, amber (`--lab-system`) on
+  `[data-lab="system-design"]`. `--lab-dsa*`, `--lab-cv-soft`, `--lab-system-soft` and `--wiki-*-hover` are kept as aliases of the accent
+  so a class that is missed can never leak teal or amber into a button, row or link.
+- **Classes.** `.lab-shell` (the root of a lab: with `.lab-sidebar`, `.lab-main`, `.lab-copilot`, `.lab-container`) and `.lab-page` (the
+  frame of a module that is not a lab shell: Daily Session, Labs Project, Config, and the panel of every lab dialog or popover, which
+  portal to `<body>`; the DSA organizer's portals use `.dsa-type`). `.lab-hero` and `.lab-glow` are the signature wash (a 26% radial and
+  a 10% linear gradient of `--hero-tint`; put children in a `relative` wrapper). `.lab-tile` is the icon tile, `.lab-row` (+ `-tall`,
+  `-muted`) a sidebar row (`aria-current="page"` or `data-active="true"` marks the active one; add `<span className="todo-rail" />` for
+  the rail), `.lab-caption` the 11px uppercase group label. Utilities `lab-ink` and `lab-tint` (with `hover:` and `group-hover:`) are the
+  accent text and the soft accent fill.
+- **One hairline.** Inside `.lab-shell`, `.lab-page` and `.dsa-type`, `--color-border` is redefined to the text colour at 13%, text weight
+  is 500, light-mode muted text is `#655d53` and radii are 8 (controls), 12 (cards), 16 (floating). Write a bare `border`; cards have no
+  shadow (`shadow-lg` only on dialogs and overlays) and no gradient. The selected-segment ink rule (`html :is(.lab-shell, ...)
+  :is(.todo-segmented-accent .todo-segment[aria-pressed='true'], ...)`) only wins because it comes after the shared
+  `html:not(.dark)` patch in the file: keep the order.
+- **Shared parts** (`src/modules/common/lab/`): `WikiParts.tsx` (`WikiHero`, `WikiIndexNav`, `WikiSectionHeading`, `WIKI_CARD`,
+  `WIKI_CHIP`, `LAB_CHIP`, `LAB_CHIP_ACCENT`; test hooks `data-wiki-hero|metrics|progress|index|index-list`), `LabSidebarParts.tsx`
+  (`LabSidebarHeader`, `LabAddRow`, `LabInlineAdd`, `LabRecentList`, `LAB_REVEAL`), `LabTags.tsx` (`DifficultyTag`,
+  `difficultyDotClass`; `dsa-lab/ui.tsx` re-exports them), `LabProgressUi.tsx` (`LabProgressSummary` is the one-line progress row inside
+  the hero), `LabMobile.tsx` (`useLabSheets`: the phone sheets; `useLabPanes`: below 1280px the Copilot starts as its 48px rail, below
+  1024px the sidebar too and only one side pane is open at a time) and `modules/common/LabCopilot.tsx` (`LabCopilot`,
+  `LabCopilotRail`).
+- **Host contract for a lab:** a `lab-shell` root (`data-lab` for CV and System Design), `useLabSheets` + `useLabPanes`, a sidebar
+  `<aside aria-label="Topics">` built on the sidebar parts, `<aside aria-label="AI Copilot">` with the Copilot **always mounted**
+  (`hidden` while collapsed, so the conversation survives) and `LabCopilotRail` when collapsed, and `GenerateQuestionsPanel
+  accentVar="--lab-accent"`. The three labs must stay identical here.
+- **Semantic colour stays semantic.** Difficulty tones (`DifficultyTag`; "Mixed" is slate so it never reads as an accent chip), the green
+  "done" check and the hint rails keep their hues and carry `data-semantic="difficulty|done|hint"`, which the accent-leak scan skips.
+  Other fixed hues are deliberate: Daily Session's gamified skin (the PracticeMode category chips, the mascot, the emerald CTAs, the
+  `isSwapnilxi` skin; `data-accent-exempt`), the brand-logo gradient in the Header and Sidebar, and Config's accent swatches.
+- **Text.** Names, captions and labels wrap (`break-words leading-snug`) and are never cut with an ellipsis; only chips and one-line UI
+  labels may truncate. Text is at least 12px (11px only on an uppercase caption), weights are 500 body and 600 labels and titles
+  (700 only for a big number), secondary text is `mix-text-foreground/[0.74]` or stronger. On the hero's wash use that mix, not
+  `text-muted-foreground` (it fails contrast there). No emoji as icons: use `Icon`.
+- **Enforcement.** `npm run check:tailwind` (from `frontend/`) covers these folders (`TODO_ROOTS` in
+  `scripts/check-tailwind-traps.mjs`) with these rules: `dead-opacity` (a /NN modifier on a theme colour, a `--lab-*` token or any
+  `var()` colour compiles to nothing), `pixel` (the keys 6, 12, 18, ... are pixels), `palette-alpha` (a palette colour with an alpha that
+  is not a step of the scale), `invalid-keys` (`shadow-xs`, `py-0.2`), `mix-unknown` (`mix-bg-amber-500/15`: `mix-*` only knows the theme
+  tokens in `tailwind/mix-colors.js`), `tiny-text` and `emoji`. `daily-session` skips the last two (that is the gamified feature) and
+  `labSectionDefaults.ts` is exempt from `emoji` (its emoji are the preset add-on labels users read and save). When a rule hits, decide:
+  use the live equivalent, delete the class, or (for a dead text alpha, which renders at full colour today) use `text-muted-foreground`
+  or the foreground mix, never a faint alpha.
+- **Known limits.** The CV and System Design identity hue (teal, amber) shows beside any accent; set `--lab-identity` to
+  `var(--color-primary)` in `tailwind.css` if that ever reads as two accents. `.lab-hero` is global (the LinkedIn page uses it too).
+  Panes collapse after hydration, so on a narrow window they animate shut once.
+
 ## To-Do Module (AI To-Do)
 
 A full task-management feature lives alongside the interview-coach modules, reachable

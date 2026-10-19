@@ -1,36 +1,42 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId, type ReactNode } from 'react';
 import Icon from '@/components/ui/AppIcon';
 
-interface Message { id: string; role: 'user' | 'ai'; content: string; }
+interface Message {
+  id: string;
+  role: 'user' | 'ai';
+  content: string;
+}
 
 interface LabCopilotProps {
   context: string;
   labType?: 'dsa' | 'cv' | 'system-design';
   onCollapse?: () => void;
+  /** Accessible name and tooltip of the collapse button: "Collapse" in the side column, "Close" when the copilot is a phone sheet. */
+  collapseLabel?: string;
 }
 
 const HINT_LEVELS: Record<string, string[]> = {
   default: [
-    "Level 1 🟢 — Think about what data structure gives you O(1) lookups. What property of the problem can you exploit to avoid brute force?",
-    "Level 2 🟡 — The key insight is reducing the problem to a complement search. For every element you see, ask: 'Have I seen what I need to pair with this before?'",
-    "Level 3 🔴 — Use a hash map to store {value: index} as you iterate. For each element, check if (target - element) is already in the map. Return the pair if found.",
+    'Level 1 — Think about what data structure gives you O(1) lookups. What property of the problem can you exploit to avoid brute force?',
+    "Level 2 — The key insight is reducing the problem to a complement search. For every element you see, ask: 'Have I seen what I need to pair with this before?'",
+    'Level 3 — Use a hash map to store {value: index} as you iterate. For each element, check if (target - element) is already in the map. Return the pair if found.',
   ],
   dsa: [
-    "Level 1 🟢 — Read the problem constraints carefully. The input size and value range usually tell you the expected time complexity (e.g., n ≤ 10⁵ → O(n log n) max).",
-    "Level 2 🟡 — Identify the pattern family: Is this a search problem? A range query? A graph traversal? Matching the problem to a known pattern is the skill.",
-    "Level 3 🔴 — Look for the invariant: what property holds true as you move through the array/tree/graph? Most optimal solutions maintain a small invariant over a larger state space.",
+    'Level 1 — Read the problem constraints carefully. The input size and value range usually tell you the expected time complexity (e.g., n ≤ 10⁵ → O(n log n) max).',
+    'Level 2 — Identify the pattern family: Is this a search problem? A range query? A graph traversal? Matching the problem to a known pattern is the skill.',
+    'Level 3 — Look for the invariant: what property holds true as you move through the array/tree/graph? Most optimal solutions maintain a small invariant over a larger state space.',
   ],
   cv: [
-    "Level 1 🟢 — Start from first principles: what is the mathematical objective this algorithm is optimizing? Understanding the loss function unlocks the architecture.",
-    "Level 2 🟡 — Think about what inductive biases the model has. CNNs assume local correlation and translation invariance — is that assumption valid for your data?",
-    "Level 3 🔴 — The practical bottleneck is almost never the model architecture. Look at your data pipeline, augmentation strategy, and learning rate schedule first.",
+    'Level 1 — Start from first principles: what is the mathematical objective this algorithm is optimizing? Understanding the loss function unlocks the architecture.',
+    'Level 2 — Think about what inductive biases the model has. CNNs assume local correlation and translation invariance — is that assumption valid for your data?',
+    'Level 3 — The practical bottleneck is almost never the model architecture. Look at your data pipeline, augmentation strategy, and learning rate schedule first.',
   ],
   'system-design': [
-    "Level 1 🟢 — Start with clarifying requirements. Ambiguity is intentional — interviewers want to see if you ask the right questions before designing.",
-    "Level 2 🟡 — Do back-of-envelope math first. If you need 100k QPS, a single MySQL instance won't work — that shapes every decision downstream.",
-    "Level 3 🔴 — Think in failure modes: what happens if this service goes down? What if the database is slow? Your design is only as strong as its weakest link.",
+    'Level 1 — Start with clarifying requirements. Ambiguity is intentional — interviewers want to see if you ask the right questions before designing.',
+    "Level 2 — Do back-of-envelope math first. If you need 100k QPS, a single MySQL instance won't work — that shapes every decision downstream.",
+    'Level 3 — Think in failure modes: what happens if this service goes down? What if the database is slow? Your design is only as strong as its weakest link.',
   ],
 };
 
@@ -60,7 +66,7 @@ const DIVE_DEEPER: Record<string, string> = {
 };
 
 const ELI5_RESPONSES: Record<string, string> = {
-  default: `🐣 **Explain Like I'm 5:**
+  default: `**Explain Like I'm 5:**
 
 Imagine you have a big box of LEGO pieces. You want to find two pieces that fit together perfectly.
 
@@ -68,8 +74,8 @@ The slow way: pick up every piece, try it with every other piece. That takes FOR
 
 The smart way: when you pick up a piece, put a sticky note on it saying what kind of piece it is. Now when you pick up a new piece, just check your sticky notes — if the matching piece is already noted, you found your pair immediately!
 
-That's what the hash map does — it's your sticky note collection. Instead of checking everything again, you just look it up. 🎯`,
-  'system-design': `🐣 **Explain Like I'm 5:**
+That's what the hash map does — it's your sticky note collection. Instead of checking everything again, you just look it up.`,
+  'system-design': `**Explain Like I'm 5:**
 
 Imagine you have a very popular lemonade stand. At first, you serve everyone yourself — easy!
 
@@ -80,306 +86,518 @@ But then 10,000 people show up. You can't serve everyone! So you:
 3. **Pre-pour popular drinks** so you don't make them fresh every time (caching)
 4. **Have a backup stand** in case yours breaks (replication + failover)
 
-That's distributed systems! Big lemonade stand problems, solved with big lemonade stand solutions. 🍋`,
+That's distributed systems! Big lemonade stand problems, solved with big lemonade stand solutions.`,
 };
 
 type CopilotTab = 'hint' | 'deeper' | 'eli5' | 'chat';
 
-export default function LabCopilot({ context, labType = 'dsa', onCollapse }: LabCopilotProps) {
+const TABS: { id: CopilotTab; label: string }[] = [
+  { id: 'chat', label: 'Chat' },
+  { id: 'hint', label: 'Hint' },
+  { id: 'deeper', label: 'Deeper' },
+  { id: 'eli5', label: 'ELI5' },
+];
+
+const QUICK_PROMPTS: { icon: string; text: string }[] = [
+  { icon: 'FaceSmileIcon', text: 'Explain simply' },
+  { icon: 'ExclamationTriangleIcon', text: 'Common mistakes' },
+  { icon: 'RocketLaunchIcon', text: 'Production tips' },
+  { icon: 'PuzzlePieceIcon', text: 'Edge cases' },
+];
+
+/** Left rail colour of hint level 1, 2, 3: semantic tokens (they follow light/dark, not the Settings accent). */
+const HINT_RAIL = ['border-success', 'border-warning', 'border-error'];
+
+/** The Suggestions disclosure is remembered per browser (one key for all three labs). */
+const SUGGEST_KEY = 'lab-copilot-suggestions';
+
+/** `**bold**` only. Never prints the asterisks (the Deeper / ELI5 copy used to show them). */
+function renderInline(text: string): ReactNode {
+  return text.split(/(\*\*.+?\*\*)/).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') && part.length > 4 ? (
+      <strong key={i} className="font-semibold">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+}
+
+/** A canned answer: a line that is one bold run is a heading, every other non-empty line is a paragraph. */
+function renderLines(text: string): ReactNode[] {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line, i) =>
+      /^\*\*[^*]+\*\*$/.test(line) ? (
+        <h4 key={i} className="text-xs font-semibold leading-snug text-foreground">
+          {line.slice(2, -2)}
+        </h4>
+      ) : (
+        <p key={i}>{renderInline(line)}</p>
+      )
+    );
+}
+
+/** "Level 2 — …": the label is semibold so the level reads at a glance now that the traffic-light emoji are gone. */
+function HintText({ text }: { text: string }) {
+  const m = /^(Level \d)( — )([\s\S]*)$/.exec(text);
+  if (!m) return <>{text}</>;
+  return (
+    <>
+      <span className="font-semibold">{m[1]}</span>
+      {m[2]}
+      {m[3]}
+    </>
+  );
+}
+
+function scrollToEnd(el: HTMLElement | null, behavior: ScrollBehavior) {
+  if (!el) return;
+  if (typeof el.scrollTo === 'function') el.scrollTo({ top: el.scrollHeight, behavior });
+  else el.scrollTop = el.scrollHeight;
+}
+
+function Thinking({ label = 'Copilot is thinking' }: { label?: string }) {
+  return (
+    <div
+      className="copilot-msg-ai-quiet flex items-center gap-1 py-1 pl-3"
+      role="status"
+      aria-label={label}
+    >
+      {[0, 150, 300].map((d) => (
+        <span
+          key={d}
+          className="h-1.5 w-1.5 rounded-full bg-primary motion-safe:animate-bounce"
+          style={{ animationDelay: `${d}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PanelIntro({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold leading-tight text-foreground">{title}</h3>
+      <p className="mt-1 text-xs leading-relaxed mix-text-foreground/[0.74]">{children}</p>
+    </div>
+  );
+}
+
+export default function LabCopilot({
+  context,
+  labType = 'dsa',
+  onCollapse,
+  collapseLabel = 'Collapse',
+}: LabCopilotProps) {
   const [activeTab, setActiveTab] = useState<CopilotTab>('chat');
   const [hintLevel, setHintLevel] = useState(0);
-  const [hintShown, setHintShown] = useState(false);
   const [deeperShown, setDeeperShown] = useState(false);
   const [eli5Shown, setEli5Shown] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  // The tab whose canned answer is being "generated"; only one can run at a time (every CTA is disabled meanwhile).
+  const [generating, setGenerating] = useState<CopilotTab | null>(null);
 
-  // Chat state
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 'w', role: 'ai', content: `I'm your AI Copilot for **${context}**. Ask me anything — I can help you understand concepts, debug your thinking, or explore edge cases. What's on your mind?` },
-  ]);
+  // Chat state. The welcome line is not a stored message: it is rendered from the current `context`, so it never goes stale.
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [chatGenerating, setChatGenerating] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(true);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, chatGenerating]);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(false);
+  const prevTabRef = useRef<CopilotTab>(activeTab);
+  const suggestionsId = useId();
 
-  const tabs: { id: CopilotTab; label: string; icon: string }[] = [
-    { id: 'chat', label: 'Chat', icon: 'ChatBubbleLeftRightIcon' },
-    { id: 'hint', label: 'Hint', icon: 'LightBulbIcon' },
-    { id: 'deeper', label: 'Deeper', icon: 'MagnifyingGlassIcon' },
-    { id: 'eli5', label: "ELI5", icon: 'FaceSmileIcon' },
-  ];
+  const canSend = input.trim().length > 0 && !chatGenerating;
+  const busy = generating !== null;
 
-  const triggerGenerate = (cb: () => void) => {
-    setGenerating(true);
-    setTimeout(() => { setGenerating(false); cb(); }, 1400);
-  };
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SUGGEST_KEY) === '0') setSuggestionsOpen(false);
+    } catch {
+      /* storage blocked: stay open */
+    }
+  }, []);
 
-  const getNextHint = () => {
-    const hints = HINT_LEVELS[labType] ?? HINT_LEVELS.default;
-    if (hintLevel < hints.length) {
-      triggerGenerate(() => { setHintShown(true); setHintLevel(l => l + 1); });
+  const toggleSuggestions = () => {
+    const next = !suggestionsOpen;
+    setSuggestionsOpen(next);
+    try {
+      window.localStorage.setItem(SUGGEST_KEY, next ? '1' : '0');
+    } catch {
+      /* storage blocked: the choice lasts for this visit only */
     }
   };
 
-  const sendChat = (text: string) => {
-    if (!text.trim() || chatGenerating) return;
-    const userMsg: Message = { id: `u${Date.now()}`, role: 'user', content: text.trim() };
-    setMessages(p => [...p, userMsg]);
-    setInput('');
-    setChatGenerating(true);
+  // Follow the conversation: a new message or the typing indicator scrolls smoothly (instantly under reduced motion). Coming back
+  // to Chat remounts the list at the top, so a tab change jumps to the latest message. Nothing happens on the first render.
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      prevTabRef.current = activeTab;
+      return;
+    }
+    const tabChanged = prevTabRef.current !== activeTab;
+    prevTabRef.current = activeTab;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    scrollToEnd(listRef.current, tabChanged || reduce ? 'auto' : 'smooth');
+  }, [messages, chatGenerating, activeTab]);
+
+  // The hosts keep the copilot mounted while the pane is collapsed (display: none resets the scroll offset): when it shows again, land on the latest message.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let hidden = el.offsetHeight === 0;
+    const ro = new ResizeObserver(() => {
+      const nowHidden = el.offsetHeight === 0;
+      if (hidden && !nowHidden) scrollToEnd(listRef.current, 'auto');
+      hidden = nowHidden;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const triggerGenerate = (tab: CopilotTab, cb: () => void) => {
+    if (busy) return;
+    setGenerating(tab);
     setTimeout(() => {
-      const reply: Message = {
-        id: `a${Date.now()}`,
-        role: 'ai',
-        content: `Great question about **${context}**! Here's how I'd approach this: The key insight is to think about the problem constraints first — what's the input range? What's the expected time complexity? Once you know those, the algorithmic pattern often becomes clear. Want me to walk through the reasoning step by step?`,
-      };
-      setMessages(p => [...p, reply]);
-      setChatGenerating(false);
+      setGenerating(null);
+      cb();
     }, 1400);
   };
 
   const hints = HINT_LEVELS[labType] ?? HINT_LEVELS.default;
+  const getNextHint = () => {
+    if (hintLevel < hints.length) triggerGenerate('hint', () => setHintLevel((l) => l + 1));
+  };
+
+  const sendChat = (text: string) => {
+    if (!text.trim() || chatGenerating) return;
+    setMessages((p) => [...p, { id: `u${Date.now()}`, role: 'user', content: text.trim() }]);
+    setInput('');
+    setChatGenerating(true);
+    setTimeout(() => {
+      setMessages((p) => [
+        ...p,
+        {
+          id: `a${Date.now()}`,
+          role: 'ai',
+          content: `Great question about **${context}**! Here's how I'd approach this: The key insight is to think about the problem constraints first — what's the input range? What's the expected time complexity? Once you know those, the algorithmic pattern often becomes clear. Want me to walk through the reasoning step by step?`,
+        },
+      ]);
+      setChatGenerating(false);
+    }, 1400);
+  };
+
+  const footer = 'flex-shrink-0 px-4 pb-4 pt-2';
+  const scroller =
+    'min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3 scrollbar-clean [overflow-wrap:anywhere]';
 
   return (
-    <div className="flex flex-col" style={{ height: '100%', overflow: 'hidden' }}>
-      {/* Header */}
-      <div className="px-3 py-2.5 border-b border-border bg-surface flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0">
-            <Icon name="SparklesIcon" size={13} className="text-secondary" variant="solid" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="font-heading text-xs font-semibold text-foreground">AI Copilot</span>
-            <p className="text-[10px] text-muted-foreground truncate leading-none mt-0.5" title={context}>{context}</p>
-          </div>
-          {onCollapse && (
-            <button onClick={onCollapse} className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Collapse">
-              <Icon name="ChevronRightIcon" size={13} />
+    <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden font-medium">
+      {/* Header: one row, no band, no border */}
+      <div className="flex flex-shrink-0 items-center gap-2.5 px-4 py-3">
+        <Icon
+          name="SparklesIcon"
+          size={16}
+          variant="solid"
+          className="flex-shrink-0 text-primary"
+          aria-hidden="true"
+        />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold leading-tight tracking-tight text-foreground">
+            AI Copilot
+          </h2>
+          {/* The context is the topic name: it wraps, it is never cut with an ellipsis */}
+          <p className="mt-0.5 text-xs leading-snug mix-text-foreground/[0.74] [overflow-wrap:anywhere]">
+            {context}
+          </p>
+        </div>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="todo-btn todo-btn-ghost -mr-1.5 h-8 w-8 flex-shrink-0 px-0 max-md:w-10"
+            title={`${collapseLabel} AI Copilot`}
+            aria-label={`${collapseLabel} AI Copilot`}
+          >
+            <Icon name="ChevronRightIcon" size={16} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      {/* Mode switch: the shared quiet segmented control; the selected one follows the Settings accent (ink text on an accent tint) */}
+      <div className="flex-shrink-0 px-4 pb-3">
+        <div
+          role="group"
+          aria-label="Copilot mode"
+          className="todo-segmented todo-segmented-quiet todo-segmented-accent flex w-full"
+        >
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              aria-pressed={activeTab === tab.id}
+              className="todo-segment flex-1 justify-center px-1.5"
+            >
+              {tab.label}
             </button>
-          )}
+          ))}
         </div>
       </div>
-      
-      {/* Tab content — fills remaining space, uses flex column so children can pin bottom */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
 
-        {/* copilot chat TAB */}
-        
-         {/* Tabs */}
-      <div className="flex border-b border-border bg-card flex-shrink-0">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex flex-col items-center gap-1 py-2 text-xs font-medium transition-smooth border-b-2 ${
-              activeTab === tab.id
-                ? 'border-primary text-primary bg-primary/5'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted'
-            }`}
+      {/* CHAT */}
+      {activeTab === 'chat' && (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div
+            ref={listRef}
+            role="log"
+            aria-live="polite"
+            aria-label="AI Copilot conversation"
+            className={scroller}
           >
-            <Icon name={tab.icon as any} size={13} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-        {activeTab === 'chat' && (
-          <div className="flex flex-col flex-1 min-h-0">
-            {/* Scrollable messages — flex-1 + min-h-0 keeps it from overflowing */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 scrollbar-clean">
-              {messages.map(msg => (
-                <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[90%] px-3 py-2 rounded-lg text-xs leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground rounded-tr-none'
-                      : 'bg-muted border border-border text-foreground rounded-tl-none'
-                  }`}>
-                    {msg.content.split('**').map((part, i) =>
-                      i % 2 === 1 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>
-                    )}
+            <p className="text-xs leading-relaxed mix-text-foreground/[0.74]">
+              I&apos;m your AI Copilot for{' '}
+              <strong className="font-semibold text-foreground">{context}</strong>. Ask me anything
+              — I can help you understand concepts, debug your thinking, or explore edge cases.
+              What&apos;s on your mind?
+            </p>
+            {messages.map((msg) =>
+              msg.role === 'user' ? (
+                <div key={msg.id} className="flex animate-fade-in justify-end">
+                  <div className="copilot-msg-user-quiet max-w-[92%] px-3 py-2 text-xs leading-relaxed">
+                    {renderInline(msg.content)}
                   </div>
                 </div>
+              ) : (
+                <div
+                  key={msg.id}
+                  className="copilot-msg-ai-quiet animate-fade-in pl-3 text-xs leading-relaxed text-foreground"
+                >
+                  {renderInline(msg.content)}
+                </div>
+              )
+            )}
+            {chatGenerating && <Thinking />}
+          </div>
+
+          {/* Composer: anchored at the bottom, no fill, no rule */}
+          <div className="flex-shrink-0 px-4 pb-4 pt-1">
+            <div className="mb-2">
+              <button
+                type="button"
+                onClick={toggleSuggestions}
+                aria-expanded={suggestionsOpen}
+                aria-controls={suggestionsId}
+                className="todo-focus -ml-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium mix-text-foreground/[0.74] transition-colors hover:text-foreground"
+              >
+                Suggestions
+                <Icon
+                  name="ChevronDownIcon"
+                  size={12}
+                  className={`transition-transform motion-reduce:transition-none ${suggestionsOpen ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
+                />
+              </button>
+              {suggestionsOpen && (
+                <div id={suggestionsId} className="mt-0.5 flex flex-col gap-0.5">
+                  {QUICK_PROMPTS.map((p) => (
+                    <button
+                      key={p.text}
+                      type="button"
+                      onClick={() => sendChat(p.text)}
+                      disabled={chatGenerating}
+                      className="copilot-chip-quiet todo-focus rounded-md mix-text-foreground/[0.78]"
+                    >
+                      <Icon
+                        name={p.icon}
+                        size={13}
+                        className="mt-px flex-shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <span>{p.text}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                sendChat(input);
+              }}
+              className="relative"
+            >
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask anything..."
+                aria-label="Ask the AI Copilot"
+                autoComplete="off"
+                enterKeyHint="send"
+                className="copilot-input-quiet max-md:pr-[3rem]"
+              />
+              <button
+                type="submit"
+                disabled={!canSend}
+                aria-label="Send"
+                className={`todo-focus absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition-colors disabled:cursor-default max-md:h-10 max-md:w-10 ${
+                  canSend
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground opacity-60'
+                }`}
+              >
+                <Icon name="PaperAirplaneIcon" size={12} variant="solid" aria-hidden="true" />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* HINT */}
+      {activeTab === 'hint' && (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className={scroller} aria-live="polite" aria-busy={generating === 'hint'}>
+            <PanelIntro title="Progressive Hints">
+              Hints get more specific with each level. Try to solve it before going deeper.
+            </PanelIntro>
+            <ol className="space-y-3">
+              {hints.slice(0, hintLevel).map((hint, i) => (
+                <li
+                  key={i}
+                  data-semantic="hint"
+                  className={`animate-fade-in border-l-2 pl-3 text-xs leading-relaxed text-foreground ${HINT_RAIL[i] ?? HINT_RAIL[2]}`}
+                >
+                  <HintText text={hint} />
+                </li>
               ))}
-              {chatGenerating && (
-                <div className="flex justify-start">
-                  <div className="bg-muted border border-border px-3 py-2 rounded-lg rounded-tl-none flex gap-1">
-                    {[0, 150, 300].map(d => (
-                      <span key={d} className="w-1.5 h-1.5 rounded-full bg-secondary animate-bounce" style={{ animationDelay: `${d}ms` }} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div ref={endRef} />
-            </div>
-
-            {/* Pinned input — flex-shrink-0 keeps it fixed at the bottom */}
-            <div className="flex-shrink-0 border-t border-border bg-card p-3">
-              {/* Quick prompts */}
-              <div className="grid grid-cols-2 gap-1.5 mb-3">
-                {['Explain simply', 'Common mistakes', 'Production tips', 'Edge cases'].map(p => (
-                  <button key={p} onClick={() => sendChat(p)} disabled={chatGenerating}
-                    className="text-xs px-2 py-1.5 rounded-md border border-border text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-primary/5 transition-smooth disabled:opacity-50 text-left leading-tight">
-                    {p}
-                  </button>
-                ))}
-              </div>
-              <form onSubmit={e => { e.preventDefault(); sendChat(input); }} className="flex gap-2 relative">
-                <input value={input} onChange={e => setInput(e.target.value)} disabled={false}
-                  placeholder="Ask anything..."
-                  className="flex-1 bg-input border border-border rounded-full py-2 pl-3 pr-9 text-xs focus-ring placeholder:text-muted-foreground" />
-                <button type="submit" disabled={!input.trim() || chatGenerating}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 transition-smooth disabled:opacity-50">
-                  <Icon name="PaperAirplaneIcon" size={12} variant="solid" />
-                </button>
-              </form>
+            </ol>
+            {generating === 'hint' && <Thinking label="Generating the next hint" />}
+            <div
+              role="img"
+              aria-label={`${hintLevel} of ${hints.length} hints revealed`}
+              className="flex gap-1.5"
+            >
+              {hints.map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-1 w-4 rounded-full ${i < hintLevel ? 'bg-primary' : 'mix-bg-foreground/15'}`}
+                />
+              ))}
             </div>
           </div>
-        )}
-
-        {/* HINT TAB */}
-        {activeTab === 'hint' && (
-          <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 scrollbar-clean">
-              <div className="text-center">
-                <Icon name="LightBulbIcon" size={24} variant="outline" className="text-warning mx-auto mb-2" />
-                <h4 className="font-heading text-sm font-semibold text-foreground mb-4">Progressive Hints</h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Hints get more specific with each level. Try to solve it before going deeper.
-                </p>
-              </div>
-
-              {/* Hint levels shown */}
-              <div className="space-y-2">
-                {hints.slice(0, hintLevel).map((hint, i) => (
-                  <div key={i} className={`p-3 rounded-lg text-xs leading-relaxed border ${
-                    i === 0 ? 'bg-success/5 border-success/20' :
-                    i === 1 ? 'bg-warning/5 border-warning/20' : 'bg-error/5 border-error/20'
-                  }`}>
-                    {hint}
-                  </div>
-                ))}
-              </div>
-
-              {generating && activeTab === 'hint' && (
-                <div className="flex justify-center py-4">
-                  <span className="w-5 h-5 border-2 border-warning/30 border-t-warning rounded-full animate-spin" />
-                </div>
-              )}
-
-              {/* Hint level indicators */}
-              <div className="flex justify-center gap-2 pt-2">
-                {hints.map((_, i) => (
-                  <div key={i} className={`w-4 h-1.5 rounded-full ${i < hintLevel ? 'bg-warning' : 'bg-muted'}`} />
-                ))}
-              </div>
+          {hintLevel < hints.length ? (
+            <div className={footer}>
+              <button
+                type="button"
+                onClick={getNextHint}
+                disabled={busy}
+                className="todo-btn todo-btn-primary w-full py-2"
+              >
+                <Icon name="LightBulbIcon" size={14} aria-hidden="true" />
+                {generating === 'hint'
+                  ? 'Thinking…'
+                  : hintLevel === 0
+                    ? 'Get First Hint'
+                    : `Get Level ${hintLevel + 1} Hint`}
+              </button>
             </div>
+          ) : (
+            <p className={`${footer} text-center text-xs mix-text-foreground/[0.74]`}>
+              All hint levels revealed. Try the solution now!
+            </p>
+          )}
+        </div>
+      )}
 
-            {/* Pinned bottom action */}
-            {hintLevel < hints.length && !generating && (
-              <div className="flex-shrink-0 border-t border-border bg-card p-3">
-                <button onClick={getNextHint}
-                  className="w-full py-2 rounded-md border border-warning text-warning text-xs font-semibold hover:bg-warning/10 transition-smooth flex items-center justify-center gap-2">
-                  <Icon name="LightBulbIcon" size={14} />
-                  {hintLevel === 0 ? 'Get First Hint' : `Get Level ${hintLevel + 1} Hint`}
-                </button>
-              </div>
-            )}
-            {hintLevel >= hints.length && (
-              <div className="flex-shrink-0 border-t border-border bg-card p-3 text-center">
-                <p className="text-xs text-muted-foreground">All hint levels revealed. Try the solution now!</p>
+      {/* DEEPER */}
+      {activeTab === 'deeper' && (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className={scroller} aria-live="polite" aria-busy={generating === 'deeper'}>
+            <PanelIntro title="Dive Deeper">
+              Advanced internals, production insights, and what senior engineers know that juniors
+              miss.
+            </PanelIntro>
+            {generating === 'deeper' && <Thinking label="Generating deep insights" />}
+            {deeperShown && (
+              <div className="copilot-msg-ai-quiet animate-fade-in space-y-3 pl-3 text-xs leading-relaxed text-foreground">
+                {renderLines(DIVE_DEEPER[labType] ?? DIVE_DEEPER.default)}
               </div>
             )}
           </div>
-        )}
-
-        {/* DIVE DEEPER TAB */}
-        {activeTab === 'deeper' && (
-          <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 scrollbar-clean">
-              <div className="text-center">
-                <Icon name="MagnifyingGlassIcon" size={24} variant="outline" className="text-secondary mx-auto mb-2" />
-                <h4 className="font-heading text-sm font-semibold text-foreground mb-4">Dive Deeper</h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Advanced internals, production insights, and what senior engineers know that juniors miss.
-                </p>
-              </div>
-
-              {generating && activeTab === 'deeper' && (
-                <div className="flex justify-center py-4">
-                  <span className="w-5 h-5 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />
-                </div>
-              )}
-
-              {deeperShown && (
-                <div className="text-xs leading-relaxed text-foreground space-y-2 animate-fade-in">
-                  {(DIVE_DEEPER[labType] ?? DIVE_DEEPER.default).split('\n').map((line, i) => {
-                    if (line.startsWith('**') && line.endsWith('**'))
-                      return <h5 key={i} className="font-semibold text-foreground mt-3 mb-1">{line.replace(/\*\*/g, '')}</h5>;
-                    if (/^\d+\./.test(line))
-                      return <p key={i} className="text-muted-foreground">{line}</p>;
-                    return line.trim() ? <p key={i}>{line}</p> : <div key={i} className="h-4" />;
-                  })}
-                </div>
-              )}
+          {!deeperShown && (
+            <div className={footer}>
+              <button
+                type="button"
+                onClick={() => triggerGenerate('deeper', () => setDeeperShown(true))}
+                disabled={busy}
+                className="todo-btn todo-btn-primary w-full py-2"
+              >
+                <Icon name="SparklesIcon" size={14} aria-hidden="true" />
+                {generating === 'deeper' ? 'Generating…' : 'Generate Deep Insights'}
+              </button>
             </div>
+          )}
+        </div>
+      )}
 
-            {/* Pinned bottom action */}
-            {!deeperShown && !generating && (
-              <div className="flex-shrink-0 border-t border-border bg-card p-3">
-                <button
-                  onClick={() => triggerGenerate(() => setDeeperShown(true))}
-                  className="w-full py-2 rounded-md bg-secondary/10 border border-secondary/30 text-secondary text-xs font-semibold hover:bg-secondary/20 transition-smooth flex items-center justify-center gap-2"
-                >
-                  <Icon name="SparklesIcon" size={14} />Generate Deep Insights
-                </button>
+      {/* ELI5 */}
+      {activeTab === 'eli5' && (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className={scroller} aria-live="polite" aria-busy={generating === 'eli5'}>
+            <PanelIntro title="Explain Like I'm 5">
+              A simple, intuitive explanation — no jargon, no formulas.
+            </PanelIntro>
+            {generating === 'eli5' && <Thinking label="Writing the explanation" />}
+            {eli5Shown && (
+              <div className="copilot-msg-ai-quiet animate-fade-in space-y-3 pl-3 text-xs leading-relaxed text-foreground">
+                {renderLines(ELI5_RESPONSES[labType] ?? ELI5_RESPONSES.default)}
               </div>
             )}
           </div>
-        )}
-
-        {/* ELI5 TAB */}
-        {activeTab === 'eli5' && (
-          <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 scrollbar-clean">
-              <div className="text-center">
-                <Icon name="FaceSmileIcon" size={24} variant="outline" className="text-accent mx-auto mb-2" />
-                <h4 className="font-heading text-sm font-semibold text-foreground mb-4">Explain Like I'm 5</h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  A simple, intuitive explanation — no jargon, no formulas.
-                </p>
-              </div>
-
-              {generating && activeTab === 'eli5' && (
-                <div className="flex justify-center py-4">
-                  <span className="w-5 h-5 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
-                </div>
-              )}
-
-              {eli5Shown && (
-                <div className="bg-accent/5 border border-accent/20 rounded-lg p-3 text-xs leading-relaxed text-foreground space-y-2 animate-fade-in">
-                  {(ELI5_RESPONSES[labType] ?? ELI5_RESPONSES.default).split('\n').map((line, i) => {
-                    if (line.startsWith('🐣'))
-                      return <h5 key={i} className="font-semibold text-accent">{line}</h5>;
-                    return line.trim() ? <p key={i}>{line}</p> : <div key={i} className="h-3" />;
-                  })}
-                </div>
-              )}
+          {!eli5Shown && (
+            <div className={footer}>
+              <button
+                type="button"
+                onClick={() => triggerGenerate('eli5', () => setEli5Shown(true))}
+                disabled={busy}
+                className="todo-btn todo-btn-primary w-full py-2"
+              >
+                <Icon name="FaceSmileIcon" size={14} aria-hidden="true" />
+                {generating === 'eli5' ? 'Writing…' : 'Explain Simply'}
+              </button>
             </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
-            {/* Pinned bottom action */}
-            {!eli5Shown && !generating && (
-              <div className="flex-shrink-0 border-t border-border bg-card p-3">
-                <button
-                  onClick={() => triggerGenerate(() => setEli5Shown(true))}
-                  className="w-full py-2 rounded-md bg-accent/10 border border-accent/30 text-accent text-xs font-semibold hover:bg-accent/20 transition-smooth flex items-center justify-center gap-2"
-                >
-                  <Icon name="FaceSmileIcon" size={14} />Explain Simply
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+/** The 48px strip shown while the copilot is collapsed (replaces the three hand-copied versions in the lab modules). */
+export function LabCopilotRail({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-2 py-3">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="todo-btn todo-btn-ghost h-8 w-8 px-0"
+        aria-label="Show Copilot"
+        title="Show Copilot"
+      >
+        <Icon name="ChevronLeftIcon" size={16} aria-hidden="true" />
+      </button>
+      <span
+        aria-hidden="true"
+        className="mt-1 flex h-7 w-7 items-center justify-center rounded-full text-primary mix-bg-primary/15"
+      >
+        <Icon name="SparklesIcon" size={12} variant="solid" />
+      </span>
     </div>
   );
 }

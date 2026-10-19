@@ -78,7 +78,7 @@ export default function ProjectContextEditor({ project }: { project: LabProject 
 
   return (
     <form
-      className="space-y-5 rounded-xl border border-border bg-card p-4 sm:p-5"
+      className="space-y-5 rounded-lg border border-border bg-card p-4 sm:p-5"
       onSubmit={(e) => {
         e.preventDefault();
         void save();
@@ -92,7 +92,7 @@ export default function ProjectContextEditor({ project }: { project: LabProject 
         >
           Project context
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-sm mix-text-foreground/[0.74]">
           The labs read this every time they generate for the project, so be specific: background,
           objectives, requirements, constraints, technical decisions and anything else a
           collaborator would need. Say what is still undecided too; the labs are told not to invent
@@ -163,11 +163,7 @@ export default function ProjectContextEditor({ project }: { project: LabProject 
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {dirty && (
-          <span className="mr-auto text-xs font-medium text-amber-600 dark:text-amber-400">
-            Unsaved changes
-          </span>
-        )}
+        {dirty && <span className="mr-auto text-xs font-medium text-warning">Unsaved changes</span>}
         <button type="button" onClick={discard} disabled={!dirty || busy} className={quietButton}>
           Discard
         </button>

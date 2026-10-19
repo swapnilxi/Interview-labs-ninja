@@ -16,7 +16,7 @@ import {
  * It is an `alertdialog`: initial focus is on the safe answer — Cancel for a destructive question,
  * the confirm button otherwise — so Enter does what you would expect and a stray Enter can't delete.
  */
-export default function ConfirmHost() {
+export default function ConfirmHost({ panelClassName = '' }: { panelClassName?: string } = {}) {
   const request = useSyncExternalStore(subscribeConfirm, getPendingConfirm, () => null);
   const headingId = useId();
   const messageId = useId();
@@ -38,7 +38,9 @@ export default function ConfirmHost() {
       role="alertdialog"
       labelledBy={headingId}
       describedBy={request?.message || request?.note ? messageId : undefined}
-      className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-sm"
+      // `panelClassName` lets a module style its questions like itself (the dialog portals to <body>, outside the module's own
+      // root classes): the DSA lab passes `dsa-type`.
+      className={`bg-card border border-border shadow-2xl rounded-2xl w-full max-w-sm ${panelClassName}`}
     >
       {request && (
         <div className="p-5">

@@ -24,7 +24,7 @@ export default function ProjectSelector({ className = '' }: { className?: string
   };
 
   const itemClass =
-    'flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:mix-bg-muted/70 focus-visible:outline-none focus-visible:mix-bg-muted/70';
+    'flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:mix-bg-foreground/[0.06] focus-visible:outline-none focus-visible:mix-bg-foreground/[0.06]';
 
   return (
     <>
@@ -36,10 +36,10 @@ export default function ProjectSelector({ className = '' }: { className?: string
         aria-expanded={open}
         aria-label={`Project: ${selected ? selected.name : 'none'}. Change project`}
         title={selected ? `Generating for “${selected.name}”` : 'Choose a project to generate for'}
-        className={`inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium shadow-sm transition-all ${
+        className={`todo-focus inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all ${
           selected
-            ? 'mix-border-primary/40 mix-bg-primary/10 text-primary hover:mix-bg-primary/15'
-            : 'border-border mix-bg-card/80 mix-text-foreground/80 hover:bg-muted hover:text-foreground'
+            ? 'mix-border-primary/40 lab-tint lab-ink hover:mix-bg-primary/[0.18]'
+            : 'border-border bg-card text-foreground hover:mix-bg-foreground/[0.05]'
         } ${className}`}
       >
         <Icon
@@ -57,7 +57,7 @@ export default function ProjectSelector({ className = '' }: { className?: string
         onClose={() => setOpen(false)}
         label="Choose a project"
         placement="bottom-end"
-        className="w-[min(20rem,calc(100vw-1rem))] rounded-xl border border-border bg-card p-1.5 shadow-xl"
+        className="lab-page w-[min(20rem,calc(100vw-1rem))] rounded-xl border border-border bg-card p-1.5 shadow-lg"
       >
         <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Generate for
@@ -76,7 +76,7 @@ export default function ProjectSelector({ className = '' }: { className?: string
           />
           <span className="min-w-0">
             <span className="block font-medium text-foreground">No project</span>
-            <span className="block text-xs text-muted-foreground">
+            <span className="block text-xs font-medium text-muted-foreground">
               General answers, as the lab always gave
             </span>
           </span>
@@ -97,8 +97,10 @@ export default function ProjectSelector({ className = '' }: { className?: string
               className={`mt-0.5 flex-shrink-0 text-primary ${selected?.id === p.id ? '' : 'invisible'}`}
             />
             <span className="min-w-0">
-              <span className="block truncate font-medium text-foreground">{p.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">
+              <span className="block break-words font-medium leading-snug text-foreground">
+                {p.name}
+              </span>
+              <span className="block break-words text-xs font-medium leading-snug text-muted-foreground">
                 {p.sectionCount} saved section{p.sectionCount === 1 ? '' : 's'}
                 {p.description ? ` · ${p.description}` : ''}
               </span>
@@ -107,12 +109,12 @@ export default function ProjectSelector({ className = '' }: { className?: string
         ))}
 
         {!loaded && loading && (
-          <p className="px-2.5 py-2 text-xs text-muted-foreground" role="status">
+          <p className="px-2.5 py-2 text-xs font-medium text-muted-foreground" role="status">
             Loading your projects…
           </p>
         )}
         {error && (
-          <div className="px-2.5 py-2 text-xs text-error" role="alert">
+          <div className="px-2.5 py-2 text-xs font-medium text-error" role="alert">
             {error}{' '}
             <button
               type="button"
@@ -124,17 +126,17 @@ export default function ProjectSelector({ className = '' }: { className?: string
           </div>
         )}
         {loaded && projects.length === 0 && (
-          <p className="px-2.5 py-2 text-xs text-muted-foreground">
+          <p className="px-2.5 py-2 text-xs font-medium text-muted-foreground">
             You have no projects yet. Create one and every lab can generate for it.
           </p>
         )}
 
-        <div className="mt-1 border-t border-border pt-1">
+        <div className="mt-1 border-t pt-1">
           <Link
             href="/labs-project?new=1"
             role="menuitem"
             onClick={() => setOpen(false)}
-            className={`${itemClass} items-center text-primary`}
+            className={`${itemClass} items-center lab-ink`}
           >
             <Icon name="FolderPlusIcon" size={14} className="flex-shrink-0" />
             <span className="font-medium">New project</span>

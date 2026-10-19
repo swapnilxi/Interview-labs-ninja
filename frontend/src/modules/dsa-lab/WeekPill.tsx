@@ -1,4 +1,7 @@
-/** Small "Wk 2" tag for a question that sits in a week. Optional: a question in no week gets no pill. */
+import Icon from '@/components/ui/AppIcon';
+import { Tag } from './ui';
+
+/** Small "Week 2" pill for a question that sits in a week. Optional: a question in no week gets no pill. */
 export default function WeekPill({
   week,
   className = '',
@@ -8,12 +11,13 @@ export default function WeekPill({
 }) {
   if (!week) return null;
   return (
-    <span
+    <Tag
+      tone="accent"
       title={`Week ${week} of your study plan`}
-      className={`text-[9px] px-1.5 py-0.5 rounded-md border font-bold leading-none whitespace-nowrap
-        bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 ${className}`}
+      className={`gap-1 tabular-nums ${className}`}
     >
-      Wk {week}
-    </span>
+      <Icon name="CalendarDaysIcon" size={12} aria-hidden="true" />
+      Week {week}
+    </Tag>
   );
 }

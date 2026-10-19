@@ -136,7 +136,7 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
 
   if (!started) {
     return (
-      <div className="rounded-3xl border-2 border-dashed border-violet-300 bg-violet-50/60 p-5 text-center dark:border-violet-500/40 dark:bg-violet-500/10">
+      <div className="rounded-3xl border-2 border-dashed mix-border-primary/40 lab-tint p-5 text-center">
         <div className="text-3xl" aria-hidden>🎙️</div>
         <h4 className="mt-1 font-heading text-base font-extrabold text-foreground">AI Learn Chat</h4>
         <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
@@ -145,7 +145,7 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
         <button
           type="button"
           onClick={start}
-          className="mt-3 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_0_rgba(91,33,182,0.5)] transition active:translate-y-[2px] active:shadow-none"
+          className="mt-3 rounded-2xl bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground shadow-[0_4px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] transition active:translate-y-[2px] active:shadow-none"
         >
           Start learning
         </button>
@@ -157,15 +157,15 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
   return (
     <div className="space-y-3">
       {/* Header: who, depth, controls */}
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-muted/60 px-3 py-2">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-500 text-sm font-black text-white" aria-hidden>
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl mix-bg-foreground/[0.05] px-3 py-2">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground" aria-hidden>
           {name.replace('Dr. ', '')[0]}
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-extrabold text-foreground">{name} <span className="font-semibold text-muted-foreground">· {meta?.tutor.role ?? '…'} (AI)</span></div>
           <div className="mt-1 flex items-center gap-1" aria-label={`Depth ${depth} of 5`}>
             {DEPTH_LABELS.map((l, i) => (
-              <span key={l} title={l} className={`h-1.5 flex-1 rounded-full transition-colors ${i < depth ? 'bg-violet-500' : 'bg-border'}`} />
+              <span key={l} title={l} className={`h-1.5 flex-1 rounded-full transition-colors ${i < depth ? 'bg-primary' : 'bg-border'}`} />
             ))}
           </div>
           <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
@@ -180,7 +180,7 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
           }}
           aria-pressed={voiceOn}
           title="Read the tutor's messages aloud"
-          className={`rounded-full border-2 px-2.5 py-1 text-xs font-extrabold ${voiceOn ? 'border-violet-500 bg-violet-100 text-violet-800' : 'border-border text-muted-foreground'}`}
+          className={`rounded-full border-2 px-2.5 py-1 text-xs font-extrabold ${voiceOn ? 'border-primary lab-tint lab-ink' : 'border-border text-muted-foreground'}`}
         >
           {voiceOn ? '🔊 On' : '🔈 Off'}
         </button>
@@ -193,19 +193,19 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
             <div
               className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                 t.role === 'learner'
-                  ? 'rounded-br-md bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white'
-                  : 'rounded-bl-md border-2 border-violet-200 bg-white text-violet-950 dark:border-violet-500/40 dark:bg-violet-950/60 dark:text-violet-50'
+                  ? 'rounded-br-md bg-primary text-primary-foreground'
+                  : 'rounded-bl-md border-2 mix-border-primary/30 bg-card text-foreground'
               }`}
             >
-              {t.role === 'learner' ? <RichText text={t.content} className="text-white [&_code]:bg-white/20" /> : <span className="whitespace-pre-wrap">{t.content}</span>}
+              {t.role === 'learner' ? <RichText text={t.content} className="text-primary-foreground [&_code]:mix-bg-primary-foreground/20" /> : <span className="whitespace-pre-wrap">{t.content}</span>}
             </div>
           </div>
         ))}
         {busy && (
           <div className="flex justify-start">
-            <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border-2 border-violet-200 bg-white px-3.5 py-3 dark:border-violet-500/40 dark:bg-violet-950/60" aria-label={`${name} is typing`}>
+            <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border-2 mix-border-primary/30 bg-card px-3.5 py-3" aria-label={`${name} is typing`}>
               {[0, 1, 2].map((d) => (
-                <span key={d} className="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-400" style={{ animationDelay: `${d * 0.15}s` }} />
+                <span key={d} className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary" style={{ animationDelay: `${d * 0.15}s` }} />
               ))}
             </div>
           </div>
@@ -225,7 +225,7 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
             <CodeSpace kind={kind} value={code} onChange={setCode} language={language} onLanguageChange={setLanguage} />
           )}
           {meta?.wrap_up ? (
-            <p className="rounded-xl bg-violet-50 px-3 py-2 text-center text-xs font-semibold text-violet-800 dark:bg-violet-500/10 dark:text-violet-200">Session wrapped up. End it to see your review.</p>
+            <p className="rounded-xl lab-tint px-3 py-2 text-center text-xs font-semibold lab-ink">Session wrapped up. End it to see your review.</p>
           ) : (
             <div className="flex items-end gap-2">
               <div className="relative flex-1">
@@ -243,7 +243,7 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
                 disabled={busy || turns.length === 0}
                 placeholder="Reply to your tutor… (Enter to send, Shift+Enter for a new line)"
                 aria-label="Your reply"
-                className="block min-h-[3rem] w-full resize-y rounded-2xl border-2 border-border bg-input py-2.5 pl-3.5 pr-[3rem] text-sm text-foreground placeholder:text-muted-foreground focus:border-violet-500 focus:outline-none disabled:opacity-60"
+                className="block min-h-[3rem] w-full resize-y rounded-2xl border-2 border-border bg-input py-2.5 pl-3.5 pr-[3rem] text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-60"
               />
               <VoiceMicButton state={mic.state} onClick={mic.toggle} size="sm" className="absolute bottom-[0.55rem] right-[0.5rem]" />
               </div>
@@ -251,7 +251,7 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
                 type="button"
                 onClick={() => send(input)}
                 disabled={busy || !input.trim()}
-                className="h-[3rem] rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 text-sm font-extrabold text-white shadow-[0_4px_0_0_rgba(91,33,182,0.5)] transition active:translate-y-[2px] active:shadow-none disabled:opacity-50"
+                className="h-[3rem] rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-[0_4px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] transition active:translate-y-[2px] active:shadow-none disabled:opacity-50"
               >
                 Send
               </button>
@@ -263,7 +263,7 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
                 type="button"
                 onClick={() => send("I'm stuck. Could you explain this part to me?")}
                 disabled={busy || turns.length === 0}
-                className="rounded-full border-2 border-sky-300 bg-sky-50 px-3.5 py-1.5 text-xs font-extrabold text-sky-800 disabled:opacity-50 dark:bg-sky-500/10 dark:text-sky-200"
+                className="rounded-full border-2 mix-border-primary/40 lab-tint px-3.5 py-1.5 text-xs font-extrabold lab-ink disabled:opacity-50"
               >
                 😵 Explain it to me
               </button>

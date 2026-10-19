@@ -1,1 +1,1 @@
-export { default } from '@/modules/common/LabCopilot';
+export { default, LabCopilotRail } from '@/modules/common/LabCopilot';

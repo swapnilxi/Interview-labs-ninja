@@ -56,17 +56,17 @@ export default function SectionProjectBar({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border px-4 py-2.5 mix-bg-muted/20">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-[1.25rem] py-2.5">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
         {chip && (
-          <span className="inline-flex max-w-full items-center gap-1 rounded-md border mix-border-primary/30 mix-bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+          <span className="inline-flex max-w-full items-center gap-1 rounded-md lab-tint lab-ink px-2 py-0.5 text-xs font-semibold">
             <Icon name="FolderOpenIcon" size={12} className="flex-shrink-0" />
             <span className="truncate">{chip}</span>
           </span>
         )}
-        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+        {hint && <span className="text-xs font-medium text-muted-foreground">{hint}</span>}
         {saved && (
-          <span className="text-xs text-success" role="status">
+          <span data-semantic="done" className="text-xs font-semibold text-success" role="status">
             Saved to {saved.project.name} ·{' '}
             <Link
               href={sectionHref(saved.project.id, saved.section.id)}
@@ -81,7 +81,7 @@ export default function SectionProjectBar({
         type="button"
         onClick={() => setOpen(true)}
         disabled={busy || !content.trim()}
-        className="inline-flex items-center gap-1.5 rounded-lg border mix-border-primary/30 mix-bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:mix-bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+        className="todo-btn border mix-border-primary/30 lab-tint lab-ink hover:mix-bg-primary/[0.18]"
       >
         <Icon name="BookmarkIcon" size={13} />
         Save to Project

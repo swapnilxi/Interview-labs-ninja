@@ -176,85 +176,78 @@ export default function MySpace() {
     : (user?.display_name?.[0] || user?.email?.[0] || 'M').toUpperCase();
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Personalized Welcome Banner */}
-      <div className={`relative overflow-hidden rounded-3xl border ${
-        isSwapnilxi ? 'border-violet-500/30' : 'border-primary/20'
-      } bg-gradient-to-br from-card via-card/90 to-primary/5 p-6 sm:p-8 shadow-xl backdrop-blur-xl`}>
-        <div className={`absolute top-0 right-0 -mt-8 -mr-8 h-48 w-48 rounded-full ${
-          isSwapnilxi ? 'bg-violet-600/15' : 'bg-primary/10'
-        } blur-3xl pointer-events-none`} />
-
-        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr ${
-              isSwapnilxi
-                ? 'from-violet-600 to-amber-500 shadow-violet-500/30'
-                : 'from-primary to-violet-600 shadow-primary/25'
-            } text-white shadow-lg font-black text-xl`}>
-              {userInitial}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-heading text-2xl font-black tracking-tight text-foreground">
-                  {displayName}
-                </h2>
-                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border ${
-                  isSwapnilxi
-                    ? 'bg-violet-500/20 border-violet-500/40 text-violet-400'
-                    : 'bg-primary/15 border-primary/30 text-primary'
-                }`}>
-                  {userRole}
-                </span>
-                <span className="rounded-full bg-muted/60 border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  🔒 Private & Scoped
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {user ? (
-                  <>
-                    Authenticated as <span className="font-mono text-primary font-semibold">{user.email}</span> · Your private command deck & scratchpad
-                  </>
-                ) : (
-                  <>
-                    Viewing guest space · <button type="button" onClick={() => openLoginModal({ feature: 'MySpace' })} className="text-primary underline font-medium">Sign in</button> to sync across all your devices
-                  </>
-                )}
-              </p>
-            </div>
+    <div className="space-y-[1.5rem] animate-fade-in">
+      {/* Personalized welcome row: flat on the page background (the page header above already carries the title) */}
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-4">
+          <div className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl text-xl font-bold ${
+            isSwapnilxi
+              ? 'bg-gradient-to-tr from-violet-600 to-amber-500 text-white shadow-lg shadow-violet-500/30'
+              : 'bg-primary text-primary-foreground'
+          }`}>
+            {userInitial}
           </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="rounded-xl border border-border bg-card/60 px-3.5 py-2 text-center min-w-[70px]">
-              <div className="text-[10px] uppercase font-bold text-muted-foreground">Question Bank</div>
-              <div className="text-lg font-black text-foreground">{dbQuestions.length}</div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+                {displayName}
+              </h2>
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider border ${
+                isSwapnilxi
+                  ? 'bg-violet-500/20 border-violet-500/40 text-violet-400'
+                  : 'lab-tint mix-border-primary/30 lab-ink'
+              }`}>
+                {userRole}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full mix-bg-foreground/[0.06] px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                <Icon name="LockClosedIcon" size={12} />
+                Private & Scoped
+              </span>
             </div>
-            <div className="rounded-xl border border-border bg-card/60 px-3.5 py-2 text-center min-w-[70px]">
-              <div className="text-[10px] uppercase font-bold text-muted-foreground">Daily Target</div>
-              <div className="text-lg font-black text-primary">{targets.dailyGoal} Qs</div>
-            </div>
-            <div className="rounded-xl border border-border bg-card/60 px-3.5 py-2 text-center min-w-[70px]">
-              <div className="text-[10px] uppercase font-bold text-muted-foreground">Status</div>
-              <div className="text-xs font-bold text-emerald-500 mt-1">{isSwapnilxi ? 'SuperAdmin' : 'Active'}</div>
-            </div>
+            <p className="mt-1 text-xs font-medium text-muted-foreground">
+              {user ? (
+                <>
+                  Authenticated as <span className="font-mono font-semibold lab-ink">{user.email}</span> · Your private command deck & scratchpad
+                </>
+              ) : (
+                <>
+                  Viewing guest space · <button type="button" onClick={() => openLoginModal({ feature: 'MySpace' })} className="todo-focus lab-ink underline font-medium">Sign in</button> to sync across all your devices
+                </>
+              )}
+            </p>
           </div>
         </div>
+
+        <dl className="flex flex-wrap items-end gap-x-[1.5rem] gap-y-3">
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Question Bank</dt>
+            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{dbQuestions.length}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Daily Target</dt>
+            <dd className="mt-0.5 text-lg font-semibold tabular-nums lab-ink">{targets.dailyGoal} Qs</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</dt>
+            <dd className="mt-0.5 text-lg font-semibold text-emerald-700 dark:text-emerald-300">{isSwapnilxi ? 'SuperAdmin' : 'Active'}</dd>
+          </div>
+        </dl>
       </div>
 
       {/* Guest Notice if not authenticated */}
       {!user && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3">
             <Icon name="InformationCircleIcon" size={20} className="text-amber-500 shrink-0" />
             <div>
-              <span className="font-bold text-foreground">Personalize your MySpace: </span>
+              <span className="font-semibold text-foreground">Personalize your MySpace: </span>
               <span className="text-muted-foreground">Log in to keep your private notes, focus targets, and injected questions securely tied to your unique user profile.</span>
             </div>
           </div>
           <button
             type="button"
             onClick={() => openLoginModal({ feature: 'MySpace' })}
-            className="shrink-0 rounded-xl bg-primary px-4 py-2 font-bold text-primary-foreground hover:opacity-90 transition-opacity"
+            className="todo-btn todo-btn-primary shrink-0 px-4 py-2"
           >
             Sign In Now
           </button>
@@ -262,16 +255,16 @@ export default function MySpace() {
       )}
 
       {/* Career Targets & Focus Planner */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-border/60 pb-3">
+      <div className="rounded-xl border border-border bg-card p-[1.25rem] space-y-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Icon name="FlagIcon" size={18} className="text-primary" />
-            <h3 className="font-heading text-base font-bold text-foreground">
+            <h3 className="font-heading text-base font-semibold text-foreground">
               Personal Targets & Focus Deck
             </h3>
           </div>
           {targetsSaved && (
-            <span className="text-[11px] font-bold text-emerald-500 animate-in fade-in-0 duration-200">
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 animate-in fade-in-0 duration-200">
               ✓ Targets saved
             </span>
           )}
@@ -279,7 +272,7 @@ export default function MySpace() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
               Target Dream Role
             </label>
             <input
@@ -287,12 +280,12 @@ export default function MySpace() {
               placeholder="e.g. Senior ML Engineer, L5 SWE"
               value={targets.targetRole}
               onChange={(e) => handleSaveTargets({ ...targets, targetRole: e.target.value })}
-              className="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="todo-input px-3 py-2 text-xs"
             />
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
               Target Companies
             </label>
             <input
@@ -300,12 +293,12 @@ export default function MySpace() {
               placeholder="e.g. Google, Meta, Anthropic, Stripe"
               value={targets.targetCompanies}
               onChange={(e) => handleSaveTargets({ ...targets, targetCompanies: e.target.value })}
-              className="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="todo-input px-3 py-2 text-xs"
             />
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
               Daily Question Goal ({targets.dailyGoal} questions / day)
             </label>
             <input
@@ -320,7 +313,7 @@ export default function MySpace() {
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
             Key Focus Areas
           </label>
           <div className="flex flex-wrap gap-2">
@@ -331,10 +324,11 @@ export default function MySpace() {
                   key={topic}
                   type="button"
                   onClick={() => toggleTopic(topic)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 border ${
+                  aria-pressed={active}
+                  className={`todo-focus px-3 py-1.5 rounded-lg text-xs font-semibold transition-smooth border ${
                     active
-                      ? 'bg-primary/15 border-primary/30 text-primary font-bold shadow-xs'
-                      : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
+                      ? 'lab-tint mix-border-primary/30 lab-ink'
+                      : 'mix-bg-foreground/[0.04] border-border text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {active ? '✓ ' : '+ '}
@@ -346,22 +340,22 @@ export default function MySpace() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[1.5rem]">
         {/* Rapid Question Injector */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-border/60 pb-3">
+        <div className="rounded-xl border border-border bg-card p-[1.25rem] space-y-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Icon name="PlusCircleIcon" size={18} className="text-primary" />
-              <h3 className="font-heading text-base font-bold text-foreground">
+              <h3 className="font-heading text-base font-semibold text-foreground">
                 Rapid Question Injector
               </h3>
             </div>
-            <span className="text-[11px] text-muted-foreground">Direct Database Commit</span>
+            <span className="text-xs text-muted-foreground">Direct Database Commit</span>
           </div>
 
           <form onSubmit={handleCreateQuestion} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
                 Question Text
               </label>
               <textarea
@@ -370,19 +364,19 @@ export default function MySpace() {
                 placeholder="Enter technical interview or CV question..."
                 value={newQuestionText}
                 onChange={(e) => setNewQuestionText(e.target.value)}
-                className="w-full rounded-xl border border-border bg-input px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                className="todo-input px-3.5 py-2.5 text-xs resize-none"
               />
             </div>
 
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
                   Category
                 </label>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value as any)}
-                  className="w-full rounded-lg border border-border bg-input px-2.5 py-2 text-xs font-semibold text-foreground focus:outline-none"
+                  className="todo-input px-2.5 py-2 text-xs font-semibold"
                 >
                   <option value="Interview">Interview</option>
                   <option value="CV Skill">CV Skill</option>
@@ -390,25 +384,25 @@ export default function MySpace() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
                   Sub-Type
                 </label>
                 <input
                   type="text"
                   value={newSubType}
                   onChange={(e) => setNewSubType(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-input px-2.5 py-2 text-xs text-foreground focus:outline-none"
+                  className="todo-input px-2.5 py-2 text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
                   Difficulty
                 </label>
                 <select
                   value={newDifficulty}
                   onChange={(e) => setNewDifficulty(e.target.value as any)}
-                  className="w-full rounded-lg border border-border bg-input px-2.5 py-2 text-xs font-semibold text-foreground focus:outline-none"
+                  className="todo-input px-2.5 py-2 text-xs font-semibold"
                 >
                   <option value="Easy">Easy</option>
                   <option value="Medium">Medium</option>
@@ -420,10 +414,10 @@ export default function MySpace() {
             <button
               type="submit"
               disabled={creating}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-violet-600 py-2.5 text-xs font-bold text-white shadow-md shadow-primary/20 hover:opacity-95 disabled:opacity-50 transition-opacity"
+              className="todo-btn todo-btn-primary w-full gap-2 py-2.5"
             >
               {creating ? (
-                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
               ) : (
                 <Icon name="BoltIcon" size={15} />
               )}
@@ -433,16 +427,16 @@ export default function MySpace() {
         </div>
 
         {/* Private Personal Notes & Scratchpad */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4 flex flex-col justify-between">
+        <div className="rounded-xl border border-border bg-card p-[1.25rem] space-y-4 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between border-b border-border/60 pb-3 mb-4">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Icon name="DocumentTextIcon" size={18} className="text-violet-500" />
-                <h3 className="font-heading text-base font-bold text-foreground">
+                <Icon name="DocumentTextIcon" size={18} className="text-primary" />
+                <h3 className="font-heading text-base font-semibold text-foreground">
                   {isSwapnilxi ? 'Swapnilxi Scratchpad & Roadmap' : 'Private Scratchpad & Notes'}
                 </h3>
               </div>
-              <span className="text-[10px] text-emerald-500 font-bold">Auto-persisted</span>
+              <span className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">Auto-persisted</span>
             </div>
 
             <textarea
@@ -450,16 +444,16 @@ export default function MySpace() {
               value={scratchpad}
               onChange={(e) => handleSaveNotes(e.target.value)}
               placeholder="Your private thoughts, interview tips to remember, tricky edge-cases, algorithms to revise, or questions to practice..."
-              className="w-full rounded-xl border border-border bg-input px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono resize-none leading-relaxed"
+              className="todo-input px-3.5 py-2.5 text-xs font-mono resize-none leading-relaxed"
             />
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border/60">
+          <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
             <span>{scratchpad.length} characters · Private to your profile</span>
             <button
               type="button"
               onClick={() => handleSaveNotes('')}
-              className="text-rose-500 hover:underline"
+              className="todo-focus text-rose-600 dark:text-rose-400 hover:underline"
             >
               Clear notes
             </button>
