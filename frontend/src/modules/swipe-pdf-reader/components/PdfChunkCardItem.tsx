@@ -93,10 +93,10 @@ export default function PdfChunkCardItem({
       {/* Swipe hints footer */}
       <div className="px-5 py-2.5 border-t border-border/50 bg-muted/20 flex items-center justify-between text-[11px] text-muted-foreground font-medium">
         <span className="flex items-center gap-1.5">
-          <Icon name="ArrowLeftIcon" size={13} className="text-muted-foreground/70" /> Swipe left for prev
+          <Icon name="ArrowLeftIcon" size={13} className="text-muted-foreground/70" /> Swipe left for next
         </span>
         <span className="flex items-center gap-1.5">
-          Swipe right for next <Icon name="ArrowRightIcon" size={13} className="text-muted-foreground/70" />
+          Swipe right for back <Icon name="ArrowRightIcon" size={13} className="text-muted-foreground/70" />
         </span>
       </div>
     </div>

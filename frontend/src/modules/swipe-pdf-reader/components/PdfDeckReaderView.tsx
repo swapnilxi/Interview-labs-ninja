@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import BackButton from '@/components/ui/BackButton';
 import { buildUrl, sameAddress } from '@/lib/navigation/urlState';
@@ -45,9 +45,17 @@ export default function PdfDeckReaderView({
   // ── Core state ─────────────────────────────────────────────────────────────
   const [currentIndex, setCurrentIndex] = useState(cardFromUrl.current ?? 0);
   const [positionReady, setPositionReady] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [exitDirection, setExitDirection] = useState<'left' | 'right' | null>(null);
+  // Card motion is written straight to the DOM (refs), never through React state: a re-render per touchmove
+  // is what made the old drag feel laggy. State only changes when a card is actually committed.
+  const frontRef = useRef<HTMLDivElement>(null);
+  const peekNextRef = useRef<HTMLDivElement>(null);
+  const peekPrevRef = useRef<HTMLDivElement>(null);
+  const hintNextRef = useRef<HTMLDivElement>(null);
+  const hintPrevRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const animatingRef = useRef(false);
+  const commitTimerRef = useRef<number | null>(null);
+  const lastMoveRef = useRef({ x: 0, t: 0, v: 0 });
   const startPosRef = useRef({ x: 0, y: 0 });
   // Which way the current gesture is going. Locking the axis lets a vertical
   // drag scroll long card text while a horizontal drag still changes cards.
@@ -68,6 +76,7 @@ export default function PdfDeckReaderView({
 
   const currentChunk: DocumentChunk | undefined = chunks[currentIndex];
   const nextChunk: DocumentChunk | undefined = chunks[currentIndex + 1];
+  const prevChunk: DocumentChunk | undefined = chunks[currentIndex - 1];
   const isFinished = currentIndex >= chunks.length;
   const progressPct = Math.round((Math.min(currentIndex + 1, chunks.length) / chunks.length) * 100);
 
@@ -118,10 +127,11 @@ export default function PdfDeckReaderView({
   }, [isRouted, positionReady, currentIndex, chunks.length, document.id]);
 
   // ── Reset card animation state when switching chunks ─────────────────────
-  useEffect(() => {
-    setDragOffset({ x: 0, y: 0 });
-    setExitDirection(null);
-  }, [currentIndex]);
+  // Runs before paint, so the card that just slid in is already at rest when the new index renders.
+  useLayoutEffect(() => {
+    paintMotion(0, 0, false);
+    animatingRef.current = false;
+  }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Focus jump input when shown ───────────────────────────────────────────
   useEffect(() => {
@@ -136,22 +146,68 @@ export default function PdfDeckReaderView({
     setCurrentIndex(clamped);
   }, [chunks.length]);
 
-  const handleNext = useCallback(() => {
-    if (currentIndex < chunks.length - 1) {
-      setExitDirection('right');
-      setTimeout(() => setCurrentIndex((p) => p + 1), 200);
-    } else if (currentIndex === chunks.length - 1) {
-      setExitDirection('right');
-      setTimeout(() => setCurrentIndex(chunks.length), 200);
-    }
-  }, [currentIndex, chunks.length]);
+  // ── Card motion ───────────────────────────────────────────────────────────
+  const reducedMotion = () =>
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  const handlePrev = useCallback(() => {
-    if (currentIndex > 0) {
-      setExitDirection('left');
-      setTimeout(() => setCurrentIndex((p) => p - 1), 200);
+  /**
+   * Position everything for a horizontal offset x (negative = towards "next", positive = towards "prev").
+   * `progress` (0..1) drives the card underneath: it grows and brightens as the front card leaves, so the
+   * next card feels like it is already on its way in instead of popping in afterwards.
+   */
+  const paintMotion = (x: number, ms: number, spring: boolean, easing?: string) => {
+    const front = frontRef.current;
+    if (!front) return;
+    const width = front.offsetWidth || 320;
+    const progress = Math.min(Math.abs(x) / (width * 0.6), 1);
+    const ease = easing ?? (spring ? 'cubic-bezier(0.34, 1.56, 0.64, 1)' : 'cubic-bezier(0.22, 0.8, 0.3, 1)');
+    const t = ms > 0 ? `${ms}ms ${ease}` : 'none';
+    front.style.transition = ms > 0 ? `transform ${t}, opacity ${t}` : 'none';
+    front.style.transform = `translate3d(${x}px, 0, 0) rotate(${(x / width) * 9}deg)`;
+    front.style.opacity = String(1 - Math.min(Math.max(Math.abs(x) / width - 0.6, 0), 1) * 0.6);
+
+    const towardsNext = x < 0;
+    const rest = (el: HTMLDivElement | null, active: boolean, idle: boolean) => {
+      if (!el) return;
+      el.style.transition = ms > 0 ? `transform ${t}, opacity ${t}` : 'none';
+      if (active) {
+        el.style.transform = `translate3d(0, ${12 * (1 - progress)}px, 0) scale(${0.95 + 0.05 * progress})`;
+        el.style.opacity = String(0.55 + 0.45 * progress);
+      } else {
+        // The idle peek of the next card, or fully hidden for the prev card.
+        el.style.transform = 'translate3d(0, 12px, 0) scale(0.95)';
+        el.style.opacity = idle ? '0.55' : '0';
+      }
+    };
+    rest(peekNextRef.current, towardsNext && x !== 0, true);
+    rest(peekPrevRef.current, !towardsNext && x !== 0, false);
+    if (hintNextRef.current) hintNextRef.current.style.opacity = String(towardsNext ? Math.min(progress * 1.6, 1) : 0);
+    if (hintPrevRef.current) hintPrevRef.current.style.opacity = String(!towardsNext && x !== 0 ? Math.min(progress * 1.6, 1) : 0);
+  };
+
+  /** Slide the front card off, then commit the new index once it has left. dir 1 = next, -1 = prev. */
+  const commitMove = useCallback((dir: 1 | -1) => {
+    const target = currentIndex + dir;
+    if (target < 0 || target > chunks.length || animatingRef.current) return;
+    animatingRef.current = true;
+    const width = frontRef.current?.offsetWidth || 320;
+    try { navigator.vibrate?.(6); } catch {}
+    if (reducedMotion()) {
+      setCurrentIndex(target);
+      return;
     }
-  }, [currentIndex]);
+    paintMotion(-dir * width * 1.15, 260, false);
+    // Light up the full-size card underneath as the front one leaves.
+    commitTimerRef.current = window.setTimeout(() => setCurrentIndex(target), 250);
+  }, [currentIndex, chunks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => () => { if (commitTimerRef.current) clearTimeout(commitTimerRef.current); }, []);
+
+  const handleNext = useCallback(() => commitMove(1), [commitMove]);
+  const handlePrev = useCallback(() => commitMove(-1), [commitMove]);
+
+  /** Spring the card back to rest (swipe too short, or no card to go to). */
+  const snapBack = () => paintMotion(0, reducedMotion() ? 0 : 420, true);
 
   // ── Jump navigation ───────────────────────────────────────────────────────
   const handleJumpSubmit = (e: React.FormEvent) => {
@@ -228,17 +284,18 @@ export default function PdfDeckReaderView({
   const panelOpen = showBookmarksPanel || showSearchPanel;
 
   const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
-    if (isFinished || panelOpen) return;
-    setIsDragging(true);
+    if (isFinished || panelOpen || animatingRef.current) return;
+    draggingRef.current = true;
     gestureAxisRef.current = 'none';
     dragXRef.current = 0;
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     startPosRef.current = { x: clientX, y: clientY };
+    lastMoveRef.current = { x: clientX, t: performance.now(), v: 0 };
   };
 
   const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
-    if (!isDragging || isFinished || panelOpen) return;
+    if (!draggingRef.current || isFinished || panelOpen) return;
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     const dx = clientX - startPosRef.current.x;
@@ -252,33 +309,41 @@ export default function PdfDeckReaderView({
     // Vertical gesture: let the browser scroll the card content.
     if (gestureAxisRef.current === 'y') return;
 
-    dragXRef.current = dx;
-    setDragOffset({ x: dx, y: dy });
+    // Track release velocity (px/ms, smoothed) so a quick flick counts even when it is short.
+    const now = performance.now();
+    const dt = now - lastMoveRef.current.t;
+    if (dt > 0) {
+      const inst = (clientX - lastMoveRef.current.x) / dt;
+      lastMoveRef.current = { x: clientX, t: now, v: lastMoveRef.current.v * 0.6 + inst * 0.4 };
+    }
+
+    // Rubber band: resist when there is nothing in that direction (before card 1 only; the last card flows into the finish screen).
+    const resisted = dx > 0 && currentIndex === 0 ? dx * 0.28 : dx;
+    dragXRef.current = resisted;
+    paintMotion(resisted, 0, false);
   };
 
   const handleTouchEnd = () => {
-    if (!isDragging || isFinished || panelOpen) return;
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
     const axis = gestureAxisRef.current;
-    setIsDragging(false);
     gestureAxisRef.current = 'none';
-
     if (axis !== 'x') {
       dragXRef.current = 0;
-      setDragOffset({ x: 0, y: 0 });
+      if (frontRef.current?.style.transform) snapBack();
       return;
     }
 
     const dx = dragXRef.current;
     dragXRef.current = 0;
-    const threshold = 70;
-    if (dx > threshold) {
-      handleNext();
-    } else if (dx < -threshold) {
-      if (currentIndex > 0) handlePrev();
-      else setDragOffset({ x: 0, y: 0 });
-    } else {
-      setDragOffset({ x: 0, y: 0 });
-    }
+    const width = frontRef.current?.offsetWidth || 320;
+    const distance = Math.max(60, Math.min(width * 0.25, 120));
+    const v = lastMoveRef.current.v; // px/ms
+    const flick = Math.abs(v) > 0.45 && Math.abs(dx) > 16;
+    const dir = dx < 0 ? 1 : -1; // left = next, right = prev
+    const passed = Math.abs(dx) > distance || (flick && Math.sign(v) === Math.sign(dx));
+    if (passed && !(dir === -1 && currentIndex === 0)) commitMove(dir as 1 | -1);
+    else snapBack();
   };
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
@@ -573,7 +638,7 @@ export default function PdfDeckReaderView({
       {/* ── Overall Progress Bar ──────────────────────────────────────────── */}
       <div className="w-full h-1 bg-muted/60 rounded-full overflow-hidden -mt-1 mb-1">
         <div
-          className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-300"
+          className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-[width] duration-500 ease-out"
           style={{ width: `${isFinished ? 100 : progressPct}%` }}
         />
       </div>
@@ -645,40 +710,59 @@ export default function PdfDeckReaderView({
         ) : (
           /* Card Stack */
           <div className="w-full self-stretch max-w-sm sm:max-w-md relative flex items-center justify-center min-h-0">
-            {/* Background preview card */}
+            {/* Card underneath, going forward: the next card (peeks while idle, grows as you drag) */}
             {nextChunk && (
-              <div className="absolute inset-0 transform scale-95 translate-y-3 opacity-55 pointer-events-none transition-all">
-                <PdfChunkCardItem
-                  chunk={nextChunk}
-                  documentTitle={document.name}
-                  sourceType={document.sourceType}
-                />
+              <div
+                ref={peekNextRef}
+                className="absolute inset-0 pointer-events-none will-change-transform"
+                style={{ transform: 'translate3d(0, 12px, 0) scale(0.95)', opacity: 0.55 }}
+              >
+                <PdfChunkCardItem chunk={nextChunk} documentTitle={document.name} sourceType={document.sourceType} />
+              </div>
+            )}
+            {/* Card underneath, going back: hidden until you drag right */}
+            {prevChunk && (
+              <div
+                ref={peekPrevRef}
+                className="absolute inset-0 pointer-events-none will-change-transform"
+                style={{ transform: 'translate3d(0, 12px, 0) scale(0.95)', opacity: 0 }}
+              >
+                <PdfChunkCardItem chunk={prevChunk} documentTitle={document.name} sourceType={document.sourceType} />
               </div>
             )}
 
             {/* Front interactive card */}
             {currentChunk && (
               <div
+                ref={frontRef}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
                 onMouseDown={handleTouchStart}
                 onMouseMove={handleTouchMove}
                 onMouseUp={handleTouchEnd}
                 onMouseLeave={handleTouchEnd}
-                style={{
-                  transform: exitDirection
-                    ? `translateX(${exitDirection === 'right' ? 500 : -500}px) rotate(${exitDirection === 'right' ? 15 : -15}deg)`
-                    : `translateX(${dragOffset.x}px) translateY(${dragOffset.y * 0.15}px) rotate(${dragOffset.x * 0.04}deg)`,
-                  transition: isDragging ? 'none' : 'transform 0.22s ease-out',
-                }}
-                className="w-full h-full absolute inset-0 cursor-grab active:cursor-grabbing touch-pan-y z-10"
+                className="w-full h-full absolute inset-0 cursor-grab active:cursor-grabbing touch-pan-y z-10 will-change-transform"
               >
-                <PdfChunkCardItem
-                  chunk={currentChunk}
-                  documentTitle={document.name}
-                  sourceType={document.sourceType}
-                />
+                <PdfChunkCardItem chunk={currentChunk} documentTitle={document.name} sourceType={document.sourceType} />
+                {/* Direction cues that fade in with the drag */}
+                <div
+                  ref={hintNextRef}
+                  aria-hidden
+                  className="pointer-events-none absolute top-4 left-4 z-20 flex items-center gap-1 rounded-full bg-blue-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg"
+                  style={{ opacity: 0 }}
+                >
+                  {currentIndex === chunks.length - 1 ? 'Finish' : 'Next'} <Icon name="ArrowRightIcon" size={12} />
+                </div>
+                <div
+                  ref={hintPrevRef}
+                  aria-hidden
+                  className="pointer-events-none absolute top-4 right-4 z-20 flex items-center gap-1 rounded-full bg-slate-700 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg"
+                  style={{ opacity: 0 }}
+                >
+                  <Icon name="ArrowLeftIcon" size={12} /> Back
+                </div>
               </div>
             )}
           </div>
