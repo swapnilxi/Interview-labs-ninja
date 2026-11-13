@@ -39,6 +39,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from modules.common import __version__
 from modules.common.rate_limit import RateLimitMiddleware
+from modules.common.security_headers import SecurityHeadersMiddleware
 from modules.common.neon_sync import NeonSyncMiddleware
 from modules.common.db import get_db_path, init_db
 
@@ -141,6 +142,7 @@ _cors_origin_regex = os.environ.get("LABNINJA_CORS_ORIGIN_REGEX")
 # CORS headers, instead of showing the frontend a bare CORS failure. See
 # modules/common/rate_limit.py for what it does and why it's safe only in production.
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Pushes lab_ninja.sqlite3 to Neon after writes when DATABASE_URL is set (Vercel), so a
 # cold start / different instance picks up the latest data instead of a stale /tmp

@@ -46,6 +46,8 @@ def _enabled() -> bool:
 
 
 def _limit_for(key: str) -> int:
+    if key.startswith("auth:"):
+        return int(os.environ.get("LABNINJA_RATE_LIMIT_AUTH_PER_MINUTE", "10"))
     if key.startswith("user:"):
         return int(os.environ.get("LABNINJA_RATE_LIMIT_PER_MINUTE", "60"))
     return int(os.environ.get("LABNINJA_RATE_LIMIT_GUEST_PER_MINUTE", "20"))
@@ -130,6 +132,19 @@ class RateLimitMiddleware:
         if not _enabled() or scope["method"] == "OPTIONS" or scope["path"] in _SKIP_PATHS:
             await self.app(scope, receive, send)
             return
+
+        # Brute-force guard: login/signup get their own small per-IP bucket on top of the
+        # general one, whoever is calling.
+        if scope["method"] == "POST" and scope["path"].rstrip("/").endswith(("/auth/login", "/auth/signup")):
+            ok, _rem, retry = _check_and_increment(f"auth:{_client_ip(scope)}")
+            if not ok:
+                resp = JSONResponse(
+                    {"detail": "Too many attempts. Please wait and try again."},
+                    status_code=429,
+                    headers={"Retry-After": str(retry)},
+                )
+                await resp(scope, receive, send)
+                return
 
         key, _role = _identify(scope)
         if key is None:

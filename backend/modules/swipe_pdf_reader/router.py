@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -19,12 +20,28 @@ from .db import (
 
 router = APIRouter(prefix="/api/pdf", tags=["Swipe PDF Reader"])
 
+MAX_PDF_BYTES = int(os.environ.get("LABNINJA_MAX_PDF_MB", "25")) * 1024 * 1024
+
 UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "pdf_uploads"
 
 
 def _ensure_upload_dir() -> Path:
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    return UPLOAD_DIR
+    env_dir = os.environ.get("LABNINJA_PDF_UPLOAD_DIR")
+    if env_dir:
+        p = Path(env_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        p = Path("/tmp/pdf_uploads")
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    try:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        return UPLOAD_DIR
+    except (OSError, PermissionError):
+        p = Path("/tmp/pdf_uploads")
+        p.mkdir(parents=True, exist_ok=True)
+        return p
 
 
 def _chunk_text_pages(doc_id: str, doc_name: str, pages_text: List[str]) -> List[Dict[str, Any]]:
@@ -110,15 +127,26 @@ async def upload_pdf(file: UploadFile = File(...)) -> Dict[str, Any]:
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only .pdf files are supported.")
 
-    file_bytes = await file.read()
+    # Read at most MAX+1 bytes so an oversized upload is rejected without buffering it all.
+    file_bytes = await file.read(MAX_PDF_BYTES + 1)
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(file_bytes) > MAX_PDF_BYTES:
+        raise HTTPException(status_code=413, detail=f"PDF is too large (max {MAX_PDF_BYTES // (1024 * 1024)} MB).")
+    # Check the magic bytes, not just the extension.
+    if not file_bytes[:1024].lstrip().startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="File is not a valid PDF.")
 
     # Save to disk
     target_dir = _ensure_upload_dir()
     timestamp = int(time.time())
-    safe_filename = f"{timestamp}_{file.filename.replace(' ', '_')}"
+    # Never trust the client filename: strip any path and keep only safe characters
+    # (a name like "../../x.pdf" must not escape the upload dir).
+    base = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename.replace("\\", "/")))[:100]
+    safe_filename = f"{timestamp}_{base}"
     saved_path = target_dir / safe_filename
+    if saved_path.resolve().parent != target_dir.resolve():
+        raise HTTPException(status_code=400, detail="Invalid file name.")
     saved_path.write_bytes(file_bytes)
 
     # Extract text with pypdf

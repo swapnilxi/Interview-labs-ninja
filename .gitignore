@@ -99,3 +99,21 @@ yarn-error.log*
 graphify-out/cache/
 graphify-out/2026-*/
 graphify-out/*.pending.json
+
+# ── Secrets / keys / local test artifacts ─────────────────────────────────────
+*.pem
+*.p12
+*.pfx
+*.crt
+service-account*.json
+credentials*.json
+!.env.example
+!**/.env.example
+backend/data/pdf_uploads/
+*.pdf
+!frontend/public/**/*.pdf
+tests/files/
+tests/e2e/**/test-results/
+playwright-report/
+test-results/
+mobile-reader-check.png

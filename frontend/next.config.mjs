@@ -1,6 +1,23 @@
 /** @type {import('next').NextConfig} */
+// Baseline hardening headers for every response. The CSP is deliberately limited to
+// directives that cannot break Next.js inline scripts/styles: no framing (clickjacking),
+// no <object>/<embed>, no <base> hijack, forms only post to this origin.
+const SECURITY_HEADERS = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+  { key: 'Permissions-Policy', value: 'camera=(), geolocation=(), payment=(), usb=(), microphone=(self)' },
+  {
+    key: 'Content-Security-Policy',
+    value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
+  },
+];
+
 const nextConfig = {
-  productionBrowserSourceMaps: true,
+  poweredByHeader: false,
+  // Source maps expose original source to anyone; ship them only when explicitly asked.
+  productionBrowserSourceMaps: process.env.PUBLIC_SOURCE_MAPS === '1',
   distDir: process.env.DIST_DIR || '.next',
   outputFileTracingIncludes: {
     '/api/pdf/documents': ['../backend/data/lab_ninja.sqlite3'],
@@ -87,6 +104,7 @@ const nextConfig = {
   // mobile browsers.
   async headers() {
     return [
+      { source: '/:path*', headers: SECURITY_HEADERS },
       {
         source: '/sw.js',
         headers: [

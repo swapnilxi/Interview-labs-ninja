@@ -31,6 +31,19 @@ export async function handleUploadPdf(request: Request): Promise<NextResponse> {
       );
     }
 
+    const MAX_BYTES = 25 * 1024 * 1024;
+    if (file.size === 0) {
+      return NextResponse.json({ detail: 'Uploaded file is empty.' }, { status: 400 });
+    }
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json({ detail: 'PDF is too large (max 25 MB).' }, { status: 413 });
+    }
+    // Check the magic bytes, not just the name/type the client claims.
+    const head = new TextDecoder('latin1').decode(await file.slice(0, 1024).arrayBuffer());
+    if (!head.trimStart().startsWith('%PDF-')) {
+      return NextResponse.json({ detail: 'File is not a valid PDF.' }, { status: 400 });
+    }
+
     // Extract text pages from the PDF
     const { pageTexts } = await extractPdfTextBestEffort(file);
 
