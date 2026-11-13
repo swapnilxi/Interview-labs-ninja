@@ -102,12 +102,15 @@ function loadPdfJs(): Promise<PdfJsLib> {
     pdfJsPromise = import('pdfjs-dist/legacy/build/pdf.mjs')
       .then((mod) => {
         const lib = mod as unknown as PdfJsLib;
-        // Bundled by webpack as a hashed same-origin asset — no CDN, so it
-        // works offline once cached.
-        lib.GlobalWorkerOptions.workerSrc = new URL(
-          'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
-          import.meta.url,
-        ).toString();
+        // In browser environments, assign workerSrc for background parsing.
+        // In Node.js / serverless environments, omit workerSrc so pdf.js parses inline
+        // without DOM worker DataClone errors.
+        if (typeof window !== 'undefined') {
+          lib.GlobalWorkerOptions.workerSrc = new URL(
+            'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
+            import.meta.url,
+          ).toString();
+        }
         return lib;
       })
       .catch((err) => {
@@ -120,6 +123,9 @@ function loadPdfJs(): Promise<PdfJsLib> {
 
 /** One HEAD request per session; the answer cannot change without a reload. */
 function areCMapsAvailable(): Promise<boolean> {
+  if (typeof window === 'undefined') {
+    return Promise.resolve(false);
+  }
   if (!cmapsAvailable) {
     cmapsAvailable = fetch(CMAP_PROBE_URL, { method: 'HEAD' })
       .then((res) => res.ok)
