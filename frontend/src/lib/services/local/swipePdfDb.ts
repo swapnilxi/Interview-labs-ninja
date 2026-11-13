@@ -421,10 +421,12 @@ export async function saveChunks(chunks: StoredChunk[]): Promise<void> {
     await dbPutMany<StoredChunk>('chunks', records);
   } catch (err: unknown) {
     if ((err as DOMException)?.name === 'QuotaExceededError') {
-      console.warn('[swipePdfDb] Quota exceeded while saving chunks.');
-    } else {
-      console.error('[swipePdfDb] Error saving chunks:', err);
+      // Propagate: a document row without its chunks cannot be re-opened, so
+      // swallowing this made a document look saved while vanishing offline.
+      throw new QuotaError('chunks');
     }
+    console.error('[swipePdfDb] Error saving chunks:', err);
+    throw err;
   }
 }
 

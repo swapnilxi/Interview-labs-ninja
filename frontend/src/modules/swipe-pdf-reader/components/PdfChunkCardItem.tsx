@@ -47,7 +47,9 @@ export default function PdfChunkCardItem({
       </div>
 
       {/* Main Content Body */}
-      <div className="flex-1 p-5 overflow-y-auto scrollbar-clean flex flex-col justify-between space-y-4">
+      {/* overscroll-contain stops the page from bouncing once the card text
+          reaches its end — otherwise the swipe gesture fights the scroll. */}
+      <div className="flex-1 min-h-0 p-5 overflow-y-auto overscroll-contain scrollbar-clean flex flex-col justify-between space-y-4">
         <div>
           {/* Card Title */}
           <h3 className="font-heading text-lg font-bold text-foreground mb-3 leading-snug">
@@ -55,7 +57,7 @@ export default function PdfChunkCardItem({
           </h3>
 
           {/* Paragraph Content */}
-          <p className="text-sm text-foreground/90 leading-relaxed space-y-2 whitespace-pre-wrap">
+          <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
             {chunk.content}
           </p>
         </div>

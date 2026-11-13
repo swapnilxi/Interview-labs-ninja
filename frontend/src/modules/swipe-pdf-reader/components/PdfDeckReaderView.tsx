@@ -25,6 +25,10 @@ export default function PdfDeckReaderView({
   const [isDragging, setIsDragging] = useState(false);
   const [exitDirection, setExitDirection] = useState<'left' | 'right' | null>(null);
   const startPosRef = useRef({ x: 0, y: 0 });
+  // Which way the current gesture is going. Locking the axis lets a vertical
+  // drag scroll long card text while a horizontal drag still changes cards.
+  const gestureAxisRef = useRef<'none' | 'x' | 'y'>('none');
+  const dragXRef = useRef(0);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [resumeBanner, setResumeBanner] = useState<{ chunkIndex: number } | null>(null);
@@ -187,6 +191,8 @@ export default function PdfDeckReaderView({
   const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
     if (isFinished || panelOpen) return;
     setIsDragging(true);
+    gestureAxisRef.current = 'none';
+    dragXRef.current = 0;
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     startPosRef.current = { x: clientX, y: clientY };
@@ -196,19 +202,39 @@ export default function PdfDeckReaderView({
     if (!isDragging || isFinished || panelOpen) return;
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    setDragOffset({
-      x: clientX - startPosRef.current.x,
-      y: clientY - startPosRef.current.y,
-    });
+    const dx = clientX - startPosRef.current.x;
+    const dy = clientY - startPosRef.current.y;
+
+    if (gestureAxisRef.current === 'none') {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      gestureAxisRef.current = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }
+
+    // Vertical gesture: let the browser scroll the card content.
+    if (gestureAxisRef.current === 'y') return;
+
+    dragXRef.current = dx;
+    setDragOffset({ x: dx, y: dy });
   };
 
   const handleTouchEnd = () => {
     if (!isDragging || isFinished || panelOpen) return;
+    const axis = gestureAxisRef.current;
     setIsDragging(false);
+    gestureAxisRef.current = 'none';
+
+    if (axis !== 'x') {
+      dragXRef.current = 0;
+      setDragOffset({ x: 0, y: 0 });
+      return;
+    }
+
+    const dx = dragXRef.current;
+    dragXRef.current = 0;
     const threshold = 70;
-    if (dragOffset.x > threshold) {
+    if (dx > threshold) {
       handleNext();
-    } else if (dragOffset.x < -threshold) {
+    } else if (dx < -threshold) {
       if (currentIndex > 0) handlePrev();
       else setDragOffset({ x: 0, y: 0 });
     } else {
@@ -251,7 +277,10 @@ export default function PdfDeckReaderView({
   const hasShare = typeof navigator !== 'undefined' && !!navigator.share;
 
   return (
-    <div className="w-full max-w-lg mx-auto px-3 sm:px-4 py-2 sm:py-3 flex flex-col items-center min-h-[calc(100vh-64px)] sm:min-h-[calc(100vh-80px)] justify-between relative">
+    // Explicit dvh height (not min-height) so the deck can size itself with
+    // flexbox — the card stack cannot use percentage heights against a
+    // min-height parent, it collapses to zero.
+    <div className="w-full max-w-lg mx-auto px-3 sm:px-4 py-2 sm:py-3 flex flex-col items-center h-[calc(100dvh-64px)] sm:h-[calc(100dvh-80px)] justify-between relative">
 
       {/* ── Search Panel ─────────────────────────────────────────────────── */}
       {showSearchPanel && (
@@ -419,7 +448,7 @@ export default function PdfDeckReaderView({
                 value={jumpValue}
                 onChange={(e) => setJumpValue(e.target.value)}
                 placeholder={`1–${chunks.length}`}
-                className="w-20 text-center text-xs px-2 py-0.5 rounded-lg border border-blue-500/50 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-20 text-center text-base sm:text-xs px-2 py-0.5 rounded-lg border border-blue-500/50 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <button type="submit" className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">
                 Go
@@ -502,7 +531,7 @@ export default function PdfDeckReaderView({
       </div>
 
       {/* ── Main Deck ─────────────────────────────────────────────────────── */}
-      <div className="w-full flex-1 flex items-center justify-center my-2 sm:my-3 relative min-h-[360px] sm:min-h-[440px]">
+      <div className="w-full flex-1 flex my-2 sm:my-3 relative min-h-0">
         {isFinished ? (
           /* Finished Screen */
           <div className="w-full p-8 rounded-3xl bg-card border border-border shadow-xl text-center space-y-5 animate-fadeIn">
@@ -567,7 +596,7 @@ export default function PdfDeckReaderView({
           </div>
         ) : (
           /* Card Stack */
-          <div className="w-full h-full max-w-sm sm:max-w-md relative flex items-center justify-center">
+          <div className="w-full self-stretch max-w-sm sm:max-w-md relative flex items-center justify-center min-h-0">
             {/* Background preview card */}
             {nextChunk && (
               <div className="absolute inset-0 transform scale-95 translate-y-3 opacity-55 pointer-events-none transition-all">
@@ -595,7 +624,7 @@ export default function PdfDeckReaderView({
                     : `translateX(${dragOffset.x}px) translateY(${dragOffset.y * 0.15}px) rotate(${dragOffset.x * 0.04}deg)`,
                   transition: isDragging ? 'none' : 'transform 0.22s ease-out',
                 }}
-                className="w-full h-full absolute inset-0 cursor-grab active:cursor-grabbing touch-none z-10"
+                className="w-full h-full absolute inset-0 cursor-grab active:cursor-grabbing touch-pan-y z-10"
               >
                 <PdfChunkCardItem
                   chunk={currentChunk}

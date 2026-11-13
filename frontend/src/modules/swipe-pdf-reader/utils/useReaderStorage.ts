@@ -139,21 +139,30 @@ export function useReaderStorage() {
    * re-open without re-uploading.
    */
   const saveFullDocument = useCallback(
-    (
+    async (
       doc: PdfDocument,
       blob?: Blob,
       source: 'cloud' | 'local' = 'local',
-    ): void => {
+    ): Promise<void> => {
       // Map DocumentChunk[] to the StoredChunk shape (add text alias)
       const mappedChunks = doc.chunks.map((c) => ({
         ...c,
         text: c.content || c.text || '',
         content: c.content || c.text || '',
       }));
-      readerDb
-        .saveDocument(doc, blob, source)
-        .then(() => readerDb.saveChunks(mappedChunks))
-        .catch(() => {});
+
+      // Ask the browser to keep this data under storage pressure. Without it,
+      // mobile browsers evict IndexedDB and the document silently disappears.
+      try {
+        await readerDb.requestPersistentStorage();
+      } catch {
+        /* not fatal — saves still work, they are just evictable */
+      }
+
+      // Errors (notably QuotaError) must reach the caller so the UI can say
+      // "this was not saved" instead of pretending the save succeeded.
+      await readerDb.saveDocument(doc, blob, source);
+      await readerDb.saveChunks(mappedChunks);
     },
     [],
   );

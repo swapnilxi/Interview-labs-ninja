@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { PdfDocument, ProcessingState } from '../types';
 import { extractPdfTextBestEffort, processDocumentChunks } from '../utils/pdfProcessor';
 import { useReaderStorage } from '../utils/useReaderStorage';
 import { QuotaError } from '../utils/readerDb';
+
+/** Keeps in-memory extraction inside what a phone browser can handle. */
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 interface DocumentInputPanelProps {
   onDocumentReady: (doc: PdfDocument) => void;
@@ -37,6 +40,24 @@ export default function DocumentInputPanel({
   const [docTitleInput, setDocTitleInput] = useState('');
   const [pastedText, setPastedText] = useState('');
 
+  // Connectivity — cloud upload needs a network; local extraction does not.
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    const sync = () => {
+      const online = typeof navigator === 'undefined' ? true : navigator.onLine;
+      setIsOnline(online);
+      if (!online) setStorageMode('local');
+    };
+    sync();
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.removeEventListener('offline', sync);
+    };
+  }, []);
+
   // ── PDF processing ─────────────────────────────────────────────────────────
 
   const handleFile = useCallback(async (file: File) => {
@@ -45,6 +66,15 @@ export default function DocumentInputPanel({
         status: 'error',
         progress: 0,
         error: 'Please select a valid PDF file (.pdf)',
+      });
+      return;
+    }
+
+    if (file.size > MAX_PDF_BYTES) {
+      setProcessingState({
+        status: 'error',
+        progress: 0,
+        error: `That PDF is ${(file.size / 1024 / 1024).toFixed(1)} MB. Phone browsers can only process files up to 50 MB — try a smaller file, or paste the text instead.`,
       });
       return;
     }
@@ -177,7 +207,7 @@ export default function DocumentInputPanel({
         error: msg,
       });
     }
-  }, [keepOffline, storageMode, storage]);
+  }, [isOnline, keepOffline, storageMode, storage]);
 
   const handleCancel = () => {
     cancelledRef.current = true;
@@ -229,12 +259,16 @@ export default function DocumentInputPanel({
       message: 'Processing text into swipeable chunks…',
     });
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const docId = `paste-${Date.now()}`;
       const pageTexts = [{ pageNumber: 1, text }];
       const processedDoc = processDocumentChunks(docId, title, 'paste', pageTexts);
 
-      storage.saveFullDocument(processedDoc);
+      try {
+        await storage.saveFullDocument(processedDoc);
+      } catch {
+        // Still readable for this session even if it could not be stored.
+      }
 
       setProcessingState({
         status: 'success',
@@ -358,10 +392,10 @@ export default function DocumentInputPanel({
                     setKeepOffline(next);
                     // Re-save with updated blob preference (fire and forget)
                     if (next && pendingFile) {
-                      storage.saveFullDocument(doc, pendingFile);
+                      storage.saveFullDocument(doc, pendingFile).catch(() => setQuotaError(true));
                     } else {
                       // Remove blob — re-save without it
-                      storage.saveFullDocument(doc);
+                      storage.saveFullDocument(doc).catch(() => setQuotaError(true));
                     }
                   }}
                   className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
@@ -486,7 +520,9 @@ export default function DocumentInputPanel({
                     <button
                       type="button"
                       onClick={() => setStorageMode('cloud')}
-                      className={`py-2 px-3 rounded-lg font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                      disabled={!isOnline}
+                      title={isOnline ? undefined : 'Unavailable while offline'}
+                      className={`py-2 px-3 rounded-lg font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                         storageMode === 'cloud'
                           ? 'bg-card text-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground'
@@ -507,6 +543,14 @@ export default function DocumentInputPanel({
                     <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
                       <Icon name="CloudIcon" size={12} />
                       <span>Uploaded to server — saved to SQLite &amp; synced across devices.</span>
+                    </div>
+                  )}
+
+                  {/* Offline notice — cloud upload needs a connection */}
+                  {!isOnline && (
+                    <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                      <Icon name="CloudIcon" size={12} />
+                      <span>Offline — cloud upload is unavailable. Local mode works fully offline.</span>
                     </div>
                   )}
 
@@ -591,7 +635,7 @@ export default function DocumentInputPanel({
                       placeholder="e.g. System Design Interview Notes"
                       value={docTitleInput}
                       onChange={(e) => setDocTitleInput(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     />
                   </div>
                   <div>
@@ -603,7 +647,7 @@ export default function DocumentInputPanel({
                       placeholder="Paste your raw text, study notes, or document content here…"
                       value={pastedText}
                       onChange={(e) => setPastedText(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
                     />
                   </div>
                   <button
