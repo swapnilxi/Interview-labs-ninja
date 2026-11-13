@@ -750,7 +750,7 @@ export default function PdfDeckReaderView({
                 <div
                   ref={hintNextRef}
                   aria-hidden
-                  className="pointer-events-none absolute top-4 left-4 z-20 flex items-center gap-1 rounded-full bg-blue-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg"
+                  className="pointer-events-none absolute top-4 right-4 z-20 flex items-center gap-1 rounded-full bg-blue-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg"
                   style={{ opacity: 0 }}
                 >
                   {currentIndex === chunks.length - 1 ? 'Finish' : 'Next'} <Icon name="ArrowRightIcon" size={12} />
@@ -758,7 +758,7 @@ export default function PdfDeckReaderView({
                 <div
                   ref={hintPrevRef}
                   aria-hidden
-                  className="pointer-events-none absolute top-4 right-4 z-20 flex items-center gap-1 rounded-full bg-slate-700 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg"
+                  className="pointer-events-none absolute top-4 left-4 z-20 flex items-center gap-1 rounded-full bg-slate-700 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg"
                   style={{ opacity: 0 }}
                 >
                   <Icon name="ArrowLeftIcon" size={12} /> Back
