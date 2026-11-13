@@ -100,16 +100,18 @@ function loadPdfJs(): Promise<PdfJsLib> {
   if (!pdfJsPromise) {
     installLegacyPolyfills();
     pdfJsPromise = import('pdfjs-dist/legacy/build/pdf.mjs')
-      .then((mod) => {
+      .then(async (mod) => {
         const lib = mod as unknown as PdfJsLib;
         // In browser environments, assign workerSrc for background parsing.
-        // In Node.js / serverless environments, omit workerSrc so pdf.js parses inline
-        // without DOM worker DataClone errors.
+        // In Node.js / serverless environments, load the worker directly into memory
+        // so pdf.js fakeWorker does not throw "Cannot find module pdf.worker.mjs".
         if (typeof window !== 'undefined') {
           lib.GlobalWorkerOptions.workerSrc = new URL(
             'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
             import.meta.url,
           ).toString();
+        } else {
+          await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
         }
         return lib;
       })
