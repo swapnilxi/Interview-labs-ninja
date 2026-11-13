@@ -35,6 +35,10 @@ jest-test-results.json
 
 # Optional: if using TurboRepo or monorepo
 turbo/
+
 # Environment variables
 .env
 .env.*
+
+# pdf.js CMaps copied in by `npm run pdfjs:assets` (postinstall)
+public/pdfjs/

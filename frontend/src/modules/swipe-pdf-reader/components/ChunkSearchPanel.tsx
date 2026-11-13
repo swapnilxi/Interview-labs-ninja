@@ -84,7 +84,7 @@ export default function ChunkSearchPanel({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-14 px-3 pb-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-slideInUp max-h-[80vh]">
+      <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-slideInUp max-h-[80dvh]">
 
         {/* Header / Search Input */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
@@ -95,7 +95,7 @@ export default function ChunkSearchPanel({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search chunks, keywords, topics…"
-            className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none"
+            className="flex-1 bg-transparent text-base sm:text-sm text-foreground placeholder-muted-foreground focus:outline-none"
           />
           {query && (
             <button
@@ -128,7 +128,7 @@ export default function ChunkSearchPanel({
         )}
 
         {/* Results */}
-        <div className="flex-1 overflow-y-auto scrollbar-clean">
+        <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-clean">
           {queryTrimmed.length < 2 ? (
             <div className="text-center py-10 text-muted-foreground">
               <Icon name="MagnifyingGlassIcon" size={32} className="mx-auto mb-2 opacity-20" />

@@ -80,15 +80,18 @@ const nextConfig = {
       { source: '/dsa/week-plan/:path*', destination: '/api/dsa/week-plan/:path*' },
     ];
   },
-  // Cross-Origin Isolation headers required by PDF.js 4.x (SharedArrayBuffer)
-  // Only applied to the swipe-pdf-reader route to avoid breaking other routes.
+  // The reader's service worker (public/sw.js) must never be served stale, or
+  // an old offline cache pins a broken app shell. Cross-Origin Isolation was
+  // dropped: PDF.js text extraction does not need SharedArrayBuffer, and
+  // `require-corp` blocked subresources (fonts, the pdf.js worker asset) on
+  // mobile browsers.
   async headers() {
     return [
       {
-        source: '/swipe-pdf-reader/:path*',
+        source: '/sw.js',
         headers: [
-          { key: 'Cross-Origin-Opener-Policy',   value: 'same-origin' },
-          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
         ],
       },
     ];

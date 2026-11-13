@@ -8,6 +8,7 @@ import PdfDeckReaderView from './components/PdfDeckReaderView';
 import StorageManagerPanel from './components/StorageManagerPanel';
 import { DEMO_PDF_DOCUMENTS } from './data/sampleDocs';
 import { useReaderStorage } from './utils/useReaderStorage';
+import { registerReaderOfflineSupport } from './utils/offlineAssets';
 import type { ReaderDocMeta } from './utils/readerDb';
 import { buildUrl, useUrlState } from '@/lib/navigation/urlState';
 import { useSmartBack } from '@/lib/navigation/smartBack';
@@ -155,6 +156,12 @@ export default function SwipePdfReaderModule() {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep the reader usable offline: registers the service worker that caches
+  // the app shell plus the pdf.js assets once they have been loaded.
+  useEffect(() => {
+    registerReaderOfflineSupport();
+  }, []);
+
   /** Reload the recent list and the reading progress from this device. */
   function refreshRecent() {
     storage.getRecentDocsAsync().then(async (docs) => {
@@ -185,7 +192,7 @@ export default function SwipePdfReaderModule() {
 
   const handleLoadDemoDoc = (doc: PdfDocument) => {
     // Demo docs have their chunks in memory; persist them to IDB too
-    storage.saveFullDocument(doc);
+    storage.saveFullDocument(doc).catch(() => {});
     storage.getRecentDocsAsync().then(setRecentDocs);
     openDocument(doc);
   };
@@ -229,7 +236,7 @@ export default function SwipePdfReaderModule() {
   };
 
   return (
-    <div className="w-full min-h-[calc(100vh-60px)] bg-background text-foreground py-4">
+    <div className="w-full min-h-[calc(100dvh-60px)] bg-background text-foreground py-0 sm:py-4">
       {/* Storage Manager Modal */}
       {showStorageManager && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center overflow-y-auto py-6 px-4">
