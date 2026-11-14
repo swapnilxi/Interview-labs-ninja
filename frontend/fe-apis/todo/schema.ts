@@ -341,6 +341,23 @@ export function ensureTodoSchema(db: TodoDb): void {
   addColumnIfMissing(db, 'tasks', columns, 'pareto_locked', 'INTEGER DEFAULT 0');
   // A reminder time (UTC ISO 8601). The browser fires it; NULL = no reminder.
   addColumnIfMissing(db, 'tasks', columns, 'remind_at', 'TEXT DEFAULT NULL');
+  addColumnIfMissing(db, 'tasks', columns, 'reminder_sent_at', 'TEXT DEFAULT NULL');
+
+  // Push subscriptions for device and mobile Web Push
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 0,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      user_agent TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_user_id ON push_subscriptions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_push_endpoint ON push_subscriptions(endpoint);
+  `);
 
   // 2. quick_tasks
   const qtCols = columnsOf(db, 'quick_tasks');

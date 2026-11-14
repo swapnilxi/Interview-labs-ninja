@@ -188,6 +188,62 @@ async function activeRegistration(): Promise<ServiceWorkerRegistration | null> {
   return (await Promise.race([ready, timeout])) ?? null;
 }
 
+export const DEFAULT_VAPID_PUBLIC_KEY =
+  'BMGzuSpkexvgrnV7tyqkbaHUmmksT8zNId8xXSusY3txzXgLFYLuBhkWcYF15A-4umBKOPndZRUQAGzmsligWvU';
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+/**
+ * Subscribes this browser/phone to native Web Push (VAPID) so reminders can wake the phone
+ * even when the app is completely closed.
+ */
+export async function subscribeToWebPush(): Promise<PushSubscription | null> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return null;
+  }
+  if (browserPermission() !== 'granted') return null;
+
+  try {
+    const registration = await activeRegistration();
+    if (!registration) return null;
+
+    let sub = await registration.pushManager.getSubscription();
+    if (!sub) {
+      const pubKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY;
+      sub = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(pubKey) as unknown as BufferSource,
+      });
+    }
+
+    const json = sub.toJSON();
+    if (json.endpoint && json.keys?.p256dh && json.keys?.auth) {
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: json.endpoint,
+          keys: json.keys,
+        }),
+      });
+    }
+
+    return sub;
+  } catch (err) {
+    console.warn('Web push subscription failed:', err);
+    return null;
+  }
+}
+
 /** Asks the browser for permission (must run from a tap/click) and switches the preference on. */
 export async function enableBrowserNotifications(): Promise<
   NotificationPermission | 'unsupported'
@@ -199,7 +255,9 @@ export async function enableBrowserNotifications(): Promise<
       ? await Notification.requestPermission()
       : Notification.permission;
   setPrefs({ browser: result === 'granted' });
-  if (result === 'granted') void ensureServiceWorker();
+  if (result === 'granted') {
+    void ensureServiceWorker().then(() => subscribeToWebPush());
+  }
   return result;
 }
 
@@ -261,8 +319,30 @@ export async function sendTestNotification(): Promise<boolean> {
       setPrefs({ browser: true });
     }
   }
+
+  // Attempt server Web Push first (tests the real mobile background gateway)
+  try {
+    const pushSub = await subscribeToWebPush();
+    if (pushSub) {
+      const res = await fetch('/api/push/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: pushSub.endpoint,
+          keys: pushSub.toJSON().keys,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok) return true;
+      }
+    }
+  } catch {
+    /* Fallback to local service worker notification */
+  }
+
   return showDeviceNotification({
-    title: 'LabNinja Test Reminder 🔔',
+    title: 'LabNinja Android Push 🔔',
     body: 'Mobile notifications are active and working! Tap to open.',
     tag: 'labninja-test',
     href: '/ai-todo?tab=today',

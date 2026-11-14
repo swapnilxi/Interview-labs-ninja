@@ -365,6 +365,23 @@ def register(cursor) -> None:
     # A reminder time (UTC ISO 8601, e.g. 2026-11-15T11:30:00.000Z). The browser fires it; NULL = no reminder.
     if "remind_at" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN remind_at TEXT DEFAULT NULL;")
+    if "reminder_sent_at" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN reminder_sent_at TEXT DEFAULT NULL;")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER DEFAULT 0,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            user_agent TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_push_user_id ON push_subscriptions(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_push_endpoint ON push_subscriptions(endpoint);")
 
     # 2. quick_tasks table
     cursor.execute("PRAGMA table_info(quick_tasks);")
