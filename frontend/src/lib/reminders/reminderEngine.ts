@@ -12,6 +12,7 @@
 import { todoService, TASKS_CHANGED_EVENT, type Task } from '@/lib/services/todoService';
 import { getPrefs, notify, pageInBackground, showDeviceNotification } from '@/lib/ui/notifications';
 import { formatReminder } from './reminderTime';
+import { isNativeApp, syncNativeReminders } from './nativeReminders';
 
 export interface ReminderAlert {
   key: string;
@@ -146,7 +147,10 @@ function fire(task: Task, missed: boolean) {
     browser: false,
   });
   if (missed) return;
-  if (pageInBackground()) {
+  if (isNativeApp()) {
+    // The OS alarm shows the notification (sound, vibration, lock screen); the in-app card above is enough here.
+    chime();
+  } else if (pageInBackground()) {
     void showDeviceNotification({
       title: task.title,
       body: `Reminder · ${when}`,
@@ -177,6 +181,7 @@ export async function checkReminders(): Promise<void> {
   running = true;
   try {
     if (!getPrefs().todoReminders) {
+      void syncNativeReminders([]); // reminders switched off: clear the phone's alarms too
       schedule(Infinity);
       return;
     }
@@ -186,6 +191,8 @@ export async function checkReminders(): Promise<void> {
     } catch {
       return;
     }
+    // Android app: hand every reminder to the OS as an exact alarm, so it fires with the app closed.
+    void syncNativeReminders(tasks);
     const now = Date.now();
     const fired = readFired();
     let nextAt = Infinity;

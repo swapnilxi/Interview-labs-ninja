@@ -357,6 +357,17 @@ export function ensureTodoSchema(db: TodoDb): void {
     );
     CREATE INDEX IF NOT EXISTS idx_push_user_id ON push_subscriptions(user_id);
     CREATE INDEX IF NOT EXISTS idx_push_endpoint ON push_subscriptions(endpoint);
+
+    -- FCM device tokens of the Android app (Capacitor shell)
+    CREATE TABLE IF NOT EXISTS fcm_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      platform TEXT DEFAULT 'android',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_fcm_user_id ON fcm_tokens(user_id);
   `);
 
   // 2. quick_tasks

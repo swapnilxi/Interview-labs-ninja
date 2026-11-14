@@ -1,13 +1,12 @@
 'use client';
 
 import { notify } from '@/lib/ui/notifications';
-import React, { useState, useEffect, useRef, useTransition } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useTransition } from 'react';
 import Link from 'next/link';
 import CompanionStrip from './companion/CompanionStrip';
 import { useCompanionVoice } from './companion/useCompanionVoice';
 import { greeting, line } from './companion/content';
 import { playChime, stopSoundscape } from './companion/soundscape';
-import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import BackButton from '@/components/ui/BackButton';
 import { useUrlState, buildUrl } from '@/lib/navigation/urlState';
@@ -17,7 +16,8 @@ import { sessionService, SessionAnswer } from '@/lib/services/sessionService';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
 import AnswerWorkspace from './coach/AnswerWorkspace';
 import RichText from './coach/RichText';
-import { DifficultyTag } from '@/modules/common/lab/LabTags';
+import { Bar, DifficultyChip, Ring, WeekStrip, dayKey, difficultyTone, isTypingTarget, readPracticeDays, relativeDay, toneClass, uniqueByText } from './components/ds';
+import { useCompanionStats } from './companion/useCompanion';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
 import { backendFetch, isBackendKnownDown, isNetworkFailure, checkBackendHealth } from '@/lib/http/backendAvailability';
 import { parseApiError } from '@/lib/http/apiClient';
@@ -145,7 +145,7 @@ function sessionCodeFor(dateStr: string): string {
 
 export default function DailySessionInteractive() {
   const companion = useCompanionVoice(greeting(new Date().getHours()));
-  const router = useRouter();
+  const { stats: companionStats } = useCompanionStats();
   const [sessionDate, setSessionDate] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -563,8 +563,9 @@ export default function DailySessionInteractive() {
     }
   };
 
-  const handleSaveAnswer = async () => {
-    if (questions.length === 0) return;
+  /** Saves the open question's answer. Resolves true when it was saved. */
+  const handleSaveAnswer = async (): Promise<boolean> => {
+    if (questions.length === 0) return false;
     const currentQ = questions[currentIndex];
     const answerText = answers[currentQ.questionText] || '';
 
@@ -602,9 +603,11 @@ export default function DailySessionInteractive() {
           dedupeKey: `daily-session-done:${sessionDate}`,
         });
       }
+      return true;
     } catch (err) {
       console.error(err);
       notify({ source: 'daily-session', tone: 'error', title: "Couldn't save your answer", body: 'Check your connection and try again.' });
+      return false;
     } finally {
       setLoading(false);
     }
@@ -751,10 +754,10 @@ export default function DailySessionInteractive() {
   const loadDbQuestions = async () => {
     setIsLoadingDbQuestions(true);
     try {
-      const all = await questionsService.getAll();
+      const all = uniqueByText(await questionsService.getAll());
       setDbQuestions(all);
       const shuffled = [...all].sort(() => Math.random() - 0.5);
-      setDisplayedDbQuestions(shuffled.slice(0, 10));
+      setDisplayedDbQuestions(shuffled.slice(0, 6));
     } catch (err) {
       console.error(err);
     } finally {
@@ -765,7 +768,7 @@ export default function DailySessionInteractive() {
   const pickQuestionsForFilter = (filter: CategoryFilter, pool: Question[]) => {
     const filtered = filter === 'All' ? pool : pool.filter((q) => q.category === filter);
     const shuffled = [...filtered].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 10);
+    return shuffled.slice(0, 6);
   };
 
   const handleCategoryFilterChange = (filter: CategoryFilter) => {
@@ -800,394 +803,608 @@ export default function DailySessionInteractive() {
   };
 
   const activeQuestion = questions[currentIndex];
+  const isAnswered = (q: Question) => !!(answers[q.questionText] || '').trim();
+  const answeredCount = questions.filter(isAnswered).length;
+  const allAnswered = questions.length > 0 && answeredCount === questions.length;
+  const isLast = currentIndex === questions.length - 1;
+
+  // ── Today / this week, for the setup screen ──
+  const todayKey = dayKey();
+  const todaySession = recentSessions.find((r) => r.date === todayKey);
+  const [practiceDays, setPracticeDays] = useState<string[]>([]);
+  useEffect(() => {
+    if (onSetup) setPracticeDays(readPracticeDays());
+  }, [onSetup]);
+  const activeDays = useMemo(
+    () => new Set([...recentSessions.filter((r) => r.answered > 0).map((r) => r.date), ...practiceDays]),
+    [recentSessions, practiceDays],
+  );
+  const weekDaysPractised = useMemo(() => {
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    let n = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      if (activeDays.has(dayKey(d))) n++;
+    }
+    return n;
+  }, [activeDays]);
+
+  /** Saves this answer, then moves on (the last question just saves). */
+  const handleSaveAndNext = async () => {
+    if ((await handleSaveAnswer()) && !isLast) update({ q: currentIndex + 2 }, 'replace');
+  };
+
+  // Arrow keys step between questions while nothing is being typed.
+  useEffect(() => {
+    if (screen !== 'quiz') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
+      if (e.key === 'ArrowRight' && currentIndex < questions.length - 1) update({ q: currentIndex + 2 }, 'replace');
+      if (e.key === 'ArrowLeft' && currentIndex > 0) update({ q: currentIndex }, 'replace');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [screen, currentIndex, questions.length, update]);
 
   // Spinner while a session is being created or fetched (the setup form never shows with one pending)
   if (screen === 'loading' || (screen === 'setup' && (loading || navigating))) {
     return (
-      <div className="flex items-center justify-center h-[500px]">
-        <div className="w-[3rem] h-[3rem] border-4 border-border border-t-primary rounded-full animate-spin" />
+      <div className="flex h-[26rem] flex-col items-center justify-center gap-4">
+        <div className="animate-spin" role="status" aria-label="Loading">
+          <Ring value={0.28} size={48} stroke={5} />
+        </div>
+        <p className="text-sm font-semibold ds-muted">
+          {loading ? 'Picking ten questions for you…' : 'Opening your session…'}
+        </p>
       </div>
     );
   }
 
-  // Phase 1: Setup Form
+  // ── Setup: "Today" ────────────────────────────────────────────────────────
   if (screen === 'setup') {
-    // Selected difficulty = the same soft tint + hairline as DifficultyTag (semantic colours; Mixed is neutral slate, never an accent chip).
-    const difficultyOptions = [
-      { label: 'Easy',   active: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
-      { label: 'Medium', active: 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300' },
-      { label: 'Hard',   active: 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300' },
-      { label: 'Mixed',  active: 'border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300' },
-    ];
+    const tailored = !!cvText.trim() || !!jdText.trim();
+    const interviewCount = dbQuestions.filter((q) => q.category === 'Interview').length;
+    const cvCount = dbQuestions.filter((q) => q.category === 'CV Skill').length;
 
     return (
-      <div className="space-y-[1.5rem]">
-        <CompanionStrip c={companion} />
-        {backendOffline && (
-          <div className="flex items-center gap-3 rounded-xl border mix-border-warning/30 mix-bg-warning/10 px-4 py-3 text-sm text-warning">
-            <Icon name="ExclamationTriangleIcon" size={18} variant="outline" className="flex-shrink-0" />
-            <span>
-              Backend unreachable — Daily Session will run in offline mode. Your session and answers are saved in this browser only, and won&apos;t sync once the backend is back.
-            </span>
-          </div>
-        )}
-        {/* ── Setup Card ── */}
-        <div className="todo-lit lit-static rounded-xl border bg-card">
-          <div className="p-4 sm:p-[1.5rem]">
-            <h2 className="font-heading text-lg font-semibold text-foreground mb-7 flex items-center gap-3">
-              <div className="todo-icon-chip h-9 w-9">
-                <Icon name="AcademicCapIcon" size={17} />
-              </div>
-              Configure Your Session
-            </h2>
-            <form onSubmit={handleStartSession} className="space-y-[1.25rem] sm:space-y-[1.5rem]">
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-3">Difficulty</label>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {difficultyOptions.map(({ label, active }) => (
-                    <button key={label} type="button" onClick={() => setDifficulty(label)}
-                      className={`todo-focus min-h-[48px] py-3 rounded-lg border text-sm font-semibold transition-smooth ${
-                        difficulty === label ? active : 'mix-bg-foreground/[0.04] border-border text-muted-foreground hover:mix-bg-foreground/[0.08] hover:text-foreground'
-                      }`}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-[1.75rem]">
+        <div className="min-w-0 space-y-5">
+          {backendOffline && (
+            <div className="ds-banner ds-tone-gold" role="status">
+              <Icon name="SignalSlashIcon" size={18} />
+              <span>
+                <b>Offline mode.</b> The backend isn&apos;t reachable, so new sessions use built-in questions and are saved in this
+                browser only.
+              </span>
+            </div>
+          )}
 
-              <div>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <label htmlFor="cv-text" className="flex items-center gap-2 text-sm font-semibold text-foreground whitespace-nowrap">
-                    Context / Resume
-                    <span className="text-xs text-muted-foreground font-medium">Optional</span>
-                  </label>
-                  <label className="cursor-pointer inline-flex min-h-[40px] items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg lab-tint lab-ink hover:mix-bg-primary/[0.18] transition-smooth border mix-border-primary/25">
-                    <Icon name="DocumentArrowUpIcon" size={14} />
-                    {uploadingResume ? 'Extracting...' : 'Upload Resume (.pdf/.docx/.txt)'}
-                    <input
-                      type="file"
-                      accept=".pdf,.docx,.txt,.md"
-                      className="hidden"
-                      onChange={handleResumeUpload}
-                      disabled={uploadingResume}
-                    />
-                  </label>
-                </div>
-                {uploadedFileName && (
-                  <div className="mb-2 text-xs font-medium text-emerald-500 flex items-center gap-1">
-                    <Icon name="CheckCircleIcon" size={14} variant="solid" />
-                    Uploaded: {uploadedFileName}
+          {/* Hero: today's session */}
+          <section className="ds-hero ds-enter" aria-labelledby="ds-today-title">
+            <div className="relative p-5 sm:p-[1.75rem]">
+              <CompanionStrip c={companion} size={56} />
+
+              {todaySession && (
+                <div className="ds-card-raised mt-5 flex flex-wrap items-center gap-4 p-4">
+                  <Ring
+                    value={todaySession.total ? todaySession.answered / todaySession.total : 0}
+                    size={52}
+                    tone={todaySession.answered >= todaySession.total ? 'jade' : 'indigo'}
+                    label={`${todaySession.answered} of ${todaySession.total} answered`}
+                  >
+                    <span className="text-xs font-bold ds-ink ds-num">
+                      {todaySession.answered}/{todaySession.total}
+                    </span>
+                  </Ring>
+                  <div className="min-w-0 flex-1">
+                    <p className="ds-h3">
+                      {todaySession.answered >= todaySession.total ? "Today's session is done" : "Today's session is waiting"}
+                    </p>
+                    <p className="text-sm ds-muted">
+                      {todaySession.answered >= todaySession.total
+                        ? 'Every question answered. Revisit it, or start a fresh one below.'
+                        : `${todaySession.answered} of ${todaySession.total} answered. Pick up where you left off.`}
+                    </p>
                   </div>
-                )}
-                <textarea id="cv-text" rows={4} value={cvText} onChange={(e) => setCvText(e.target.value)}
-                  placeholder="Paste your resume, project context, or upload a document using the button above..."
-                  className="todo-input px-4 py-3 text-sm resize-none" />
+                  <Link href={recentHref(todaySession)} prefetch={false} scroll={false} className="ds-btn ds-btn-primary">
+                    {todaySession.answered >= todaySession.total ? 'Review' : 'Continue'}
+                    <Icon name="ArrowRightIcon" size={16} />
+                  </Link>
+                </div>
+              )}
+
+              <div className="mt-[1.5rem]">
+                <span className="ds-chip ds-tone-gold">
+                  <Icon name="SunIcon" size={14} variant="solid" />
+                  Daily session
+                </span>
+                <h2 id="ds-today-title" className="ds-h2 mt-3">
+                  {todaySession ? 'Or start a fresh set' : 'Ten fresh questions, tuned to you'}
+                </h2>
+                <p className="ds-body mt-1 max-w-[60ch]">
+                  A mix of interview and computer-vision questions. Answer in your own words; the AI coach and hints are one tap
+                  away.
+                </p>
               </div>
 
-              <div>
-                <label htmlFor="jd-text" className="flex items-center gap-3 text-sm font-semibold text-foreground mb-2">
-                  Job Description
-                  <span className="text-xs text-muted-foreground font-medium">Optional — tailors focus</span>
-                </label>
-                <textarea id="jd-text" rows={4} value={jdText} onChange={(e) => setJdText(e.target.value)}
-                  placeholder="Paste target job description to customise question focus areas..."
-                  className="todo-input px-4 py-3 text-sm resize-none" />
+              <form onSubmit={handleStartSession} className="mt-5 space-y-5">
+                <div>
+                  <p id="ds-level" className="mb-2 text-sm font-semibold ds-ink">
+                    Level
+                  </p>
+                  <div className="ds-seg" role="group" aria-labelledby="ds-level">
+                    {['Easy', 'Medium', 'Hard', 'Mixed'].map((label) => (
+                      <button
+                        key={label}
+                        type="button"
+                        aria-pressed={difficulty === label}
+                        onClick={() => setDifficulty(label)}
+                        className={toneClass(difficultyTone(label))}
+                      >
+                        <span className="ds-dot" aria-hidden="true" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <details className="ds-disclosure ds-inset">
+                  <summary className="flex items-center gap-3 px-4 py-3">
+                    <span className="ds-icon-tile ds-icon-tile-sm ds-tone-indigo">
+                      <Icon name="BriefcaseIcon" size={16} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold ds-ink">Tailor to your resume and target role</span>
+                      <span className="block text-xs ds-faint">Optional. Questions lean towards your experience and the job.</span>
+                    </span>
+                    <span className="hidden gap-1.5 sm:flex">
+                      {cvText.trim() && <span className="ds-chip ds-tone-jade">Resume</span>}
+                      {jdText.trim() && <span className="ds-chip ds-tone-jade">Job</span>}
+                    </span>
+                    <Icon name="ChevronDownIcon" size={16} className="ds-caret ds-faint" />
+                  </summary>
+                  <div className="space-y-4 px-4 pb-4">
+                    <div>
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <label htmlFor="cv-text" className="text-sm font-semibold ds-ink">
+                          Resume or project context
+                        </label>
+                        <label className="ds-btn ds-btn-secondary ds-btn-sm cursor-pointer">
+                          <Icon name="DocumentArrowUpIcon" size={15} />
+                          {uploadingResume ? 'Reading…' : 'Upload PDF, DOCX or TXT'}
+                          <input
+                            type="file"
+                            accept=".pdf,.docx,.txt,.md"
+                            className="hidden"
+                            onChange={handleResumeUpload}
+                            disabled={uploadingResume}
+                          />
+                        </label>
+                      </div>
+                      {uploadedFileName && (
+                        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold ds-tone-jade ds-tone-text">
+                          <Icon name="CheckCircleIcon" size={14} variant="solid" />
+                          {uploadedFileName}
+                        </p>
+                      )}
+                      <textarea
+                        id="cv-text"
+                        rows={4}
+                        value={cvText}
+                        onChange={(e) => setCvText(e.target.value)}
+                        placeholder="Paste your resume or a few lines about your projects…"
+                        className="ds-field resize-y"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="jd-text" className="mb-2 block text-sm font-semibold ds-ink">
+                        Job description
+                      </label>
+                      <textarea
+                        id="jd-text"
+                        rows={4}
+                        value={jdText}
+                        onChange={(e) => setJdText(e.target.value)}
+                        placeholder="Paste the role you're preparing for…"
+                        className="ds-field resize-y"
+                      />
+                    </div>
+                  </div>
+                </details>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className={`ds-btn ds-btn-lg ${todaySession ? 'ds-btn-secondary' : 'ds-btn-primary'} sm:min-w-[16rem]`}
+                  >
+                    <Icon name={todaySession ? 'ArrowPathIcon' : 'PlayIcon'} size={18} variant={todaySession ? 'outline' : 'solid'} />
+                    {todaySession ? 'Generate a new session' : "Start today's session"}
+                  </button>
+                  <span className="text-sm ds-faint">
+                    10 questions · about 25 min{tailored ? ' · tailored to you' : ''}
+                  </span>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          {loadError && (
+            <div role="alert" className="ds-banner ds-tone-rose">
+              <Icon name="ExclamationTriangleIcon" size={18} />
+              <span>{loadError}</span>
+            </div>
+          )}
+
+          {/* Recent sessions */}
+          {recentSessions.length > 0 && (
+            <section className="ds-card p-5 ds-enter-2" aria-labelledby="ds-recent-title">
+              <div className="mb-2 flex items-baseline justify-between gap-3">
+                <h3 id="ds-recent-title" className="ds-h3">
+                  Recent sessions
+                </h3>
+                <span className="text-xs font-semibold ds-faint">Last {recentSessions.length}</span>
               </div>
-
-              <button type="submit" disabled={loading}
-                className="todo-btn todo-btn-primary w-full gap-3 px-4 py-3.5 text-sm disabled:pointer-events-none">
-                {loading ? (
-                  <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Icon name="PlayIcon" size={17} variant="solid" />
-                )}
-                Generate Daily Session (10 Questions)
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {loadError && (
-          <div role="alert" className="flex items-center gap-3 rounded-xl border mix-border-error/30 mix-bg-error/10 px-4 py-3 text-sm text-error">
-            <Icon name="ExclamationTriangleIcon" size={18} variant="outline" className="flex-shrink-0" />
-            <span>{loadError}</span>
-          </div>
-        )}
-
-        {/* ── Recent Sessions ── */}
-        {recentSessions.length > 0 && (
-          <div className="bg-card rounded-xl border border-border">
-            <div className="p-4 sm:p-[1.5rem]">
-              <h3 className="font-heading text-base font-semibold text-foreground flex items-center gap-3 mb-[1rem]">
-                <Icon name="ClockIcon" size={18} variant="outline" className="text-primary flex-shrink-0" />
-                Recent Sessions
-                <span className="text-xs font-medium text-muted-foreground">last {recentSessions.length}</span>
-              </h3>
-              <ul className="divide-y divide-border">
+              <ul>
                 {recentSessions.map((r) => {
-                  const pct = r.total ? Math.round((r.answered / r.total) * 100) : 0;
+                  const done = r.total > 0 && r.answered >= r.total;
                   return (
                     <li key={r.key}>
                       {/* a real link: the session has its own address, so it can also be opened in a new tab */}
-                      <Link
-                        href={recentHref(r)}
-                        prefetch={false}
-                        scroll={false}
-                        className="todo-focus flex w-full items-center gap-[1rem] py-[0.75rem] text-left hover:mix-bg-foreground/[0.05] rounded-lg px-[0.5rem] transition-smooth"
-                      >
-                        <span className="min-w-[6.5rem] text-sm font-medium text-foreground">
-                          {new Date(`${r.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                      <Link href={recentHref(r)} prefetch={false} scroll={false} className="ds-row">
+                        <Ring value={r.total ? r.answered / r.total : 0} size={40} stroke={4} tone={done ? 'jade' : 'indigo'}>
+                          {done ? (
+                            <Icon name="CheckIcon" size={16} className="ds-tone-jade ds-tone-text" />
+                          ) : (
+                            <span className="text-[11px] font-bold ds-muted ds-num">{r.answered}</span>
+                          )}
+                        </Ring>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold ds-ink">{relativeDay(r.date)}</span>
+                          <span className="block text-xs ds-faint">
+                            {r.answered} of {r.total} answered
+                            {r.offline ? ' · this browser only' : ''}
+                          </span>
                         </span>
-                        <span className="flex-1 h-[0.4rem] rounded-full bg-muted overflow-hidden">
-                          <span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
-                        </span>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {r.total} questions · {r.answered} answered{r.offline ? ' · offline' : ''}
-                        </span>
-                        <Icon name="ChevronRightIcon" size={14} variant="outline" className="text-muted-foreground" />
+                        <Icon name="ChevronRightIcon" size={16} className="ds-chevron" />
                       </Link>
                     </li>
                   );
                 })}
               </ul>
-            </div>
-          </div>
-        )}
+            </section>
+          )}
 
-        {/* ── Question Preview from DB ── */}
-        <section aria-label="Questions from Database">
-          <div>
-            {/* Header row */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-              <h3 className="font-heading text-base font-semibold text-foreground flex items-center gap-3">
-                <Icon name="CircleStackIcon" size={18} variant="outline" className="text-primary flex-shrink-0" />
-                Questions from Database
-                {dbQuestions.length > 0 && (
-                  <span className="text-xs font-medium text-muted-foreground">({dbQuestions.length} total)</span>
-                )}
-              </h3>
-              <div className="flex gap-3">
-                <button onClick={handleRegenerateFromDb}
+          {/* From the question bank */}
+          <section aria-labelledby="ds-bank-title" className="ds-enter-3">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 id="ds-bank-title" className="ds-h3">
+                  From your question bank
+                </h3>
+                <p className="mt-0.5 text-sm ds-muted">
+                  A random handful{dbQuestions.length > 0 ? ` of ${dbQuestions.length}` : ''}. Open one for a full AI review.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleRegenerateFromDb}
                   disabled={isLoadingDbQuestions || dbQuestions.length === 0}
-                  className="todo-focus px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none">
-                  <Icon name="ArrowPathIcon" size={14} variant="outline" />
-                  Regenerate
+                  className="ds-btn ds-btn-secondary ds-btn-sm"
+                >
+                  <Icon name="ArrowsRightLeftIcon" size={15} />
+                  Shuffle
                 </button>
-                <button onClick={handleExportCSV}
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
                   disabled={displayedDbQuestions.length === 0}
-                  className="todo-focus px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none">
-                  <Icon name="ArrowDownTrayIcon" size={14} variant="outline" />
-                  Export CSV
+                  className="ds-btn ds-btn-ghost ds-btn-sm"
+                >
+                  <Icon name="ArrowDownTrayIcon" size={15} />
+                  CSV
                 </button>
               </div>
             </div>
 
-            {/* Category filter pills */}
-            <div className="flex flex-wrap gap-3 mb-7">
+            <div className="ds-seg ds-seg-inline mb-4 w-full sm:w-auto" role="group" aria-label="Category">
               {(['All', 'Interview', 'CV Skill'] as CategoryFilter[]).map((cat) => (
-                <button key={cat} onClick={() => handleCategoryFilterChange(cat)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-smooth border ${
-                    categoryFilter === cat
-                      ? 'bg-primary border-primary text-primary-foreground'
-                      : 'bg-muted border-border text-muted-foreground hover:border-muted-foreground'
-                  }`}>
+                <button key={cat} type="button" aria-pressed={categoryFilter === cat} onClick={() => handleCategoryFilterChange(cat)}>
                   {cat}
-                  {cat !== 'All' && dbQuestions.length > 0 && (
-                    <span className="ml-1.5 text-xs opacity-70">
-                      ({dbQuestions.filter((q) => q.category === cat).length})
-                    </span>
+                  {dbQuestions.length > 0 && (
+                    <small className="ds-num">
+                      {cat === 'All' ? dbQuestions.length : cat === 'Interview' ? interviewCount : cvCount}
+                    </small>
                   )}
                 </button>
               ))}
             </div>
 
-            {/* Question cards */}
             {isLoadingDbQuestions ? (
-              <div className="flex justify-center py-10">
-                <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
+              <div className="grid gap-3 md:grid-cols-2" aria-busy="true">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="ds-qcard h-[7.5rem] animate-pulse" />
+                ))}
               </div>
             ) : displayedDbQuestions.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground">
-                <Icon name="InboxIcon" size={36} variant="outline" className="mx-auto mb-4 opacity-30" />
-                <p className="text-sm">No questions in the database yet.</p>
-                <p className="text-xs mt-2">Generate your first session above to populate the question bank.</p>
+              <div className="ds-card flex flex-col items-center px-5 py-10 text-center">
+                <span className="ds-icon-tile ds-icon-tile-lg ds-tone-neutral">
+                  <Icon name="InboxIcon" size={22} />
+                </span>
+                <p className="mt-3 text-sm font-semibold ds-ink">No questions yet</p>
+                <p className="mt-1 text-sm ds-faint">Start your first session and its questions will appear here.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {displayedDbQuestions.map((q, idx) => (
-                  <div 
-                    key={q.id}
-                    onClick={() => router.push(`/question-review?id=${q.id}`)}
-                    className="todo-lit lit-soft bg-card border border-border rounded-xl p-4 flex flex-col gap-3 cursor-pointer transition-all group"
-                    title="Click to open question review & AI breakdown"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 flex-wrap min-w-0">
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full lab-tint lab-ink shrink-0">
-                          {q.category}
-                        </span>
-                        <span className="text-xs text-muted-foreground truncate">{q.subType}</span>
-                      </div>
-                      <DifficultyTag difficulty={q.difficulty} className="shrink-0" />
-                    </div>
-                    <p className="text-sm text-foreground leading-relaxed group-hover:lab-ink transition-colors">
-                      <span className="text-muted-foreground font-medium mr-2">Q{idx + 1}.</span>
-                      {q.questionText}
-                    </p>
-                    <div className="flex items-center justify-between pt-1 text-xs text-muted-foreground mt-auto">
-                      <span className="group-hover:lab-ink font-medium flex items-center gap-1">
-                        Review Question & AI Feedback &rarr;
+              <div className="grid gap-3 md:grid-cols-2">
+                {displayedDbQuestions.map((q) => (
+                  <Link key={q.id} href={`/question-review?id=${q.id}`} prefetch={false} className="ds-qcard group">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className={`ds-chip ${q.category === 'Interview' ? 'ds-tone-indigo' : 'ds-tone-jade'}`}>{q.category}</span>
+                      <DifficultyChip difficulty={q.difficulty} />
+                    </span>
+                    <span className="text-[0.92rem] font-semibold leading-snug ds-ink">{q.questionText}</span>
+                    <span className="mt-auto flex items-center justify-between gap-2 text-xs ds-faint">
+                      <span className="break-words">{q.subType}</span>
+                      <span className="flex flex-shrink-0 items-center gap-1 font-semibold ds-tone-indigo ds-tone-text opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                        Review
+                        <Icon name="ArrowRightIcon" size={13} />
                       </span>
-                      <span className="text-xs font-mono">#{q.id}</span>
-                    </div>
-                  </div>
+                    </span>
+                  </Link>
                 ))}
               </div>
             )}
+          </section>
+        </div>
+
+        {/* Sidebar */}
+        <aside className="space-y-5 lg:sticky lg:top-[5.5rem] lg:self-start">
+          <section className="ds-card p-5 ds-enter-2" aria-labelledby="ds-week-title">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 id="ds-week-title" className="ds-h3">
+                This week
+              </h3>
+              <span className="ds-chip ds-tone-gold ds-num">
+                <Icon name="FireIcon" size={13} variant="solid" />
+                {companionStats.streak} day streak
+              </span>
+            </div>
+            <WeekStrip activeDays={activeDays} />
+            <p className="mt-4 text-xs leading-relaxed ds-faint">
+              {weekDaysPractised === 0
+                ? 'Answer a question or finish a drill to light up today.'
+                : `${weekDaysPractised} of 7 days practised this week. Keep the flame going.`}
+            </p>
+          </section>
+
+          <nav className="ds-card p-2 ds-enter-3" aria-label="More ways to practise">
+            <p className="ds-eyebrow px-3 pb-1 pt-2">More ways to practise</p>
+            {[
+              { href: '/daily-session?tab=practice', icon: 'AcademicCapIcon', tone: 'indigo' as const, title: 'Practice drill', sub: 'Pick a topic, level and length' },
+              { href: '/daily-session?tab=quick-practice', icon: 'BoltIcon', tone: 'gold' as const, title: 'Quick blitz', sub: 'Flashcards for a short gap' },
+              { href: '/daily-session?tab=progress', icon: 'ChartBarIcon', tone: 'jade' as const, title: 'Your progress', sub: 'Readiness and skill trends' },
+            ].map((l) => (
+              <Link key={l.href} href={l.href} scroll={false} prefetch={false} className="ds-row ds-row-flush">
+                <span className={`ds-icon-tile ${toneClass(l.tone)}`}>
+                  <Icon name={l.icon} size={19} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold ds-ink">{l.title}</span>
+                  <span className="block text-xs ds-faint">{l.sub}</span>
+                </span>
+                <Icon name="ChevronRightIcon" size={16} className="ds-chevron" />
+              </Link>
+            ))}
+          </nav>
+        </aside>
+      </div>
+    );
+  }
+
+  // ── Ready: the session's cover ────────────────────────────────────────────
+  if (screen === 'ready') {
+    const firstOpen = questions.findIndex((q) => !isAnswered(q));
+    const resumeAt = firstOpen === -1 ? 0 : firstOpen;
+    const topics = Array.from(new Set(questions.map((q) => q.subType).filter(Boolean))).slice(0, 8);
+    const levels = (['Easy', 'Medium', 'Hard'] as const)
+      .map((d) => ({ d, n: questions.filter((q) => q.difficulty?.toLowerCase() === d.toLowerCase()).length }))
+      .filter((x) => x.n > 0);
+    const started = answeredCount > 0;
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 pt-2">
+        <BackButton href={setupUrl} label="Back" />
+        <section className="ds-hero ds-enter">
+          <div className="relative p-5 sm:p-[2rem]">
+            <CompanionStrip c={companion} size={56} />
+            <div className="mt-[1.5rem]">
+              <p className="ds-eyebrow">Session {sessionCodeFor(sessionDate)} · {relativeDay(sessionDate)}</p>
+              <h2 className="ds-display mt-2">
+                {allAnswered ? 'All done. Nicely played.' : started ? 'Welcome back' : 'Your session is ready'}
+              </h2>
+              <p className="ds-body mt-2 max-w-[52ch]">
+                {allAnswered
+                  ? 'Every question has an answer. Revisit any of them, or export your notes.'
+                  : started
+                    ? `You've answered ${answeredCount} of ${questions.length}. The timer starts when you open a question.`
+                    : 'Take them one at a time. The timer starts when you open the first question, and hints are always one tap away.'}
+              </p>
+            </div>
+
+            <dl className="mt-[1.5rem] grid grid-cols-3 gap-2 sm:gap-3">
+              {[
+                { k: 'Questions', v: String(questions.length) },
+                { k: 'About', v: `${Math.max(5, Math.round(questions.length * 2.5))} min` },
+                { k: 'Answered', v: `${answeredCount}/${questions.length}` },
+              ].map((s) => (
+                <div key={s.k} className="ds-inset px-3 py-3 sm:px-4">
+                  <dt className="ds-eyebrow">{s.k}</dt>
+                  <dd className="mt-1 text-xl font-bold ds-ink ds-num">{s.v}</dd>
+                </div>
+              ))}
+            </dl>
+
+            {started && <Bar value={answeredCount / questions.length} tone={allAnswered ? 'jade' : 'indigo'} className="mt-4" label="Answered" />}
+
+            {(topics.length > 0 || levels.length > 0) && (
+              <div className="mt-[1.5rem]">
+                <p className="mb-2 text-sm font-semibold ds-ink">What&apos;s inside</p>
+                <div className="flex flex-wrap gap-2">
+                  {levels.map((l) => (
+                    <span key={l.d} className={`ds-chip ${toneClass(difficultyTone(l.d))}`}>
+                      <span className="ds-dot" aria-hidden="true" />
+                      {l.n} {l.d.toLowerCase()}
+                    </span>
+                  ))}
+                  {topics.map((t) => (
+                    <span key={t} className="ds-chip ds-tone-neutral">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+              <button type="button" onClick={() => goBack(setupUrl)} className="ds-btn ds-btn-ghost ds-btn-lg">
+                Not now
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  companion.startSound();
+                  companion.say(line('start'), 'cheer');
+                  setElapsedSeconds(0);
+                  update({ q: resumeAt + 1 }, 'push');
+                }}
+                className="ds-btn ds-btn-primary ds-btn-lg flex-1"
+              >
+                <Icon name="PlayIcon" size={18} variant="solid" />
+                {allAnswered ? 'Review answers' : started ? `Continue at question ${resumeAt + 1}` : 'Start'}
+              </button>
+            </div>
           </div>
         </section>
       </div>
     );
   }
 
-  // Phase 2: Ready / Interstitial
-  if (screen === 'ready') {
-    return (
-      <div className="max-w-2xl mx-auto mt-[1rem] sm:mt-9 space-y-[1rem] animate-fade-in">
-      <div>
-        <BackButton href={setupUrl} label="Back" />
-      </div>
-      <CompanionStrip c={companion} />
-      <div className="todo-lit lit-soft bg-card rounded-lg p-[1.25rem] sm:p-9 border border-border text-center">
-        <Icon name="CheckBadgeIcon" size={64} className="text-success mx-auto mb-[1.125rem]" variant="outline" />
-        <h2 className="font-heading text-3xl font-semibold text-foreground mb-3">Session Ready!</h2>
-        <p className="text-muted-foreground mb-[1.5rem] font-body">
-          Your custom interview questions have been generated and securely saved. This quiz mode will record your session duration and track your completion.
-        </p>
-        <div className="flex flex-col-reverse items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:gap-3">
-          <button
-            onClick={() => goBack(setupUrl)}
-            className="py-3 px-[1.5rem] rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-smooth inline-flex items-center justify-center gap-3 focus-ring"
-          >
-            <Icon name="ArrowLeftIcon" size={18} variant="outline" />
-            Back
-          </button>
-          <button
-            onClick={() => {
-              companion.startSound();
-              companion.say(line('start'), 'cheer');
-              setElapsedSeconds(0);
-              update({ q: 1 }, 'push');
-            }}
-            className="py-3 px-[1.5rem] rounded-md bg-primary hover:opacity-90 text-primary-foreground text-lg font-medium transition-smooth inline-flex items-center justify-center gap-3 focus-ring shadow-glow"
-          >
-            <Icon name="PlayCircleIcon" size={24} variant="solid" />
-            Start Practicing
-          </button>
-        </div>
-      </div>
-      </div>
-    );
-  }
-
-  // Phase 3: Active Session (Quiz Mode)
+  // ── Quiz (focus mode: the page header is hidden) and the all-questions overview ──
   return (
-    <div className="space-y-[1.5rem] mt-[1.5rem] animate-fade-in">
-      <div>
-        {/* quiz -> the setup; the all-questions overview -> the quiz, at the question it was opened from */}
-        <BackButton href={viewAll ? quizUrl : setupUrl} label="Back" />
-      </div>
-      <CompanionStrip c={companion} />
-      <div className="h-2 w-full overflow-hidden rounded-full bg-muted" aria-label="Session progress">
-        <div
-          className="h-full rounded-full bg-primary transition-all duration-500"
-          style={{ width: `${Math.max(4, Math.min(100, (Object.keys(answers).length / Math.max(1, questions.length)) * 100))}%` }}
-        />
-      </div>
-      {genWarning && (
-        <div role="status" className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-[1.25rem] py-[0.75rem] text-sm text-amber-700 dark:text-amber-300">
-          <Icon name="ExclamationTriangleIcon" size={18} variant="outline" className="flex-shrink-0" />
-          <span>{genWarning}</span>
-        </div>
-      )}
-      {/* Session Controls Header */}
-      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold tabular-nums lab-tint lab-ink">
-            <Icon name="ClockIcon" size={16} />
-            {formatTime(elapsedSeconds)}
-          </span>
-          <span className="text-sm font-semibold text-foreground">
-            Session ID: {sessionCodeFor(sessionDate)}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            {Object.keys(answers).length} of 10 answered
-          </span>
-          {isOfflineSession && (
-            <span className="flex items-center gap-1.5 rounded-md border mix-border-warning/30 mix-bg-warning/10 px-3 py-1.5 text-xs font-medium text-warning">
-              <Icon name="ExclamationTriangleIcon" size={14} variant="outline" />
-              Offline — saved locally
+    <div className="pt-3 sm:pt-4">
+      {/* Floating top bar: leave, progress, time, overview */}
+      <div className="ds-topbar">
+        <div className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
+          <button
+            type="button"
+            onClick={() => goBack(viewAll ? quizUrl : setupUrl)}
+            className="ds-btn ds-btn-ghost ds-btn-icon"
+            aria-label={viewAll ? 'Back to the question' : 'Leave the session'}
+            title={viewAll ? 'Back to the question' : 'Leave (your saved answers stay)'}
+          >
+            <Icon name={viewAll ? 'ArrowLeftIcon' : 'XMarkIcon'} size={20} />
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="mb-1.5 flex items-center justify-between gap-2 text-xs font-semibold">
+              <span className="ds-muted">
+                {viewAll ? 'All questions' : `Question ${currentIndex + 1} of ${questions.length}`}
+              </span>
+              <span className="ds-faint ds-num">
+                {answeredCount}/{questions.length} answered
+              </span>
+            </div>
+            <Bar value={answeredCount / Math.max(1, questions.length)} tone={allAnswered ? 'jade' : 'indigo'} label="Session progress" />
+          </div>
+          <span className="hidden sm:inline-flex" title="Time on questions">
+            <span className="ds-chip ds-tone-neutral ds-num">
+              <Icon name="ClockIcon" size={14} />
+              {formatTime(elapsedSeconds)}
             </span>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-3">
+          </span>
           <button
+            type="button"
             onClick={() => (viewAll ? goBack(quizUrl) : update({ view: 'all' }, 'push'))}
-            className="todo-btn todo-btn-secondary text-sm"
+            className="ds-btn ds-btn-secondary ds-btn-sm"
+            aria-label={viewAll ? 'One question at a time' : 'See all questions'}
           >
-            <Icon name={viewAll ? "BookOpenIcon" : "ListBulletIcon"} size={16} variant="outline" />
-            {viewAll ? 'Back to Quiz' : 'View All Questions'}
-          </button>
-          <button
-            onClick={handleExport}
-            className="todo-btn todo-btn-secondary text-sm"
-          >
-            <Icon name="ArrowDownTrayIcon" size={16} variant="outline" />
-            Export Markdown
-          </button>
-          <button
-            onClick={handleClearSession}
-            className="todo-btn border border-error text-sm text-error hover:mix-bg-error/10"
-          >
-            Reset Session
+            <Icon name={viewAll ? 'RectangleStackIcon' : 'Squares2X2Icon'} size={16} />
+            <span className="hidden sm:inline">{viewAll ? 'One at a time' : 'All questions'}</span>
           </button>
         </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {genWarning && (
+          <div role="status" className="ds-banner ds-tone-gold">
+            <Icon name="ExclamationTriangleIcon" size={18} />
+            <span>{genWarning}</span>
+          </div>
+        )}
+        {isOfflineSession && !genWarning && (
+          <div className="ds-banner ds-tone-gold" role="status">
+            <Icon name="SignalSlashIcon" size={18} />
+            <span>Offline session: answers are saved in this browser only.</span>
+          </div>
+        )}
+        {allAnswered && (
+          <div className="ds-banner ds-banner-center ds-tone-jade ds-pop flex-wrap" role="status">
+            <Icon name="CheckBadgeIcon" size={22} variant="solid" />
+            <span className="min-w-0 flex-1">
+              <b>All {questions.length} answered.</b> Lovely work. Export your notes, or see how you&apos;re trending.
+            </span>
+            <span className="flex gap-2">
+              <button type="button" onClick={handleExport} className="ds-btn ds-btn-secondary ds-btn-sm">
+                <Icon name="ArrowDownTrayIcon" size={15} />
+                Export
+              </button>
+              <Link href="/daily-session?tab=progress" scroll={false} prefetch={false} className="ds-btn ds-btn-solid ds-btn-sm">
+                See progress
+              </Link>
+            </span>
+          </div>
+        )}
       </div>
 
       {viewAll ? (
-        // Grid View of All Questions
-        <div className="space-y-[1.125rem]">
-          <h3 className="text-xl font-semibold text-foreground font-heading">All Questions Overview</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-[1.125rem]">
-            {questions.map((q, idx) => (
-              <div key={q.id} className="todo-lit lit-soft bg-card border border-border rounded-lg p-[1.125rem] flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-center gap-3 mb-3">
-                    <span className="text-xs font-caption text-muted-foreground">
-                      Q{idx + 1} • {q.category} ({q.subType})
-                    </span>
-                    <DifficultyTag difficulty={q.difficulty} className="shrink-0" />
-                  </div>
-                  <p 
-                    onClick={() => router.push(`/question-review?id=${q.id || idx + 1}`)}
-                    className="text-sm font-medium text-foreground leading-relaxed mb-[1.125rem] cursor-pointer hover:lab-ink transition-colors"
-                    title="Click to open question review & AI breakdown"
-                  >
-                    {q.questionText}
-                  </p>
-                </div>
-                <div>
-                  <textarea
-                    rows={3}
-                    placeholder="Type answer details..."
-                    value={answers[q.questionText] || ''}
-                    onChange={(e) => {
-                      const text = e.target.value;
-                      setAnswers((prev) => ({ ...prev, [q.questionText]: text }));
-                    }}
-                    className="w-full rounded-md border border-border bg-input px-3 py-1.5 text-xs text-foreground focus-ring placeholder:text-muted-foreground mb-3"
-                  />
+        <div className="mt-5 grid grid-cols-1 gap-4 pb-8 md:grid-cols-2">
+          {questions.map((q, idx) => (
+            <article key={q.id} className="ds-card flex flex-col gap-4 p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`ds-chip ${isAnswered(q) ? 'ds-tone-jade' : 'ds-tone-neutral'} ds-num`}>
+                  {isAnswered(q) && <Icon name="CheckIcon" size={12} />}Q{idx + 1}
+                </span>
+                <span className="ds-chip ds-tone-neutral">{q.subType}</span>
+                <DifficultyChip difficulty={q.difficulty} />
+              </div>
+              <button
+                type="button"
+                onClick={() => update({ view: null, q: idx + 1 }, 'push')}
+                className="text-left text-[0.95rem] font-semibold leading-snug ds-ink hover:underline"
+                title="Open this question"
+              >
+                {q.questionText}
+              </button>
+              <div className="mt-auto space-y-2">
+                <textarea
+                  rows={3}
+                  aria-label={`Answer to question ${idx + 1}`}
+                  placeholder="Jot down your answer…"
+                  value={answers[q.questionText] || ''}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setAnswers((prev) => ({ ...prev, [q.questionText]: text }));
+                  }}
+                  className="ds-field resize-y text-sm"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={`/question-review?id=${q.id || idx + 1}`} prefetch={false} className="ds-link text-xs">
+                    Full review
+                  </Link>
                   <button
+                    type="button"
                     onClick={async () => {
                       const payload: SessionAnswer = {
                         questionId: q.id,
@@ -1201,23 +1418,22 @@ export default function DailySessionInteractive() {
                       };
                       await persistAnswer(payload);
                     }}
-                    className="todo-btn todo-btn-primary"
+                    className="ds-btn ds-btn-secondary ds-btn-sm"
                   >
-                    Save Answer
+                    Save
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
+            </article>
+          ))}
         </div>
       ) : (
-        // Quiz Mode (Single Question Focus)
-        <div className="grid grid-cols-1 gap-[1.5rem] lg:grid-cols-[minmax(0,1fr)_21rem]">
-          <div className="min-w-0 space-y-[1.25rem]">
+        <div className="mt-5 grid grid-cols-1 gap-5 pb-[8rem] lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="min-w-0 space-y-4">
             {/* Question navigator */}
-            <div className="flex flex-wrap items-center gap-2" aria-label="Questions">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="Questions">
               {questions.map((q, idx) => {
-                const done = !!(answers[q.questionText] || '').trim();
+                const done = isAnswered(q);
                 const current = idx === currentIndex;
                 return (
                   <button
@@ -1226,42 +1442,41 @@ export default function DailySessionInteractive() {
                     onClick={() => update({ q: idx + 1 }, 'replace')}
                     aria-label={`Question ${idx + 1}${done ? ' (answered)' : ''}`}
                     aria-current={current}
-                    className={`h-9 w-9 rounded-full text-xs font-extrabold transition ${
-                      current
-                        ? 'scale-110 bg-primary text-primary-foreground shadow-md'
-                        : done
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                          : 'bg-muted text-muted-foreground hover:mix-bg-foreground/10 hover:text-foreground'
-                    }`}
+                    data-done={done}
+                    className="ds-qdot"
                   >
-                    {done && !current ? '✓' : idx + 1}
+                    {done && !current ? <Icon name="CheckIcon" size={14} /> : idx + 1}
                   </button>
                 );
               })}
             </div>
 
-            {/* Question hero */}
-            <div className="rounded-xl border border-border bg-card p-[1.5rem]">
-              <div className="mb-[0.75rem] flex flex-wrap items-center gap-2 text-xs font-extrabold">
-                <span className="rounded-full px-3 py-1 lab-tint lab-ink">
-                  Question {currentIndex + 1} of {questions.length}
+            <CompanionStrip c={companion} size={48} />
+
+            {/* The question */}
+            <section key={activeQuestion?.id ?? currentIndex} className="ds-card-raised p-5 sm:p-[1.75rem] ds-enter" aria-labelledby="ds-q-text">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="ds-chip ds-tone-indigo ds-num">
+                  {currentIndex + 1} / {questions.length}
                 </span>
-                <span className="rounded-full mix-bg-foreground/[0.06] px-3 py-1 text-foreground">{activeQuestion?.subType}</span>
-                {activeQuestion?.difficulty && <DifficultyTag difficulty={activeQuestion.difficulty} size="md" />}
-                <button
-                  type="button"
-                  onClick={() => router.push(`/question-review?id=${activeQuestion?.id || currentIndex + 1}`)}
-                  className="todo-focus ml-auto rounded-full border border-border px-3 py-1 text-muted-foreground hover:text-foreground"
+                {activeQuestion?.subType && <span className="ds-chip ds-tone-neutral">{activeQuestion.subType}</span>}
+                {activeQuestion?.difficulty && <DifficultyChip difficulty={activeQuestion.difficulty} />}
+                <Link
+                  href={`/question-review?id=${activeQuestion?.id || currentIndex + 1}`}
+                  prefetch={false}
+                  className="ds-link ml-auto text-xs"
                 >
-                  Full review →
-                </button>
+                  Full review
+                </Link>
               </div>
-              <h3 className="font-heading text-xl font-bold leading-snug text-foreground">{activeQuestion?.questionText}</h3>
-            </div>
+              <h2 id="ds-q-text" className="ds-question">
+                {activeQuestion?.questionText}
+              </h2>
+            </section>
 
             {/* Answer + code space + AI coach */}
             {activeQuestion && (
-              <div className="space-y-[1rem] rounded-xl border border-border bg-card p-[1.25rem] sm:p-[1.5rem]">
+              <section className="ds-card p-5 sm:p-[1.5rem]">
                 <AnswerWorkspace
                   question={{
                     questionText: activeQuestion.questionText,
@@ -1274,82 +1489,101 @@ export default function DailySessionInteractive() {
                   code={codes[activeQuestion.questionText] ?? (typeof window !== 'undefined' ? localStorage.getItem(codeKey(activeQuestion.questionText)) || '' : '')}
                   onCodeChange={(v) => setCode(activeQuestion.questionText, v)}
                 />
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleSaveAnswer}
-                    className="flex items-center gap-2 rounded-2xl bg-primary px-[1.25rem] py-[0.65rem] text-sm font-extrabold text-primary-foreground shadow-[0_4px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] transition active:translate-y-[2px] active:shadow-none"
-                  >
-                    <Icon name="CheckIcon" size={16} variant="outline" />
-                    Save answer
-                  </button>
-                </div>
-              </div>
+              </section>
             )}
-
-            {/* Navigation */}
-            <div className="flex items-center justify-between">
-              <button
-                disabled={currentIndex === 0}
-                onClick={() => update({ q: currentIndex }, 'replace')}
-                className="flex items-center gap-2 rounded-2xl border-2 border-border px-[1.1rem] py-[0.6rem] text-sm font-extrabold text-foreground transition hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
-              >
-                <Icon name="ArrowLeftIcon" size={16} variant="outline" />
-                Previous
-              </button>
-              <button
-                disabled={currentIndex === questions.length - 1}
-                onClick={() => update({ q: currentIndex + 2 }, 'replace')}
-                className="flex items-center gap-2 rounded-2xl bg-primary px-[1.1rem] py-[0.6rem] text-sm font-extrabold text-primary-foreground shadow-[0_4px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] transition active:translate-y-[2px] active:shadow-none disabled:pointer-events-none disabled:opacity-30"
-              >
-                Next
-                <Icon name="ArrowRightIcon" size={16} variant="outline" />
-              </button>
-            </div>
           </div>
 
-          {/* Hint / model answer panel */}
-          <aside className="space-y-[1rem] self-start lg:sticky lg:top-[5rem]">
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-[1.25rem]" data-semantic="hint">
-              <div className="mb-[0.5rem] flex items-center gap-2 text-sm font-extrabold text-amber-900 dark:text-amber-100">
-                <Icon name="LightBulbIcon" size={18} variant="outline" className="flex-shrink-0" aria-hidden="true" /> Stuck? Ask for a hint
-              </div>
-              {!showHint ? (
-                <>
-                  <p className="mb-[0.75rem] text-xs leading-relaxed text-amber-900/80 dark:text-amber-100/80">
-                    Try it yourself first. This gets a concise reference answer from AI for this exact question.
-                  </p>
+          {/* Hint + session tools */}
+          <aside className="space-y-4 self-start lg:sticky lg:top-[9rem]">
+            <section className="ds-card overflow-hidden" data-semantic="hint" aria-labelledby="ds-hint-title">
+              <div className="ds-tone-gold p-5">
+                <div className="flex items-center gap-3">
+                  <span className="ds-icon-tile">
+                    <Icon name="LightBulbIcon" size={19} />
+                  </span>
+                  <div>
+                    <h3 id="ds-hint-title" className="ds-h3">
+                      Stuck? Get a hint
+                    </h3>
+                    <p className="text-xs ds-faint">Give it a go first. Then peek.</p>
+                  </div>
+                </div>
+                {!showHint ? (
                   <button
+                    type="button"
                     onClick={handleGenerateHint}
                     disabled={isGeneratingHint}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-3 py-[0.65rem] text-sm font-extrabold text-amber-950 shadow-[0_4px_0_0_rgba(180,83,9,0.5)] transition active:translate-y-[2px] active:shadow-none disabled:opacity-60"
+                    className="ds-btn ds-btn-soft mt-4 w-full"
                   >
-                    {isGeneratingHint ? 'Thinking…' : 'Generate hint'}
+                    <Icon name="SparklesIcon" size={16} />
+                    {isGeneratingHint ? 'Thinking…' : 'Show a model answer'}
                   </button>
-                </>
-              ) : (
-                <div className="space-y-[0.75rem]">
-                  {dynamicAiAnswer ? (
-                    <RichText text={dynamicAiAnswer} className="text-amber-950 dark:text-amber-50" />
-                  ) : null}
-                  {dynamicAiAnswer && (
-                    <button
-                      onClick={handleExplainMore}
-                      disabled={isExplaining}
-                      className="w-full rounded-2xl border-2 border-amber-400 px-3 py-2 text-xs font-extrabold text-amber-900 dark:text-amber-100"
-                    >
-                      {isExplaining ? 'Explaining…' : showExplain ? 'Hide deep explanation' : 'Explain more with AI'}
-                    </button>
-                  )}
-                  {showExplain && dynamicExplain && (
-                    <div className="rounded-2xl bg-white/70 p-3 dark:bg-black/20">
-                      <RichText text={dynamicExplain} />
-                    </div>
-                  )}
-                </div>
-              )}
-              {hintError && <p className="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-300">{hintError}</p>}
-            </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {dynamicAiAnswer && <RichText text={dynamicAiAnswer} className="ds-ink" />}
+                    {dynamicAiAnswer && (
+                      <button type="button" onClick={handleExplainMore} disabled={isExplaining} className="ds-btn ds-btn-soft ds-btn-sm w-full">
+                        {isExplaining ? 'Explaining…' : showExplain ? 'Hide the deep dive' : 'Explain it more deeply'}
+                      </button>
+                    )}
+                    {showExplain && dynamicExplain && (
+                      <div className="ds-inset p-3">
+                        <RichText text={dynamicExplain} />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {hintError && <p className="mt-3 text-xs font-semibold ds-tone-rose ds-tone-text">{hintError}</p>}
+              </div>
+            </section>
+
+            <section className="ds-card p-2" aria-label="Session tools">
+              <button type="button" onClick={handleExport} className="ds-row ds-row-flush w-full text-left">
+                <span className="ds-icon-tile ds-icon-tile-sm ds-tone-neutral">
+                  <Icon name="ArrowDownTrayIcon" size={16} />
+                </span>
+                <span className="flex-1 text-sm font-semibold ds-ink">Export as Markdown</span>
+              </button>
+              <button type="button" onClick={handleClearSession} className="ds-row ds-row-flush w-full text-left">
+                <span className="ds-icon-tile ds-icon-tile-sm ds-tone-rose">
+                  <Icon name="ArrowPathIcon" size={16} />
+                </span>
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold ds-ink">Close this session</span>
+                  <span className="block text-xs ds-faint">Saved answers stay in Recent sessions</span>
+                </span>
+              </button>
+              <p className="hidden px-3 pb-2 pt-1 text-xs ds-faint lg:block">
+                <span className="ds-kbd">←</span> <span className="ds-kbd">→</span> move between questions
+              </p>
+            </section>
           </aside>
+
+          {/* Bottom action bar */}
+          <div className="ds-actionbar">
+            <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-2 sm:px-4">
+              <button
+                type="button"
+                disabled={currentIndex === 0}
+                onClick={() => update({ q: currentIndex }, 'replace')}
+                className="ds-btn ds-btn-ghost"
+              >
+                <Icon name="ArrowLeftIcon" size={16} />
+                <span className="hidden sm:inline">Previous</span>
+              </button>
+              <div className="flex items-center gap-2">
+                {!isLast && (
+                  <button type="button" onClick={() => update({ q: currentIndex + 2 }, 'replace')} className="ds-btn ds-btn-ghost">
+                    Skip
+                  </button>
+                )}
+                <button type="button" onClick={handleSaveAndNext} disabled={loading} className="ds-btn ds-btn-primary ds-btn-lg min-w-[11rem]">
+                  {loading ? 'Saving…' : isLast ? 'Save answer' : 'Save & next'}
+                  {!loading && <Icon name={isLast ? 'CheckIcon' : 'ArrowRightIcon'} size={17} />}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

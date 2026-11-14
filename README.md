@@ -887,3 +887,20 @@ finer-grained multi-document profile enrichment (dedup + conflict resolution acr
 document per merge). HTML sanitization (`bleach`/DOMPurify) is still worth adding **before** any
 feature that renders raw user-authored HTML — today all rendered content is escaped/text-only.
 
+
+## Android app (Capacitor shell: closed-app reminders + FCM push)
+
+`frontend/android/` is a thin Capacitor WebView around the deployed site (`server.url` in `frontend/capacitor.config.ts`,
+`CAP_SERVER_URL` overrides it; local dev: `http://<mac-LAN-ip>:4028`). The web code stays the single source of truth.
+
+- **Reminders with the app closed, no server/cron:** `src/lib/reminders/nativeReminders.ts` registers every task's
+  `remind_at` as an exact OS alarm (`@capacitor/local-notifications`) and mirrors the task list; `reminderEngine.ts`
+  calls it on every task change. Android 12+ needs the "Alarms & reminders" setting (asked on first launch).
+- **FCM push:** `nativePush.ts` registers the device token (`POST /api/push/fcm-token`, login required, table `fcm_tokens`);
+  `src/lib/server/fcm.ts` sends with `firebase-admin` (`POST /api/push/fcm-test` sends a test). Server env:
+  `FIREBASE_SERVICE_ACCOUNT` = service-account JSON on one line. Without it the sender is a no-op.
+- In a normal browser all of this is a no-op; the web-push (VAPID) path in `notifications.ts` is unchanged.
+
+Build (needs JDK 17 + Android Studio/SDK): create a Firebase project, add an Android app with id `com.labsninja.app`,
+save its `google-services.json` to `frontend/android/app/`, then from `frontend/`: `npm run android:sync`,
+`npm run android:open`, and Run on the phone (USB debugging) or Build > Build APK(s).

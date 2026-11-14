@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LabNinja</string>
+    <string name="title_activity_main">LabNinja</string>
+    <string name="package_name">com.labsninja.app</string>
+    <string name="custom_url_scheme">com.labsninja.app</string>
+</resources>

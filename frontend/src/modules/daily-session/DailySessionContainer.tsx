@@ -1,139 +1,157 @@
 'use client';
 
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import DailySessionInteractive from './DailySessionModule';
-import DailySessionTabSwitcher, { DailySessionTab } from './components/DailySessionTabSwitcher';
+import DailySessionTabSwitcher, {
+  DailySessionTab,
+  tabHref,
+} from './components/DailySessionTabSwitcher';
 import PracticeMode from './components/PracticeMode';
 import QuickPractice from './components/QuickPractice';
 import ProgressDashboardInteractive from '@/modules/progress-dashboard/ProgressDashboardModule';
 import QuestionBankInteractive from '@/modules/question-bank/QuestionBankModule';
 import SwapnilxiSpace from './components/SwapnilxiSpace';
-import { useAuth } from '@/contexts/AuthContext';
+import { useCompanionStats } from './companion/useCompanion';
+import './daily-session.css';
 
-const TAB_HEADER_METADATA: Record<
-  DailySessionTab,
-  { title: string; subtitle: string; badges: string[] }
-> = {
+const TAB_HEADER: Record<DailySessionTab, { title: string; subtitle: string }> = {
   session: {
-    title: 'Daily Training Session',
-    subtitle: '10 personalised questions · timed practice · AI-powered hints',
-    badges: ['Timed practice', 'AI hints on demand', 'Progress tracked', 'DB-backed questions'],
+    title: "Today's session",
+    subtitle:
+      'Ten questions picked for you. Answer at your own pace, with hints when you need them.',
   },
   practice: {
-    title: 'Practice Mode',
-    subtitle: 'Targeted drill practice · filter by topic & difficulty · self-evaluation',
-    badges: ['Custom pool', 'Topic filtering', 'Model solutions', 'Untimed / Timed'],
+    title: 'Practice',
+    subtitle: 'Build a focused drill: pick a topic, a level and how long you have.',
   },
   'quick-practice': {
-    title: 'Quick Practice Blitz',
-    subtitle: 'Rapid-fire question flashcards · instant model answers · streak scoring',
-    badges: ['Flashcard format', 'Rapid retention', 'Streak counter', 'Random shuffle'],
+    title: 'Quick blitz',
+    subtitle: 'Rapid flashcards with instant model answers. Great for a five-minute gap.',
   },
   progress: {
-    title: 'Progress Dashboard',
-    subtitle: 'Preparation analytics · skill development trends · interview readiness',
-    badges: ['Performance trends', 'Skill accuracy', 'Streak tracking', 'Weekly analytics'],
+    title: 'Your progress',
+    subtitle: 'Readiness, streaks and how each skill is trending.',
   },
   'question-bank': {
-    title: 'Question Bank',
-    subtitle: 'Review, filter & practice your question repository',
-    badges: ['Categorized search', 'Difficulty filter', 'CSV export', 'Batch actions'],
+    title: 'Question bank',
+    subtitle: "Every question you've seen, searchable and filterable.",
   },
   myspace: {
-    title: 'MySpace · Private Personal Command Deck',
-    subtitle: 'Your personal preparation cockpit · private notes · target tracking & custom questions',
-    badges: ['Personalized', 'Private Notes', 'Target Tracker', 'Question Injector'],
+    title: 'My Space',
+    subtitle: 'Your private notes, targets and custom questions.',
   },
   'swapnilxi-space': {
-    title: 'Swapnilxi Private Command Deck',
-    subtitle: 'Creator controls · direct database ingestion · roadmap notes',
-    badges: ['Verified creator', 'Direct injection', 'Persistent notes', 'SuperAdmin deck'],
+    title: 'Creator space',
+    subtitle: 'Creator controls, direct database ingestion and roadmap notes.',
   },
 };
+
+const VALID_TABS: DailySessionTab[] = [
+  'session',
+  'practice',
+  'quick-practice',
+  'progress',
+  'question-bank',
+  'myspace',
+  'swapnilxi-space',
+];
+
+/** "Good evening · Saturday, 14 November". Computed after mount so the server and browser never disagree. */
+function useGreeting() {
+  const [text, setText] = useState('');
+  useEffect(() => {
+    const now = new Date();
+    const h = now.getHours();
+    const part =
+      h < 5
+        ? 'Burning the midnight oil'
+        : h < 12
+          ? 'Good morning'
+          : h < 17
+            ? 'Good afternoon'
+            : 'Good evening';
+    setText(
+      `${part} · ${now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}`
+    );
+  }, []);
+  return text;
+}
 
 function DailySessionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
-  const isSwapnilxi = user?.email?.toLowerCase() === 'swapnilgupta.xi@gmail.com';
+  const { stats } = useCompanionStats();
+  const greeting = useGreeting();
 
   const tabParam = searchParams.get('tab') as DailySessionTab | null;
 
-  const validTabs: DailySessionTab[] = [
-    'session',
-    'practice',
-    'quick-practice',
-    'progress',
-    'question-bank',
-    'myspace',
-    'swapnilxi-space',
-  ];
-
   // The URL is the source of truth for the tab, so Back/Forward, a reload and a shared link all land on the
-  // same one. A missing or unknown ?tab= is the default tab (Daily Session), which is also what Back to a
+  // same one. A missing or unknown ?tab= is the default tab (Today), which is also what Back to a
   // tab-less /daily-session must show.
-  const activeTab: DailySessionTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'session';
+  const activeTab: DailySessionTab =
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'session';
 
   // A hand-edited ?tab=zzz shows the default tab, so the address is corrected to match (replace: no history entry).
   useEffect(() => {
-    if (tabParam && !validTabs.includes(tabParam)) router.replace('/daily-session', { scroll: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabParam]);
+    if (tabParam && !VALID_TABS.includes(tabParam))
+      router.replace('/daily-session', { scroll: false });
+  }, [tabParam, router]);
 
   const handleTabChange = (newTab: DailySessionTab) => {
-    const targetUrl = newTab === 'session' ? '/daily-session' : `/daily-session?tab=${newTab}`;
-    router.push(targetUrl, { scroll: false });
+    router.push(tabHref(newTab), { scroll: false });
   };
 
-  const currentMeta = TAB_HEADER_METADATA[activeTab] || TAB_HEADER_METADATA.session;
+  // Focus mode: while a question is on screen (a session's quiz, a practice run) the page header steps aside,
+  // like a lesson in a language app. The run's own top bar has the way out.
+  const focused =
+    (activeTab === 'session' &&
+      searchParams.get('session') !== null &&
+      searchParams.get('q') !== null) ||
+    (activeTab === 'practice' && searchParams.get('run') !== null);
+
+  const meta = TAB_HEADER[activeTab] || TAB_HEADER.session;
 
   return (
-    <div className="lab-page min-h-screen bg-background pt-[60px]">
-      {/* Page header band: the shared hero wash (.lab-glow follows the Settings accent) with one rule below it */}
-      <div className="lab-glow border-b border-border">
-        <div className="relative mx-auto max-w-[1300px] px-4 py-5 sm:px-[2rem] sm:py-[1.5rem]">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="lab-tile h-10 w-10" aria-hidden="true">
-                <Icon name="AcademicCapIcon" size={20} />
+    <div className="lab-page ds-skin min-h-screen pt-[60px]" data-accent-exempt="">
+      {!focused && (
+        <header className="ds-header">
+          <div className="mx-auto max-w-[1200px] px-4 pt-[1.75rem] sm:px-[2rem] sm:pt-[2.25rem]">
+            <div className="flex flex-col gap-5 pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0 ds-enter">
+                <p className="ds-eyebrow min-h-[1rem]">{greeting}</p>
+                <h1 className="ds-display mt-2">{meta.title}</h1>
+                <p className="ds-body mt-1.5 max-w-[56ch]">{meta.subtitle}</p>
               </div>
-              <div>
-                <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-                  {currentMeta.title}
-                </h1>
-                <p className="mt-0.5 text-sm font-medium mix-text-foreground/[0.74]">{currentMeta.subtitle}</p>
-              </div>
-            </div>
-
-            {/* Sub-tab Switcher Bar */}
-            <DailySessionTabSwitcher activeTab={activeTab} onTabChange={handleTabChange} />
-
-            {/* Chips row (desktop: below lg the subtitle and the tabs say it) */}
-            <div className="mt-1 hidden flex-wrap gap-x-5 gap-y-1 lg:flex">
-              {currentMeta.badges.map((label) => (
-                <span
-                  key={label}
-                  className="text-xs font-medium mix-text-foreground/[0.74] before:mr-1.5 before:content-['·'] first:before:content-none"
-                >
-                  {label}
+              <div className="flex flex-shrink-0 items-center gap-2 ds-enter-2">
+                <span className="ds-stat ds-tone-gold" title="Days in a row with a finished drill">
+                  <Icon name="FireIcon" variant="solid" size={18} />
+                  {stats.streak}
+                  <small>day streak</small>
                 </span>
-              ))}
+                <span className="ds-stat ds-tone-indigo" title="Experience points from practice">
+                  <Icon name="SparklesIcon" variant="solid" size={17} />
+                  {stats.xp.toLocaleString()}
+                  <small>XP</small>
+                </span>
+              </div>
             </div>
+            <DailySessionTabSwitcher activeTab={activeTab} />
           </div>
-        </div>
-      </div>
+        </header>
+      )}
 
-      {/* Main Tab Content View */}
-      <div className="mx-auto max-w-[1300px] px-4 py-[1.5rem] sm:px-[2rem] sm:py-[2rem]">
+      <main
+        className={`mx-auto max-w-[1200px] px-4 sm:px-[2rem] ${focused ? 'pb-[2rem]' : 'py-[1.5rem] sm:py-[2rem]'}`}
+      >
         {activeTab === 'session' && <DailySessionInteractive />}
         {activeTab === 'practice' && <PracticeMode onSwitchTab={handleTabChange} />}
         {activeTab === 'quick-practice' && <QuickPractice />}
         {activeTab === 'progress' && <ProgressDashboardInteractive embedded />}
         {activeTab === 'question-bank' && <QuestionBankInteractive embedded />}
         {(activeTab === 'swapnilxi-space' || activeTab === 'myspace') && <SwapnilxiSpace />}
-      </div>
+      </main>
     </div>
   );
 }

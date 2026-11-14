@@ -1,35 +1,59 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Reminder Setup Guide</title>
-<meta name="description" content="How LabNinja AI To-Do reminders reach your phone and computer: step-by-step device setup, what works today, and what is still pending.">
-<meta name="theme-color" content="#2563eb">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<style>
-  :root {
-    --bg: #f7f5f1;
-    --surface: #ffffff;
-    --surface-2: #f1eee8;
-    --ink: #1c1a17;
-    --muted: #6b655c;
-    --line: #e4dfd6;
-    --accent: #2563eb;
-    --accent-ink: #1d4ed8;
-    --accent-soft: #e8efff;
-    --partner: #06b6d4;
-    --ok: #15803d;
-    --ok-soft: #e6f4ea;
-    --wait: #b45309;
-    --wait-soft: #fdf1e1;
-    --you: #1d4ed8;
-    --you-soft: #e8efff;
-    --code: #f3f0ea;
-    --shadow: 0 1px 2px rgba(20, 16, 10, 0.05), 0 18px 40px -28px rgba(20, 16, 10, 0.35);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Reminder Setup Guide</title>
+  <meta name="description"
+    content="How LabNinja AI To-Do reminders reach your phone and computer: step-by-step device setup, what works today, and what is still pending.">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #f7f5f1;
+      --surface: #ffffff;
+      --surface-2: #f1eee8;
+      --ink: #1c1a17;
+      --muted: #6b655c;
+      --line: #e4dfd6;
+      --accent: #2563eb;
+      --accent-ink: #1d4ed8;
+      --accent-soft: #e8efff;
+      --partner: #06b6d4;
+      --ok: #15803d;
+      --ok-soft: #e6f4ea;
+      --wait: #b45309;
+      --wait-soft: #fdf1e1;
+      --you: #1d4ed8;
+      --you-soft: #e8efff;
+      --code: #f3f0ea;
+      --shadow: 0 1px 2px rgba(20, 16, 10, 0.05), 0 18px 40px -28px rgba(20, 16, 10, 0.35);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0d0d12;
+        --surface: #16161d;
+        --surface-2: #1d1d26;
+        --ink: #ecebf2;
+        --muted: #a2a0ad;
+        --line: #2a2a35;
+        --accent: #6b9bff;
+        --accent-ink: #9dbcff;
+        --accent-soft: #1b2440;
+        --ok: #4ade80;
+        --ok-soft: #12291b;
+        --wait: #fbbf24;
+        --wait-soft: #2c2210;
+        --you: #9dbcff;
+        --you-soft: #1b2440;
+        --code: #1f1f29;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 40px -24px rgba(0, 0, 0, 0.7);
+      }
+    }
+
+    :root[data-theme="dark"] {
       --bg: #0d0d12;
       --surface: #16161d;
       --surface-2: #1d1d26;
@@ -46,396 +70,929 @@
       --you: #9dbcff;
       --you-soft: #1b2440;
       --code: #1f1f29;
-      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 40px -24px rgba(0, 0, 0, 0.7);
     }
-  }
-  :root[data-theme="dark"] {
-    --bg: #0d0d12; --surface: #16161d; --surface-2: #1d1d26; --ink: #ecebf2; --muted: #a2a0ad; --line: #2a2a35;
-    --accent: #6b9bff; --accent-ink: #9dbcff; --accent-soft: #1b2440; --ok: #4ade80; --ok-soft: #12291b;
-    --wait: #fbbf24; --wait-soft: #2c2210; --you: #9dbcff; --you-soft: #1b2440; --code: #1f1f29;
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--ink);
-    font: 16px/1.6 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-  a { color: var(--accent-ink); text-underline-offset: 3px; }
-  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
-  .wrap { max-width: 60rem; margin: 0 auto; padding: 0 16px; }
-  .skip { position: absolute; left: -999px; top: 8px; background: var(--surface); padding: 8px 12px; border-radius: 8px; }
-  .skip:focus { left: 16px; z-index: 10; }
 
-  header.top {
-    position: relative;
-    overflow: hidden;
-    padding: 40px 0 28px;
-    border-bottom: 1px solid var(--line);
-    background:
-      radial-gradient(70% 120% at 0% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
-      radial-gradient(60% 120% at 100% 100%, color-mix(in srgb, var(--partner) 10%, transparent), transparent 60%),
-      var(--surface);
-  }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--muted); font-size: 14px; }
-  .brand img { width: 28px; height: 28px; border-radius: 8px; }
-  h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 18px 0 10px; letter-spacing: -0.02em; }
-  .lede { max-width: 44rem; color: var(--muted); font-size: 17px; margin: 0; }
-  .meta { margin-top: 14px; font-size: 13px; color: var(--muted); }
+    * {
+      box-sizing: border-box;
+    }
 
-  nav.toc { margin: 22px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
-  nav.toc a {
-    display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 999px;
-    background: var(--surface-2); color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 550;
-  }
-  nav.toc a:hover { background: var(--accent-soft); color: var(--accent-ink); }
+    html {
+      -webkit-text-size-adjust: 100%;
+      scroll-behavior: smooth;
+    }
 
-  main section { padding: 36px 0 8px; }
-  h2 { font-size: 24px; letter-spacing: -0.01em; margin: 0 0 6px; }
-  h2 + .sub { color: var(--muted); margin: 0 0 18px; }
-  h3 { font-size: 18px; margin: 0 0 4px; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.6 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
 
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    padding: 20px;
-    box-shadow: var(--shadow);
-  }
-  .grid { display: grid; gap: 14px; }
-  @media (min-width: 760px) { .grid.two { grid-template-columns: 1fr 1fr; } .grid.four { grid-template-columns: repeat(4, 1fr); } }
-  @media (min-width: 560px) and (max-width: 759px) { .grid.four { grid-template-columns: 1fr 1fr; } }
+    a {
+      color: var(--accent-ink);
+      text-underline-offset: 3px;
+    }
 
-  .pill {
-    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px;
-    font-size: 12px; font-weight: 650; letter-spacing: 0.01em; white-space: nowrap;
-  }
-  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-  .done { color: var(--ok); background: var(--ok-soft); }
-  .pending { color: var(--wait); background: var(--wait-soft); }
-  .you { color: var(--you); background: var(--you-soft); }
+    a:focus-visible,
+    button:focus-visible,
+    summary:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
 
-  .layer h3 { margin-top: 12px; }
-  .layer p { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
-  .icon {
-    width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--partner) 14%, transparent));
-    color: var(--accent-ink);
-  }
-  .icon svg { width: 22px; height: 22px; }
+    .wrap {
+      max-width: 60rem;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
 
-  /* Flow strip: speak → understood → saved → reminded */
-  .flow { display: grid; gap: 10px; margin-top: 18px; }
-  @media (min-width: 760px) { .flow { grid-template-columns: repeat(4, 1fr); } }
-  .flow .step { background: var(--surface-2); border-radius: 14px; padding: 14px; font-size: 14px; }
-  .flow .step b { display: block; font-size: 15px; margin-bottom: 2px; }
-  .flow .step span { color: var(--muted); }
+    .skip {
+      position: absolute;
+      left: -999px;
+      top: 8px;
+      background: var(--surface);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
 
-  details.device {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);
-    margin-bottom: 12px; overflow: hidden;
-  }
-  details.device > summary {
-    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 14px; padding: 16px 20px; min-height: 64px;
-  }
-  details.device > summary::-webkit-details-marker { display: none; }
-  details.device > summary .chev { margin-left: auto; transition: transform 200ms ease; color: var(--muted); }
-  details.device[open] > summary .chev { transform: rotate(180deg); }
-  details.device .body { padding: 0 20px 20px; }
-  .summary-text b { display: block; font-size: 17px; }
-  .summary-text span { color: var(--muted); font-size: 14px; }
+    .skip:focus {
+      left: 16px;
+      z-index: 10;
+    }
 
-  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 8px 0 0; }
-  ol.steps > li {
-    counter-increment: s; position: relative; padding: 12px 0 12px 46px; border-top: 1px solid var(--line);
-  }
-  ol.steps > li:first-child { border-top: 0; }
-  ol.steps > li::before {
-    content: counter(s); position: absolute; left: 0; top: 11px; width: 30px; height: 30px; border-radius: 50%;
-    display: grid; place-items: center; font-size: 14px; font-weight: 700;
-    color: var(--accent-ink); background: var(--accent-soft);
-  }
-  .note {
-    margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 14px; color: var(--ink);
-    background: var(--wait-soft); border: 1px solid color-mix(in srgb, var(--wait) 30%, transparent);
-  }
-  .tip {
-    margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 14px;
-    background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
-  }
-  kbd, code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
-    background: var(--code); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px;
-  }
-  pre {
-    background: var(--code); border: 1px solid var(--line); border-radius: 12px; padding: 14px; overflow-x: auto;
-    font-size: 13px; line-height: 1.55; margin: 10px 0 0;
-  }
-  pre code { background: none; border: 0; padding: 0; }
+    header.top {
+      position: relative;
+      overflow: hidden;
+      padding: 40px 0 28px;
+      border-bottom: 1px solid var(--line);
+      background:
+        radial-gradient(70% 120% at 0% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+        radial-gradient(60% 120% at 100% 100%, color-mix(in srgb, var(--partner) 10%, transparent), transparent 60%),
+        var(--surface);
+    }
 
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; vertical-align: top; padding: 11px 10px; border-top: 1px solid var(--line); }
-  th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-top: 0; }
-  td:first-child { font-weight: 600; }
-  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-  .table-wrap table th:first-child, .table-wrap table td:first-child { padding-left: 16px; }
-  .files { color: var(--muted); font-size: 13px; }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 650;
+      color: var(--muted);
+      font-size: 14px;
+    }
 
-  .phrases { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .phrase { background: var(--surface-2); border-radius: 999px; padding: 8px 14px; font-size: 14px; }
+    .brand img {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+    }
 
-  footer { margin: 48px 0 0; padding: 24px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
-  .back {
-    display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 12px;
-    background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; margin-top: 18px;
-    transition: transform 150ms ease, filter 150ms ease;
-  }
-  .back:hover { transform: translateY(-1px); filter: brightness(1.06); }
-  .back:active { transform: scale(0.97); }
-  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .back, details.device > summary .chev { transition: none; } }
-</style>
+    h1 {
+      font-size: clamp(28px, 5vw, 40px);
+      line-height: 1.15;
+      margin: 18px 0 10px;
+      letter-spacing: -0.02em;
+    }
+
+    .lede {
+      max-width: 44rem;
+      color: var(--muted);
+      font-size: 17px;
+      margin: 0;
+    }
+
+    .meta {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    nav.toc {
+      margin: 22px 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    nav.toc a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 550;
+    }
+
+    nav.toc a:hover {
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+    }
+
+    main section {
+      padding: 36px 0 8px;
+    }
+
+    h2 {
+      font-size: 24px;
+      letter-spacing: -0.01em;
+      margin: 0 0 6px;
+    }
+
+    h2+.sub {
+      color: var(--muted);
+      margin: 0 0 18px;
+    }
+
+    h3 {
+      font-size: 18px;
+      margin: 0 0 4px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    @media (min-width: 760px) {
+      .grid.two {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .grid.four {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    @media (min-width: 560px) and (max-width: 759px) {
+      .grid.four {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+
+    .pill::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .done {
+      color: var(--ok);
+      background: var(--ok-soft);
+    }
+
+    .pending {
+      color: var(--wait);
+      background: var(--wait-soft);
+    }
+
+    .you {
+      color: var(--you);
+      background: var(--you-soft);
+    }
+
+    .layer h3 {
+      margin-top: 12px;
+    }
+
+    .layer p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--partner) 14%, transparent));
+      color: var(--accent-ink);
+    }
+
+    .icon svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* Flow strip: speak → understood → saved → reminded */
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    @media (min-width: 760px) {
+      .flow {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .flow .step {
+      background: var(--surface-2);
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 14px;
+    }
+
+    .flow .step b {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+
+    .flow .step span {
+      color: var(--muted);
+    }
+
+    details.device {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    details.device>summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      min-height: 64px;
+    }
+
+    details.device>summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.device>summary .chev {
+      margin-left: auto;
+      transition: transform 200ms ease;
+      color: var(--muted);
+    }
+
+    details.device[open]>summary .chev {
+      transform: rotate(180deg);
+    }
+
+    details.device .body {
+      padding: 0 20px 20px;
+    }
+
+    .summary-text b {
+      display: block;
+      font-size: 17px;
+    }
+
+    .summary-text span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    ol.steps {
+      counter-reset: s;
+      list-style: none;
+      padding: 0;
+      margin: 8px 0 0;
+    }
+
+    ol.steps>li {
+      counter-increment: s;
+      position: relative;
+      padding: 12px 0 12px 46px;
+      border-top: 1px solid var(--line);
+    }
+
+    ol.steps>li:first-child {
+      border-top: 0;
+    }
+
+    ol.steps>li::before {
+      content: counter(s);
+      position: absolute;
+      left: 0;
+      top: 11px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent-ink);
+      background: var(--accent-soft);
+    }
+
+    .note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      color: var(--ink);
+      background: var(--wait-soft);
+      border: 1px solid color-mix(in srgb, var(--wait) 30%, transparent);
+    }
+
+    .tip {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      background: var(--accent-soft);
+      border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    }
+
+    kbd,
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.88em;
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1px 6px;
+    }
+
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.55;
+      margin: 10px 0 0;
+    }
+
+    pre code {
+      background: none;
+      border: 0;
+      padding: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      padding: 11px 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      border-top: 0;
+    }
+
+    td:first-child {
+      font-weight: 600;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface);
+    }
+
+    .table-wrap table th:first-child,
+    .table-wrap table td:first-child {
+      padding-left: 16px;
+    }
+
+    .files {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .phrases {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .phrase {
+      background: var(--surface-2);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 14px;
+    }
+
+    footer {
+      margin: 48px 0 0;
+      padding: 24px 0 40px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 18px;
+      transition: transform 150ms ease, filter 150ms ease;
+    }
+
+    .back:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.06);
+    }
+
+    .back:active {
+      transform: scale(0.97);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      .back,
+      details.device>summary .chev {
+        transition: none;
+      }
+    }
+  </style>
 </head>
+
 <body>
-<a class="skip" href="#main">Skip to the guide</a>
+  <a class="skip" href="#main">Skip to the guide</a>
 
-<header class="top">
-  <div class="wrap">
-    <div class="brand"><img src="/icons/icon-192.png" alt="" width="28" height="28">LabNinja · AI To-Do</div>
-    <h1>Get your reminders on your phone</h1>
-    <p class="lede">Say a task in <strong>To-Do → Today</strong>, like “remind me to call mom tomorrow at 5”, and LabNinja turns it into a task with a reminder. This guide shows how to make that reminder reach your phone or computer, and what is still being built.</p>
-    <p class="meta">Last updated 14 November 2026 · <span class="pill done">Done</span> works now · <span class="pill you">Needs you</span> a setting on your device · <span class="pill pending">Pending</span> not built yet</p>
-    <nav class="toc" aria-label="On this page">
-      <a href="#how">How reminders reach you</a>
-      <a href="#android">Android</a>
-      <a href="#iphone">iPhone</a>
-      <a href="#desktop">Computer</a>
-      <a href="#blocked">Blocked?</a>
-      <a href="#done">What’s done</a>
-      <a href="#pending">What’s pending</a>
-      <a href="#test">Test it</a>
-    </nav>
-  </div>
-</header>
-
-<main id="main" class="wrap">
-
-  <section id="how" aria-labelledby="how-title">
-    <h2 id="how-title">How a reminder reaches you</h2>
-    <p class="sub">Four routes, from “the app is open” to “the app is closed”. The first three work today.</p>
-
-    <div class="grid four">
-      <div class="card layer">
-        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M8 21h8M7 9h6M7 13h10"/></svg></div>
-        <h3>In the app</h3>
-        <span class="pill done">Done</span>
-        <p>A reminder card pops up on any LabNinja page at the exact minute, with Done, Snooze and Open.</p>
-      </div>
-      <div class="card layer">
-        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
-        <h3>Device notification</h3>
-        <span class="pill done">Done</span> <span class="pill you">Needs you</span>
-        <p>A real phone or desktop notification while LabNinja is open or in a background tab. Turn it on once per device.</p>
-      </div>
-      <div class="card layer">
-        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18M12 14v3l2 1"/></svg></div>
-        <h3>Calendar alarm</h3>
-        <span class="pill done">Done</span>
-        <p>Any task with a reminder can be added to your calendar. The calendar rings even when LabNinja is closed.</p>
-      </div>
-      <div class="card layer">
-        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M12 22v-4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h6M22 12h-4"/></svg></div>
-        <h3>Push, app closed</h3>
-        <span class="pill done">Done</span>
-        <p>The server sends the reminder via native Web Push (VAPID) even when LabNinja is closed or your phone is locked.</p>
-      </div>
+  <header class="top">
+    <div class="wrap">
+      <div class="brand"><img src="/icons/icon-192.png" alt="" width="28" height="28">LabNinja · AI To-Do</div>
+      <h1>Get your reminders on your phone</h1>
+      <p class="lede">Say a task in <strong>To-Do → Today</strong>, like “remind me to call mom tomorrow at 5”, and
+        LabNinja turns it into a task with a reminder. This guide shows how to make that reminder reach your phone or
+        computer, and what is still being built.</p>
+      <p class="meta">Last updated 14 November 2026 · <span class="pill done">Done</span> works now · <span
+          class="pill you">Needs you</span> a setting on your device · <span class="pill pending">Pending</span> not
+        built yet</p>
+      <nav class="toc" aria-label="On this page">
+        <a href="#how">How reminders reach you</a>
+        <a href="#android">Android</a>
+        <a href="#iphone">iPhone</a>
+        <a href="#desktop">Computer</a>
+        <a href="#blocked">Blocked?</a>
+        <a href="#done">What’s done</a>
+        <a href="#pending">What’s pending</a>
+        <a href="#test">Test it</a>
+      </nav>
     </div>
+  </header>
 
-    <div class="flow" aria-label="From voice to reminder">
-      <div class="step"><b>1 · You speak</b><span>Tap the mic and say the task, a day and a time.</span></div>
-      <div class="step"><b>2 · It understands</b><span>AI splits the note into tasks when you are logged in. Guests get the instant on-device reading.</span></div>
-      <div class="step"><b>3 · You check and add</b><span>Each task shows its date, reminder and priority as chips you can change.</span></div>
-      <div class="step"><b>4 · You are reminded</b><span>In the app, as a notification, or by your calendar, at that minute.</span></div>
-    </div>
+  <main id="main" class="wrap">
 
-    <div class="tip"><strong>Why a phone sometimes stays quiet:</strong> phones pause web pages that are in the background to save battery, and only a server push can wake them. Until push is set up, use <strong>⋯ → Add to calendar</strong> on any task you must not miss.</div>
-  </section>
+    <section id="how" aria-labelledby="how-title">
+      <h2 id="how-title">How a reminder reaches you</h2>
+      <p class="sub">Four routes, from “the app is open” to “the app is closed”. The first three work today.</p>
 
-  <section aria-labelledby="devices-title">
-    <h2 id="devices-title">Set up your device</h2>
-    <p class="sub">Do this once on each phone or computer you want reminders on. It takes about a minute.</p>
+      <div class="grid four">
+        <div class="card layer">
+          <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="14" rx="3" />
+              <path d="M8 21h8M7 9h6M7 13h10" />
+            </svg></div>
+          <h3>In the app</h3>
+          <span class="pill done">Done</span>
+          <p>A reminder card pops up on any LabNinja page at the exact minute, with Done, Snooze and Open.</p>
+        </div>
+        <div class="card layer">
+          <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+            </svg></div>
+          <h3>Device notification</h3>
+          <span class="pill done">Done</span> <span class="pill you">Needs you</span>
+          <p>A real phone or desktop notification while LabNinja is open or in a background tab. Turn it on once per
+            device.</p>
+        </div>
+        <div class="card layer">
+          <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="16" rx="3" />
+              <path d="M16 3v4M8 3v4M3 10h18M12 14v3l2 1" />
+            </svg></div>
+          <h3>Calendar alarm</h3>
+          <span class="pill done">Done</span>
+          <p>Any task with a reminder can be added to your calendar. The calendar rings even when LabNinja is closed.
+          </p>
+        </div>
+        <div class="card layer">
+          <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v6M12 22v-4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h6M22 12h-4" />
+            </svg></div>
+          <h3>Push, app closed</h3>
+          <span class="pill pending">Pending</span>
+          <p>The server sends the reminder even when no LabNinja tab is open. Needs server setup. See <a
+              href="#pending">What’s pending</a>.</p>
+          <span class="pill done">Done</span>
+          <p>The server sends the reminder via native Web Push (VAPID) even when LabNinja is closed or your phone is
+            locked.</p>
+        </div>
+      </div>
 
-    <details class="device" id="android" open>
-      <summary>
-        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg></div>
-        <div class="summary-text"><b>Android phone (Chrome)</b><span>Notifications work in the browser. Installing the app is optional but better.</span></div>
-        <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </summary>
-      <div class="body">
+      <div class="flow" aria-label="From voice to reminder">
+        <div class="step"><b>1 · You speak</b><span>Tap the mic and say the task, a day and a time.</span></div>
+        <div class="step"><b>2 · It understands</b><span>AI splits the note into tasks when you are logged in. Guests
+            get the instant on-device reading.</span></div>
+        <div class="step"><b>3 · You check and add</b><span>Each task shows its date, reminder and priority as chips you
+            can change.</span></div>
+        <div class="step"><b>4 · You are reminded</b><span>In the app, as a notification, or by your calendar, at that
+            minute.</span></div>
+      </div>
+
+      <div class="tip"><strong>Why a phone sometimes stays quiet:</strong> phones pause web pages that are in the
+        background to save battery, and only a server push can wake them. Until push is set up, use <strong>⋯ → Add to
+          calendar</strong> on any task you must not miss.</div>
+    </section>
+
+    <section aria-labelledby="devices-title">
+      <h2 id="devices-title">Set up your device</h2>
+      <p class="sub">Do this once on each phone or computer you want reminders on. It takes about a minute.</p>
+
+      <details class="device" id="android" open>
+        <summary>
+          <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="2" width="12" height="20" rx="3" />
+              <path d="M11 18h2" />
+            </svg></div>
+          <div class="summary-text"><b>Android phone (Chrome)</b><span>Notifications work in the browser. Installing the
+              app is optional but better.</span></div>
+          <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </summary>
+        <div class="body">
+          <ol class="steps">
+            <li>Open LabNinja in <strong>Chrome</strong> and go to <strong>To-Do → Today</strong>.</li>
+            <li>Tap <strong>Turn on notifications</strong> (in the Reminders card, or the yellow tip under the capture
+              box), then tap <strong>Allow</strong> when Chrome asks.</li>
+            <li>Tap <strong>Send a test</strong>. A “Reminders are working” notification should appear at the top of
+              your screen.</li>
+            <li>Recommended: install the app. Tap Chrome’s <kbd>⋮</kbd> menu → <strong>Add to Home screen</strong> (or
+              <strong>Install app</strong>), then open LabNinja from its icon. It opens straight to Today.</li>
+            <li>Recommended: stop Android from putting Chrome to sleep. Go to <strong>Settings → Apps → Chrome →
+                Battery</strong> and choose <strong>Unrestricted</strong>. Also check that <strong>Settings → Apps →
+                Chrome → Notifications</strong> is on.</li>
+          </ol>
+          <div class="note">Android freezes background tabs after a few minutes, so a reminder can arrive late, or only
+            when you reopen the app. You will then see it as a <strong>Missed reminder</strong>. For time-critical
+            tasks, use <strong>⋯ → Google Calendar</strong> or <strong>Add to calendar</strong>.</div>
+        </div>
+      </details>
+
+      <details class="device" id="iphone">
+        <summary>
+          <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="2" width="12" height="20" rx="3" />
+              <path d="M10 5h4" />
+            </svg></div>
+          <div class="summary-text"><b>iPhone or iPad (iOS 16.4 or later)</b><span>Apple allows web notifications only
+              for apps added to the Home Screen.</span></div>
+          <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </summary>
+        <div class="body">
+          <ol class="steps">
+            <li>Open LabNinja in <strong>Safari</strong>. Check your iOS version under <strong>Settings → General →
+                About</strong>; it must be 16.4 or newer.</li>
+            <li>Tap the <strong>Share</strong> button (square with an arrow), scroll down, tap <strong>Add to Home
+                Screen</strong>, then <strong>Add</strong>.</li>
+            <li>Close Safari and open <strong>LabNinja from the new Home Screen icon</strong>. Notifications only work
+              from there, not from a Safari tab.</li>
+            <li>Go to <strong>To-Do → Today</strong>, tap <strong>Turn on notifications</strong> and then
+              <strong>Allow</strong>.</li>
+            <li>Tap <strong>Send a test</strong> to confirm.</li>
+            <li>Optional: open <strong>Settings → Notifications → LabNinja</strong> and set <strong>Banner
+                Style</strong> to <strong>Persistent</strong>, so a reminder stays on screen until you deal with it.
+              Check that no Focus mode is silencing it.</li>
+          </ol>
+          <div class="note">iOS pauses a web app as soon as you switch away from it. Until server push is live, a
+            reminder fires while LabNinja is open on screen. Otherwise it shows as <strong>Missed</strong> the next time
+            you open it. For anything important, tap <strong>⋯ → Add to calendar</strong>. iPhone opens the event in
+            Calendar with its alarm already set.</div>
+        </div>
+      </details>
+
+      <details class="device" id="desktop">
+        <summary>
+          <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="13" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg></div>
+          <div class="summary-text"><b>Computer (Chrome, Edge, Firefox, Safari)</b><span>Works in a background tab too.
+              Keep one LabNinja tab open.</span></div>
+          <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </summary>
+        <div class="body">
+          <ol class="steps">
+            <li>Open LabNinja and go to <strong>To-Do → Today</strong>. The Reminders card is on the right.</li>
+            <li>Click <strong>Turn on notifications</strong>, then <strong>Allow</strong> in the browser prompt.</li>
+            <li>Click <strong>Send a test</strong>.</li>
+            <li>No notification? Allow your browser in the operating system.
+              <br><strong>macOS:</strong> System Settings → Notifications → your browser → <strong>Allow
+                notifications</strong>, Alert style <strong>Alerts</strong>.
+              <br><strong>Windows:</strong> Settings → System → Notifications → turn on your browser, and switch off
+              <strong>Do not disturb</strong>.
+            </li>
+            <li>Leave one LabNinja tab open, even minimised or in the background. Reminders fire on the minute.</li>
+          </ol>
+          <div class="tip">Shortcut: on the Today screen, <kbd>Alt</kbd>/<kbd>Option</kbd> + <kbd>N</kbd> starts voice
+            capture without touching the mouse.</div>
+        </div>
+      </details>
+
+      <details class="device" id="blocked">
+        <summary>
+          <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path
+                d="M13.7 21a2 2 0 0 1-3.4 0M18.6 13A17.9 17.9 0 0 1 18 8M6.3 6.3A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14M18 8a6 6 0 0 0-9.3-5M2 2l20 20" />
+            </svg></div>
+          <div class="summary-text"><b>“Blocked for this site”</b><span>You tapped Block once. Here is how to undo
+              it.</span></div>
+          <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </summary>
+        <div class="body">
+          <ol class="steps">
+            <li><strong>Chrome or Edge (computer or Android):</strong> tap the icon left of the address, then
+              <strong>Permissions</strong> or <strong>Site settings</strong> → <strong>Notifications</strong> →
+              <strong>Allow</strong>. Reload the page.</li>
+            <li><strong>Installed Android app:</strong> long-press the LabNinja icon → <strong>App info</strong> →
+              <strong>Notifications</strong> → on.</li>
+            <li><strong>iPhone Home Screen app:</strong> Settings → Notifications → LabNinja → <strong>Allow
+                Notifications</strong>.</li>
+            <li><strong>Safari on Mac:</strong> Safari → Settings → Websites → Notifications → set LabNinja to
+              <strong>Allow</strong>.</li>
+            <li>Back in LabNinja, the Reminders card should say <strong>Off on this device</strong>. Tap <strong>Turn on
+                notifications</strong> once more.</li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <section aria-labelledby="use-title">
+      <h2 id="use-title">Saying a task</h2>
+      <p class="sub">Speak naturally. The day, time and priority become chips you can tap to change. The rest becomes
+        the title.</p>
+      <div class="card">
+        <div class="phrases">
+          <span class="phrase">Remind me to call mom tomorrow at 5</span>
+          <span class="phrase">Pay electricity bill on Friday, urgent</span>
+          <span class="phrase">Stretch in 20 minutes</span>
+          <span class="phrase">Gym tomorrow morning</span>
+          <span class="phrase">Dentist on 3 December at 9:30 am</span>
+          <span class="phrase">Buy milk; call John and then email the landlord</span>
+        </div>
+        <p style="margin:14px 0 0;color:var(--muted);font-size:15px">“Morning” means 9:00, “afternoon” 14:00, “evening”
+          18:00 and “tonight” 20:00. A bare “at 5” means the next 5 o’clock still ahead. “Remind me” with no time means
+          one hour from now, or 9:00 on the day you named. Tap <strong>× Not a time</strong> when a phrase like “Friday
+          drinks” should stay in the title.</p>
+      </div>
+    </section>
+
+    <section id="done" aria-labelledby="done-title">
+      <h2 id="done-title">What’s done</h2>
+      <p class="sub">Built and tested on 14 November 2026 against copies of the database, never the live one.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Piece</th>
+              <th>What it does</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Today screen</td>
+              <td>The To-Do now opens on Today: a greeting, the capture card, then Overdue, Today, Tomorrow, Next 7 days
+                and Anytime, each task with a priority-coloured check and a reminder chip.<div class="files">
+                  modules/ai-todo/today/TodayView.tsx</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+            <tr>
+              <td>Voice capture</td>
+              <td>Mic with live words and auto-stop after a pause. A review card lists each task heard, with date,
+                reminder and priority chips. A floating mic opens it from every tab. <kbd>Alt</kbd>/<kbd>Option</kbd> +
+                <kbd>N</kbd> starts it on Today.<div class="files">modules/ai-todo/capture/*</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+            <tr>
+              <td>AI understanding</td>
+              <td>New endpoint <code>POST /todo/ai/voice-capture</code> splits a note into tasks with due dates and
+                local reminder times. It is in both backends, with identical prompts, verified against a mock AI. It
+                needs login and an AI model, like every AI feature.<div class="files">
+                  backend/modules/ai_todo/tasks/router.py · frontend/fe-apis/todo/tasks/handlersPlanning.ts</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+            <tr>
+              <td>Smart date parsing</td>
+              <td>The TickTick-style instant reading of days, times and priorities, on the device and offline, for
+                guests too. Checked against 25 real phrases.<div class="files">src/lib/reminders/smartParse.ts</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+            <tr>
+              <td>Reminder field</td>
+              <td>A <code>remind_at</code> column, stored in UTC, on tasks in FastAPI, in <code>fe-apis</code> and in
+                guest storage. Repeating tasks carry the reminder to the next occurrence.<div class="files">
+                  ai_todo/shared/schema.py · tasks/db.py · fe-apis/todo/schema.ts · tasks/db.ts</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+            <tr>
+              <td>Reminder engine</td>
+              <td>Fires each reminder at its minute on any page. It wakes when tasks change, when the tab returns and
+                every few minutes. A reminder found more than 15 minutes late counts as missed. Snooze offers 10
+                minutes, 1 hour or tomorrow.<div class="files">src/lib/reminders/reminderEngine.ts ·
+                  components/ui/ReminderAlerts.tsx</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+            <tr>
+              <td>Device notifications</td>
+              <td>Delivered through the service worker, which Android and installed iPhone apps require. Tapping one
+                opens that task. There is a “Send a test” button and a “Task reminders” switch in the notification
+                settings.<div class="files">src/lib/ui/notifications.ts · public/sw.js</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+            <tr>
+              <td>Installable app</td>
+              <td>A web app manifest with icons, opening on Today, plus a “Speak a task” home-screen shortcut. iPhone
+                needs this for notifications.<div class="files">src/app/manifest.ts · public/icons/*</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+            <tr>
+              <td>Calendar export</td>
+              <td>An .ics file with an alarm (Apple Calendar, Outlook) or a pre-filled Google Calendar event, from a
+                task’s ⋯ menu and from the task panel.<div class="files">src/lib/reminders/reminderTime.ts</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+            <tr>
+              <td>Flat icons</td>
+              <td>Tabs and section headers use the flat colour icon set. Project icons are now flat icons too, and emoji
+                saved by older versions still show.<div class="files">components/ui/FlatIcon.tsx ·
+                  projects/ProjectIcon.tsx</div>
+              </td>
+              <td><span class="pill done">Done</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="pending" aria-labelledby="pending-title">
+      <h2 id="pending-title">What’s pending</h2>
+      <p class="sub">In order of value. The first item is what makes reminders arrive with the app fully closed.</p>
+
+      <div class="card" style="margin-bottom:14px">
+        <h3>1. Server push for closed apps <span class="pill pending">Pending</span></h3>
+        <p style="color:var(--muted);margin:6px 0 10px">The service worker can already show a pushed message, but
+          nothing sends one yet. Steps for the developer:</p>
         <ol class="steps">
-          <li>Open LabNinja in <strong>Chrome</strong> and go to <strong>To-Do → Today</strong>.</li>
-          <li>Tap <strong>Turn on notifications</strong> (in the Reminders card, or the yellow tip under the capture box), then tap <strong>Allow</strong> when Chrome asks.</li>
-          <li>Tap <strong>Send a test</strong>. A “Reminders are working” notification should appear at the top of your screen.</li>
-          <li>Recommended: install the app. Tap Chrome’s <kbd>⋮</kbd> menu → <strong>Add to Home screen</strong> (or <strong>Install app</strong>), then open LabNinja from its icon. It opens straight to Today.</li>
-          <li>Recommended: stop Android from putting Chrome to sleep. Go to <strong>Settings → Apps → Chrome → Battery</strong> and choose <strong>Unrestricted</strong>. Also check that <strong>Settings → Apps → Chrome → Notifications</strong> is on.</li>
+          <li>Generate a key pair once: <code>npx web-push generate-vapid-keys</code>.</li>
+          <li>Add environment variables. The browser gets <code>NEXT_PUBLIC_VAPID_PUBLIC_KEY</code>. Both backends
+            (<code>backend/.env</code> and Vercel) get <code>VAPID_PRIVATE_KEY</code>,
+            <code>VAPID_SUBJECT=mailto:you@your-domain</code> and a random <code>CRON_SECRET</code>.</li>
+          <li>Store subscriptions: a <code>push_subscriptions</code> table (user, endpoint, keys) plus
+            <code>POST/DELETE /todo/push/subscription</code>, in FastAPI and in <code>fe-apis</code>, as the twin rule
+            requires.</li>
+          <li>In the browser, after permission is granted, call
+            <code>registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })</code> and send
+            the result to the endpoint.</li>
+          <li>Add a sweep endpoint, <code>POST /todo/push/sweep</code>, protected by <code>CRON_SECRET</code>. It finds
+            tasks whose <code>remind_at</code> has passed and that have no <code>reminder_sent_at</code>, sends each one
+            with <code>pywebpush</code> or <code>web-push</code> (payload <code>{title, body, href, tag}</code>), then
+            sets <code>reminder_sent_at</code>.</li>
+          <li>Call the sweep every minute. Vercel Cron runs every minute only on paid plans; Hobby is once a day. On
+            Hobby, use an external scheduler such as cron-job.org or a GitHub Actions <code>schedule</code>, accepting
+            delays of up to 5 minutes.</li>
         </ol>
-        <div class="note">Android freezes background tabs after a few minutes, so a reminder can arrive late, or only when you reopen the app. You will then see it as a <strong>Missed reminder</strong>. For time-critical tasks, use <strong>⋯ → Google Calendar</strong> or <strong>Add to calendar</strong>.</div>
-      </div>
-    </details>
-
-    <details class="device" id="iphone">
-      <summary>
-        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 5h4"/></svg></div>
-        <div class="summary-text"><b>iPhone or iPad (iOS 16.4 or later)</b><span>Apple allows web notifications only for apps added to the Home Screen.</span></div>
-        <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </summary>
-      <div class="body">
-        <ol class="steps">
-          <li>Open LabNinja in <strong>Safari</strong>. Check your iOS version under <strong>Settings → General → About</strong>; it must be 16.4 or newer.</li>
-          <li>Tap the <strong>Share</strong> button (square with an arrow), scroll down, tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
-          <li>Close Safari and open <strong>LabNinja from the new Home Screen icon</strong>. Notifications only work from there, not from a Safari tab.</li>
-          <li>Go to <strong>To-Do → Today</strong>, tap <strong>Turn on notifications</strong> and then <strong>Allow</strong>.</li>
-          <li>Tap <strong>Send a test</strong> to confirm.</li>
-          <li>Optional: open <strong>Settings → Notifications → LabNinja</strong> and set <strong>Banner Style</strong> to <strong>Persistent</strong>, so a reminder stays on screen until you deal with it. Check that no Focus mode is silencing it.</li>
-        </ol>
-        <div class="note">iOS pauses a web app as soon as you switch away from it. Until server push is live, a reminder fires while LabNinja is open on screen. Otherwise it shows as <strong>Missed</strong> the next time you open it. For anything important, tap <strong>⋯ → Add to calendar</strong>. iPhone opens the event in Calendar with its alarm already set.</div>
-      </div>
-    </details>
-
-    <details class="device" id="desktop">
-      <summary>
-        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
-        <div class="summary-text"><b>Computer (Chrome, Edge, Firefox, Safari)</b><span>Works in a background tab too. Keep one LabNinja tab open.</span></div>
-        <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </summary>
-      <div class="body">
-        <ol class="steps">
-          <li>Open LabNinja and go to <strong>To-Do → Today</strong>. The Reminders card is on the right.</li>
-          <li>Click <strong>Turn on notifications</strong>, then <strong>Allow</strong> in the browser prompt.</li>
-          <li>Click <strong>Send a test</strong>.</li>
-          <li>No notification? Allow your browser in the operating system.
-            <br><strong>macOS:</strong> System Settings → Notifications → your browser → <strong>Allow notifications</strong>, Alert style <strong>Alerts</strong>.
-            <br><strong>Windows:</strong> Settings → System → Notifications → turn on your browser, and switch off <strong>Do not disturb</strong>.</li>
-          <li>Leave one LabNinja tab open, even minimised or in the background. Reminders fire on the minute.</li>
-        </ol>
-        <div class="tip">Shortcut: on the Today screen, <kbd>Alt</kbd>/<kbd>Option</kbd> + <kbd>N</kbd> starts voice capture without touching the mouse.</div>
-      </div>
-    </details>
-
-    <details class="device" id="blocked">
-      <summary>
-        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.7 21a2 2 0 0 1-3.4 0M18.6 13A17.9 17.9 0 0 1 18 8M6.3 6.3A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14M18 8a6 6 0 0 0-9.3-5M2 2l20 20"/></svg></div>
-        <div class="summary-text"><b>“Blocked for this site”</b><span>You tapped Block once. Here is how to undo it.</span></div>
-        <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </summary>
-      <div class="body">
-        <ol class="steps">
-          <li><strong>Chrome or Edge (computer or Android):</strong> tap the icon left of the address, then <strong>Permissions</strong> or <strong>Site settings</strong> → <strong>Notifications</strong> → <strong>Allow</strong>. Reload the page.</li>
-          <li><strong>Installed Android app:</strong> long-press the LabNinja icon → <strong>App info</strong> → <strong>Notifications</strong> → on.</li>
-          <li><strong>iPhone Home Screen app:</strong> Settings → Notifications → LabNinja → <strong>Allow Notifications</strong>.</li>
-          <li><strong>Safari on Mac:</strong> Safari → Settings → Websites → Notifications → set LabNinja to <strong>Allow</strong>.</li>
-          <li>Back in LabNinja, the Reminders card should say <strong>Off on this device</strong>. Tap <strong>Turn on notifications</strong> once more.</li>
-        </ol>
-      </div>
-    </details>
-  </section>
-
-  <section aria-labelledby="use-title">
-    <h2 id="use-title">Saying a task</h2>
-    <p class="sub">Speak naturally. The day, time and priority become chips you can tap to change. The rest becomes the title.</p>
-    <div class="card">
-      <div class="phrases">
-        <span class="phrase">Remind me to call mom tomorrow at 5</span>
-        <span class="phrase">Pay electricity bill on Friday, urgent</span>
-        <span class="phrase">Stretch in 20 minutes</span>
-        <span class="phrase">Gym tomorrow morning</span>
-        <span class="phrase">Dentist on 3 December at 9:30 am</span>
-        <span class="phrase">Buy milk; call John and then email the landlord</span>
-      </div>
-      <p style="margin:14px 0 0;color:var(--muted);font-size:15px">“Morning” means 9:00, “afternoon” 14:00, “evening” 18:00 and “tonight” 20:00. A bare “at 5” means the next 5 o’clock still ahead. “Remind me” with no time means one hour from now, or 9:00 on the day you named. Tap <strong>× Not a time</strong> when a phrase like “Friday drinks” should stay in the title.</p>
-    </div>
-  </section>
-
-  <section id="done" aria-labelledby="done-title">
-    <h2 id="done-title">What’s done</h2>
-    <p class="sub">Built and tested on 14 November 2026 against copies of the database, never the live one.</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Piece</th><th>What it does</th><th>Status</th></tr></thead>
-        <tbody>
-          <tr><td>Today screen</td><td>The To-Do now opens on Today: a greeting, the capture card, then Overdue, Today, Tomorrow, Next 7 days and Anytime, each task with a priority-coloured check and a reminder chip.<div class="files">modules/ai-todo/today/TodayView.tsx</div></td><td><span class="pill done">Done</span></td></tr>
-          <tr><td>Voice capture</td><td>Mic with live words and auto-stop after a pause. A review card lists each task heard, with date, reminder and priority chips. A floating mic opens it from every tab. <kbd>Alt</kbd>/<kbd>Option</kbd> + <kbd>N</kbd> starts it on Today.<div class="files">modules/ai-todo/capture/*</div></td><td><span class="pill done">Done</span></td></tr>
-          <tr><td>AI understanding</td><td>New endpoint <code>POST /todo/ai/voice-capture</code> splits a note into tasks with due dates and local reminder times. It is in both backends, with identical prompts, verified against a mock AI. It needs login and an AI model, like every AI feature.<div class="files">backend/modules/ai_todo/tasks/router.py · frontend/fe-apis/todo/tasks/handlersPlanning.ts</div></td><td><span class="pill done">Done</span></td></tr>
-          <tr><td>Smart date parsing</td><td>The TickTick-style instant reading of days, times and priorities, on the device and offline, for guests too. Checked against 25 real phrases.<div class="files">src/lib/reminders/smartParse.ts</div></td><td><span class="pill done">Done</span></td></tr>
-          <tr><td>Reminder field</td><td>A <code>remind_at</code> column, stored in UTC, on tasks in FastAPI, in <code>fe-apis</code> and in guest storage. Repeating tasks carry the reminder to the next occurrence.<div class="files">ai_todo/shared/schema.py · tasks/db.py · fe-apis/todo/schema.ts · tasks/db.ts</div></td><td><span class="pill done">Done</span></td></tr>
-          <tr><td>Reminder engine</td><td>Fires each reminder at its minute on any page. It wakes when tasks change, when the tab returns and every few minutes. A reminder found more than 15 minutes late counts as missed. Snooze offers 10 minutes, 1 hour or tomorrow.<div class="files">src/lib/reminders/reminderEngine.ts · components/ui/ReminderAlerts.tsx</div></td><td><span class="pill done">Done</span></td></tr>
-          <tr><td>Device notifications</td><td>Delivered through the service worker, which Android and installed iPhone apps require. Tapping one opens that task. There is a “Send a test” button and a “Task reminders” switch in the notification settings.<div class="files">src/lib/ui/notifications.ts · public/sw.js</div></td><td><span class="pill done">Done</span></td></tr>
-          <tr><td>Installable app</td><td>A web app manifest with icons, opening on Today, plus a “Speak a task” home-screen shortcut. iPhone needs this for notifications.<div class="files">src/app/manifest.ts · public/icons/*</div></td><td><span class="pill done">Done</span></td></tr>
-          <tr><td>Calendar export</td><td>An .ics file with an alarm (Apple Calendar, Outlook) or a pre-filled Google Calendar event, from a task’s ⋯ menu and from the task panel.<div class="files">src/lib/reminders/reminderTime.ts</div></td><td><span class="pill done">Done</span></td></tr>
-          <tr><td>Flat icons</td><td>Tabs and section headers use the flat colour icon set. Project icons are now flat icons too, and emoji saved by older versions still show.<div class="files">components/ui/FlatIcon.tsx · projects/ProjectIcon.tsx</div></td><td><span class="pill done">Done</span></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="pending" aria-labelledby="pending-title">
-    <h2 id="pending-title">What’s pending</h2>
-    <p class="sub">In order of value. The first item is what makes reminders arrive with the app fully closed.</p>
-
-    <div class="card" style="margin-bottom:14px">
-      <h3>1. Server push for closed apps <span class="pill pending">Pending</span></h3>
-      <p style="color:var(--muted);margin:6px 0 10px">The service worker can already show a pushed message, but nothing sends one yet. Steps for the developer:</p>
-      <ol class="steps">
-        <li>Generate a key pair once: <code>npx web-push generate-vapid-keys</code>.</li>
-        <li>Add environment variables. The browser gets <code>NEXT_PUBLIC_VAPID_PUBLIC_KEY</code>. Both backends (<code>backend/.env</code> and Vercel) get <code>VAPID_PRIVATE_KEY</code>, <code>VAPID_SUBJECT=mailto:you@your-domain</code> and a random <code>CRON_SECRET</code>.</li>
-        <li>Store subscriptions: a <code>push_subscriptions</code> table (user, endpoint, keys) plus <code>POST/DELETE /todo/push/subscription</code>, in FastAPI and in <code>fe-apis</code>, as the twin rule requires.</li>
-        <li>In the browser, after permission is granted, call <code>registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })</code> and send the result to the endpoint.</li>
-        <li>Add a sweep endpoint, <code>POST /todo/push/sweep</code>, protected by <code>CRON_SECRET</code>. It finds tasks whose <code>remind_at</code> has passed and that have no <code>reminder_sent_at</code>, sends each one with <code>pywebpush</code> or <code>web-push</code> (payload <code>{title, body, href, tag}</code>), then sets <code>reminder_sent_at</code>.</li>
-        <li>Call the sweep every minute. Vercel Cron runs every minute only on paid plans; Hobby is once a day. On Hobby, use an external scheduler such as cron-job.org or a GitHub Actions <code>schedule</code>, accepting delays of up to 5 minutes.</li>
-      </ol>
-      <pre><code>// sw.js already handles this payload (done):
+        <pre><code>// sw.js already handles this payload (done):
 { "title": "Call mom", "body": "Reminder · Today, 5:00 PM",
   "href": "/ai-todo?tab=today&amp;task=12", "tag": "reminder-12" }</code></pre>
-    </div>
+      </div>
 
-    <div class="grid two">
-      <div class="card">
-        <h3>2. Done and Snooze buttons on the notification <span class="pill pending">Pending</span></h3>
-        <p style="color:var(--muted);margin:6px 0 0">Tapping a notification opens the task, which has those buttons. Acting directly from the notification needs push (item 1) and a signed action link, because the worker has no login.</p>
+      <div class="grid two">
+        <div class="card">
+          <h3>2. Done and Snooze buttons on the notification <span class="pill pending">Pending</span></h3>
+          <p style="color:var(--muted);margin:6px 0 0">Tapping a notification opens the task, which has those buttons.
+            Acting directly from the notification needs push (item 1) and a signed action link, because the worker has
+            no login.</p>
+        </div>
+        <div class="card">
+          <h3>3. Reminders on Quick Daily tasks <span class="pill pending">Pending</span></h3>
+          <p style="color:var(--muted);margin:6px 0 0">Reminders live on the main tasks: Today, Smart To-Do and the
+            voice capture. Quick Daily has its own task list and shows due dates only.</p>
+        </div>
+        <div class="card">
+          <h3>4. Guest reminders stay on one browser <span class="pill pending">Pending</span></h3>
+          <p style="color:var(--muted);margin:6px 0 0">A guest’s tasks live in this browser’s storage, so their
+            reminders fire only there. Log in to have tasks on every device. Moving guest tasks into a new account is
+            not built.</p>
+        </div>
+        <div class="card">
+          <h3>5. Daylight-saving shift on repeats <span class="pill pending">Pending</span></h3>
+          <p style="color:var(--muted);margin:6px 0 0">A repeating task’s reminder moves by whole days, so a daily 9:00
+            can become 8:00 or 10:00 after a clock change, where clocks change. Edit the time once, or move to
+            time-zone-aware repeats.</p>
+        </div>
       </div>
-      <div class="card">
-        <h3>3. Reminders on Quick Daily tasks <span class="pill pending">Pending</span></h3>
-        <p style="color:var(--muted);margin:6px 0 0">Reminders live on the main tasks: Today, Smart To-Do and the voice capture. Quick Daily has its own task list and shows due dates only.</p>
-      </div>
-      <div class="card">
-        <h3>4. Guest reminders stay on one browser <span class="pill pending">Pending</span></h3>
-        <p style="color:var(--muted);margin:6px 0 0">A guest’s tasks live in this browser’s storage, so their reminders fire only there. Log in to have tasks on every device. Moving guest tasks into a new account is not built.</p>
-      </div>
-      <div class="card">
-        <h3>5. Daylight-saving shift on repeats <span class="pill pending">Pending</span></h3>
-        <p style="color:var(--muted);margin:6px 0 0">A repeating task’s reminder moves by whole days, so a daily 9:00 can become 8:00 or 10:00 after a clock change, where clocks change. Edit the time once, or move to time-zone-aware repeats.</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="test" aria-labelledby="test-title">
-    <h2 id="test-title">Test it in two minutes</h2>
-    <p class="sub">Run this after setting up a device.</p>
-    <div class="card">
-      <ol class="steps">
-        <li>On Today, tap the mic and say <strong>“stretch in 2 minutes”</strong>, then tap <strong>Add task</strong>. It appears under Today with a reminder chip.</li>
-        <li><strong>Computer:</strong> switch to another tab or app. <strong>Phone:</strong> keep LabNinja open, or the installed app in front.</li>
-        <li>At the minute you should get a notification. Tap it and LabNinja opens on that task.</li>
-        <li>Back in the app, the reminder card offers Done, Snooze and Open. Tap <strong>Snooze → 10 minutes</strong> and the chip moves.</li>
-        <li>From the task’s <strong>⋯</strong> menu, tap <strong>Add to calendar</strong>, then lock your phone. Your calendar rings at that time even though LabNinja is closed.</li>
-      </ol>
-      <a class="back" href="/ai-todo?tab=today">Open To-Do → Today</a>
-    </div>
-  </section>
-</main>
+    <section id="test" aria-labelledby="test-title">
+      <h2 id="test-title">Test it in two minutes</h2>
+      <p class="sub">Run this after setting up a device.</p>
+      <div class="card">
+        <ol class="steps">
+          <li>On Today, tap the mic and say <strong>“stretch in 2 minutes”</strong>, then tap <strong>Add task</strong>.
+            It appears under Today with a reminder chip.</li>
+          <li><strong>Computer:</strong> switch to another tab or app. <strong>Phone:</strong> keep LabNinja open, or
+            the installed app in front.</li>
+          <li>At the minute you should get a notification. Tap it and LabNinja opens on that task.</li>
+          <li>Back in the app, the reminder card offers Done, Snooze and Open. Tap <strong>Snooze → 10 minutes</strong>
+            and the chip moves.</li>
+          <li>From the task’s <strong>⋯</strong> menu, tap <strong>Add to calendar</strong>, then lock your phone. Your
+            calendar rings at that time even though LabNinja is closed.</li>
+        </ol>
+        <a class="back" href="/ai-todo?tab=today">Open To-Do → Today</a>
+      </div>
+    </section>
+  </main>
 
-<footer>
-  <div class="wrap">LabNinja AI To-Do · reminder setup guide. Keys and API settings stay in your browser; this page sends nothing anywhere.</div>
-</footer>
+  <footer>
+    <div class="wrap">LabNinja AI To-Do · reminder setup guide. Keys and API settings stay in your browser; this page
+      sends nothing anywhere.</div>
+  </footer>
 </body>
+
 </html>

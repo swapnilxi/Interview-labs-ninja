@@ -49,6 +49,8 @@ const nextConfig = {
     '/api/session-progress/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/subscribe': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/test': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/push/fcm-token': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/push/fcm-test': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/sweep': ['../backend/data/lab_ninja.sqlite3'],
   },
   typescript: {

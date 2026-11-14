@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -16,106 +17,100 @@ export type DailySessionTab =
 export interface TabConfig {
   id: DailySessionTab;
   label: string;
-  short: string;
   icon: string;
   description: string;
-  badge?: string;
 }
 
+/** The order is the flow: today's session first, then the ways to practise, then looking back. */
 export const DAILY_SESSION_TABS: TabConfig[] = [
   {
     id: 'session',
-    label: 'Daily Session',
-    short: 'Daily',
-    icon: 'AcademicCapIcon',
-    description: '10 personalized questions with AI hints & timer',
-    badge: '10 Qs',
+    label: 'Today',
+    icon: 'SunIcon',
+    description: "Today's 10 personalised questions",
   },
   {
     id: 'practice',
-    label: 'Practice Mode',
-    short: 'Practice',
-    icon: 'SparklesIcon',
-    description: 'Custom drill by category & difficulty',
+    label: 'Practice',
+    icon: 'AcademicCapIcon',
+    description: 'Build a drill by topic and level',
   },
   {
     id: 'quick-practice',
-    label: 'Quick Practice',
-    short: 'Quick Blitz',
+    label: 'Quick blitz',
     icon: 'BoltIcon',
-    description: 'Rapid-fire blitz with instant model answers',
-    badge: 'Fast',
+    description: 'Rapid flashcards with instant answers',
   },
   {
     id: 'progress',
-    label: 'Progress Dashboard',
-    short: 'Progress',
+    label: 'Progress',
     icon: 'ChartBarIcon',
-    description: 'Readiness analytics, streak & skill trends',
+    description: 'Readiness, streaks and skill trends',
   },
   {
     id: 'question-bank',
-    label: 'Question Bank',
-    short: 'Questions',
+    label: 'Question bank',
     icon: 'BookOpenIcon',
-    description: 'Browse, filter & search full repository',
+    description: 'Browse, filter and search every question',
   },
 ];
 
+export const tabHref = (id: DailySessionTab) =>
+  id === 'session' ? '/daily-session' : `/daily-session?tab=${id}`;
+
 interface DailySessionTabSwitcherProps {
   activeTab: DailySessionTab;
-  onTabChange: (tab: DailySessionTab) => void;
 }
 
-export default function DailySessionTabSwitcher({
-  activeTab,
-  onTabChange,
-}: DailySessionTabSwitcherProps) {
+export default function DailySessionTabSwitcher({ activeTab }: DailySessionTabSwitcherProps) {
   const { user } = useAuth();
   const isSwapnilxi = user?.email?.toLowerCase() === 'swapnilgupta.xi@gmail.com';
+  const navRef = useRef<HTMLElement>(null);
 
   const mySpaceTab: TabConfig = {
     id: isSwapnilxi ? 'swapnilxi-space' : 'myspace',
-    label: isSwapnilxi ? 'swapnilxi space' : 'MySpace',
-    short: isSwapnilxi ? 'swapnilxi' : 'MySpace',
-    icon: isSwapnilxi ? 'ShieldCheckIcon' : 'SparklesIcon',
+    label: isSwapnilxi ? 'swapnilxi space' : 'My Space',
+    icon: isSwapnilxi ? 'ShieldCheckIcon' : 'LockClosedIcon',
     description: isSwapnilxi
       ? 'Private creator command deck & controls'
-      : 'Personal private workspace & scratchpad',
-    badge: isSwapnilxi ? 'VIP' : 'Private',
+      : 'Private notes, targets and your own questions',
   };
 
   const visibleTabs = [...DAILY_SESSION_TABS, mySpaceTab];
 
+  // On a phone the bar scrolls sideways: keep the active tab in view (the bar only, never the page).
+  useEffect(() => {
+    const nav = navRef.current;
+    const el = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !el || nav.scrollWidth <= nav.clientWidth) return;
+    nav.scrollTo({ left: el.offsetLeft - (nav.clientWidth - el.offsetWidth) / 2 });
+  }, [activeTab]);
+
   return (
-    <nav aria-label="Daily Session sections" className="todo-segmented todo-segmented-accent flex w-full">
+    <nav ref={navRef} aria-label="Daily Session sections" className="ds-tabs">
       {visibleTabs.map((tab) => {
         const isMySpaceTab = tab.id === 'myspace' || tab.id === 'swapnilxi-space';
-        const isActive = activeTab === tab.id || (isMySpaceTab && (activeTab === 'myspace' || activeTab === 'swapnilxi-space'));
+        const isActive =
+          activeTab === tab.id ||
+          (isMySpaceTab && (activeTab === 'myspace' || activeTab === 'swapnilxi-space'));
         return (
-          <button
+          <Link
             key={tab.id}
-            type="button"
-            onClick={() => onTabChange(tab.id)}
+            href={tabHref(tab.id)}
+            scroll={false}
+            prefetch={false}
             aria-current={isActive ? 'page' : undefined}
             title={tab.description}
-            className="todo-segment flex-1 justify-center gap-2 px-3 py-2 text-xs sm:px-4 sm:text-sm"
+            className="ds-tab"
           >
             <Icon
-              name={tab.icon as any}
-              size={17}
+              name={tab.icon}
+              size={18}
               variant={isActive ? 'solid' : 'outline'}
               className="flex-shrink-0"
             />
-            <span className="hidden md:inline">{tab.label}</span>
-            <span className="inline md:hidden">{tab.short}</span>
-
-            {tab.badge && (
-              <span className="ml-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider lab-tint lab-ink">
-                {tab.badge}
-              </span>
-            )}
-          </button>
+            {tab.label}
+          </Link>
         );
       })}
     </nav>

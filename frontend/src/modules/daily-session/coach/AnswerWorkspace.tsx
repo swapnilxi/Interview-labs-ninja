@@ -41,14 +41,12 @@ export default function AnswerWorkspace({ question, answer, onAnswerChange, code
     <div className="space-y-4">
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <label htmlFor="answer-box" className="text-sm font-extrabold text-foreground">
-            ✍️ Your answer
+          <label htmlFor="answer-box" className="text-sm font-semibold ds-ink">
+            Your answer
           </label>
-          <span className="rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide lab-tint lab-ink">
-            {KIND_LABEL[kind]}
-          </span>
+          <span className="ds-chip ds-tone-indigo">{KIND_LABEL[kind]}</span>
         </div>
-        {mic.error && <p className="mb-1.5 text-xs font-semibold text-rose-500">{mic.error}</p>}
+        {mic.error && <p className="mb-1.5 text-xs font-semibold ds-tone-rose ds-tone-text">{mic.error}</p>}
         <div className="relative">
         <textarea
           id="answer-box"
@@ -61,11 +59,11 @@ export default function AnswerWorkspace({ question, answer, onAnswerChange, code
               ? 'Situation → Task → Action (what *you* did) → Result (with numbers)…'
               : 'Explain your thinking out loud: approach, trade-offs, edge cases…'
           }
-          className="block w-full resize-y rounded-2xl border-2 border-border bg-input py-3 pl-4 pr-[3.25rem] pb-[3rem] text-base leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+          className="ds-field ds-field-mic resize-y"
         />
         <VoiceMicButton state={mic.state} onClick={mic.toggle} className="absolute bottom-[0.6rem] right-[0.6rem]" />
         {recording && (
-          <span className="pointer-events-none absolute bottom-[0.9rem] right-[3.4rem] text-xs font-bold text-rose-500">Listening…</span>
+          <span className="pointer-events-none absolute bottom-[0.9rem] right-[3.4rem] text-xs font-bold ds-tone-rose ds-tone-text">Listening…</span>
         )}
         </div>
       </div>

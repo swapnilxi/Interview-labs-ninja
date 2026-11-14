@@ -5,6 +5,9 @@ import ToastHost from '@/components/ui/ToastHost';
 import ReminderAlerts from '@/components/ui/ReminderAlerts';
 import { browserPermission, ensureServiceWorker, getPrefs, hasNotification, notify } from '@/lib/ui/notifications';
 import { startReminderEngine } from '@/lib/reminders/reminderEngine';
+import { enableNativeReminders } from '@/lib/reminders/nativeReminders';
+import { startNativePush, syncPushTokenAfterLogin } from '@/lib/reminders/nativePush';
+import { onAuthChange } from '@/lib/auth/tokenStore';
 import { todoService } from '@/lib/services/todoService';
 
 /**
@@ -100,7 +103,14 @@ export default function NotificationHost() {
   // delivers them on phones is registered (it may not be on a browser that turned them on before it existed).
   useEffect(() => {
     if (getPrefs().browser && browserPermission() === 'granted') void ensureServiceWorker();
-    return startReminderEngine();
+    // Android app: ask once for notification + exact-alarm permission, then register for FCM push.
+    void enableNativeReminders().then(() => startNativePush());
+    const offAuth = onAuthChange(syncPushTokenAfterLogin);
+    const stopEngine = startReminderEngine();
+    return () => {
+      offAuth();
+      stopEngine();
+    };
   }, []);
 
   useEffect(() => {
