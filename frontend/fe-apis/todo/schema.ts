@@ -339,6 +339,8 @@ export function ensureTodoSchema(db: TodoDb): void {
   addColumnIfMissing(db, 'tasks', columns, 'is_top_20', 'INTEGER DEFAULT 0');
   addColumnIfMissing(db, 'tasks', columns, 'pareto_reason', 'TEXT DEFAULT NULL');
   addColumnIfMissing(db, 'tasks', columns, 'pareto_locked', 'INTEGER DEFAULT 0');
+  // A reminder time (UTC ISO 8601). The browser fires it; NULL = no reminder.
+  addColumnIfMissing(db, 'tasks', columns, 'remind_at', 'TEXT DEFAULT NULL');
 
   // 2. quick_tasks
   const qtCols = columnsOf(db, 'quick_tasks');

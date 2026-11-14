@@ -10,7 +10,7 @@
  */
 
 export const LOGIN_RETURN_KEY = 'ninja_login_return_to';
-export const DEFAULT_LOGIN_LANDING = '/ai-todo?tab=quick';
+export const DEFAULT_LOGIN_LANDING = '/ai-todo?tab=today';
 
 /** A same-origin, in-app path that isn't the login route itself (never an open redirect). */
 export function isSafeReturnPath(path: unknown): path is string {

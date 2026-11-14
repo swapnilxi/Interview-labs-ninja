@@ -3,8 +3,8 @@
  *
  * The DSA lab's Next.js backend (nextjs-api mode). Only the week plan has a twin so far -- /dsa/week-plan
  * (the active plan), /dsa/week-plan/profiles/* (saved plan profiles) and /dsa/week-plan/auto (the AI
- * organizer), all in ./weekPlan + ./autoPlan. The rest of backend/modules/dsa_lab (topics, sections) is
- * FastAPI-only, and the page falls back to its built-in topic list without it. next.config.mjs rewrites
+ * organizer), all in ./weekPlan + ./autoPlan. The lab's topics and sections are served by fe-apis/labs through the
+ * same catch-all route (src/app/api/dsa/[...path]/route.ts picks one or the other). next.config.mjs rewrites
  * /dsa/week-plan/:path* to /api/dsa/week-plan/:path* (served by src/app/api/dsa/[...path]/route.ts).
  * A change to the Python week-plan code must be mirrored here (see CLAUDE.md, "Dual deployment modes").
  * A malformed path id (`/profiles/%25zz`) is answered by the shared router (fe-apis/todo/router.ts) with the

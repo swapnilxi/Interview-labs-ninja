@@ -42,6 +42,8 @@ export interface Task {
   pareto_reason?: string | null;
   pareto_locked?: boolean;
   eisenhower_quadrant?: string | null;
+  /** When to remind (UTC ISO 8601, e.g. 2026-11-15T11:30:00.000Z); null = no reminder. */
+  remind_at?: string | null;
   /**
    * Set only on the copy of a task that a search or filter has pruned: `children` then holds just the matches, so these
    * carry the real number of subtasks and how many are done. Progress is a fact about the task, not about the view.
@@ -77,6 +79,7 @@ export interface TaskCreatePayload {
   recurrence_interval?: string | null;
   recurrence_custom_days?: string | null;
   eisenhower_quadrant?: string | null;
+  remind_at?: string | null;
 }
 
 export interface TaskUpdatePayload {
@@ -96,6 +99,17 @@ export interface TaskUpdatePayload {
   is_top_20?: boolean;
   pareto_score?: number | null;
   pareto_reason?: string | null;
+  remind_at?: string | null;
+}
+
+/** One task the AI read out of a spoken note. `remind_at` is LOCAL time ("YYYY-MM-DDTHH:MM"). */
+export interface VoiceCaptureTask {
+  title: string;
+  priority: TaskPriority;
+  due_date: string | null;
+  remind_at: string | null;
+  time_estimate: string | null;
+  context: string | null;
 }
 
 // ── Status & Priority config ─────────────────────────────────────────────────
@@ -255,6 +269,15 @@ export function withPeriod(message: string): string {
 
 // ── API Service ──────────────────────────────────────────────────────────────
 
+/**
+ * Tells the rest of the app (the reminder scheduler, the Today view) that tasks changed in this tab, so a new or moved
+ * reminder is scheduled at once instead of on the next poll. Other tabs pick changes up when they come back to the front.
+ */
+export const TASKS_CHANGED_EVENT = 'todo:tasks-changed';
+function emitTasksChanged() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(TASKS_CHANGED_EVENT));
+}
+
 export const todoService = {
   /** Like fetchTaskTree, but throws an actionable Error instead of returning []. */
   async fetchTaskTreeStrict(): Promise<Task[]> {
@@ -303,6 +326,7 @@ export const todoService = {
     if (!isLoggedIn()) {
       const task = await localTodoAdapter.createTask(data);
       if (!task) throw new Error("Couldn't save the task in this browser's storage.");
+      emitTasksChanged();
       return task;
     }
     const res = await todoFetch('/todo/tasks', {
@@ -312,6 +336,7 @@ export const todoService = {
     if (!res.ok) throw new Error(await todoApiError(res));
     const task = await res.json();
     task.children = [];
+    emitTasksChanged();
     return task;
   },
 
@@ -326,14 +351,20 @@ export const todoService = {
   },
 
   async updateTask(taskId: number, data: TaskUpdatePayload): Promise<Task | null> {
-    if (!isLoggedIn()) return localTodoAdapter.updateTask(taskId, data);
+    if (!isLoggedIn()) {
+      const local = await localTodoAdapter.updateTask(taskId, data);
+      if (local) emitTasksChanged();
+      return local;
+    }
     try {
       const res = await todoFetch(`/todo/tasks/${taskId}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error(await todoApiError(res));
-      return await res.json();
+      const updated = await res.json();
+      emitTasksChanged();
+      return updated;
     } catch (error) {
       console.error(`Failed to update task ${taskId}:`, error);
       reportFailure('save that change', error);
@@ -342,10 +373,15 @@ export const todoService = {
   },
 
   async deleteTask(taskId: number): Promise<boolean> {
-    if (!isLoggedIn()) return localTodoAdapter.deleteTask(taskId);
+    if (!isLoggedIn()) {
+      const removed = await localTodoAdapter.deleteTask(taskId);
+      if (removed) emitTasksChanged();
+      return removed;
+    }
     try {
       const res = await todoFetch(`/todo/tasks/${taskId}`, { method: 'DELETE' });
       if (!res.ok && !isAlreadyGone(res)) throw new Error(await todoApiError(res));
+      emitTasksChanged();
       return true;
     } catch (error) {
       console.error(`Failed to delete task ${taskId}:`, error);
@@ -453,7 +489,7 @@ export const todoService = {
       return data.answer || '';
     } catch (error) {
       console.error('Failed to ask copilot:', error);
-      return `⚠️ ${error instanceof Error ? error.message : 'Could not process your question. Please check if the backend is running.'}`;
+      return `Couldn’t answer that: ${error instanceof Error ? error.message : 'the backend did not respond. Check that it is running.'}`;
     }
   },
 
@@ -682,6 +718,23 @@ export const todoService = {
     });
     if (!res.ok) throw new Error(await parseApiError(res));
     return await res.json();
+  },
+
+  /**
+   * A spoken (or typed) note to tasks with due dates and reminder times. Login + an AI model required, like every
+   * AI call; `now` is the person's local clock so "tomorrow at 5" resolves in their own timezone.
+   */
+  async voiceCapture(text: string, model: string = 'gemini'): Promise<VoiceCaptureTask[]> {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const now = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const res = await apiFetch('/todo/ai/voice-capture', {
+      method: 'POST',
+      body: JSON.stringify({ text, now, ...aiRequestFields(model) }),
+    });
+    if (!res.ok) throw new Error(await parseApiError(res));
+    const data = await res.json();
+    return Array.isArray(data?.tasks) ? data.tasks : [];
   },
 
   async prioritizeAllWithAI(model: string = 'gemini'): Promise<any> {

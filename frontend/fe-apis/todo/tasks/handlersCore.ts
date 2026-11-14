@@ -115,6 +115,7 @@ const TASK_CREATE: Record<string, FieldSpec> = {
   recurrence_custom_days: optStr,
   intention: optStr,
   definition_of_done: optStr,
+  remind_at: optStr,
 };
 
 const TASK_UPDATE: Record<string, FieldSpec> = {
@@ -134,12 +135,13 @@ const TASK_UPDATE: Record<string, FieldSpec> = {
   is_top_20: { kind: 'bool', nullable: true },
   pareto_score: { kind: 'float', nullable: true },
   pareto_reason: optStr,
+  remind_at: optStr,
 };
 
 /** TASK_NULLABLE in tasks/router.py: columns a PATCH can empty by sending `null`; `null` elsewhere = no change. */
 const TASK_NULLABLE: ReadonlySet<string> = new Set([
   'time_estimate', 'due_date', 'context', 'attachments', 'recurrence_interval', 'recurrence_custom_days',
-  'intention', 'definition_of_done', 'eisenhower_quadrant', 'pareto_score', 'pareto_reason',
+  'intention', 'definition_of_done', 'eisenhower_quadrant', 'pareto_score', 'pareto_reason', 'remind_at',
 ]);
 
 // ── Small Python-isms ───────────────────────────────────────────────────────
@@ -609,6 +611,7 @@ export const routes: TodoRoute[] = [
         recurrence_custom_days: p.recurrence_custom_days ?? null,
         intention: p.intention ?? null,
         definition_of_done: p.definition_of_done ?? null,
+        remind_at: p.remind_at ?? null,
       });
     },
   },

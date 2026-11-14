@@ -1,5 +1,6 @@
 /*
- * sw.js — offline support for the Swipe PDF Reader.
+ * sw.js — the app's service worker: offline support for the Swipe PDF Reader, and the delivery side of
+ * task reminders (notification taps, and server push once that is set up — see notification-setup.html).
  *
  * Strategy
  * ────────
@@ -144,4 +145,53 @@ self.addEventListener('fetch', (event) => {
   if (STATIC_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
     event.respondWith(cacheFirst(request));
   }
+});
+
+// ── Reminders ─────────────────────────────────────────────────────────────────────────────────────────────────
+// A tapped notification brings the app to the front on the task it is about (or opens it if it was closed).
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  const target = new URL(data.href || '/ai-todo?tab=today', self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of windows) {
+        if (new URL(client.url).origin !== self.location.origin) continue;
+        await client.focus();
+        if ('navigate' in client) {
+          try {
+            await client.navigate(target);
+          } catch {
+            /* an uncontrolled tab can't be navigated from here; it is in front at least */
+          }
+        }
+        return;
+      }
+      await self.clients.openWindow(target);
+    })(),
+  );
+});
+
+// Server push (pending: needs VAPID keys and a scheduler, see notification-setup.html). Payload:
+// { "title": "...", "body": "...", "href": "/ai-todo?tab=today&task=12", "tag": "reminder-12" }
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : '' };
+  }
+  const title = payload.title || 'Reminder';
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: payload.body || '',
+      tag: payload.tag,
+      renotify: Boolean(payload.tag),
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
+      data: { href: payload.href || '/ai-todo?tab=today' },
+      requireInteraction: true,
+    }),
+  );
 });

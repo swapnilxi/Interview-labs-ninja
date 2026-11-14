@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, model_validator
 from modules.auth import db as auth_db
 from modules.auth.dependencies import KNOWN_PERMISSIONS, get_current_active_user
 
+# Next.js twin (nextjs-api mode): frontend/fe-apis/account/ (also has GET/PUT /auth/profile). Change both together.
 router = APIRouter(prefix="/access-requests", tags=["access-requests"])
 
 

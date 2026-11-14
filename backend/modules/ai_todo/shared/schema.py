@@ -362,6 +362,9 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE tasks ADD COLUMN pareto_reason TEXT DEFAULT NULL;")
     if "pareto_locked" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN pareto_locked INTEGER DEFAULT 0;")
+    # A reminder time (UTC ISO 8601, e.g. 2026-11-15T11:30:00.000Z). The browser fires it; NULL = no reminder.
+    if "remind_at" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN remind_at TEXT DEFAULT NULL;")
 
     # 2. quick_tasks table
     cursor.execute("PRAGMA table_info(quick_tasks);")

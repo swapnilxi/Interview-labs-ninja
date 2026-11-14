@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import FlatIcon from '@/components/ui/FlatIcon';
-import ProjectIcon, { DEFAULT_PROJECT_ICON } from './ProjectIcon';
+import ProjectIcon, { PROJECT_ICON_CHOICES } from './ProjectIcon';
 import Modal from '@/components/ui/Modal';
 import { Project, projectService } from '@/lib/services/projectService';
 
@@ -19,7 +19,8 @@ const COLORS = [
 
 // emoji-ok — the only emoji left in the To-Do UI: these are the user's own pick for a project. The first is
 // the default (drawn as the flat folder by ProjectIcon).
-const ICONS = [DEFAULT_PROJECT_ICON, '🚀', '🧠', '💼', '🏡', '🏋️', '📚', '🎨', '💰', '🛠️'];
+const ICONS = PROJECT_ICON_CHOICES.map((choice) => choice.value);
+const ICON_LABEL = new Map(PROJECT_ICON_CHOICES.map((choice) => [choice.value, choice.label]));
 
 export default function CreateProjectModal({ onClose, onSuccess }: CreateProjectModalProps) {
   const [title, setTitle] = useState('');
@@ -144,7 +145,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
                   type="button"
                   onClick={() => setIcon(i)}
                   aria-pressed={icon === i}
-                  aria-label={i === DEFAULT_PROJECT_ICON ? 'Folder icon' : `Icon ${i}`}
+                  aria-label={`${ICON_LABEL.get(i) ?? 'Project'} icon`}
                   className={`shrink-0 w-8 h-8 rounded text-lg flex items-center justify-center transition-smooth ${
                     icon === i ? 'mix-bg-primary/20 scale-110 shadow-sm' : 'hover:bg-muted opacity-60 hover:opacity-100'
                   }`}

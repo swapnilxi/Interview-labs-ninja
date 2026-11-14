@@ -14,9 +14,13 @@
  *   // ...etc.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as db from '@/lib/services/local/swipeLearnDb';
-import type { HydratedLearnState, StoredCard, StoredCustomTopic } from '@/lib/services/local/swipeLearnDb';
+import type {
+  HydratedLearnState,
+  StoredCard,
+  StoredCustomTopic,
+} from '@/lib/services/local/swipeLearnDb';
 
 export type { HydratedLearnState, StoredCard, StoredCustomTopic };
 
@@ -26,6 +30,7 @@ export interface SwipeLearnStorageApi {
 
   // Cards
   saveCard(card: StoredCard): void;
+  saveCards(cards: StoredCard[]): void;
   deleteCard(cardId: string): void;
 
   // Saved card IDs
@@ -36,8 +41,8 @@ export interface SwipeLearnStorageApi {
   saveCustomTopic(topic: StoredCustomTopic): void;
   removeCustomTopic(topicId: string): void;
 
-  // Feed state (card index per mode)
-  saveCardIndices(indices: Record<string, number>): void;
+  // Feed state: the cards already swiped
+  saveSeenIds(ids: string[]): void;
 
   // Nuclear clear
   clearAll(): Promise<void>;
@@ -50,7 +55,9 @@ export function useSwipeLearnStorage(): SwipeLearnStorageApi {
   useEffect(() => {
     if (migratedRef.current) return;
     migratedRef.current = true;
-    db.migrateFromLocalStorage().catch(() => {/* non-fatal */});
+    db.migrateFromLocalStorage().catch(() => {
+      /* non-fatal */
+    });
   }, []);
 
   const hydrate = useCallback((): Promise<HydratedLearnState> => {
@@ -59,6 +66,10 @@ export function useSwipeLearnStorage(): SwipeLearnStorageApi {
 
   const saveCard = useCallback((card: StoredCard): void => {
     db.saveCard(card).catch(() => {});
+  }, []);
+
+  const saveCards = useCallback((cards: StoredCard[]): void => {
+    db.saveCards(cards).catch(() => {});
   }, []);
 
   const deleteCard = useCallback((cardId: string): void => {
@@ -81,23 +92,39 @@ export function useSwipeLearnStorage(): SwipeLearnStorageApi {
     db.removeCustomTopic(topicId).catch(() => {});
   }, []);
 
-  const saveCardIndices = useCallback((indices: Record<string, number>): void => {
-    db.saveFeedStateEntry('cardIndices', indices).catch(() => {});
+  const saveSeenIds = useCallback((ids: string[]): void => {
+    db.saveFeedStateEntry('seenIds', ids).catch(() => {});
   }, []);
 
   const clearAll = useCallback((): Promise<void> => {
     return db.clearAllLearnData();
   }, []);
 
-  return {
-    hydrate,
-    saveCard,
-    deleteCard,
-    addSavedId,
-    removeSavedId,
-    saveCustomTopic,
-    removeCustomTopic,
-    saveCardIndices,
-    clearAll,
-  };
+  // One stable object, so callbacks that list it as a dependency aren't rebuilt on every render.
+  return useMemo(
+    () => ({
+      hydrate,
+      saveCard,
+      saveCards,
+      deleteCard,
+      addSavedId,
+      removeSavedId,
+      saveCustomTopic,
+      removeCustomTopic,
+      saveSeenIds,
+      clearAll,
+    }),
+    [
+      hydrate,
+      saveCard,
+      saveCards,
+      deleteCard,
+      addSavedId,
+      removeSavedId,
+      saveCustomTopic,
+      removeCustomTopic,
+      saveSeenIds,
+      clearAll,
+    ]
+  );
 }

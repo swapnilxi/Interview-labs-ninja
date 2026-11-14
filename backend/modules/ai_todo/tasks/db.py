@@ -38,6 +38,7 @@ def _task_row_to_dict(row: tuple) -> Dict[str, Any]:
         "is_top_20": bool(row[22]) if len(row) > 22 and row[22] is not None else False,
         "pareto_reason": row[23] if len(row) > 23 else None,
         "pareto_locked": bool(row[24]) if len(row) > 24 and row[24] is not None else False,
+        "remind_at": row[25] if len(row) > 25 else None,
     }
 
 
@@ -46,7 +47,7 @@ _TASK_COLUMNS = (
     "generation_type, depth_level, context, attachments, created_at, updated_at, "
     "last_activity_at, is_recurring, recurrence_interval, recurrence_custom_days, "
     "recurrence_template_id, intention, definition_of_done, eisenhower_quadrant, "
-    "pareto_score, is_top_20, pareto_reason, pareto_locked"
+    "pareto_score, is_top_20, pareto_reason, pareto_locked, remind_at"
 )
 
 
@@ -67,6 +68,7 @@ def create_task(
     recurrence_template_id: Optional[int] = None,
     intention: Optional[str] = None,
     definition_of_done: Optional[str] = None,
+    remind_at: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Insert a new task and return it as a dict."""
     conn = sqlite3.connect(get_db_path())
@@ -94,15 +96,15 @@ def create_task(
                 generation_type, depth_level, context, attachments,
                 created_at, updated_at, last_activity_at, is_recurring,
                 recurrence_interval, recurrence_custom_days, recurrence_template_id,
-                intention, definition_of_done
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                intention, definition_of_done, remind_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id, parent_id, title, status, priority, time_estimate, due_date,
                 generation_type, depth_level, context, attachments_json,
                 now, now, now, is_recurring,
                 recurrence_interval, recurrence_custom_days, recurrence_template_id,
-                intention, definition_of_done,
+                intention, definition_of_done, remind_at,
             ),
         )
         conn.commit()
@@ -241,7 +243,7 @@ def update_task(task_id: int, user_id: int, **fields) -> Optional[Dict[str, Any]
                "recurrence_interval", "recurrence_custom_days",
                "recurrence_template_id", "intention", "definition_of_done",
                "eisenhower_quadrant", "pareto_score", "is_top_20",
-               "pareto_reason", "pareto_locked"}
+               "pareto_reason", "pareto_locked", "remind_at"}
     updates = {k: v for k, v in fields.items() if k in allowed}
 
     if not updates:
@@ -680,6 +682,24 @@ def _calculate_next_due_date(current_due: Optional[str], interval: str, custom_d
     return (base_date + timedelta(days=1)).isoformat()
 
 
+def _shift_reminder(remind_at: Optional[str], old_due: Optional[str], new_due: Optional[str]) -> Optional[str]:
+    """The next occurrence of a recurring task keeps its reminder, moved by as many days as its due date moved.
+
+    TypeScript twin: shiftReminder in frontend/fe-apis/todo/tasks/db.ts (same output format: ms precision, Z).
+    """
+    if not remind_at or not old_due or not new_due:
+        return None
+    try:
+        from datetime import date, timezone
+
+        delta = date.fromisoformat(new_due[:10]) - date.fromisoformat(old_due[:10])
+        moment = datetime.fromisoformat(remind_at.replace("Z", "+00:00"))
+        shifted = (moment + delta).astimezone(timezone.utc)
+    except ValueError:
+        return None
+    return shifted.strftime("%Y-%m-%dT%H:%M:%S.") + f"{shifted.microsecond // 1000:03d}Z"
+
+
 def clone_recurring_task(task_id: int, user_id: int, next_due_date: str) -> int:
     """Clones a recurring task and its complete child hierarchy recursively."""
     task = get_task(task_id, user_id)
@@ -702,6 +722,7 @@ def clone_recurring_task(task_id: int, user_id: int, next_due_date: str) -> int:
         recurrence_template_id=template_id,
         intention=task.get("intention"),
         definition_of_done=task.get("definition_of_done"),
+        remind_at=_shift_reminder(task.get("remind_at"), task.get("due_date"), next_due_date),
     )
 
     _clone_task_recursive(task["id"], new_task["id"], user_id)

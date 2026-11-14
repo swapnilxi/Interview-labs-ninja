@@ -67,8 +67,8 @@ further down in `README.md` — check there before assuming a module's shape.
   *nothing*, no warning. Use the `mix-*` utilities from `frontend/tailwind/mix-colors.js`: `mix-bg-muted/20`,
   `hover:mix-bg-primary/90`, `mix-border-*`, `mix-text-*`, `mix-ring-*`. Palette colours (`bg-amber-500/10`) are fine.
   (2) The spacing keys 6, 12, 18, 24, 36, 48, 72, 96, 144 are redefined in **pixels** (`px-6` = 6px, `w-12` = 12px):
-  write `px-[1.5rem]`. The enforced area (To-Do, shared UI, the three labs, Daily Session, Labs Project, Config and the
-  shared lab components: `TODO_ROOTS` in `frontend/scripts/check-tailwind-traps.mjs`) is clean and
+  write `px-[1.5rem]`. The enforced area (To-Do, shared UI, the three labs, Daily Session, Labs Project, Config, SwipeLearn and
+  the shared lab components: `TODO_ROOTS` in `frontend/scripts/check-tailwind-traps.mjs`) is clean and
   `npm run check:tailwind` (from `frontend/`) keeps it so. The same script also flags a palette colour with an off-scale
   alpha (`bg-white/12`), `shadow-xs` / `py-0.2`, and `mix-bg-amber-500/15` (`mix-*` only knows theme tokens). `-- --all`
   lists the rest of the app, which still has these traps.
@@ -212,10 +212,17 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   string must stay byte-identical across the pair. Isolation rules live in README.md ("Labs Project"): never
   null `lab_section_content.project_id` / `lab_quiz_questions.project_id` on a project delete, and always scope
   section queries by user *and* project. `backend/tests/lab_projects_test.py` covers it.
-- Most other modules (`career_studio`, the rest of the interview labs — topics/sections —,
-  `daily_session`, `linkedin_post_generator`) have **no** `fe-apis` equivalent — they only work in
-  `fastapi` mode. Don't assume feature parity between modes without checking whether a
-  module has a `frontend/src/app/api/**` + `frontend/fe-apis/**` counterpart.
+- **Data twins for the rest of the labs and Daily Session** (so nextjs-api mode shows the SQLite data):
+  `fe-apis/labs` = topics + sections of DSA/CV/System Design (`/dsa/topics|sections` share the
+  `api/dsa/[...path]` route with the week plan; `/cv/*`, `/system-design/*`); `fe-apis/dailySession` = sessions,
+  questions, session progress and stats (not its AI routes, deck import, export, or the unauthenticated
+  `POST /questions/clear-duplicates`); `fe-apis/account` = `GET/PUT /auth/profile` and `/access-requests`. Each has a
+  `next.config.mjs` rewrite and an `outputFileTracingIncludes` entry — every `/api/**` route that opens the database
+  needs one, or a Vercel function ships without the file and serves an empty DB. Verified the twin way (same requests
+  to both on DB copies, bodies diffed).
+- Still FastAPI-only: `career_studio`, `linkedin_post_generator`, the admin user-management routes (`/admin/*` except
+  db push/pull), Daily Session's AI routes, and the local-Ollama helpers. Don't assume feature parity between modes
+  without checking whether a module has a `frontend/src/app/api/**` + `frontend/fe-apis/**` counterpart.
 
 ## Working style for this repo
 

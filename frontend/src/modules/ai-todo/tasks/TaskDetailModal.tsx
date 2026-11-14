@@ -17,6 +17,9 @@ import {
   withPeriod,
 } from '@/lib/services/todoService';
 
+import ReminderPicker from '../reminders/ReminderPicker';
+import { canAddToCalendar, downloadIcs, googleCalendarUrl } from '@/lib/reminders/reminderTime';
+
 interface TaskDetailModalProps {
   taskId: number | null;
   isOpen: boolean;
@@ -38,6 +41,7 @@ export default function TaskDetailModal({
   model = 'gemini',
 }: TaskDetailModalProps) {
   const [task, setTask] = useState<Task | null>(null);
+  const [remindAt, setRemindAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState('');
   const [context, setContext] = useState('');
@@ -80,6 +84,7 @@ export default function TaskDetailModal({
       setIntention(data.intention || '');
       setDod(data.definition_of_done || '');
       setDueDate(data.due_date || '');
+      setRemindAt(data.remind_at ?? null);
       setTimeEstimate(data.time_estimate || '');
       setStatus(data.status);
       setPriority(data.priority);
@@ -158,6 +163,13 @@ export default function TaskDetailModal({
     setPriority(value);
     const ok = await saveField('priority', { priority: value }, { retryable: false });
     if (!ok && savedRef.current) setPriority(savedRef.current.priority);
+  };
+
+  const onReminderChange = async (value: string | null) => {
+    const before = remindAt;
+    setRemindAt(value);
+    const ok = await saveField('remind_at', { remind_at: value }, { retryable: false });
+    if (!ok) setRemindAt(before);
   };
 
   const onDueDateChange = async (value: string) => {
@@ -345,6 +357,34 @@ export default function TaskDetailModal({
                 className="w-full bg-card border mix-border-border/80 rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
+          </div>
+
+          {/* Reminder: fires on this device at that time; the calendar copy reminds you even with the app closed */}
+          <div className="todo-surface flex flex-wrap items-center gap-2 p-2.5">
+            <span className="mr-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Reminder</span>
+            <ReminderPicker value={remindAt} onChange={onReminderChange} variant="field" taskTitle={title} />
+            {task && canAddToCalendar({ ...task, remind_at: remindAt }) && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => downloadIcs({ ...task, title, remind_at: remindAt })}
+                  className="todo-btn todo-btn-ghost h-10 px-2.5"
+                  title="Download an .ics event with an alarm (Apple Calendar, Outlook)"
+                >
+                  <Icon name="CalendarDaysIcon" size={15} />
+                  Add to calendar
+                </button>
+                <a
+                  href={googleCalendarUrl({ ...task, title, remind_at: remindAt }) ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="todo-btn todo-btn-ghost h-10 px-2.5"
+                >
+                  <Icon name="ArrowTopRightOnSquareIcon" size={15} />
+                  Google Calendar
+                </a>
+              </>
+            )}
           </div>
 
           {/* Context & Description */}

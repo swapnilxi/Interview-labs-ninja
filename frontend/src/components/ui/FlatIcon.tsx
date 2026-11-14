@@ -6,26 +6,34 @@ import {
   FcAssistant,
   FcBinoculars,
   FcBookmark,
+  FcBriefcase,
   FcCalendar,
   FcCamera,
   FcCheckmark,
   FcCollaboration,
+  FcCommandLine,
   FcDocument,
   FcEmptyTrash,
   FcFlashOn,
   FcFolder,
+  FcGraduationCap,
   FcHighPriority,
+  FcHome,
   FcIcons8Cup,
   FcIdea,
+  FcLandscape,
   FcLike,
   FcMindMap,
+  FcMoneyTransfer,
   FcNightLandscape,
   FcOk,
   FcPlanner,
   FcProcess,
   FcQuestions,
   FcRating,
+  FcReading,
   FcSearch,
+  FcSportsMode,
   FcTimeline,
   FcTodoList,
   FcViewDetails,
@@ -71,9 +79,22 @@ const ICONS = {
   check: FcCheckmark,
   clock: FcAlarmClock,
   next: FcAdvance,
+  // Project icons (saved as "fc:<name>" on the project; see projects/ProjectIcon.tsx)
+  briefcase: FcBriefcase,
+  home: FcHome,
+  study: FcGraduationCap,
+  reading: FcReading,
+  fitness: FcSportsMode,
+  money: FcMoneyTransfer,
+  code: FcCommandLine,
+  travel: FcLandscape,
 } as const satisfies Record<string, IconType>;
 
 export type FlatIconName = keyof typeof ICONS;
+
+export function isFlatIconName(name: string): name is FlatIconName {
+  return Object.prototype.hasOwnProperty.call(ICONS, name);
+}
 
 interface FlatIconProps {
   name: FlatIconName;

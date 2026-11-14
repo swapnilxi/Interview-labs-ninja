@@ -5,14 +5,17 @@ import SwipeLearnModule from '@/modules/swipe-learn/SwipeLearnModule';
 
 export const metadata: Metadata = {
   title: 'SwipeLearn - Quick Swipeable Learning Feed | LabNinja',
-  description: 'A mobile-first learning app that replaces social media scrolling with quick, swipeable learning content across Python, Computer Vision, Finance, and AI.',
+  description:
+    'A mobile-first learning app that replaces social media scrolling with quick, swipeable learning content across Python, Computer Vision, Finance, and AI.',
 };
 
 export default function SwipeLearnPage() {
   return (
     <>
       <Header />
-      <div className="min-h-screen bg-background pt-[60px]">
+      {/* No min-h-screen: the module sizes itself to the viewport (minus header and phone tab bar), so the page
+          itself never scrolls under the swipe deck. */}
+      <div className="bg-background pt-[60px]">
         {/* The module keeps the open screen in the URL (?tab=, ?topic=), which needs a Suspense boundary above it. */}
         <Suspense
           fallback={

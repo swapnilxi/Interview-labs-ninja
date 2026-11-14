@@ -59,8 +59,11 @@ const navigationItems: NavigationItem[] = [
   },
 ];
 
+// nextjs-api ("FE-API only") mode: every request goes to the Next.js routes, there is no FastAPI to probe.
+const FE_API_ONLY = ['nextjs-api', 'nextjs', 'fe-api'].includes((process.env.NEXT_PUBLIC_BACKEND_MODE || '').toLowerCase());
+
 function SystemStatus() {
-  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline' | 'unused'>(FE_API_ONLY ? 'unused' : 'checking');
   const [feApiStatus, setFeApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
@@ -74,7 +77,9 @@ function SystemStatus() {
       const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
       const fastapiUrl = process.env.NEXT_PUBLIC_API_URL || (API_BASE_URL !== '' ? API_BASE_URL : (isLocalHost ? 'http://localhost:8082' : ''));
 
-      if (fastapiUrl) {
+      if (FE_API_ONLY) {
+        setApiStatus('unused');
+      } else if (fastapiUrl) {
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -131,9 +136,14 @@ function SystemStatus() {
   }, []);
 
   const StatusRow = ({ label, status }: { label: string, status: string }) => (
-    <div className="flex items-center gap-1 leading-none" title={`${label}: ${status === 'checking' ? 'checking…' : status}`}>
+    <div
+      className="flex items-center gap-1 leading-none"
+      title={`${label}: ${status === 'checking' ? 'checking…' : status === 'unused' ? 'not used in FE-API mode' : status}`}
+    >
       {status === 'checking' ? (
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+      ) : status === 'unused' ? (
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-400/60" />
       ) : status === 'online' ? (
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
       ) : (

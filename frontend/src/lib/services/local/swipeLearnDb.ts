@@ -11,7 +11,8 @@
  *   cards          — All ContentCards (default seed + user-generated)
  *   savedCardIds   — Which card IDs the user has saved/bookmarked
  *   customTopics   — User-created custom topic definitions
- *   feedState      — Per-topic card index, activeSubTab, quizMode, learnMode
+ *   feedState      — Key/value deck state: 'seenIds' (cards already swiped, any topic) and the legacy
+ *                    'cardIndices' (per-topic position, read once to seed 'seenIds')
  *
  * Design goals
  * ─────────────
@@ -33,10 +34,10 @@ type LearnStoreName = 'cards' | 'savedCardIds' | 'customTopics' | 'feedState';
 
 // ── Legacy localStorage keys (migration source) ───────────────────────────────
 
-const LS_SAVED_IDS    = 'swipelearn_saved_card_ids_v3';
-const LS_USER_CARDS   = 'swipelearn_user_cards_v3';
-const LS_TOPICS       = 'swipelearn_custom_topics_v3';
-const MIGRATION_FLAG  = 'swipelearn:idb-migrated-v1';
+const LS_SAVED_IDS = 'swipelearn_saved_card_ids_v3';
+const LS_USER_CARDS = 'swipelearn_user_cards_v3';
+const LS_TOPICS = 'swipelearn_custom_topics_v3';
+const MIGRATION_FLAG = 'swipelearn:idb-migrated-v1';
 
 // ── Connection management ─────────────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ function openDb(): Promise<IDBDatabase> {
 async function withStore<T>(
   storeName: LearnStoreName,
   mode: IDBTransactionMode,
-  fn: (store: IDBObjectStore) => IDBRequest<T> | void,
+  fn: (store: IDBObjectStore) => IDBRequest<T> | void
 ): Promise<T> {
   const db = await openDb();
   return new Promise<T>((resolve, reject) => {
@@ -124,14 +125,22 @@ async function withStore<T>(
 }
 
 async function dbGet<T>(storeName: LearnStoreName, key: IDBValidKey): Promise<T | undefined> {
-  return withStore<T | undefined>(storeName, 'readonly', (s) => s.get(key) as IDBRequest<T | undefined>);
+  return withStore<T | undefined>(
+    storeName,
+    'readonly',
+    (s) => s.get(key) as IDBRequest<T | undefined>
+  );
 }
 
 async function dbGetAll<T>(storeName: LearnStoreName): Promise<T[]> {
   return withStore<T[]>(storeName, 'readonly', (s) => s.getAll() as IDBRequest<T[]>);
 }
 
-async function dbGetAllByIndex<T>(storeName: LearnStoreName, indexName: string, value: IDBValidKey): Promise<T[]> {
+async function dbGetAllByIndex<T>(
+  storeName: LearnStoreName,
+  indexName: string,
+  value: IDBValidKey
+): Promise<T[]> {
   const db = await openDb();
   return new Promise<T[]>((resolve, reject) => {
     const tx = db.transaction(storeName, 'readonly');
@@ -204,20 +213,23 @@ export interface HydratedLearnState {
   savedCardIds: string[];
   /** User-created custom topics */
   customTopics: StoredCustomTopic[];
-  /** Card index per feed mode (Record<feedMode, number>) */
+  /** Legacy: card index per feed mode (Record<feedMode, number>). Only read to seed seenIds once. */
   cardIndices: Record<string, number>;
+  /** Ids of the cards already swiped (skipped or saved); null when never written (pre-seenIds browser). */
+  seenIds: string[] | null;
 }
 
 export async function hydrateLearnState(): Promise<HydratedLearnState> {
   if (!isIdbAvailable()) {
-    return { userCards: [], savedCardIds: [], customTopics: [], cardIndices: {} };
+    return { userCards: [], savedCardIds: [], customTopics: [], cardIndices: {}, seenIds: null };
   }
   try {
-    const [allCards, savedRows, topicsRows, indicesEntry] = await Promise.all([
+    const [allCards, savedRows, topicsRows, indicesEntry, seenEntry] = await Promise.all([
       dbGetAll<StoredCard>('cards'),
       dbGetAll<StoredSavedCardId>('savedCardIds'),
       dbGetAll<StoredCustomTopic>('customTopics'),
       dbGet<StoredFeedStateEntry>('feedState', 'cardIndices'),
+      dbGet<StoredFeedStateEntry>('feedState', 'seenIds'),
     ]);
 
     // We only store generated cards (source === 'generated') in IDB to avoid
@@ -229,10 +241,13 @@ export async function hydrateLearnState(): Promise<HydratedLearnState> {
       .map((r) => r.cardId);
 
     const cardIndices = (indicesEntry?.value as Record<string, number>) ?? {};
+    const seenIds = Array.isArray(seenEntry?.value)
+      ? (seenEntry.value as unknown[]).filter((v): v is string => typeof v === 'string')
+      : null;
 
-    return { userCards, savedCardIds, customTopics: topicsRows, cardIndices };
+    return { userCards, savedCardIds, customTopics: topicsRows, cardIndices, seenIds };
   } catch {
-    return { userCards: [], savedCardIds: [], customTopics: [], cardIndices: {} };
+    return { userCards: [], savedCardIds: [], customTopics: [], cardIndices: {}, seenIds: null };
   }
 }
 

@@ -12,6 +12,10 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b0b10' },
+  ],
 };
 
 export const metadata: Metadata = {
@@ -24,6 +28,12 @@ export const metadata: Metadata = {
       { url: '/favicon.ico', type: 'image/x-icon' },
     ],
     apple: [{ url: '/apple-touch-icon.png', type: 'image/png' }],
+  },
+  // iPhone: "Add to Home Screen" opens it full-screen like an app — the only way iOS lets a web app notify.
+  appleWebApp: {
+    capable: true,
+    title: 'LabNinja',
+    statusBarStyle: 'default',
   },
 };
 

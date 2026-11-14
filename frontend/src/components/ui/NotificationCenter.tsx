@@ -8,6 +8,7 @@ import {
   browserPermission,
   clearNotifications,
   enableBrowserNotifications,
+  sendTestNotification,
   getNotifications,
   getPrefs,
   getServerNotifications,
@@ -156,8 +157,14 @@ function SettingsView({ prefs }: { prefs: NotificationPrefs }) {
         </div>
       )}
       <Switch
+        label="Task reminders"
+        hint="At the exact time you set on a task, on every page"
+        checked={prefs.todoReminders}
+        onChange={(v) => setPrefs({ todoReminders: v })}
+      />
+      <Switch
         label="To-Do due dates"
-        hint="Tasks due today and overdue"
+        hint="A daily summary of tasks due today and overdue"
         checked={prefs.todoDue}
         onChange={(v) => setPrefs({ todoDue: v })}
       />
@@ -179,6 +186,25 @@ function SettingsView({ prefs }: { prefs: NotificationPrefs }) {
         checked={prefs.browser && permission === 'granted'}
         onChange={toggleBrowser}
       />
+      <div className="flex flex-wrap items-center gap-2 pt-2">
+        {prefs.browser && permission === 'granted' && (
+          <button
+            type="button"
+            onClick={() => void sendTestNotification()}
+            className="h-10 rounded-lg border border-border px-3 text-sm font-medium text-foreground hover:bg-muted"
+          >
+            Send a test notification
+          </button>
+        )}
+        <a
+          href="/notification-setup.html"
+          target="_blank"
+          rel="noopener"
+          className="inline-flex h-10 items-center rounded-lg px-3 text-sm font-medium text-primary hover:bg-muted"
+        >
+          Phone setup guide
+        </a>
+      </div>
     </div>
   );
 }

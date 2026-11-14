@@ -62,6 +62,7 @@ pnpm-lock.yaml
 # TypeScript build info
 *.tsbuildinfo
 next-env.d.ts
+.next-lint-scratch/
 
 # ESLint cache
 .eslintcache

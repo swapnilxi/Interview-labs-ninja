@@ -13,16 +13,18 @@ import QuickDaily from '@/modules/ai-todo/quick/QuickDaily';
 import SmartTodo from '@/modules/ai-todo/tasks/SmartTodo';
 import PlanProject from '@/modules/ai-todo/projects/PlanProject';
 import Goals from '@/modules/ai-todo/goals/Goals';
+import TodayView from '@/modules/ai-todo/today/TodayView';
+import VoiceCapture from '@/modules/ai-todo/capture/VoiceCapture';
 import { todoService } from '@/lib/services/todoService';
 
-const VALID_TABS: TodoTab[] = ['quick', 'smart', 'plan', 'goals'];
+const VALID_TABS: TodoTab[] = ['today', 'quick', 'smart', 'plan', 'goals'];
 
 function TodoPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const rawTab = searchParams.get('tab') as TodoTab | null;
-  const activeTab: TodoTab = rawTab && VALID_TABS.includes(rawTab) ? rawTab : 'quick';
+  const activeTab: TodoTab = rawTab && VALID_TABS.includes(rawTab) ? rawTab : 'today';
 
   const setActiveTab = useCallback((tab: TodoTab) => {
     // A section opens at its own top: the sub-view params of the section you are leaving (view=...) must not
@@ -33,6 +35,21 @@ function TodoPageInner() {
   }, [router, activeTab, searchParams]);
 
   const [model, setModel] = useState<'ollama' | 'gemini'>('gemini');
+  // The mic button (every tab on phones; the other tabs on desktop, where Today has the capture card in view) opens a
+  // sheet that starts listening at once. The home-screen shortcut "Speak a task" lands here with ?capture=voice.
+  const [voiceSheetOpen, setVoiceSheetOpen] = useState(false);
+  const captureParam = searchParams.get('capture');
+  useEffect(() => {
+    if (captureParam === 'voice') setVoiceSheetOpen(true);
+  }, [captureParam]);
+  const closeVoiceSheet = useCallback(() => {
+    setVoiceSheetOpen(false);
+    if (captureParam) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('capture');
+      router.replace(`/ai-todo?${params.toString()}`, { scroll: false });
+    }
+  }, [captureParam, router, searchParams]);
   // lg and up: the Copilot is a column that can be collapsed. Below lg it is a drawer opened from the header button.
   const [copilotOpen, setCopilotOpen] = useState(true);
   const [copilotSheetOpen, setCopilotSheetOpen] = useState(false);
@@ -163,7 +180,7 @@ function TodoPageInner() {
                 <div className="relative min-w-0">
                   <h1 className="font-heading text-2xl font-semibold leading-tight tracking-tight text-foreground">AI To-Do</h1>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Capture, plan and finish tasks with AI.
+                    Say a task. It lands with its date and reminder.
                   </p>
                 </div>
                 <div className="relative mt-1 flex shrink-0 items-center gap-2">
@@ -207,6 +224,10 @@ function TodoPageInner() {
               </div>
 
               {/* Tab Content */}
+              {activeTab === 'today' && (
+                <TodayView model={model} />
+              )}
+
               {activeTab === 'quick' && (
                 <QuickDaily model={model} />
               )}
@@ -332,6 +353,36 @@ function TodoPageInner() {
           )}
         </div>
       </div>
+
+      {/* Speak a task from anywhere in the To-Do: the floating mic and its sheet. */}
+      <button
+        type="button"
+        onClick={() => setVoiceSheetOpen(true)}
+        className={`vc-fab ${activeTab === 'today' ? 'vc-fab-today lg:hidden' : ''}`}
+        aria-label="Speak a task"
+        title="Speak a task (Alt/Option + N on Today)"
+      >
+        <Icon name="MicrophoneIcon" size={24} />
+      </button>
+      <Modal
+        isOpen={voiceSheetOpen}
+        onClose={closeVoiceSheet}
+        label="Speak a task"
+        backdropClassName="bg-black/45 backdrop-blur-sm"
+        overlayClassName="flex items-end justify-center sm:items-center"
+        className="vc-sheet"
+      >
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="font-heading text-base font-semibold text-foreground">Speak a task</p>
+          <button type="button" onClick={closeVoiceSheet} className="todo-btn todo-btn-ghost h-9 w-9 px-0" aria-label="Close">
+            <Icon name="XMarkIcon" size={18} />
+          </button>
+        </div>
+        <VoiceCapture model={model} compact listenOnMount onDone={closeVoiceSheet} />
+        <p className="mt-3 text-center text-xs text-muted-foreground">
+          Try “Remind me to call Priya tomorrow at 5” or “Pay rent on Friday, urgent”.
+        </p>
+      </Modal>
 
       {/* Conversion Drawer (Inbox slide-over) */}
       <Modal

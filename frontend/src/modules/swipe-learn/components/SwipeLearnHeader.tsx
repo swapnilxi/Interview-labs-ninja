@@ -2,86 +2,100 @@
 
 import React from 'react';
 import Icon from '@/components/ui/AppIcon';
+import type { SwipeLearnView } from '../types';
 
 interface SwipeLearnHeaderProps {
+  view: SwipeLearnView;
   savedCount: number;
-  onOpenSaved: () => void;
-  onOpenSettings: () => void;
+  onNavigate: (view: SwipeLearnView) => void;
   onGenerate: () => void;
+  onOpenSettings: () => void;
   isGenerating?: boolean;
 }
 
+const VIEWS: Array<{ id: SwipeLearnView; label: string; icon: string }> = [
+  { id: 'swipe', label: 'Swipe', icon: 'Square3Stack3DIcon' },
+  { id: 'scroll', label: 'Scroll', icon: 'QueueListIcon' },
+  { id: 'saved', label: 'Saved', icon: 'BookmarkIcon' },
+];
+
+/**
+ * One compact row: the view switch (the module's own navigation, so phones don't get a second bottom bar
+ * on top of the app's tab bar), then Generate and Settings. The brand only shows where there is room.
+ */
 export default function SwipeLearnHeader({
+  view,
   savedCount,
-  onOpenSaved,
-  onOpenSettings,
+  onNavigate,
   onGenerate,
+  onOpenSettings,
   isGenerating = false,
 }: SwipeLearnHeaderProps) {
   return (
-    <header className="w-full shrink-0 flex items-center justify-between gap-3 px-4 sm:px-[1.5rem] py-3 border-b border-border bg-background z-30">
-      {/* Brand: Logo + SwipeLearn Title */}
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="w-10 h-10 shrink-0 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground" style={{ boxShadow: '0 0 14px -2px color-mix(in srgb, var(--color-primary) 55%, transparent)' }}>
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L21.75 12l-4.179 2.25m0 0l4.179 2.25L12 21.75 2.25 16.5l4.179-2.25m11.142 0l-5.571 3-5.571-3" />
-          </svg>
+    <div className="z-30 flex w-full shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2 sm:px-4">
+      <div className="mr-1 hidden items-center gap-2.5 md:flex">
+        <div className="swipe-empty-icon flex h-9 w-9 items-center justify-center rounded-xl">
+          <Icon name="Square3Stack3DIcon" size={20} variant="solid" />
         </div>
-        <div className="min-w-0">
-          <h1 className="truncate text-lg sm:text-xl font-extrabold tracking-tight text-foreground font-heading leading-tight">
-            SwipeLearn
-          </h1>
-          <p className="text-[11px] text-muted-foreground hidden sm:block">
-            Micro-learning feed · Swipe to master
-          </p>
+        <div className="leading-tight">
+          <p className="font-heading text-base font-bold text-foreground">SwipeLearn</p>
+          <p className="text-xs text-muted-foreground">Micro-learning feed</p>
         </div>
       </div>
 
-      {/* Right Action Icons: Generate, Saved (with badge), Settings */}
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-        {/* Dynamic Generate Button */}
+      <nav aria-label="SwipeLearn views" className="swipe-seg">
+        {VIEWS.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => onNavigate(v.id)}
+            aria-current={view === v.id ? 'page' : undefined}
+            className="swipe-seg-btn"
+          >
+            <Icon
+              name={v.icon}
+              size={16}
+              variant={view === v.id ? 'solid' : 'outline'}
+              className="hidden sm:block"
+            />
+            <span>{v.label}</span>
+            {v.id === 'saved' && savedCount > 0 && (
+              <span className="swipe-count" aria-label={`${savedCount} saved`}>
+                {savedCount > 99 ? '99+' : savedCount}
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
+
+      <div className="ml-auto flex shrink-0 items-center gap-1">
         <button
           type="button"
           onClick={onGenerate}
           disabled={isGenerating}
-          className="todo-btn todo-btn-primary rounded-full px-3.5 py-2"
-          title="Generate fresh learning card using AI"
+          className="swipe-generate-btn"
+          aria-label="Generate new cards with AI"
+          title="Generate new cards with AI"
         >
           {isGenerating ? (
-            <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
-            <Icon name="SparklesIcon" size={14} variant="solid" />
+            <Icon name="SparklesIcon" size={17} variant="solid" />
           )}
-          <span>{isGenerating ? 'Generating...' : 'Generate'}</span>
+          <span className="hidden min-[430px]:inline">
+            {isGenerating ? 'Writing…' : 'Generate'}
+          </span>
         </button>
-
-        {/* Saved Cards Bookmark with Badge */}
-        <button
-          type="button"
-          onClick={onOpenSaved}
-          className="relative p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-          title="Saved Cards"
-          aria-label="View saved cards"
-        >
-          <Icon name="BookmarkIcon" size={22} />
-          {savedCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center shadow-sm">
-              {savedCount > 99 ? '99+' : savedCount}
-            </span>
-          )}
-        </button>
-
-        {/* Settings Gear Button */}
         <button
           type="button"
           onClick={onOpenSettings}
-          className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-          title="Gemini API & Settings"
-          aria-label="SwipeLearn Settings"
+          className="swipe-icon-btn"
+          aria-label="SwipeLearn settings"
+          title="Settings"
         >
-          <Icon name="Cog6ToothIcon" size={22} />
+          <Icon name="Cog6ToothIcon" size={21} />
         </button>
       </div>
-    </header>
+    </div>
   );
 }

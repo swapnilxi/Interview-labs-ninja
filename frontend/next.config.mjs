@@ -33,6 +33,20 @@ const nextConfig = {
     // To-Do suite (fe-apis/todo): seeds /tmp/lab_ninja.sqlite3 on a cold start like the routes above.
     '/api/todo/[...path]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/pareto/[...path]': ['../backend/data/lab_ninja.sqlite3'],
+    // Every other route that opens the database (fe-apis): without its own entry a Vercel function ships without the
+    // file and, unless Neon seeds /tmp (DATABASE_URL), starts on an empty database — the page then shows no data.
+    '/api/auth/profile': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/access-requests/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/admin/db/pull': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/admin/db/push': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/dsa/[...path]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/cv/[...path]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/system-design/[...path]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/lab-sections/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/lab-projects/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/sessions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/questions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/session-progress/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
   },
   typescript: {
     ignoreBuildErrors: false,
@@ -95,6 +109,16 @@ const nextConfig = {
       // DSA lab: only the week plan has a Next.js twin (fe-apis/dsaLab: the active plan, profiles, AI
       // organizer). ':path*' also matches the bare /dsa/week-plan; /dsa/topics etc. stay untouched.
       { source: '/dsa/week-plan/:path*', destination: '/api/dsa/week-plan/:path*' },
+      // Lab topics and sections (fe-apis/labs), Daily Session data (fe-apis/dailySession), the account's profile and
+      // access requests (fe-apis/account). No page lives under these paths (the pages are /dsa-lab, /cv-lab, ...).
+      { source: '/dsa/topics', destination: '/api/dsa/topics' },
+      { source: '/dsa/sections', destination: '/api/dsa/sections' },
+      { source: '/cv/:path+', destination: '/api/cv/:path+' },
+      { source: '/system-design/:path+', destination: '/api/system-design/:path+' },
+      { source: '/sessions/:path*', destination: '/api/sessions/:path*' },
+      { source: '/questions/:path*', destination: '/api/questions/:path*' },
+      { source: '/session-progress/:path*', destination: '/api/session-progress/:path*' },
+      { source: '/access-requests/:path*', destination: '/api/access-requests/:path*' },
     ];
   },
   // The reader's service worker (public/sw.js) must never be served stale, or

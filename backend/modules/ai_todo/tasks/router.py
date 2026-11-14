@@ -37,6 +37,7 @@ Endpoints:
     POST   /todo/tasks/eisenhower-auto             — AI-assign Eisenhower quadrants
     POST   /todo/tasks/ai-weekly-plan              — AI Mon-Fri weekly plan
     POST   /todo/ai/parse-task                     — AI-parse one NLP task string
+    POST   /todo/ai/voice-capture                  — AI-parse a spoken note into tasks with dates + reminders
     POST   /todo/ai/prioritize-all                 — AI priority/quadrant/Pareto sweep
     POST   /todo/ai/smart-schedule                  — AI energy-aware day schedule
   Cross-module moves
@@ -117,6 +118,7 @@ class TaskCreate(BaseModel):
     recurrence_custom_days: Optional[str] = None
     intention: Optional[str] = None
     definition_of_done: Optional[str] = None
+    remind_at: Optional[str] = None
 
 
 class TaskUpdate(BaseModel):
@@ -136,13 +138,14 @@ class TaskUpdate(BaseModel):
     is_top_20: Optional[bool] = None
     pareto_score: Optional[float] = None
     pareto_reason: Optional[str] = None
+    remind_at: Optional[str] = None
 
 
 # Columns a PATCH can empty by sending `null` (see shared/patch.py). Not title / status / priority /
 # is_recurring / is_top_20: a required column has no empty state, so `null` there still means "no change".
 TASK_NULLABLE = frozenset({
     "time_estimate", "due_date", "context", "attachments", "recurrence_interval", "recurrence_custom_days",
-    "intention", "definition_of_done", "eisenhower_quadrant", "pareto_score", "pareto_reason",
+    "intention", "definition_of_done", "eisenhower_quadrant", "pareto_score", "pareto_reason", "remind_at",
 })
 
 
@@ -232,6 +235,7 @@ async def create_task_endpoint(payload: TaskCreate, user_id: int = Depends(get_c
         recurrence_custom_days=payload.recurrence_custom_days,
         intention=payload.intention,
         definition_of_done=payload.definition_of_done,
+        remind_at=payload.remind_at,
     )
     return task
 
@@ -1479,6 +1483,102 @@ Return ONLY a valid JSON object matching the schema above."""
             "intention": None,
             "context": None,
         }
+
+
+class VoiceCaptureRequest(AISettings):
+    text: str
+    # The person's local date and time ("YYYY-MM-DDTHH:MM"), so "tomorrow at 5" resolves in their own timezone.
+    now: Optional[str] = None
+
+
+_VOICE_PRIORITIES = {"p1", "p2", "p3", "p4"}
+_VOICE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_VOICE_LOCAL_DT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
+
+
+def _clean_voice_tasks(items: Any) -> List[Dict[str, Any]]:
+    """Keep only well-formed tasks from the AI's answer (at most 10). Dates the model got wrong are dropped, not guessed."""
+    tasks: List[Dict[str, Any]] = []
+    if not isinstance(items, list):
+        return tasks
+    for item in items[:10]:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+        priority = item.get("priority")
+        due_date = item.get("due_date")
+        remind_at = item.get("remind_at")
+        time_estimate = item.get("time_estimate")
+        context = item.get("context")
+        tasks.append({
+            "title": title[:200],
+            "priority": priority if priority in _VOICE_PRIORITIES else "p3",
+            "due_date": due_date if isinstance(due_date, str) and _VOICE_DATE_RE.match(due_date) else None,
+            "remind_at": remind_at if isinstance(remind_at, str) and _VOICE_LOCAL_DT_RE.match(remind_at) else None,
+            "time_estimate": time_estimate.strip() if isinstance(time_estimate, str) and time_estimate.strip() else None,
+            "context": context.strip() if isinstance(context, str) and context.strip() else None,
+        })
+    return tasks
+
+
+@router.post("/ai/voice-capture")
+async def voice_capture_endpoint(payload: VoiceCaptureRequest) -> dict:
+    """Turn a spoken (or typed) note into one or more tasks, each with an optional due date and reminder.
+
+    `remind_at` comes back in the person's LOCAL time ("YYYY-MM-DDTHH:MM"); the browser converts it to UTC
+    before saving. TypeScript twin: `POST /ai/voice-capture` in frontend/fe-apis/todo/tasks/handlersPlanning.ts.
+    """
+    from datetime import datetime as _dt
+
+    text = payload.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Say or type what you need to do.")
+    now = None
+    if payload.now and _VOICE_LOCAL_DT_RE.match(payload.now):
+        try:
+            _dt.strptime(payload.now, "%Y-%m-%dT%H:%M")
+            now = payload.now
+        except ValueError:
+            now = None
+    if now is None:
+        now = _dt.now().strftime("%Y-%m-%dT%H:%M")
+    weekday = _dt.strptime(now, "%Y-%m-%dT%H:%M").strftime("%A")
+
+    prompt = f"""You turn a spoken note into to-do tasks.
+Current local date and time: {now} ({weekday}).
+
+Spoken note: "{text}"
+
+Return ONLY a JSON array with one object per separate thing the person wants to do or be reminded about:
+[
+  {{
+    "title": "Short imperative task title",
+    "priority": "p1|p2|p3|p4",
+    "due_date": "YYYY-MM-DD or null",
+    "remind_at": "YYYY-MM-DDTHH:MM or null",
+    "time_estimate": "30m|1h|2h or null",
+    "context": "Extra detail worth keeping, or null"
+  }}
+]
+Rules:
+- title: what to do, without filler ("remind me to", "I need to") and without the date or time words.
+- due_date: the local day the task is for when a day is said ("today", "tomorrow", "on Friday", "next week"), else null.
+- remind_at: the local date and time to remind. Set it when a time of day is said ("at 5", "this evening") or the person asks to be reminded; "remind me" with no time means 09:00 on the due date, or one hour from now when the task is for today. Else null.
+- A time said without a day is today if that time is still ahead, otherwise tomorrow.
+- priority: p1 for urgent or ASAP, p2 for important, p4 for "whenever" or "someday", else p3.
+- Never invent tasks that were not said. Keep the speaker's language.
+No extra text, no markdown blocks, just the raw JSON array."""
+
+    try:
+        response_text = _call_ai(prompt, payload)
+        tasks = _clean_voice_tasks(_extract_json_array(response_text))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI could not read that note: {exc}")
+    if not tasks:
+        raise HTTPException(status_code=502, detail="AI found no task in that note.")
+    return {"tasks": tasks}
 
 
 @router.post("/ai/prioritize-all")

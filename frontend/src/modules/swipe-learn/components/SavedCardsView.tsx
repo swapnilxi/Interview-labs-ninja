@@ -1,113 +1,124 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { ContentCard, TopicType } from '../types';
+import React, { useMemo, useState } from 'react';
+import type { ContentCard, QuizDisplayMode, TopicMeta } from '../types';
 import SwipeCardItem from './SwipeCardItem';
 import Icon from '@/components/ui/AppIcon';
-import BackButton from '@/components/ui/BackButton';
 
 interface SavedCardsViewProps {
   cards: ContentCard[];
+  topicById: (id: string) => TopicMeta | undefined;
+  quizMode: QuizDisplayMode;
   onRemoveSaved: (cardId: string) => void;
-  /** The feed this screen belongs to (the Back target). */
-  backHref: string;
-  /** "Start Swiping" in the empty state: opens the feed. */
-  onBackToFeed: () => void;
+  /** Empty state: back to the swipe deck. */
+  onStartSwiping: () => void;
 }
 
 export default function SavedCardsView({
   cards,
+  topicById,
+  quizMode,
   onRemoveSaved,
-  backHref,
-  onBackToFeed,
+  onStartSwiping,
 }: SavedCardsViewProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterTopic, setFilterTopic] = useState<TopicType | 'all'>('all');
+  const [query, setQuery] = useState('');
+  const [topicFilter, setTopicFilter] = useState<string>('all');
 
-  const filteredCards = useMemo(() => {
+  // Topics that have saved cards, in first-seen order.
+  const topicIds = useMemo(() => Array.from(new Set(cards.map((c) => c.topic))), [cards]);
+  const activeFilter =
+    topicFilter !== 'all' && topicIds.includes(topicFilter) ? topicFilter : 'all';
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
     return cards.filter((c) => {
-      const matchTopic = filterTopic === 'all' || c.topic === filterTopic;
-      const matchQuery =
-        !searchQuery.trim() ||
-        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
-      return matchTopic && matchQuery;
+      if (activeFilter !== 'all' && c.topic !== activeFilter) return false;
+      if (!q) return true;
+      return (
+        c.title.toLowerCase().includes(q) ||
+        c.content.toLowerCase().includes(q) ||
+        !!c.tags?.some((t) => t.toLowerCase().includes(q))
+      );
     });
-  }, [cards, filterTopic, searchQuery]);
+  }, [cards, activeFilter, query]);
+
+  if (cards.length === 0) {
+    return (
+      <div className="mx-auto flex w-full max-w-[420px] flex-1 flex-col items-center justify-center px-5 py-10 text-center animate-fadeIn">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl mix-bg-muted/80 text-muted-foreground">
+          <Icon name="BookmarkIcon" size={30} />
+        </div>
+        <h3 className="mt-4 font-heading text-xl font-bold text-foreground">Nothing saved yet</h3>
+        <p className="mt-1.5 max-w-[18rem] text-sm leading-relaxed text-muted-foreground">
+          Swipe a card right, or tap Save in the scroll feed, to keep it here.
+        </p>
+        <button type="button" onClick={onStartSwiping} className="swipe-primary-btn mt-5">
+          Start swiping
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full max-w-[540px] mx-auto px-4 py-4 space-y-5 pb-20">
-      {/* Top Header */}
-      <div className="flex items-center justify-between">
-        {/* Reachable from the header, the bottom bar and every feed: go back to wherever the user came from. */}
-        <BackButton href={backHref} label="Back to Feed" preferHistory />
-
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Icon name="BookmarkIcon" size={15} variant="solid" className="text-blue-600" />
-          <span>{cards.length} Saved Cards</span>
-        </div>
+    <div className="mx-auto w-full max-w-[560px] space-y-3 px-3 pb-8 pt-3 sm:space-y-4 sm:px-4">
+      <div className="relative">
+        <Icon
+          name="MagnifyingGlassIcon"
+          size={18}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={`Search ${cards.length} saved cards`}
+          aria-label="Search saved cards"
+          className="swipe-input swipe-input-search"
+        />
       </div>
 
-      {/* Search and Filters */}
-      <div className="space-y-2.5">
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search saved cards..."
-            className="w-full pl-9 pr-3.5 py-2 rounded-2xl bg-card border border-border/80 text-xs sm:text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
-          />
-          <div className="absolute left-3 top-2.5 text-muted-foreground">
-            <Icon name="MagnifyingGlassIcon" size={16} />
+      {topicIds.length > 1 && (
+        <div className="-mx-3 overflow-x-auto px-3 scrollbar-none sm:-mx-4 sm:px-4">
+          <div className="flex min-w-max gap-1.5">
+            {['all', ...topicIds].map((id) => {
+              const meta = id === 'all' ? null : topicById(id);
+              const count =
+                id === 'all' ? cards.length : cards.filter((c) => c.topic === id).length;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTopicFilter(id)}
+                  aria-pressed={activeFilter === id}
+                  data-active={activeFilter === id}
+                  className="swipe-pill"
+                >
+                  {meta && <span aria-hidden="true">{meta.emoji}</span>}
+                  <span>{id === 'all' ? 'All' : (meta?.label ?? id)}</span>
+                  <span className="tabular-nums opacity-70">{count}</span>
+                </button>
+              );
+            })}
           </div>
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground text-xs"
-            >
-              ✕
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
-      {/* Cards List */}
-      {filteredCards.length === 0 ? (
-        <div className="p-12 text-center rounded-3xl border border-border bg-card space-y-3 shadow-sm">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-muted flex items-center justify-center text-muted-foreground">
-            <Icon name="BookmarkSlashIcon" size={28} />
-          </div>
-          <h4 className="text-base font-bold text-foreground">No Saved Cards</h4>
-          <p className="text-xs text-muted-foreground max-w-[280px] mx-auto">
-            {cards.length === 0
-              ? 'Swipe right on any card or tap Save in Mixed mode to collect cards here.'
-              : 'No cards match your search filter.'}
-          </p>
-          <button
-            type="button"
-            onClick={onBackToFeed}
-            className="px-5 py-2 rounded-xl bg-primary text-white text-xs font-semibold shadow-sm"
-          >
-            Start Swiping
-          </button>
-        </div>
+      {filtered.length === 0 ? (
+        <p className="px-1 py-10 text-center text-sm text-muted-foreground">
+          No saved cards match “{query}”.
+        </p>
       ) : (
-        <div className="space-y-6">
-          {filteredCards.map((card) => (
-            <div key={card.id} className="relative group">
-              <SwipeCardItem
-                card={card}
-                mode="feed"
-                isSaved={true}
-                onSave={() => onRemoveSaved(card.id)}
-                onSkip={() => onRemoveSaved(card.id)}
-              />
-            </div>
-          ))}
-        </div>
+        filtered.map((card) => (
+          <SwipeCardItem
+            key={card.id}
+            card={card}
+            topic={topicById(card.topic)}
+            variant="saved"
+            quizMode={quizMode}
+            isSaved
+            onDismiss={() => onRemoveSaved(card.id)}
+          />
+        ))
       )}
     </div>
   );

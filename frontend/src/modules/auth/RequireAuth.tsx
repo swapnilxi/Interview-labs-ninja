@@ -84,7 +84,7 @@ export default function RequireAuth({ children, feature }: { children: React.Rea
                 Open Login Popup
               </button>
               <Link
-                href="/ai-todo?tab=quick"
+                href="/ai-todo?tab=today"
                 className="text-center text-xs text-muted-foreground hover:text-foreground transition-smooth"
               >
                 Your to-do lists stay fully usable as a guest →
