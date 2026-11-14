@@ -12,6 +12,8 @@ import {
 } from '@/lib/services/settingsService';
 import { API_BASE_URL } from '@/lib/http/apiClient';
 import AppearanceSettingsCard from './AppearanceSettingsCard';
+import AutoSaveStatus from '@/components/ui/AutoSaveStatus';
+import { useAutoSave } from '@/lib/ui/useAutoSave';
 import { SETTINGS_CARD, SettingsCardHeader } from './SettingsCard';
 import LabSettingsManager from '@/modules/common/lab/LabSettingsManager';
 import { LAB_CHIP, LAB_CHIP_ACCENT } from '@/modules/common/lab/WikiParts';
@@ -418,7 +420,7 @@ function envImportToast(
   fastapiMode: boolean
 ): ToastState {
   const { count, aiDefaultEnvs, followEnv, provider, model } = plan;
-  const parts = [`Imported ${count} value${count !== 1 ? 's' : ''} from .env.`];
+  const parts = [`Imported and saved ${count} value${count !== 1 ? 's' : ''} from .env.`];
   let type: ToastState['type'] = 'success';
   if (aiDefaultEnvs.length > 0 && followEnv.length === 0) {
     parts.push(
@@ -466,14 +468,12 @@ function envImportToast(
       }
     }
   }
-  parts.push('Click "Save Configuration" to persist.');
   return { type, message: parts.join(' ') };
 }
 
 export default function ConfigInteractive() {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
   const [configTab, setConfigTab] = useState<'providers' | 'labs'>('providers');
@@ -500,6 +500,18 @@ export default function ConfigInteractive() {
     imported: boolean;
   }>({ open: false, loading: false, found: [], missing: [], imported: false });
 
+  // ── Auto-save: no Save button; every user edit is saved once typing pauses ──
+  // (the initial load and Ollama auto-detection are not edits, so they alone never write).
+  const autosave = useAutoSave<UserSettings>(next => settingsService.saveSettings(next), 600);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const editSettings = (patch: Partial<UserSettings>) => {
+    const next = { ...settingsRef.current, ...patch };
+    settingsRef.current = next;
+    setSettings(next);
+    autosave.schedule(next);
+  };
+
   const fetchEnvPrefill = async () => {
     setEnvPanel(p => ({ ...p, open: true, loading: true, imported: false }));
     try {
@@ -517,7 +529,7 @@ export default function ConfigInteractive() {
 
   const importFromEnv = () => {
     const { patch } = envImportPlan;
-    setSettings(prev => ({ ...prev, ...patch }));
+    editSettings(patch);
     setEnvPanel(p => ({ ...p, imported: true }));
     const next = envImportToast(
       envImportPlan,
@@ -583,7 +595,7 @@ export default function ConfigInteractive() {
   };
 
   const handleChange = (key: keyof UserSettings, value: string) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    editSettings({ [key]: value } as Partial<UserSettings>);
     // Re-probe Ollama with a debounce when URL field changes
     if (key === 'ollamaUrl') {
       if (detectDebounceRef.current) clearTimeout(detectDebounceRef.current);
@@ -594,7 +606,7 @@ export default function ConfigInteractive() {
   const handleModelSelectChange = (key: 'textGenerationModel' | 'answerModel') => (value: string) => {
     if (value.startsWith('ollama::')) {
       const model = value.slice('ollama::'.length);
-      setSettings(prev => ({ ...prev, [key]: 'ollama', ollamaModel: model }));
+      editSettings({ [key]: 'ollama', ollamaModel: model } as Partial<UserSettings>);
       return;
     }
     handleChange(key, value);
@@ -617,22 +629,6 @@ export default function ConfigInteractive() {
       setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: false, ok: result.ok, message: result.message } }));
     } catch (err) {
       setTestStatus(prev => ({ ...prev, [fieldKey]: { loading: false, ok: false, message: err instanceof Error ? err.message : 'Test failed' } }));
-    }
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setToast(null);
-    try {
-      await settingsService.saveSettings(settings);
-      setToast({ type: 'success', message: 'Saved to this browser’s local storage.' });
-      setTimeout(() => setToast(null), 4000);
-    } catch (err) {
-      console.error(err);
-      setToast({ type: 'error', message: 'Failed to save — this browser may be blocking local storage (e.g. private/incognito mode).' });
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -714,8 +710,8 @@ export default function ConfigInteractive() {
         </div>
       )}
 
-      {/* ── Top Tabs: AI Models / Lab Prompts ── */}
-      <div className="flex">
+      {/* ── Top Tabs: AI Models / Lab Prompts (+ where the last edit stands; there is no Save button) ── */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div
           role="group"
           aria-label="Settings sections"
@@ -743,6 +739,14 @@ export default function ConfigInteractive() {
             </span>
           </button>
         </div>
+        {configTab === 'providers' && (
+          <AutoSaveStatus
+            state={autosave.state}
+            error={autosave.error}
+            onRetry={autosave.retry}
+            savedText="Saved in this browser"
+          />
+        )}
       </div>
 
       {configTab === 'labs' ? (
@@ -871,7 +875,7 @@ export default function ConfigInteractive() {
                           className="todo-btn todo-btn-quiet h-10 gap-2 px-4 text-sm"
                         >
                           {envPanel.imported ? (
-                            <><Icon name="CheckIcon" size={14} />Imported — save below</>
+                            <><Icon name="CheckIcon" size={14} />Imported and saved</>
                           ) : (
                             <>
                               <Icon name="ArrowDownTrayIcon" size={14} />
@@ -881,8 +885,7 @@ export default function ConfigInteractive() {
                           )}
                         </button>
                         <span className="text-xs text-muted-foreground">
-                          Values are copied into the fields below — hit{' '}
-                          <span className="font-semibold text-foreground">Save Configuration</span> to persist them.
+                          Values are copied into the fields below and saved automatically.
                         </span>
                       </div>
                     )}
@@ -892,7 +895,14 @@ export default function ConfigInteractive() {
             )}
           </div>
 
-      <form onSubmit={handleSave} className="space-y-[1.5rem]">
+      {/* Enter in a field saves right away instead of waiting for the pause. */}
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          void autosave.flush();
+        }}
+        className="space-y-[1.5rem]"
+      >
 
         {/* Model Configuration */}
         <div className={SETTINGS_CARD}>
@@ -1333,21 +1343,6 @@ export default function ConfigInteractive() {
           </div>
         </div>
 
-        {/* Save */}
-        <div className="flex justify-end gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="todo-btn todo-btn-primary h-10 gap-2 px-[1.5rem] text-sm"
-          >
-            {saving ? (
-              <span className="h-[1.125rem] w-[1.125rem] animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : (
-              <Icon name="CheckIcon" size={18} />
-            )}
-            Save Configuration
-          </button>
-        </div>
       </form>
         </>
       )}

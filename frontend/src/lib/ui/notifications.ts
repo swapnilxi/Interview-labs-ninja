@@ -254,11 +254,19 @@ export async function showDeviceNotification(input: DeviceNotificationInput): Pr
 
 /** "Send a test" in the notification settings: proves permission, the worker and the device all work. */
 export async function sendTestNotification(): Promise<boolean> {
+  if (browserNotificationsSupported()) {
+    if (browserPermission() === 'default') {
+      await enableBrowserNotifications();
+    } else if (browserPermission() === 'granted') {
+      setPrefs({ browser: true });
+    }
+  }
   return showDeviceNotification({
-    title: 'Reminders are working',
-    body: 'This is how a task reminder will look on this device.',
+    title: 'LabNinja Test Reminder 🔔',
+    body: 'Mobile notifications are active and working! Tap to open.',
     tag: 'labninja-test',
     href: '/ai-todo?tab=today',
+    requireInteraction: true,
   });
 }
 

@@ -15,6 +15,7 @@ import {
   getServerPrefs,
   markAllRead,
   markRead,
+  notify,
   removeNotification,
   setPrefs,
   subscribeNotifications,
@@ -24,6 +25,7 @@ import {
   type NotificationSource,
   type NotificationTone,
 } from '@/lib/ui/notifications';
+import { toast } from '@/lib/ui/toast';
 
 /**
  * Bell button + notification sheet. The bell sits in the app header and in the mobile tab bar.
@@ -273,6 +275,49 @@ function Panel({ onClose }: { onClose: () => void }) {
   const prefs = useSyncExternalStore(subscribeNotifications, getPrefs, getServerPrefs);
   const [filter, setFilter] = useState<Filter>('all');
   const [view, setView] = useState<'list' | 'settings'>('list');
+  const [testing, setTesting] = useState(false);
+
+  const handleTestNotification = async () => {
+    if (testing) return;
+    setTesting(true);
+    try {
+      const permBefore = browserPermission();
+      if (permBefore === 'unsupported') {
+        toast.error('Device notifications are not supported in this browser. On iOS, add to Home Screen first.');
+        notify({
+          source: 'system',
+          title: 'Test Notification (In-App) 🔔',
+          body: 'In-app notification working! Browser push is not supported in this browser view.',
+          tone: 'info',
+          href: '/ai-todo?tab=today',
+          toast: true,
+        });
+        return;
+      }
+      if (permBefore === 'denied') {
+        toast.error('Notifications are blocked. Please allow notifications in site settings.');
+        return;
+      }
+      const shown = await sendTestNotification();
+      notify({
+        source: 'daily-session',
+        title: 'Test Notification Received 🔔',
+        body: shown
+          ? 'Mobile device notification dispatched! Tap to test opening the app.'
+          : 'In-app test recorded. Allow browser permissions to receive system alerts.',
+        tone: shown ? 'success' : 'info',
+        href: '/ai-todo?tab=today',
+        toast: true,
+      });
+      if (shown) {
+        toast.success('Test alert sent! Check your notification shade.');
+      }
+    } catch {
+      toast.error('Could not send test notification.');
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const shown = filter === 'all' ? items : items.filter((n) => n.source === filter);
 
@@ -310,6 +355,18 @@ function Panel({ onClose }: { onClose: () => void }) {
             </span>
           )}
         </h2>
+        {view === 'list' && (
+          <button
+            type="button"
+            onClick={handleTestNotification}
+            disabled={testing}
+            title="Send test notification to mobile/device"
+            className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-semibold text-primary transition-all hover:bg-primary/20 active:scale-95 disabled:opacity-50"
+          >
+            <Icon name="BellAlertIcon" size={14} />
+            <span>{testing ? 'Sending…' : 'Test alert'}</span>
+          </button>
+        )}
         {view === 'list' && (
           <button
             type="button"
@@ -379,25 +436,38 @@ function Panel({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
-          {items.length > 0 && (
-            <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-2 sm:px-5">
-              <button
-                type="button"
-                onClick={markAllRead}
-                disabled={unread === 0}
-                className="h-10 rounded-lg px-3 text-[13px] font-semibold text-primary disabled:text-muted-foreground disabled:opacity-60"
-              >
-                Mark all read
-              </button>
-              <button
-                type="button"
-                onClick={clearNotifications}
-                className="h-10 rounded-lg px-3 text-[13px] font-semibold text-muted-foreground hover:text-error"
-              >
-                Clear all
-              </button>
+          <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-2 sm:px-5">
+            <button
+              type="button"
+              onClick={handleTestNotification}
+              disabled={testing}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary/10 px-3 text-xs font-semibold text-primary transition-all hover:bg-primary/20 active:scale-95 disabled:opacity-50"
+            >
+              <Icon name="BellAlertIcon" size={14} />
+              <span>{testing ? 'Sending…' : 'Test notification'}</span>
+            </button>
+            <div className="flex items-center gap-1">
+              {items.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={markAllRead}
+                    disabled={unread === 0}
+                    className="h-9 rounded-lg px-2.5 text-[13px] font-semibold text-primary disabled:text-muted-foreground disabled:opacity-60"
+                  >
+                    Mark all read
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearNotifications}
+                    className="h-9 rounded-lg px-2.5 text-[13px] font-semibold text-muted-foreground hover:text-error"
+                  >
+                    Clear all
+                  </button>
+                </>
+              )}
             </div>
-          )}
+          </div>
         </>
       )}
     </>

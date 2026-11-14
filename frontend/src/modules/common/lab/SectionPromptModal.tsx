@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useId } from 'react';
+import React, { useEffect, useRef, useState, useId } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import AutoSaveStatus from '@/components/ui/AutoSaveStatus';
+import { useAutoSave } from '@/lib/ui/useAutoSave';
 import type { LabName, SectionSettings } from '@/lib/services/labSectionsService';
 import { LABS_CONFIG, labTileStyle, type SectionDef } from './labSectionDefaults';
 
@@ -43,6 +45,23 @@ export default function SectionPromptModal({
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // ── Auto-save: every edit is saved once typing pauses; there is no Save button. ──
+  const payload = {
+    prompt: useCustomPrompt ? customPrompt.trim() : '',
+    addon: addon.trim(),
+    context: context.trim(),
+  };
+  const payloadKey = JSON.stringify(payload);
+  const autosave = useAutoSave<{ prompt: string; addon: string; context: string }>((vals) => onSave(vals), 900);
+  // What was last saved (or loaded): only a real change is written, so opening the dialog writes nothing.
+  const lastKeyRef = useRef(payloadKey);
+  const { schedule } = autosave;
+  useEffect(() => {
+    if (payloadKey === lastKeyRef.current) return;
+    lastKeyRef.current = payloadKey;
+    schedule(JSON.parse(payloadKey));
+  }, [payloadKey, schedule]);
+
   if (!isOpen) return null;
 
   const effectiveGuidance = useCustomPrompt ? customPrompt : defaultGuidance;
@@ -62,28 +81,19 @@ export default function SectionPromptModal({
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  const handleSave = async (generateNow = false) => {
+  /** "Generate now" (inside a lab): save what is on screen, then rewrite the section with it. */
+  const handleGenerate = async () => {
+    if (!onSaveAndGenerate) return;
     setIsSaving(true);
     setStatusMessage(null);
     try {
-      const payload = {
-        prompt: useCustomPrompt ? customPrompt.trim() : '',
-        addon: addon.trim(),
-        context: context.trim(),
-      };
-      if (generateNow && onSaveAndGenerate) {
-        await onSaveAndGenerate(payload);
-      } else {
-        await onSave(payload);
-      }
-      setStatusMessage({ type: 'success', text: 'Settings saved successfully' });
-      setTimeout(() => {
-        onClose();
-      }, 500);
+      await autosave.flush();
+      await onSaveAndGenerate(payload);
+      onClose();
     } catch (err) {
       setStatusMessage({
         type: 'error',
-        text: err instanceof Error ? err.message : 'Failed to save settings',
+        text: err instanceof Error ? err.message : 'Failed to generate',
       });
     } finally {
       setIsSaving(false);
@@ -439,37 +449,15 @@ Output rules:
             <Icon name="ArrowPathIcon" size={13} />
             Reset to Defaults
           </button>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="todo-btn todo-btn-ghost"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSave(false)}
-              disabled={isSaving}
-              className="todo-btn todo-btn-secondary"
-            >
-              {isSaving ? (
-                <>
-                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  <Icon name="CheckIcon" size={14} />
-                  Save Changes
-                </>
-              )}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <AutoSaveStatus state={autosave.state} error={autosave.error} onRetry={autosave.retry} />
+            <button type="button" onClick={onClose} disabled={isSaving} className="todo-btn todo-btn-secondary">
+              Done
             </button>
             {onSaveAndGenerate && (
               <button
                 type="button"
-                onClick={() => handleSave(true)}
+                onClick={handleGenerate}
                 disabled={isSaving}
                 className="todo-btn todo-btn-primary"
               >
@@ -481,7 +469,7 @@ Output rules:
                 ) : (
                   <>
                     <Icon name="SparklesIcon" size={14} />
-                    Save & Generate Now
+                    Generate Now
                   </>
                 )}
               </button>

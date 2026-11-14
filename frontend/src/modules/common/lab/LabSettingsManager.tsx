@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import AutoSaveStatus from '@/components/ui/AutoSaveStatus';
+import { useAutoSave } from '@/lib/ui/useAutoSave';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
 import {
   fetchLabSettings,
   saveLabSettings,
@@ -45,13 +48,48 @@ export default function LabSettingsManager({
   // Lab-wide edit state
   const [labWideAddon, setLabWideAddon] = useState<string>('');
   const [labWideContext, setLabWideContext] = useState<string>('');
-  const [savingLabWide, setSavingLabWide] = useState<boolean>(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const labMeta = LABS_CONFIG[selectedLab];
   const sectionDefs = getSectionDefsForLab(selectedLab);
+  const selectedLabRef = useRef(selectedLab);
+  selectedLabRef.current = selectedLab;
+
+  /** Keeps the local copy in step with a save, without reloading (a reload would reset fields being typed in). */
+  const applySaved = useCallback((lab: LabName, sectionId: string, values: SectionSettings) => {
+    if (lab !== selectedLabRef.current) return;
+    setSettings((prev) => {
+      const next = { ...prev };
+      if (values.prompt.trim() || values.addon.trim() || values.context.trim()) next[sectionId] = values;
+      else delete next[sectionId];
+      return next;
+    });
+  }, []);
+
+  // ── Lab-wide add-on / context: saved automatically once typing pauses (no Save button) ──
+  const labWideSave = useAutoSave<{ lab: LabName; addon: string; context: string }>(async (v) => {
+    if (!isLoggedIn()) throw new Error('sign in to save lab prompts');
+    const saved = await saveLabSettings(v.lab, LAB_WIDE_SECTION, {
+      prompt: '',
+      addon: v.addon.trim(),
+      context: v.context.trim(),
+    });
+    applySaved(v.lab, LAB_WIDE_SECTION, saved);
+    if (onSectionUpdated) onSectionUpdated(LAB_WIDE_SECTION);
+  }, 900);
+  const flushLabWide = labWideSave.flush;
+
+  const editLabWide = (patch: { addon?: string; context?: string }) => {
+    const addon = patch.addon ?? labWideAddon;
+    const context = patch.context ?? labWideContext;
+    setLabWideAddon(addon);
+    setLabWideContext(context);
+    labWideSave.schedule({ lab: selectedLab, addon, context });
+  };
 
   const loadSettings = useCallback(async (lab: LabName) => {
+    // Never let a reload overwrite an edit that is still waiting to be saved.
+    await flushLabWide();
     setLoading(true);
     try {
       const data = await fetchLabSettings(lab);
@@ -64,7 +102,7 @@ export default function LabSettingsManager({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [flushLabWide]);
 
   useEffect(() => {
     loadSettings(selectedLab);
@@ -75,31 +113,14 @@ export default function LabSettingsManager({
     setTimeout(() => setToast(null), 4000);
   };
 
-  const handleSaveLabWide = async () => {
-    setSavingLabWide(true);
-    try {
-      await saveLabSettings(selectedLab, LAB_WIDE_SECTION, {
-        prompt: '',
-        addon: labWideAddon.trim(),
-        context: labWideContext.trim(),
-      });
-      await loadSettings(selectedLab);
-      showToast('success', `${labMeta.shortName} global settings saved!`);
-      if (onSectionUpdated) onSectionUpdated(LAB_WIDE_SECTION);
-    } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Failed to save global settings');
-    } finally {
-      setSavingLabWide(false);
-    }
-  };
-
   const handleSaveSection = async (
     sectionId: string,
     vals: { prompt: string; addon: string; context: string }
   ) => {
-    await saveLabSettings(selectedLab, sectionId, vals);
-    await loadSettings(selectedLab);
-    showToast('success', 'Section configuration updated!');
+    // Called by the section dialog's auto-save, so no toast per save (the dialog shows its own status).
+    if (!isLoggedIn()) throw new Error('sign in to save lab prompts');
+    const saved = await saveLabSettings(selectedLab, sectionId, vals);
+    applySaved(selectedLab, sectionId, saved);
     if (onSectionUpdated) onSectionUpdated(sectionId);
   };
 
@@ -123,6 +144,7 @@ export default function LabSettingsManager({
       return;
     }
     try {
+      await flushLabWide();
       await resetLabSettings(selectedLab, 'all');
       await loadSettings(selectedLab);
       setLabWideAddon('');
@@ -176,7 +198,10 @@ export default function LabSettingsManager({
               <button
                 key={labKey}
                 type="button"
-                onClick={() => setSelectedLab(labKey)}
+                onClick={() => {
+                  void flushLabWide();
+                  setSelectedLab(labKey);
+                }}
                 aria-pressed={isSelected}
                 className={`todo-focus p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${
                   isSelected
@@ -258,7 +283,7 @@ export default function LabSettingsManager({
               rows={3}
               value={labWideAddon}
               maxLength={2000}
-              onChange={(e) => setLabWideAddon(e.target.value)}
+              onChange={(e) => editLabWide({ addon: e.target.value })}
               placeholder="e.g. Always write solutions in clean C++20 with complexity analysis, or focus on Staff-level distributed systems questions."
               className="todo-input resize-y px-3 py-2 text-[13px] leading-relaxed"
             />
@@ -275,7 +300,7 @@ export default function LabSettingsManager({
               rows={3}
               value={labWideContext}
               maxLength={2000}
-              onChange={(e) => setLabWideContext(e.target.value)}
+              onChange={(e) => editLabWide({ context: e.target.value })}
               placeholder="e.g. 7 years experience in backend engineering, preparing for Google/Meta L5 interviews, strong in systems but rusty on dynamic programming."
               className="todo-input resize-y px-3 py-2 text-[13px] leading-relaxed"
             />
@@ -294,7 +319,7 @@ export default function LabSettingsManager({
                 type="button"
                 onClick={() => {
                   if (labWideAddon.includes(item.text)) return;
-                  setLabWideAddon((p) => (p ? `${p.trim()}\n${item.text}` : item.text));
+                  editLabWide({ addon: labWideAddon ? `${labWideAddon.trim()}\n${item.text}` : item.text });
                 }}
                 className={`todo-focus text-xs px-2 py-1 rounded-md border transition-colors ${
                   labWideAddon.includes(item.text)
@@ -309,24 +334,11 @@ export default function LabSettingsManager({
         </div>
 
         <div className="flex justify-end pt-2">
-          <button
-            type="button"
-            onClick={handleSaveLabWide}
-            disabled={savingLabWide}
-            className="todo-btn todo-btn-primary"
-          >
-            {savingLabWide ? (
-              <>
-                <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                Saving…
-              </>
-            ) : (
-              <>
-                <Icon name="CheckIcon" size={13} />
-                Save Global Settings
-              </>
-            )}
-          </button>
+          <AutoSaveStatus
+            state={labWideSave.state}
+            error={labWideSave.error}
+            onRetry={labWideSave.retry}
+          />
         </div>
       </div>
 

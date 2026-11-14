@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Modal from '@/components/ui/Modal';
 import Icon from '@/components/ui/AppIcon';
+import AutoSaveStatus from '@/components/ui/AutoSaveStatus';
+import { useAutoSave } from '@/lib/ui/useAutoSave';
 import {
   GEMINI_MODEL_OPTIONS,
-  clearStoredGeminiKey,
   getConfigGeminiKey,
   getStoredGeminiKey,
   resolveGemini,
@@ -18,7 +19,7 @@ import {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Called after a save, so the module re-reads which key/model is in use. */
+  /** Called after each (automatic) save, so the module re-reads which key/model is in use. */
   onSaved: () => void;
   /** Forget which cards were swiped, so every deck starts over. */
   onResetProgress: () => void;
@@ -37,9 +38,31 @@ export default function SettingsModal({
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
+  // The model is only stored once picked here; until then it follows Config (or the default).
+  const modelTouched = useRef(false);
+
+  // No Save button: the key and model are saved as soon as typing pauses.
+  const autosave = useAutoSave<{ apiKey: string; model?: string }>((v) => {
+    saveStoredGeminiKey(v.apiKey);
+    if (v.model !== undefined) saveStoredGeminiModel(v.model);
+    onSaved();
+  }, 500);
+
+  const edit = (next: { apiKey?: string; model?: string }) => {
+    const key = next.apiKey ?? apiKey;
+    if (next.model !== undefined) modelTouched.current = true;
+    const nextModel = next.model ?? model;
+    autosave.schedule({ apiKey: key, model: modelTouched.current ? nextModel : undefined });
+  };
+
+  const close = () => {
+    void autosave.flush();
+    onClose();
+  };
 
   useEffect(() => {
     if (!isOpen) return;
+    modelTouched.current = false;
     setApiKey(getStoredGeminiKey());
     setConfigKey(getConfigGeminiKey());
     setModel(resolveGemini().model);
@@ -68,17 +91,10 @@ export default function SettingsModal({
     }
   };
 
-  const handleSave = () => {
-    saveStoredGeminiKey(apiKey);
-    saveStoredGeminiModel(model);
-    onSaved();
-    onClose();
-  };
-
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={close}
       labelledBy="swipe-settings-title"
       backdropClassName="bg-black/50 backdrop-blur-[2px]"
       overlayClassName="flex items-end justify-center sm:items-center sm:p-4"
@@ -94,7 +110,7 @@ export default function SettingsModal({
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={close}
           className="swipe-icon-btn -mr-2 -mt-1"
           aria-label="Close settings"
         >
@@ -129,6 +145,7 @@ export default function SettingsModal({
               value={apiKey}
               onChange={(e) => {
                 setApiKey(e.target.value);
+                edit({ apiKey: e.target.value });
                 setTestStatus('idle');
               }}
               placeholder={configKey ? 'Using the key from Config' : 'AIza…'}
@@ -183,6 +200,7 @@ export default function SettingsModal({
             value={model}
             onChange={(e) => {
               setModel(e.target.value);
+              edit({ model: e.target.value });
               setTestStatus('idle');
             }}
             className="swipe-input"
@@ -233,10 +251,11 @@ export default function SettingsModal({
             <button
               type="button"
               onClick={() => {
-                clearStoredGeminiKey();
+                // Through the auto-save, so a still-pending typed key can't be written back after this.
                 setApiKey('');
                 setTestStatus('idle');
-                onSaved();
+                edit({ apiKey: '' });
+                void autosave.flush();
               }}
               className="swipe-ghost-btn swipe-ghost-btn-danger"
             >
@@ -286,11 +305,15 @@ export default function SettingsModal({
       </div>
 
       <div className="flex items-center justify-end gap-2 border-t border-border px-5 pb-4 pt-3">
-        <button type="button" onClick={onClose} className="swipe-ghost-btn">
-          Cancel
-        </button>
-        <button type="button" onClick={handleSave} className="swipe-primary-btn swipe-btn-sm px-5">
-          Save
+        <AutoSaveStatus
+          state={autosave.state}
+          error={autosave.error}
+          onRetry={autosave.retry}
+          savedText="Saved in this browser"
+          className="mr-auto"
+        />
+        <button type="button" onClick={close} className="swipe-primary-btn swipe-btn-sm px-5">
+          Done
         </button>
       </div>
     </Modal>
