@@ -47,6 +47,9 @@ const nextConfig = {
     '/api/sessions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/questions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/session-progress/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/push/subscribe': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/push/test': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/push/sweep': ['../backend/data/lab_ninja.sqlite3'],
   },
   typescript: {
     ignoreBuildErrors: false,
