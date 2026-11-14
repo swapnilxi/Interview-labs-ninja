@@ -70,6 +70,9 @@ export const DEFAULT_TOPIC_METAS: TopicMeta[] = [
   },
 ];
 
+/** Saved on a browser's first visit, so the Saved screen isn't empty before the first swipe. */
+export const DEFAULT_SAVED_CARD_IDS = ['py-001', 'py-002'];
+
 export const SUGGESTED_CUSTOM_TOPICS = [
   { name: 'System Design', emoji: '🏗️', color: '#b36b17' },
   { name: 'Data Structures', emoji: '📊', color: '#6d6be8' },

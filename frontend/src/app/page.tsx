@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function RootPage() {
-  redirect('/ai-todo?tab=quick');
+  redirect('/ai-todo?tab=today');
 }

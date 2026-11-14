@@ -85,6 +85,7 @@ export const localTodoAdapter = {
       pareto_reason: null,
       pareto_locked: false,
       eisenhower_quadrant: data.eisenhower_quadrant ?? null,
+      remind_at: data.remind_at ?? null,
     };
     await put('tasks', task);
     return { ...task, children: [] };

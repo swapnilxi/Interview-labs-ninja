@@ -2,7 +2,9 @@
 
 import { useEffect } from 'react';
 import ToastHost from '@/components/ui/ToastHost';
-import { getPrefs, hasNotification, notify } from '@/lib/ui/notifications';
+import ReminderAlerts from '@/components/ui/ReminderAlerts';
+import { browserPermission, ensureServiceWorker, getPrefs, hasNotification, notify } from '@/lib/ui/notifications';
+import { startReminderEngine } from '@/lib/reminders/reminderEngine';
 import { todoService } from '@/lib/services/todoService';
 
 /**
@@ -10,6 +12,9 @@ import { todoService } from '@/lib/services/todoService';
  * reminders (daily session, due tasks). Reminders are checked on load, every few minutes, and
  * whenever the tab comes back to the foreground — there is no server push, so nothing fires
  * while the app is closed. Each reminder fires at most once per day (dedupeKey).
+ *
+ * It also starts the per-task reminder scheduler (lib/reminders/reminderEngine.ts: each task's own
+ * time, to the minute) and shows its in-app reminder cards (ReminderAlerts).
  */
 
 const CHECK_EVERY_MS = 5 * 60 * 1000;
@@ -91,6 +96,13 @@ async function checkTodoDue() {
 }
 
 export default function NotificationHost() {
+  // Exact-time task reminders, on every page. Notifications already allowed: make sure the service worker that
+  // delivers them on phones is registered (it may not be on a browser that turned them on before it existed).
+  useEffect(() => {
+    if (getPrefs().browser && browserPermission() === 'granted') void ensureServiceWorker();
+    return startReminderEngine();
+  }, []);
+
   useEffect(() => {
     const run = () => {
       if (document.visibilityState !== 'visible') return;
@@ -107,5 +119,10 @@ export default function NotificationHost() {
     };
   }, []);
 
-  return <ToastHost />;
+  return (
+    <>
+      <ToastHost />
+      <ReminderAlerts />
+    </>
+  );
 }

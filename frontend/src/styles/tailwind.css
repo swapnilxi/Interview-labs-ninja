@@ -2270,3 +2270,751 @@
     }
   }
 }
+
+/*
+ * AI To-Do — voice capture, Today agenda and reminders (TickTick/ClickUp-calm).
+ *
+ * One accent (the Settings colour, --color-primary) with a faint cyan partner for the only gradients: the capture
+ * card's wash, the mic button and the reminder card. Everything else is flat tokens, hairlines and soft fills.
+ * Every tint is color-mix()ed (theme colours are bare var()s, so Tailwind opacity modifiers would compile to nothing).
+ */
+@layer components {
+  .today-layout {
+    display: grid;
+    gap: 1.75rem;
+  }
+  @media (min-width: 1280px) {
+    .today-layout {
+      grid-template-columns: minmax(0, 1fr) 19.5rem;
+      gap: 2.5rem;
+      align-items: start;
+    }
+    .today-aside {
+      position: sticky;
+      top: 1rem;
+    }
+  }
+
+  /* ── Capture card ─────────────────────────────────────────────── */
+  .vc-card {
+    --vc-partner: #06b6d4;
+    position: relative;
+    border-radius: 1.25rem;
+    padding: 0.625rem 0.625rem 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
+    background:
+      radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--color-primary) 11%, transparent), transparent 58%),
+      radial-gradient(90% 140% at 100% 100%, color-mix(in srgb, var(--vc-partner) 8%, transparent), transparent 60%),
+      var(--color-card);
+    box-shadow:
+      0 1px 2px rgba(15, 12, 8, 0.04),
+      0 22px 44px -30px color-mix(in srgb, var(--color-primary) 55%, transparent);
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+  }
+  .vc-card:focus-within,
+  .vc-card[data-listening='true'] {
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--color-ring) 13%, transparent),
+      0 22px 44px -28px color-mix(in srgb, var(--color-primary) 60%, transparent);
+  }
+  .vc-card-compact,
+  .vc-card-compact:focus-within,
+  .vc-card-compact[data-listening='true'] {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .vc-row {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+  .vc-field {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .vc-input {
+    width: 100%;
+    height: 3rem;
+    border: 0;
+    background: transparent;
+    padding: 0 0.25rem;
+    font-size: 1rem; /* 16px: iPhone doesn't zoom the page on focus */
+    color: var(--color-foreground);
+    outline: none;
+  }
+  .vc-input::placeholder {
+    color: var(--color-muted-foreground);
+  }
+  .vc-live {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 0.25rem;
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+
+  .vc-mic {
+    position: relative;
+    display: inline-flex;
+    height: 3rem;
+    width: 3rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 52%, #06b6d4));
+    box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--color-primary) 80%, transparent);
+    transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  }
+  .vc-mic:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+  }
+  .vc-mic:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+  .vc-mic:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 3px var(--color-background),
+      0 0 0 5px var(--color-ring);
+  }
+  .vc-mic[data-state='busy'] {
+    filter: saturate(0.8);
+  }
+  .vc-mic[data-state='listening'] {
+    transform: scale(calc(1 + var(--vc-level, 0) * 0.1));
+    background: linear-gradient(135deg, #f43f5e, color-mix(in srgb, #f43f5e 60%, var(--color-primary)));
+    box-shadow: 0 10px 24px -10px rgba(244, 63, 94, 0.75);
+  }
+  .vc-mic[data-state='listening']::before,
+  .vc-mic[data-state='listening']::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 2px solid rgba(244, 63, 94, 0.45);
+    animation: vc-ring 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+    pointer-events: none;
+  }
+  .vc-mic[data-state='listening']::after {
+    animation-delay: 0.9s;
+  }
+  @keyframes vc-ring {
+    from {
+      transform: scale(1);
+      opacity: 0.9;
+    }
+    to {
+      transform: scale(1.7);
+      opacity: 0;
+    }
+  }
+
+  .vc-wave {
+    display: inline-flex;
+    height: 1.25rem;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+  .vc-wave i {
+    display: block;
+    width: 3px;
+    height: 100%;
+    border-radius: 9999px;
+    background: linear-gradient(to top, var(--color-primary), #06b6d4);
+    animation: vc-wave 1s ease-in-out infinite;
+    transform-origin: center;
+  }
+  .vc-wave i:nth-child(2) { animation-delay: 0.12s; }
+  .vc-wave i:nth-child(3) { animation-delay: 0.24s; }
+  .vc-wave i:nth-child(4) { animation-delay: 0.36s; }
+  .vc-wave i:nth-child(5) { animation-delay: 0.48s; }
+  @keyframes vc-wave {
+    0%, 100% { transform: scaleY(0.25); }
+    50% { transform: scaleY(1); }
+  }
+
+  .vc-add {
+    display: inline-flex;
+    height: 2.75rem;
+    width: 2.75rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: var(--color-primary);
+    color: var(--color-primary-foreground);
+    transition: transform 160ms ease, opacity 160ms ease, background-color 160ms ease;
+  }
+  .vc-add:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-primary) 88%, var(--color-foreground));
+  }
+  .vc-add:active:not(:disabled) {
+    transform: scale(0.94);
+  }
+  .vc-add:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .vc-add:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 3px var(--color-background),
+      0 0 0 5px var(--color-ring);
+  }
+
+  .vc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.25rem 0;
+  }
+  @media (min-width: 640px) {
+    .vc-card:not(.vc-card-compact) .vc-chips {
+      padding-left: calc(3rem + 0.875rem);
+    }
+  }
+
+  .vc-chip {
+    display: inline-flex;
+    max-width: 100%;
+    height: 1.875rem;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid transparent;
+    border-radius: 9999px;
+    padding: 0 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--color-muted-foreground);
+    background: color-mix(in srgb, var(--color-foreground) 5%, transparent);
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+  .vc-chip[data-set='true'] {
+    color: var(--color-foreground);
+    background: color-mix(in srgb, var(--color-primary) 9%, transparent);
+    border-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+  button.vc-chip:hover,
+  .vc-chip > button:hover {
+    color: var(--color-foreground);
+  }
+  button.vc-chip:hover {
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  }
+  button.vc-chip:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-ring);
+  }
+  .vc-chip-reminder[data-set='true'] svg {
+    color: var(--color-primary);
+  }
+  .vc-chip[data-overdue='true'],
+  .vc-chip-danger {
+    color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 9%, transparent);
+    border-color: color-mix(in srgb, var(--color-error) 24%, transparent);
+  }
+  .vc-chip[data-overdue='true'] svg {
+    color: var(--color-error);
+  }
+  .vc-chip-ghost {
+    background: transparent;
+  }
+  .vc-chip-ai {
+    color: var(--color-primary);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 12%, transparent), color-mix(in srgb, #06b6d4 10%, transparent));
+    border-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
+  }
+  .vc-chip-x {
+    display: inline-flex;
+    height: 1.125rem;
+    width: 1.125rem;
+    margin-right: -0.3rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    opacity: 0.7;
+  }
+  .vc-chip-x:hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--color-foreground) 10%, transparent);
+  }
+
+  .vc-error {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.25rem 0;
+    font-size: 0.8125rem;
+    color: var(--color-error);
+  }
+
+  .vc-review {
+    padding: 0.5rem 0.375rem 0.25rem;
+    animation: todo-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .vc-review-icon {
+    display: inline-flex;
+    height: 2.5rem;
+    width: 2.5rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.875rem;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 14%, transparent), color-mix(in srgb, #06b6d4 12%, transparent));
+  }
+  .vc-note {
+    margin-top: 0.625rem;
+    border-radius: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--color-muted-foreground);
+    background: color-mix(in srgb, var(--color-warning) 9%, transparent);
+  }
+  .vc-draft {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    border-radius: 0.875rem;
+    padding: 0.625rem 0.75rem;
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+    transition: opacity 150ms ease;
+  }
+  .vc-draft[data-off='true'] {
+    opacity: 0.5;
+  }
+  .vc-draft-check {
+    margin-top: 0.55rem;
+    height: 1.125rem;
+    width: 1.125rem;
+    flex-shrink: 0;
+    accent-color: var(--color-primary);
+  }
+  .vc-draft-title {
+    width: 100%;
+    min-height: 2.25rem;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    background: transparent;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-foreground);
+    outline: none;
+  }
+  .vc-draft-title:focus {
+    border-bottom-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+  }
+
+  /* ── Floating mic + its sheet ─────────────────────────────────── */
+  .vc-fab {
+    position: fixed;
+    z-index: 60;
+    right: max(1.25rem, env(safe-area-inset-right, 0px));
+    bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    display: inline-flex;
+    height: 3.5rem;
+    width: 3.5rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 52%, #06b6d4));
+    box-shadow:
+      0 14px 30px -12px color-mix(in srgb, var(--color-primary) 85%, transparent),
+      0 2px 6px rgba(0, 0, 0, 0.12);
+    transition: transform 160ms ease, filter 160ms ease;
+  }
+  .vc-fab:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.06);
+  }
+  /* On Today the capture card has its own mic: the floating one appears only once that card has scrolled away. */
+  .vc-fab-today {
+    transition: transform 200ms ease, opacity 200ms ease, filter 160ms ease;
+  }
+  body[data-capture-in-view='true'] .vc-fab-today {
+    opacity: 0;
+    transform: scale(0.85);
+    pointer-events: none;
+  }
+  .vc-fab:active {
+    transform: scale(0.94);
+  }
+  .vc-fab:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 3px var(--color-background),
+      0 0 0 5px var(--color-ring);
+  }
+  @media (max-width: 767px) {
+    html.has-mobile-tabs .vc-fab {
+      bottom: calc(1rem + var(--mobile-tab-h));
+    }
+  }
+  @media (min-width: 1024px) {
+    body:has(.todo-shell[data-copilot='open']) .vc-fab {
+      right: calc(320px + 1.5rem);
+    }
+    body:has(.todo-shell[data-copilot='collapsed']) .vc-fab {
+      right: calc(48px + 1.5rem);
+    }
+  }
+
+  .vc-sheet {
+    width: 100%;
+    max-width: 34rem;
+    border-radius: 1.5rem 1.5rem 0 0;
+    border: 1px solid var(--color-border);
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+    background:
+      radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 60%),
+      var(--color-card);
+    box-shadow: 0 -18px 50px -20px rgba(0, 0, 0, 0.45);
+    animation: vc-sheet-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (min-width: 640px) {
+    .vc-sheet {
+      border-radius: 1.5rem;
+      padding-bottom: 1rem;
+      box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.5);
+    }
+  }
+  @keyframes vc-sheet-in {
+    from {
+      transform: translateY(24px);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* ── Today agenda ─────────────────────────────────────────────── */
+  .agenda-head {
+    display: flex;
+    min-height: 2.25rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.5rem 0.25rem;
+  }
+  .agenda-title {
+    font-size: 0.8125rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    color: var(--color-foreground);
+  }
+  .agenda-group[data-group='overdue'] .agenda-title {
+    color: var(--color-error);
+  }
+  .agenda-count {
+    border-radius: 9999px;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-muted-foreground);
+    background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
+  }
+  .agenda-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .agenda-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.375rem;
+    padding: 0.375rem 0.375rem 0.5rem 0;
+  }
+  .agenda-row[data-fresh='true'] {
+    animation: agenda-fresh 1.6s ease-out both;
+  }
+  @keyframes agenda-fresh {
+    0% {
+      background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+      transform: translateY(-4px);
+    }
+    25% {
+      transform: none;
+    }
+    100% {
+      background: transparent;
+    }
+  }
+  .agenda-task-title {
+    display: block;
+    max-width: 100%;
+    padding-top: 0.5rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--color-foreground);
+    overflow-wrap: anywhere;
+  }
+  .agenda-row[data-done='true'] .agenda-task-title {
+    color: var(--color-muted-foreground);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--color-muted-foreground) 60%, transparent);
+  }
+  .agenda-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0.375rem;
+  }
+  .agenda-meta:empty {
+    display: none;
+  }
+  .agenda-parent {
+    font-size: 0.75rem;
+    color: var(--color-muted-foreground);
+  }
+  .agenda-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 1.25rem;
+    padding: 2.75rem 1.25rem;
+    text-align: center;
+    background:
+      radial-gradient(80% 120% at 50% 0%, color-mix(in srgb, var(--color-primary) 7%, transparent), transparent 70%),
+      color-mix(in srgb, var(--color-foreground) 3%, transparent);
+  }
+
+  /* Round check, TickTick-style: ring in the priority colour, filled when done. The button is the real 40px target;
+     the circle inside it is what you see. */
+  .prio-check {
+    display: inline-flex;
+    height: 2.5rem;
+    width: 2.5rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+  }
+  .prio-check:focus-visible {
+    outline: none;
+  }
+  .prio-check-dot {
+    display: inline-flex;
+    height: 1.25rem;
+    width: 1.25rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    border: 2px solid var(--prio, var(--color-muted-foreground));
+    background: color-mix(in srgb, var(--prio, transparent) 9%, transparent);
+    color: #fff;
+    transition: background-color 160ms ease, transform 160ms ease;
+  }
+  .prio-check:focus-visible .prio-check-dot {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 45%, transparent);
+  }
+  .prio-check-mark {
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+  .prio-check:hover .prio-check-mark {
+    opacity: 0.55;
+    color: var(--prio);
+  }
+  .prio-check[aria-checked='true'] .prio-check-dot {
+    background: var(--prio, var(--color-primary));
+    animation: prio-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .prio-check[aria-checked='true'] .prio-check-mark {
+    opacity: 1;
+    color: #fff;
+  }
+  @keyframes prio-pop {
+    50% {
+      transform: scale(1.18);
+    }
+  }
+
+  /* ── Tabs: the flat icon is colour on the current tab, quieter on the rest ── */
+  .todo-tab-icon {
+    filter: grayscale(0.55);
+    opacity: 0.75;
+    transition: filter 200ms ease, opacity 200ms ease, transform 200ms ease;
+  }
+  .todo-tab:hover .todo-tab-icon {
+    filter: none;
+    opacity: 1;
+  }
+  .todo-tab[aria-current='page'] .todo-tab-icon {
+    filter: none;
+    opacity: 1;
+    transform: scale(1.06);
+  }
+
+  /* ── "Turn on notifications" right under the capture card (below xl, where the side card is far down) ── */
+  .rem-nudge {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    border-radius: 1rem;
+    padding: 0.625rem 0.625rem 0.625rem 0.875rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--color-foreground);
+    border: 1px solid color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
+    background: color-mix(in srgb, var(--color-warning) 8%, var(--color-card));
+    animation: todo-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (min-width: 1280px) {
+    .rem-nudge {
+      display: none;
+    }
+  }
+
+  /* ── Reminder status card (Today's side column) ──────────────── */
+  .rem-status {
+    border-radius: 1.25rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    background:
+      radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, #06b6d4 8%, transparent), transparent 60%),
+      var(--color-card);
+  }
+  .rem-status-icon,
+  .rem-alert-icon {
+    display: inline-flex;
+    height: 2.5rem;
+    width: 2.5rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.875rem;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 14%, transparent), color-mix(in srgb, #06b6d4 12%, transparent));
+  }
+  .rem-status-dot {
+    margin-top: 0.375rem;
+    height: 0.625rem;
+    width: 0.625rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--color-warning);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-warning) 18%, transparent);
+  }
+  .rem-status[data-tone='on'] .rem-status-dot {
+    background: var(--color-success);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 18%, transparent);
+  }
+  .rem-tip {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    margin-top: 0.875rem;
+    border-radius: 0.875rem;
+    padding: 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--color-muted-foreground);
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  }
+
+  /* ── The reminder that goes off in the app ───────────────────── */
+  /* Desktop: top-right under the header, like a system notification, so it never covers a text box at the bottom;
+     on the To-Do page it keeps clear of the Copilot column. Phones: just above the tab bar, in thumb reach. */
+  .rem-alerts {
+    position: fixed;
+    z-index: 140;
+    top: calc(60px + var(--app-banner-h, 0px) + 0.75rem);
+    right: max(1rem, env(safe-area-inset-right, 0px));
+    display: flex;
+    width: min(23rem, calc(100vw - 2rem));
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  @media (min-width: 1024px) {
+    body:has(.todo-shell[data-copilot='open']) .rem-alerts {
+      right: calc(320px + 1rem);
+    }
+    body:has(.todo-shell[data-copilot='collapsed']) .rem-alerts {
+      right: calc(48px + 1rem);
+    }
+  }
+  @media (max-width: 767px) {
+    .rem-alerts {
+      top: auto;
+      right: 0.75rem;
+      left: 0.75rem;
+      bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+      width: auto;
+    }
+    html.has-mobile-tabs .rem-alerts {
+      bottom: calc(0.75rem + var(--mobile-tab-h));
+    }
+  }
+  .rem-alert {
+    border-radius: 1.25rem;
+    padding: 1rem;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+    color: var(--color-popover-foreground);
+    background:
+      radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 60%),
+      var(--color-popover);
+    box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.5);
+    animation: rem-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .rem-alert-icon {
+    animation: rem-ring 1.2s ease-in-out 0.3s 2;
+  }
+  @keyframes rem-in {
+    from {
+      transform: translateY(16px) scale(0.98);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+  @keyframes rem-ring {
+    0%, 100% { transform: rotate(0); }
+    15% { transform: rotate(-12deg); }
+    30% { transform: rotate(10deg); }
+    45% { transform: rotate(-8deg); }
+    60% { transform: rotate(5deg); }
+    75% { transform: rotate(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vc-mic,
+    .vc-mic[data-state='listening'],
+    .vc-fab {
+      transform: none;
+    }
+    .vc-mic[data-state='listening']::before,
+    .vc-mic[data-state='listening']::after,
+    .vc-wave i,
+    .vc-review,
+    .vc-sheet,
+    .agenda-row[data-fresh='true'],
+    .prio-check[aria-checked='true'] .prio-check-dot,
+    .rem-alert,
+    .rem-alert-icon {
+      animation: none;
+    }
+    .vc-wave i {
+      transform: scaleY(0.6);
+    }
+  }
+}

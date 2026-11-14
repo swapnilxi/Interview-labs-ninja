@@ -1,0 +1,694 @@
+/*
+ * SwipeLearn's own styles (imported by SwipeLearnModule.tsx). Plain CSS on the theme tokens, so it is free of the
+ * two Tailwind traps (no opacity modifiers on var() colours, no pixel spacing keys). The older .swipe-act /
+ * .swipe-pill / .swipe-banner* classes still live in styles/tailwind.css.
+ *
+ * An element that sets --tone tints its children with it (the card sets its topic hue).
+ */
+
+/* ── Light theme ink for the topic tones ──────────────────────────────────
+   The tone classes in styles/tailwind.css (.swipe-banner-label, .swipe-banner-chip, the active .swipe-pill)
+   mix the pastel hue toward white, which reads on dark but washes out on a light card. Mix toward the text
+   colour instead. */
+html:not(.dark) .swipe-banner-label {
+  color: color-mix(in srgb, var(--tone) 45%, var(--color-foreground));
+}
+html:not(.dark) .swipe-banner-chip {
+  color: color-mix(in srgb, var(--tone) 42%, var(--color-foreground));
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+  border-color: color-mix(in srgb, var(--tone) 40%, transparent);
+}
+html:not(.dark) .swipe-pill[data-active='true'] {
+  color: color-mix(in srgb, var(--tone) 45%, var(--color-foreground));
+}
+html:not(.dark) .swipe-hook,
+html:not(.dark) .swipe-link,
+html:not(.dark) .swipe-soft-btn,
+html:not(.dark) .swipe-option-letter {
+  color: color-mix(in srgb, var(--tone, var(--color-primary)) 48%, var(--color-foreground));
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+
+.swipe-card {
+  background: var(--color-card);
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 11%, transparent);
+  border-radius: 1.375rem;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 18px 40px -24px rgba(0, 0, 0, 0.45);
+}
+
+.swipe-card-scroll,
+.swipe-stack-card {
+  /* The browser keeps vertical scrolling; a horizontal drag is ours (the swipe). */
+  touch-action: pan-y;
+}
+
+.swipe-hook {
+  color: color-mix(in srgb, var(--tone, var(--color-primary)) 72%, var(--color-foreground));
+}
+
+.swipe-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--tone, var(--color-primary)) 70%, var(--color-foreground));
+}
+.swipe-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.swipe-soft-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.8rem;
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--tone, var(--color-primary)) 70%, var(--color-foreground));
+  background: color-mix(in srgb, var(--tone, var(--color-primary)) 12%, transparent);
+  transition: background-color 150ms ease;
+}
+.swipe-soft-btn:hover {
+  background: color-mix(in srgb, var(--tone, var(--color-primary)) 20%, transparent);
+}
+
+.swipe-quizme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  border: 1px dashed color-mix(in srgb, var(--tone, var(--color-primary)) 55%, transparent);
+  background: color-mix(in srgb, var(--tone, var(--color-primary)) 6%, transparent);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+.swipe-quizme:hover:not(:disabled) {
+  border-style: solid;
+  background: color-mix(in srgb, var(--tone, var(--color-primary)) 14%, transparent);
+}
+.swipe-quizme:disabled {
+  opacity: 0.6;
+}
+
+/* Quiz options */
+.swipe-option {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.875rem;
+  text-align: left;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-foreground) 3.5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 12%, transparent);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    opacity 150ms ease;
+}
+.swipe-option[data-state='idle']:hover {
+  border-color: color-mix(in srgb, var(--tone, var(--color-primary)) 55%, transparent);
+  background: color-mix(in srgb, var(--tone, var(--color-primary)) 8%, transparent);
+}
+.swipe-option[data-state='idle']:active {
+  transform: scale(0.99);
+}
+.swipe-option[data-state='correct'] {
+  border-color: rgba(16, 185, 129, 0.7);
+  background: rgba(16, 185, 129, 0.14);
+  font-weight: 600;
+}
+.swipe-option[data-state='wrong'] {
+  border-color: rgba(244, 63, 94, 0.7);
+  background: rgba(244, 63, 94, 0.12);
+  font-weight: 600;
+}
+.swipe-option[data-state='dim'] {
+  opacity: 0.55;
+}
+.swipe-option:disabled {
+  cursor: default;
+}
+
+.swipe-option-letter {
+  display: flex;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--tone, var(--color-primary)) 75%, var(--color-foreground));
+  background: color-mix(in srgb, var(--tone, var(--color-primary)) 14%, transparent);
+}
+.swipe-option[data-state='correct'] .swipe-option-letter {
+  color: #fff;
+  background: #10b981;
+}
+.swipe-option[data-state='wrong'] .swipe-option-letter {
+  color: #fff;
+  background: #f43f5e;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+
+.swipe-primary-btn,
+.swipe-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.875rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 0.95rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 120ms ease;
+}
+.swipe-primary-btn {
+  color: var(--color-primary-foreground);
+  background: var(--color-primary);
+}
+.swipe-primary-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 88%, var(--color-foreground));
+  box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
+.swipe-secondary-btn {
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-foreground) 4%, var(--color-card));
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 13%, transparent);
+}
+.swipe-secondary-btn:hover:not(:disabled) {
+  background: var(--color-muted);
+}
+.swipe-primary-btn:active:not(:disabled),
+.swipe-secondary-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.swipe-primary-btn:disabled,
+.swipe-secondary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.swipe-btn-sm {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.8rem;
+  font-size: 0.875rem;
+}
+.swipe-btn-sm.px-5 {
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.swipe-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.7rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.swipe-ghost-btn:hover {
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
+}
+.swipe-ghost-btn-danger {
+  color: #e11d48;
+}
+.dark .swipe-ghost-btn-danger {
+  color: #fb7185;
+}
+.swipe-ghost-btn-danger:hover {
+  color: #be123c;
+  background: rgba(244, 63, 94, 0.1);
+}
+.swipe-ghost-btn-on {
+  color: color-mix(in srgb, var(--color-primary) 80%, var(--color-foreground));
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.swipe-icon-btn {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.8rem;
+  color: var(--color-muted-foreground);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.swipe-icon-btn:hover {
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
+}
+
+.swipe-generate-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0 0.8rem;
+  border-radius: 0.8rem;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--color-primary-foreground);
+  background: var(--color-primary);
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.swipe-generate-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 88%, var(--color-foreground));
+  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
+.swipe-generate-btn:disabled {
+  opacity: 0.7;
+}
+
+/* ── Header: view switch ───────────────────────────────────────────────── */
+
+.swipe-seg {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--color-foreground) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 9%, transparent);
+}
+.swipe-seg-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border-radius: 0.7rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-muted-foreground);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+.swipe-seg-btn:hover {
+  color: var(--color-foreground);
+}
+.swipe-seg-btn[aria-current='page'] {
+  color: var(--color-foreground);
+  background: var(--color-card);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 0 0 1px color-mix(in srgb, var(--color-foreground) 8%, transparent);
+}
+.swipe-count {
+  display: inline-flex;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary-foreground);
+  background: var(--color-primary);
+}
+
+/* ── Deck ─────────────────────────────────────────────────────────────── */
+
+.swipe-progress {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-primary) 70%, #a78bfa),
+    var(--color-primary)
+  );
+  transition: width 300ms ease;
+}
+
+.swipe-stack-card {
+  transform-origin: 50% 100%;
+  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.swipe-stack-card[data-slot='1'] {
+  transform: translate3d(0, 10px, 0) scale(0.95);
+}
+.swipe-stack-card[data-slot='2'] {
+  transform: translate3d(0, 20px, 0) scale(0.9);
+  opacity: 0.7;
+}
+/* Cards underneath show only their edge; the next card's content fades in as the top one is dragged away
+   (--reveal is set while dragging). */
+.swipe-stack-card[data-slot='1'] .swipe-card > * {
+  opacity: var(--reveal, 0);
+  transition: opacity 150ms ease;
+}
+
+/* SAVE / SKIP stamps fade in with the drag (--save-o / --skip-o are set on the card while it moves). */
+.swipe-stamp {
+  position: absolute;
+  top: 3.6rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.5);
+}
+.swipe-stamp-save {
+  left: 1rem;
+  opacity: var(--save-o, 0);
+  transform: rotate(-8deg);
+  color: #fff;
+  background: rgba(16, 185, 129, 0.92);
+}
+.swipe-stamp-skip {
+  right: 1rem;
+  opacity: var(--skip-o, 0);
+  transform: rotate(8deg);
+  color: #fff;
+  background: rgba(244, 63, 94, 0.92);
+}
+
+.swipe-empty-icon {
+  color: color-mix(in srgb, var(--color-primary) 85%, var(--color-foreground));
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+/* ── Status strip (generating) and toast ──────────────────────────────── */
+
+.swipe-status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem 0.5rem 0.85rem;
+  border-radius: 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-card));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+.swipe-status-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--color-primary) 18%, transparent) 50%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: swipe-shimmer 1.4s linear infinite;
+}
+@keyframes swipe-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.swipe-toast {
+  display: flex;
+  max-width: min(26rem, calc(100vw - 2rem));
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.6rem 0.6rem 0.9rem;
+  border-radius: 0.95rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-background);
+  background: var(--color-foreground);
+  box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.55);
+  animation: swipe-toast-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+}
+.swipe-toast-error {
+  color: #fff;
+  background: #be123c;
+}
+.swipe-toast-action {
+  flex-shrink: 0;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.6rem;
+  font-weight: 700;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+@keyframes swipe-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Sheets (Generate, Settings, Add topic) ───────────────────────────── */
+
+.swipe-sheet-handle {
+  display: block;
+  width: 2.5rem;
+  height: 0.3rem;
+  margin: 0.6rem auto 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-muted-foreground) 35%, transparent);
+}
+@media (min-width: 640px) {
+  .swipe-sheet-handle {
+    display: none;
+  }
+}
+
+.swipe-field-label {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-muted-foreground);
+}
+
+.swipe-input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.85rem;
+  /* 16px keeps iOS Safari from zooming the page when the field gets focus. */
+  font-size: 1rem;
+  color: var(--color-foreground);
+  background: var(--color-input, var(--color-background));
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 14%, transparent);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.swipe-input-search {
+  padding-left: 2.5rem;
+}
+.swipe-input-pad-end {
+  padding-right: 3rem;
+}
+.swipe-input::placeholder {
+  color: color-mix(in srgb, var(--color-muted-foreground) 80%, transparent);
+}
+.swipe-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-primary) 65%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+@media (min-width: 640px) {
+  .swipe-input {
+    font-size: 0.875rem;
+  }
+}
+
+/* Format tiles */
+.swipe-choice {
+  display: flex;
+  min-height: 3.6rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.9rem;
+  text-align: left;
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-foreground) 3%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 11%, transparent);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+.swipe-choice:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+.swipe-choice[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--color-primary) 75%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+.swipe-choice-icon {
+  color: color-mix(in srgb, var(--color-primary) 80%, var(--color-foreground));
+}
+
+/* Segmented chips (count, level) */
+.swipe-chips {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--color-foreground) 5%, transparent);
+}
+.swipe-chip {
+  flex: 1 1 0;
+  min-height: 2.25rem;
+  padding: 0 0.4rem;
+  border-radius: 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-muted-foreground);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.swipe-chip:hover {
+  color: var(--color-foreground);
+}
+.swipe-chips-sm {
+  padding: 0.125rem;
+  border-radius: 999px;
+}
+.swipe-chips-sm .swipe-chip {
+  min-height: 1.75rem;
+  padding: 0 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+.swipe-chip[aria-pressed='true'] {
+  color: var(--color-foreground);
+  background: var(--color-card);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
+}
+/* Dark theme: the card surface is darker than the track, so a raised segment is lifted with a lighter fill. */
+.dark .swipe-chip[aria-pressed='true'],
+.dark .swipe-seg-btn[aria-current='page'] {
+  background: color-mix(in srgb, var(--color-foreground) 15%, var(--color-card));
+}
+
+/* Suggestion pills (focus ideas, suggested topics) */
+.swipe-suggest {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 11%, transparent);
+  transition: border-color 150ms ease;
+}
+.swipe-suggest:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
+}
+.swipe-suggest:disabled {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.swipe-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.85rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.swipe-note-warn {
+  color: color-mix(in srgb, #f59e0b 55%, var(--color-foreground));
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+.swipe-note-ok {
+  color: color-mix(in srgb, #10b981 55%, var(--color-foreground));
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.swipe-note-error {
+  color: color-mix(in srgb, #f43f5e 60%, var(--color-foreground));
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+.swipe-note-info {
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swipe-stack-card,
+  .swipe-progress {
+    transition: none;
+  }
+  .swipe-toast,
+  .swipe-status-shimmer {
+    animation: none;
+  }
+}

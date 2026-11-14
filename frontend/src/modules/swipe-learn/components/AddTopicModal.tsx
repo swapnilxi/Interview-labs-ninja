@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Modal from '@/components/ui/Modal';
 import Icon from '@/components/ui/AppIcon';
 import { TopicMeta } from '../types';
 import { SUGGESTED_CUSTOM_TOPICS } from '../data/defaultCards';
@@ -8,11 +9,41 @@ import { SUGGESTED_CUSTOM_TOPICS } from '../data/defaultCards';
 interface AddTopicModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddTopic: (topic: TopicMeta) => void;
+  /** `generateStarter`: also write a first batch of cards for it. */
+  onAddTopic: (topic: TopicMeta, generateStarter: boolean) => void;
   existingTopicIds: string[];
   customTopics: TopicMeta[];
   onRemoveCustomTopic: (topicId: string) => void;
+  /** A Gemini key is available (otherwise the starter-cards option is hidden). */
+  canGenerate: boolean;
 }
+
+// Topic icons are the user's pick, stored with the topic and shown on its pill.
+const EMOJI_OPTIONS = [
+  '💡',
+  '⚡',
+  '💻',
+  '🏗️',
+  '📊',
+  '📈',
+  '⚛️',
+  '☁️',
+  '☸️',
+  '📐',
+  '🧠',
+  '🛡️',
+  '🎯',
+  '🧪',
+  '🎨',
+  '🌍',
+]; // emoji-ok
+
+const slugify = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 export default function AddTopicModal({
   isOpen,
@@ -21,197 +52,215 @@ export default function AddTopicModal({
   existingTopicIds,
   customTopics,
   onRemoveCustomTopic,
+  canGenerate,
 }: AddTopicModalProps) {
   const [topicName, setTopicName] = useState('');
-  const [selectedEmoji, setSelectedEmoji] = useState('💡');
+  const [selectedEmoji, setSelectedEmoji] = useState('💡'); // emoji-ok
   const [errorMsg, setErrorMsg] = useState('');
+  const [generateStarter, setGenerateStarter] = useState(true);
 
-  if (!isOpen) return null;
-
-  const handleCreate = (name: string, emoji: string = '💡', color: string = '#6366f1') => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setErrorMsg('Please enter a topic name.');
-      return;
-    }
-
-    const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    if (existingTopicIds.includes(slug)) {
-      setErrorMsg(`Topic "${trimmed}" already exists.`);
-      return;
-    }
-
-    const newTopic: TopicMeta = {
-      id: slug,
-      label: trimmed,
-      emoji: emoji,
-      color: color,
-      bgActive: 'bg-indigo-600',
-      textActive: 'text-white',
-      isCustom: true,
-    };
-
-    onAddTopic(newTopic);
+  useEffect(() => {
+    if (!isOpen) return;
     setTopicName('');
     setErrorMsg('');
+  }, [isOpen]);
+
+  const handleCreate = (name: string, emoji: string = selectedEmoji, color: string = '#6366f1') => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setErrorMsg('Enter a topic name.');
+      return;
+    }
+    const slug = slugify(trimmed);
+    if (!slug || slug === 'mixed') {
+      setErrorMsg('Use letters or numbers in the name.');
+      return;
+    }
+    if (existingTopicIds.includes(slug)) {
+      setErrorMsg(`"${trimmed}" is already a topic.`);
+      return;
+    }
+    onAddTopic(
+      {
+        id: slug,
+        label: trimmed,
+        emoji,
+        color,
+        bgActive: 'bg-indigo-600',
+        textActive: 'text-white',
+        isCustom: true,
+      },
+      canGenerate && generateStarter
+    );
     onClose();
   };
 
-  const EMOJI_OPTIONS = ['💡', '⚡', '💻', '🏗️', '📊', '📈', '⚛️', '☁️', '☸️', '📐', '🧠', '🛡️', '🎯'];
-
   return (
-    <div className="fixed inset-0 z-[260] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-      <div
-        className="w-full max-w-[500px] rounded-t-3xl sm:rounded-3xl border border-border bg-card shadow-2xl overflow-hidden animate-slideUp sm:animate-scaleUp max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      labelledBy="swipe-add-topic-title"
+      backdropClassName="bg-black/50 backdrop-blur-[2px]"
+      overlayClassName="flex items-end justify-center sm:items-center sm:p-4"
+      className="notif-sheet flex w-full flex-col overflow-hidden border border-border bg-card shadow-2xl sm:max-w-[30rem]"
+    >
+      <form
+        className="flex min-h-0 flex-1 flex-col"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleCreate(topicName);
+        }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/70">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">＋</span>
-            <div>
-              <h3 className="font-heading text-base font-bold text-foreground">
-                Add Learning Topic
-              </h3>
-              <p className="text-[11px] text-muted-foreground">
-                Create a custom topic pill and generate AI cards for it
-              </p>
-            </div>
+        <span className="swipe-sheet-handle" aria-hidden="true" />
+        <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-3 sm:pt-5">
+          <div>
+            <h2
+              id="swipe-add-topic-title"
+              className="font-heading text-lg font-bold text-foreground"
+            >
+              Add a topic
+            </h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Anything you want short daily cards on
+            </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="theme-toggle"
+            className="swipe-icon-btn -mr-2 -mt-1"
             aria-label="Close"
           >
-            <Icon name="XMarkIcon" size={18} />
+            <Icon name="XMarkIcon" size={20} />
           </button>
         </div>
 
-        {/* Scrollable Form Content */}
-        <div className="p-6 space-y-5 overflow-y-auto flex-1">
-          {/* Custom Input */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-foreground">Topic Name</label>
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-4 scrollbar-clean">
+          <div>
+            <label htmlFor="swipe-topic-name" className="swipe-field-label">
+              Topic name
+            </label>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 px-2.5 py-2 rounded-2xl bg-input border border-border text-lg">
-                <span>{selectedEmoji}</span>
-              </div>
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border text-xl"
+                aria-hidden="true"
+              >
+                {selectedEmoji}
+              </span>
               <input
+                id="swipe-topic-name"
                 type="text"
                 value={topicName}
                 onChange={(e) => {
                   setTopicName(e.target.value);
                   setErrorMsg('');
                 }}
-                placeholder="e.g. System Design, React, AWS..."
-                className="flex-1 px-3.5 py-2.5 rounded-2xl bg-input border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                placeholder="e.g. Rust, Statistics, AWS…"
+                className="swipe-input"
                 maxLength={40}
+                autoComplete="off"
+                enterKeyHint="done"
               />
             </div>
             {errorMsg && (
-              <p className="text-xs text-rose-500 font-medium">{errorMsg}</p>
+              <p
+                className="mt-1.5 text-xs font-medium text-rose-600 dark:text-rose-400"
+                role="alert"
+              >
+                {errorMsg}
+              </p>
             )}
           </div>
 
-          {/* Quick Emoji Picker */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-muted-foreground">Select Icon</label>
-            <div className="flex flex-wrap gap-2">
+          <fieldset>
+            <legend className="swipe-field-label">Icon</legend>
+            <div className="flex flex-wrap gap-1.5">
               {EMOJI_OPTIONS.map((em) => (
                 <button
                   key={em}
                   type="button"
                   onClick={() => setSelectedEmoji(em)}
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm transition-transform ${
-                    selectedEmoji === em ? 'bg-primary/20 scale-110 border border-primary' : 'bg-muted/60 hover:bg-muted'
+                  aria-pressed={selectedEmoji === em}
+                  aria-label={`Icon ${em}`}
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl text-base transition-colors ${
+                    selectedEmoji === em
+                      ? 'swipe-empty-icon ring-2 ring-primary'
+                      : 'mix-bg-muted/60 hover:bg-muted'
                   }`}
                 >
                   {em}
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
 
-          {/* Suggested Topics Pills */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Suggested Topics
-            </label>
-            <div className="flex flex-wrap gap-2">
+          <div>
+            <p className="swipe-field-label">Suggestions</p>
+            <div className="flex flex-wrap gap-1.5">
               {SUGGESTED_CUSTOM_TOPICS.map((sug) => {
-                const isExisting = existingTopicIds.includes(
-                  sug.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-                );
+                const exists = existingTopicIds.includes(slugify(sug.name));
                 return (
                   <button
                     key={sug.name}
                     type="button"
-                    disabled={isExisting}
+                    disabled={exists}
                     onClick={() => handleCreate(sug.name, sug.emoji, sug.color)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                      isExisting
-                        ? 'opacity-40 border-border/40 text-muted-foreground line-through'
-                        : 'bg-card border-border/80 text-foreground hover:border-primary/50 hover:bg-primary/5 active:scale-95 shadow-sm'
-                    }`}
+                    className="swipe-suggest"
                   >
-                    <span>{sug.emoji}</span>
-                    <span>{sug.name}</span>
-                    {!isExisting && <span className="text-primary font-bold ml-0.5">+</span>}
+                    <span aria-hidden="true">{sug.emoji}</span>
+                    {sug.name}
+                    {!exists && (
+                      <Icon name="PlusIcon" size={14} className="text-muted-foreground" />
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Your Custom Topics (with remove option) */}
           {customTopics.length > 0 && (
-            <div className="pt-3 border-t border-border/60 space-y-2">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Your Custom Topics ({customTopics.length})
-              </label>
-              <div className="flex flex-wrap gap-2">
+            <div className="border-t border-border pt-4">
+              <p className="swipe-field-label">Your topics ({customTopics.length})</p>
+              <ul className="space-y-1">
                 {customTopics.map((ct) => (
-                  <div
-                    key={ct.id}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs font-semibold text-indigo-700 dark:text-indigo-300"
-                  >
-                    <span>{ct.emoji}</span>
-                    <span>{ct.label}</span>
+                  <li key={ct.id} className="flex items-center gap-2 rounded-xl py-1 pl-2 pr-1">
+                    <span aria-hidden="true">{ct.emoji}</span>
+                    <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
+                      {ct.label}
+                    </span>
                     <button
                       type="button"
                       onClick={() => onRemoveCustomTopic(ct.id)}
-                      className="text-muted-foreground hover:text-rose-500 font-bold ml-1 p-0.5"
+                      className="swipe-icon-btn"
+                      aria-label={`Remove ${ct.label}`}
                       title={`Remove ${ct.label}`}
                     >
-                      ✕
+                      <Icon name="TrashIcon" size={17} />
                     </button>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-border/60 flex items-center justify-end gap-2 bg-muted/20">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => handleCreate(topicName, selectedEmoji)}
-            disabled={!topicName.trim()}
-            className="px-5 py-2 rounded-2xl bg-primary text-white text-xs font-bold shadow-md shadow-primary/25 hover:bg-primary/90 transition-all disabled:opacity-50"
-          >
-            Add Topic Pill
+        <div className="space-y-3 border-t border-border px-5 pb-4 pt-3">
+          {canGenerate && (
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={generateStarter}
+                onChange={(e) => setGenerateStarter(e.target.checked)}
+                className="h-4 w-4 accent-[var(--color-primary)]"
+              />
+              Generate 5 starter cards for it
+            </label>
+          )}
+          <button type="submit" disabled={!topicName.trim()} className="swipe-primary-btn w-full">
+            <Icon name="PlusIcon" size={18} />
+            Add topic
           </button>
         </div>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }

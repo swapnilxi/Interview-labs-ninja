@@ -155,6 +155,52 @@ function loadsObjectSlice(raw: string): any {
   return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
 }
 
+// ── Voice capture helpers (twins of _clean_voice_tasks & co. in tasks/router.py) ──
+
+const VOICE_PRIORITIES = new Set(['p1', 'p2', 'p3', 'p4']);
+const VOICE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const VOICE_LOCAL_DT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** Python's `strptime(now, "%Y-%m-%dT%H:%M").strftime("%A")`: the weekday, or null for an impossible date/time. */
+function weekdayOf(localDt: string): string | null {
+  const [y, mo, d] = localDt.slice(0, 10).split('-').map(Number);
+  const hh = Number(localDt.slice(11, 13));
+  const mi = Number(localDt.slice(14, 16));
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  if (hh > 23 || mi > 59) return null;
+  return WEEKDAYS[(date.getUTCDay() + 6) % 7];
+}
+
+/** Python's `datetime.now().strftime("%Y-%m-%dT%H:%M")` (the server's local clock). */
+function serverLocalNow(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Port of `_clean_voice_tasks`: only well-formed tasks (at most 10); a malformed date is dropped, not guessed. */
+function cleanVoiceTasks(items: unknown): Row[] {
+  const tasks: Row[] = [];
+  if (!Array.isArray(items)) return tasks;
+  for (const item of items.slice(0, 10)) {
+    if (!isDict(item)) continue;
+    const title = (item.title ? String(item.title) : '').trim();
+    if (!title) continue;
+    const { priority, due_date: dueDate, remind_at: remindAt, time_estimate: estimate, context } = item;
+    tasks.push({
+      title: title.slice(0, 200),
+      priority: typeof priority === 'string' && VOICE_PRIORITIES.has(priority) ? priority : 'p3',
+      due_date: typeof dueDate === 'string' && VOICE_DATE_RE.test(dueDate) ? dueDate : null,
+      remind_at: typeof remindAt === 'string' && VOICE_LOCAL_DT_RE.test(remindAt) ? remindAt : null,
+      time_estimate: typeof estimate === 'string' && estimate.trim() ? estimate.trim() : null,
+      context: typeof context === 'string' && context.trim() ? context.trim() : null,
+    });
+  }
+  return tasks;
+}
+
 function pendingTasks(userId: number): Row[] {
   return getAllTasks(userId).filter((t) => t.status !== 'done');
 }
@@ -717,6 +763,58 @@ Return ONLY a valid JSON object matching the schema above.`;
           context: null,
         };
       }
+    },
+  },
+
+  /**
+   * Port of `POST /todo/ai/voice-capture` — a spoken (or typed) note to tasks, each with an optional due date and a
+   * LOCAL reminder time ("YYYY-MM-DDTHH:MM"; the browser converts it to UTC). Prompt and limits copied verbatim.
+   */
+  {
+    method: 'POST',
+    path: '/ai/voice-capture',
+    handler: async (ctx) => {
+      const body = await readBody(ctx);
+      const text = str(body, 'text').trim();
+      const sentNow = optStr(body, 'now');
+      if (!text) throw new HttpError(400, 'Say or type what you need to do.');
+      let now = sentNow && VOICE_LOCAL_DT_RE.test(sentNow) && weekdayOf(sentNow) ? sentNow : null;
+      if (now === null) now = serverLocalNow();
+      const weekday = weekdayOf(now);
+
+      const prompt = `You turn a spoken note into to-do tasks.
+Current local date and time: ${now} (${weekday}).
+
+Spoken note: "${text}"
+
+Return ONLY a JSON array with one object per separate thing the person wants to do or be reminded about:
+[
+  {
+    "title": "Short imperative task title",
+    "priority": "p1|p2|p3|p4",
+    "due_date": "YYYY-MM-DD or null",
+    "remind_at": "YYYY-MM-DDTHH:MM or null",
+    "time_estimate": "30m|1h|2h or null",
+    "context": "Extra detail worth keeping, or null"
+  }
+]
+Rules:
+- title: what to do, without filler ("remind me to", "I need to") and without the date or time words.
+- due_date: the local day the task is for when a day is said ("today", "tomorrow", "on Friday", "next week"), else null.
+- remind_at: the local date and time to remind. Set it when a time of day is said ("at 5", "this evening") or the person asks to be reminded; "remind me" with no time means 09:00 on the due date, or one hour from now when the task is for today. Else null.
+- A time said without a day is today if that time is still ahead, otherwise tomorrow.
+- priority: p1 for urgent or ASAP, p2 for important, p4 for "whenever" or "someday", else p3.
+- Never invent tasks that were not said. Keep the speaker's language.
+No extra text, no markdown blocks, just the raw JSON array.`;
+
+      let tasks: Row[];
+      try {
+        tasks = cleanVoiceTasks(extractJsonArray(await callAi(prompt, aiSettings(body))));
+      } catch (e) {
+        throw new HttpError(502, `AI could not read that note: ${errMsg(e)}`);
+      }
+      if (!tasks.length) throw new HttpError(502, 'AI found no task in that note.');
+      return { tasks };
     },
   },
 

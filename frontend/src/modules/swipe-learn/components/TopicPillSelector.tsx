@@ -10,13 +10,10 @@ interface TopicPillSelectorProps {
   selectedMode: FeedMode;
   onSelectMode: (mode: FeedMode) => void;
   onOpenAddTopic: () => void;
-  // Sub-tabs
   activeSubTab: string;
   onSelectSubTab: (subTabId: string) => void;
-  // Quiz display mode
   quizMode: QuizDisplayMode;
   onToggleQuizMode: (mode: QuizDisplayMode) => void;
-  // Learn mode toggle
   learnModeEnabled: boolean;
   onToggleLearnMode: () => void;
 }
@@ -33,10 +30,11 @@ export default function TopicPillSelector({
   learnModeEnabled,
   onToggleLearnMode,
 }: TopicPillSelectorProps) {
-  // Find current topic meta to see if it has sub-tabs
   const currentTopicMeta = topics.find((t) => t.id === selectedMode);
+  const subTabs = currentTopicMeta?.subTabs;
+  const showQuizToggle = selectedMode === 'quiz';
 
-  // Scrollable pill strip: the scrollbar is hidden, so support mouse wheel, click-drag and edge arrows.
+  // The strip hides its scrollbar: support the mouse wheel, click-drag and (mouse only) edge arrows.
   const stripRef = useRef<HTMLDivElement>(null);
   const drag = useRef({ active: false, moved: false, startX: 0, startLeft: 0 });
   const [edges, setEdges] = useState({ left: false, right: false });
@@ -64,127 +62,139 @@ export default function TopicPillSelector({
   }, [selectedMode]);
 
   const nudge = (dir: 1 | -1) =>
-    stripRef.current?.scrollBy({ left: dir * Math.max(160, (stripRef.current?.clientWidth ?? 0) * 0.6), behavior: 'smooth' });
+    stripRef.current?.scrollBy({
+      left: dir * Math.max(160, (stripRef.current?.clientWidth ?? 0) * 0.6),
+      behavior: 'smooth',
+    });
 
   return (
-    <div className="w-full sticky top-[60px] z-20 bg-background border-b border-border py-3 transition-all">
-      {/* 1. Main Horizontal Scrollable Topic Pills */}
+    <div className="w-full shrink-0 border-b border-border bg-background py-2">
       <div className="relative">
-      <div
-        ref={stripRef}
-        onScroll={updateEdges}
-        onWheel={(e) => {
-          const el = stripRef.current;
-          if (el && Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY;
-        }}
-        onPointerDown={(e) => {
-          if (e.pointerType !== 'mouse' || !stripRef.current) return;
-          drag.current = { active: true, moved: false, startX: e.clientX, startLeft: stripRef.current.scrollLeft };
-        }}
-        onPointerMove={(e) => {
-          const d = drag.current;
-          if (!d.active || !stripRef.current) return;
-          const dx = e.clientX - d.startX;
-          if (Math.abs(dx) > 5) d.moved = true;
-          if (d.moved) stripRef.current.scrollLeft = d.startLeft - dx;
-        }}
-        onPointerUp={() => { drag.current.active = false; }}
-        onPointerLeave={() => { drag.current.active = false; }}
-        onClickCapture={(e) => {
-          if (drag.current.moved) {
-            e.stopPropagation();
-            e.preventDefault();
-            drag.current.moved = false;
-          }
-        }}
-        className="w-full overflow-x-auto scrollbar-none px-4 sm:px-[1.5rem] cursor-grab active:cursor-grabbing"
-      >
-        <div className="flex items-center gap-2 min-w-max">
-          {topics.map((topic) => {
-            const isActive = selectedMode === topic.id;
-
-            return (
+        <div
+          ref={stripRef}
+          onScroll={updateEdges}
+          onWheel={(e) => {
+            const el = stripRef.current;
+            if (el && Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY;
+          }}
+          onPointerDown={(e) => {
+            if (e.pointerType !== 'mouse' || !stripRef.current) return;
+            drag.current = {
+              active: true,
+              moved: false,
+              startX: e.clientX,
+              startLeft: stripRef.current.scrollLeft,
+            };
+          }}
+          onPointerMove={(e) => {
+            const d = drag.current;
+            if (!d.active || !stripRef.current) return;
+            const dx = e.clientX - d.startX;
+            if (Math.abs(dx) > 5) d.moved = true;
+            if (d.moved) stripRef.current.scrollLeft = d.startLeft - dx;
+          }}
+          onPointerUp={() => {
+            drag.current.active = false;
+          }}
+          onPointerLeave={() => {
+            drag.current.active = false;
+          }}
+          onClickCapture={(e) => {
+            if (drag.current.moved) {
+              e.stopPropagation();
+              e.preventDefault();
+              drag.current.moved = false;
+            }
+          }}
+          className="w-full overflow-x-auto scroll-px-3 px-3 scrollbar-none sm:px-4"
+        >
+          <div className="flex min-w-max items-center gap-1.5">
+            {topics.map((topic) => (
               <button
                 key={topic.id}
                 type="button"
-                data-active={isActive}
+                data-active={selectedMode === topic.id}
+                aria-pressed={selectedMode === topic.id}
                 onClick={() => onSelectMode(topic.id)}
                 className="swipe-pill"
                 style={{ '--tone': topicHue(topic.id) } as React.CSSProperties}
               >
-                <span className="text-sm leading-none">{topic.emoji}</span>
+                <span className="text-sm leading-none" aria-hidden="true">
+                  {topic.emoji}
+                </span>
                 <span>{topic.label}</span>
-                {topic.isCustom && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-0.5" title="Custom topic" />
-                )}
               </button>
-            );
-          })}
+            ))}
 
-          {/* Learn Mode Pill Toggle */}
-          <button
-            type="button"
-            onClick={onToggleLearnMode}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-semibold border transition-all ${
-              learnModeEnabled
-                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40 shadow-sm'
-                : 'bg-card border-border/70 text-muted-foreground hover:text-foreground'
-            }`}
-            title="Toggle Learn Mode (Focus on deep conceptual cards)"
-          >
-            <span>💡</span>
-            <span>Learn Mode</span>
-          </button>
+            <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
 
-          {/* ＋ Add Topic Button */}
-          <button
-            type="button"
-            onClick={onOpenAddTopic}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-2xl text-xs font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-all active:scale-95 shadow-sm"
-            title="Add a custom learning topic"
-          >
-            <span className="text-sm leading-none">＋</span>
-            <span>Add Topic</span>
-          </button>
+            <button
+              type="button"
+              onClick={onToggleLearnMode}
+              data-active={learnModeEnabled}
+              aria-pressed={learnModeEnabled}
+              className="swipe-pill"
+              style={{ '--tone': '#f59e0b' } as React.CSSProperties}
+              title="Learn mode: only cards with a deeper explanation"
+            >
+              <Icon
+                name="LightBulbIcon"
+                size={15}
+                variant={learnModeEnabled ? 'solid' : 'outline'}
+              />
+              <span>Learn mode</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenAddTopic}
+              className="swipe-pill"
+              title="Add or remove your own topics"
+            >
+              <Icon name="PlusIcon" size={15} />
+              <span>Topic</span>
+            </button>
+          </div>
         </div>
-      </div>
-      {(['left', 'right'] as const).map((side) =>
-        edges[side] ? (
-          <button
-            key={side}
-            type="button"
-            onClick={() => nudge(side === 'left' ? -1 : 1)}
-            aria-label={side === 'left' ? 'Scroll topics left' : 'Scroll topics right'}
-            className={`absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition-transform hover:scale-105 active:scale-95 ${
-              side === 'left' ? 'left-2' : 'right-2'
-            }`}
-          >
-            <Icon name={side === 'left' ? 'ChevronLeftIcon' : 'ChevronRightIcon'} size={16} />
-          </button>
-        ) : null
-      )}
+
+        {/* Edge arrows for a mouse; a finger just swipes the strip. */}
+        {(['left', 'right'] as const).map((side) =>
+          edges[side] ? (
+            <button
+              key={side}
+              type="button"
+              onClick={() => nudge(side === 'left' ? -1 : 1)}
+              aria-label={side === 'left' ? 'Scroll topics left' : 'Scroll topics right'}
+              className={`absolute top-1/2 z-10 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition-transform hover:scale-105 active:scale-95 [@media(pointer:fine)]:flex ${
+                side === 'left' ? 'left-1.5' : 'right-1.5'
+              }`}
+            >
+              <Icon name={side === 'left' ? 'ChevronLeftIcon' : 'ChevronRightIcon'} size={16} />
+            </button>
+          ) : null
+        )}
       </div>
 
-      {/* 2. Sub-Tabs Bar (When active topic has sub-tabs or quiz mode toggle) */}
-      {(currentTopicMeta?.subTabs || selectedMode === 'quiz') && (
-        <div className="w-full overflow-x-auto scrollbar-none px-3 sm:px-5 pt-2 flex items-center justify-between gap-3 text-xs">
-          {/* Sub-tabs pills */}
-          {currentTopicMeta?.subTabs && (
-            <div className="flex items-center gap-1.5">
-              {currentTopicMeta.subTabs.map((st) => {
-                const isSubActive = activeSubTab === st.id;
+      {/* Sub-tabs (Interview Prep, Mixed) and the quiz/flashcard switch (Quiz deck) */}
+      {(subTabs || showQuizToggle) && (
+        <div className="mt-2 flex items-center gap-2 overflow-x-auto px-3 scrollbar-none sm:px-4">
+          {subTabs && (
+            <div className="flex min-w-max items-center gap-1">
+              {subTabs.map((st) => {
+                const active = activeSubTab === st.id;
                 return (
                   <button
                     key={st.id}
                     type="button"
                     onClick={() => onSelectSubTab(st.id)}
-                    className={`px-2.5 py-0.8 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${
-                      isSubActive
-                        ? 'bg-foreground text-background shadow-sm'
-                        : 'bg-muted/60 text-muted-foreground hover:text-foreground'
+                    aria-pressed={active}
+                    className={`flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors ${
+                      active
+                        ? 'bg-foreground text-background'
+                        : 'mix-bg-muted/70 text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    {st.emoji && <span>{st.emoji}</span>}
+                    {st.emoji && <span aria-hidden="true">{st.emoji}</span>}
                     <span>{st.label}</span>
                   </button>
                 );
@@ -192,27 +202,28 @@ export default function TopicPillSelector({
             </div>
           )}
 
-          {/* Quiz mode vs Flashcard mode toggle */}
-          {selectedMode === 'quiz' && (
-            <div className="flex items-center gap-1 p-0.5 rounded-xl bg-muted/60 border border-border/80 text-[11px] font-semibold ml-auto">
-              <button
-                type="button"
-                onClick={() => onToggleQuizMode('quiz')}
-                className={`px-2 py-0.5 rounded-lg transition-all ${
-                  quizMode === 'quiz' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-                }`}
-              >
-                ❓ Quiz Mode
-              </button>
-              <button
-                type="button"
-                onClick={() => onToggleQuizMode('flashcard')}
-                className={`px-2 py-0.5 rounded-lg transition-all ${
-                  quizMode === 'flashcard' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-                }`}
-              >
-                🎴 Flashcard
-              </button>
+          {showQuizToggle && (
+            <div
+              className="swipe-chips swipe-chips-sm ml-auto shrink-0"
+              role="group"
+              aria-label="Quiz display"
+            >
+              {(
+                [
+                  { id: 'quiz', label: 'Multiple choice' },
+                  { id: 'flashcard', label: 'Flashcards' },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => onToggleQuizMode(m.id)}
+                  aria-pressed={quizMode === m.id}
+                  className="swipe-chip"
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
           )}
         </div>

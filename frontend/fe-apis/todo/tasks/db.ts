@@ -42,6 +42,7 @@ function taskRowToDict(row: Row): Row {
     is_top_20: !!row.is_top_20,
     pareto_reason: row.pareto_reason ?? null,
     pareto_locked: !!row.pareto_locked,
+    remind_at: row.remind_at ?? null,
   };
 }
 
@@ -50,7 +51,7 @@ const TASK_COLUMNS =
   'generation_type, depth_level, context, attachments, created_at, updated_at, ' +
   'last_activity_at, is_recurring, recurrence_interval, recurrence_custom_days, ' +
   'recurrence_template_id, intention, definition_of_done, eisenhower_quadrant, ' +
-  'pareto_score, is_top_20, pareto_reason, pareto_locked';
+  'pareto_score, is_top_20, pareto_reason, pareto_locked, remind_at';
 
 /** Assemble flat task dicts into a forest (adds `children` to each, in place). */
 function buildTree(tasks: Row[]): Row[] {
@@ -69,7 +70,7 @@ function buildTree(tasks: Row[]): Row[] {
 }
 
 /** Port of `create_task`. */
-export function createTask(userId: number, title: string, opts: { parent_id?: number | null; status?: string; priority?: string; time_estimate?: string | null; due_date?: string | null; generation_type?: string; context?: string | null; attachments?: string[] | null; is_recurring?: number; recurrence_interval?: string | null; recurrence_custom_days?: string | null; recurrence_template_id?: number | null; intention?: string | null; definition_of_done?: string | null } = {}): Row {
+export function createTask(userId: number, title: string, opts: { parent_id?: number | null; status?: string; priority?: string; time_estimate?: string | null; due_date?: string | null; generation_type?: string; context?: string | null; attachments?: string[] | null; is_recurring?: number; recurrence_interval?: string | null; recurrence_custom_days?: string | null; recurrence_template_id?: number | null; intention?: string | null; definition_of_done?: string | null; remind_at?: string | null } = {}): Row {
   const {
     status = 'backlog',
     priority = 'p3',
@@ -84,6 +85,7 @@ export function createTask(userId: number, title: string, opts: { parent_id?: nu
     recurrence_template_id = null,
     intention = null,
     definition_of_done = null,
+    remind_at = null,
   } = opts;
   let parentId = opts.parent_id ?? null;
   return withTodoDb((db) => {
@@ -105,14 +107,14 @@ export function createTask(userId: number, title: string, opts: { parent_id?: nu
         generation_type, depth_level, context, attachments,
         created_at, updated_at, last_activity_at, is_recurring,
         recurrence_interval, recurrence_custom_days, recurrence_template_id,
-        intention, definition_of_done
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        intention, definition_of_done, remind_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       userId, parentId, title, status, priority, time_estimate, due_date,
       generation_type, depthLevel, context, attachmentsJson,
       now, now, now, is_recurring,
       recurrence_interval, recurrence_custom_days, recurrence_template_id,
-      intention, definition_of_done,
+      intention, definition_of_done, remind_at,
     );
     return taskRowToDict(db.get(`SELECT ${TASK_COLUMNS} FROM tasks WHERE id = ?`, lastInsertRowid)!);
   });
@@ -194,7 +196,7 @@ const TASK_UPDATE_FIELDS = new Set([
   'recurrence_interval', 'recurrence_custom_days',
   'recurrence_template_id', 'intention', 'definition_of_done',
   'eisenhower_quadrant', 'pareto_score', 'is_top_20',
-  'pareto_reason', 'pareto_locked',
+  'pareto_reason', 'pareto_locked', 'remind_at',
 ]);
 
 /**
@@ -518,6 +520,27 @@ function calculateNextDueDate(currentDue: string | null, interval: string, custo
   return isoDate(addDays(baseDate, 1));
 }
 
+/**
+ * Port of `_shift_reminder`: the next occurrence of a recurring task keeps its reminder, moved by as many days
+ * as its due date moved. Same output as Python (ms precision, `Z`); null when anything is missing or malformed.
+ */
+function shiftReminder(remindAt: string | null | undefined, oldDue: string | null | undefined, newDue: string | null | undefined): string | null {
+  if (!remindAt || !oldDue || !newDue) return null;
+  const day = (iso: string): number | null => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.slice(0, 10));
+    if (!m) return null;
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    const t = Date.UTC(y, mo - 1, d);
+    const back = new Date(t);
+    return back.getUTCFullYear() === y && back.getUTCMonth() === mo - 1 && back.getUTCDate() === d ? t : null;
+  };
+  const from = day(oldDue);
+  const to = day(newDue);
+  const moment = Date.parse(remindAt);
+  if (from === null || to === null || Number.isNaN(moment)) return null;
+  return new Date(moment + (to - from)).toISOString();
+}
+
 /** Port of `clone_recurring_task`: clones the task and its whole subtree; returns the new task id. */
 export function cloneRecurringTask(taskId: number, userId: number, nextDueDate: string): number {
   return withTodoDb(() => {
@@ -537,6 +560,7 @@ export function cloneRecurringTask(taskId: number, userId: number, nextDueDate: 
       recurrence_template_id: templateId,
       intention: task.intention,
       definition_of_done: task.definition_of_done,
+      remind_at: shiftReminder(task.remind_at, task.due_date, nextDueDate),
     });
 
     cloneTaskRecursive(task.id, newTask.id, userId);

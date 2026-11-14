@@ -40,7 +40,8 @@
  *                                                --only for several); exit 1 on a hit. A fragment that matches no scanned file
  *                                                exits 2, so a typo cannot pass as green (a path outside TODO_ROOTS needs --all).
  * Rules per root: `daily-session` runs only dead-opacity, pixel, palette-alpha, invalid-keys and mix-unknown (its
- * tiny text and emoji are the gamified feature; ROOT_RULES below). The lab visual system these roots follow is
+ * tiny text and emoji are the gamified feature); `swipe-learn` runs every rule but emoji (topic emoji are content;
+ * ROOT_RULES below). The lab visual system these roots follow is
  * described in README.md ("Lab visual system").
  * Background: ai-to-do.md, item 1.5.
  */
@@ -69,6 +70,8 @@ const TODO_ROOTS = [
   'src/modules/config',
   'src/app/config',
   'src/modules/daily-session',
+  'src/modules/swipe-learn',
+  'src/app/swipe-learn',
 ];
 const ALL_RULES = [
   'emoji',
@@ -83,6 +86,17 @@ const ALL_RULES = [
 const ROOT_RULES = {
   'src/modules/daily-session': [
     'dead-opacity',
+    'pixel',
+    'palette-alpha',
+    'invalid-keys',
+    'mix-unknown',
+  ],
+  // SwipeLearn's seed cards are content, not markup: ids like `py-001` read as spacing classes.
+  'src/modules/swipe-learn/data': [],
+  // SwipeLearn: topic emoji are content (seed data, and the icon a user picks for a custom topic).
+  'src/modules/swipe-learn': [
+    'dead-opacity',
+    'tiny-text',
     'pixel',
     'palette-alpha',
     'invalid-keys',
@@ -258,7 +272,7 @@ function* files(path) {
   }
 }
 
-/** The rules that run on a file: all of them, unless it sits under a ROOT_RULES prefix. */
+/** The rules that run on a file: all of them, unless it sits under a ROOT_RULES prefix (the first match wins). */
 function rulesFor(rel) {
   for (const [prefix, rules] of Object.entries(ROOT_RULES)) {
     if (rel === prefix || rel.startsWith(`${prefix}/`)) return new Set(rules);

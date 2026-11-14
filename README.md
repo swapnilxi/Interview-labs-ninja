@@ -509,6 +509,33 @@ at `/ai-todo` in the frontend (the old `/todo` page URL redirects there; `/todo/
 node trees with AI roadmaps) — plus a Copilot sidebar, a cross-tab "80/20" Pareto
 analysis, and a floating Distraction Inbox for capturing off-task thoughts.
 
+### Today, voice capture and reminders
+
+`/ai-todo` opens on **Today** (`?tab=today`, `modules/ai-todo/today/TodayView.tsx`): a capture card, then the
+Smart To-Do tasks grouped Overdue · Today · Tomorrow · Next 7 days · Anytime (sub-steps without a date are left out of
+Anytime). The other tabs are unchanged; a floating mic (`.vc-fab`) opens the same capture in a sheet from any tab.
+
+- **Capture** (`modules/ai-todo/capture/`): typing is read on the device by `src/lib/reminders/smartParse.ts`
+  (TickTick-style: "call mom tomorrow at 5pm" → title, due date, local reminder, priority; chips with × to undo a
+  reading). Speaking goes through `useVoiceNote` (browser speech recognition with live words, or Deepgram when enabled
+  and logged in) and then, when logged in, `POST /todo/ai/voice-capture` — an AI split into tasks with `due_date` and a
+  LOCAL `remind_at` ("YYYY-MM-DDTHH:MM", the client sends its local `now`). Guests and AI failures fall back to
+  `splitNote` + `smartParse`. The endpoint exists in `tasks/router.py` and `fe-apis/todo/tasks/handlersPlanning.ts`
+  with byte-identical prompts — change both.
+- **Reminders**: tasks have a `remind_at` column (UTC ISO 8601, nullable, PATCH-clearable; both backends' schema
+  migrations and the guest IndexedDB adapter). A recurring task's next copy gets the reminder shifted by the same number
+  of days (`_shift_reminder` / `shiftReminder`, same output format). `src/lib/reminders/reminderEngine.ts`, started by
+  `NotificationHost` on every page, fires each reminder at its minute (in-app `ReminderAlerts` card with Done/Snooze/
+  Open, a notification-centre entry, and a device notification via the service worker when the tab is not focused);
+  more than 15 minutes late counts as "missed". `todoService` dispatches `todo:tasks-changed` after a create/update/
+  delete so a new reminder is scheduled at once.
+- **Device delivery**: `showDeviceNotification` (`src/lib/ui/notifications.ts`) uses the active service worker
+  (`public/sw.js`, which also handles notification taps and a ready-made `push` handler), falling back to the page
+  Notification API on desktop. `src/app/manifest.ts` + `public/icons/` make the app installable, which iOS requires
+  for web notifications. Nothing fires while no tab is open — server push (VAPID + a scheduled sweep) is still to do.
+  The user-facing setup guide and the done/pending list live in `frontend/public/notification-setup.html`
+  (served at `/notification-setup.html`, linked from the app).
+
 ### Backend layout (`backend/modules/ai-todo/`)
 
 | File | Responsibility |
@@ -645,6 +672,23 @@ A local-first document reader that converts PDFs and study notes into swipeable 
 - **Formatting Preservation**: Preserves paragraph breaks, line breaks, bullet lists, page transitions, and section headers.
 - **Card Deck Capabilities**: Swipe navigation, bookmarking, reading progress resume, search, jump-to-chunk, and storage quota manager.
 
+## SwipeLearn Module (`/swipe-learn`)
+
+A swipeable micro-learning feed (Python, CV, Finance, AI, Interview Prep, Quiz, plus user-added topics). Entirely
+client-side: no backend endpoint, works the same in `fastapi` and `nextjs-api` mode and for guests.
+
+- **Screens live in the URL**: `?topic=<id>` (`mixed` = every topic), `?tab=scroll` (the same cards as a vertical
+  feed), `?tab=saved`. The old `?tab=mixed` is rewritten to `?tab=scroll&topic=mixed`.
+- **Generation on demand** (`services/geminiService.ts`): one Gemini call from the browser returns a batch of
+  1-10 cards (type, count, level and a free-text focus from the Generate sheet; "Quiz me on this" writes questions
+  about one card). Key: SwipeLearn's own key (its Settings sheet), else the Gemini key saved on the Config page.
+  Errors are typed (`no-key`, `auth`, `quota`, `model`, ...) and shown with a Settings/Retry action; there is no
+  offline filler card. It does **not** go through the shared AI provider layer, so only Gemini works here.
+- **State** (IndexedDB `labninja-swipe-learn`, `swipeLearnDb.ts`): generated cards, saved ids, custom topics, and
+  `feedState.seenIds` (cards already swiped, any topic). A deck is "this topic's cards not in seenIds", so new cards
+  can be inserted anywhere without shifting anyone's place. Generated cards lead their deck, newest batch first.
+- Styles: the module's own `swipe-learn.css` (plain CSS on the theme tokens); `check:tailwind` covers the folder.
+
 ## Vercel Deployment & Backend Modes
 
 The application can be deployed freely on Vercel as a self-contained Next.js application or run connected to the FastAPI backend:
@@ -655,7 +699,54 @@ The application can be deployed freely on Vercel as a self-contained Next.js app
 - **FastAPI mode (`NEXT_PUBLIC_API_URL=http://localhost:8082`)**:
   - Connects to the FastAPI Python server running on port 8082.
 - **Vercel Monorepo Settings**:
-  - Includes root `package.json` with Node 20 engine declaration and root `vercel.json` / `frontend/vercel.json` routing.
+  - Includes root `package.json` with Node 20/22 engine declaration and root `vercel.json` / `frontend/vercel.json` routing.
+
+### Agent Guide: Building and Deploying to Vercel
+
+> [!IMPORTANT]
+> **Vercel Project Setup:**
+> - **Project Name:** `labs-ninja`
+> - **Production URL:** `https://labs-ninja.vercel.app`
+> - **Vercel Production Branch:** `deployments`
+> - **Vercel Root Directory:** Configured to `frontend` in Vercel project settings.
+
+#### 1. Local Build Verification
+Before deploying, always verify that the Next.js frontend builds without errors:
+```bash
+cd frontend
+npm run build
+cd ..
+```
+*Tip: If there are TypeScript or Webpack errors, fix them before attempting any deployment.*
+
+#### 2. How to Deploy to Production (Recommended: Git Push)
+Because Vercel is connected to GitHub and monitors the `deployments` branch for production:
+```bash
+# 1. Switch to deployments branch and fast-forward to latest tested code
+git checkout deployments
+git merge --ff-only development  # or main
+git push origin deployments
+
+# 2. Switch back immediately to your working branch (e.g., AI-to-do)
+git checkout AI-to-do
+```
+*Vercel will automatically trigger a production build and update `https://labs-ninja.vercel.app`.*
+
+#### 3. How to Deploy via Vercel CLI
+If deploying manually via the CLI, remember that Vercel's Root Directory is `frontend`:
+```bash
+# Always execute CLI commands from the frontend directory:
+cd frontend
+npx vercel --prod
+```
+> [!WARNING]
+> Do **not** run `npx vercel --prod` from the monorepo root. Root `vercel.json` specifies build/install commands that fail if executed from within the `frontend` root directory.
+
+#### 4. Critical Serverless & Vercel Runtime Rules
+- **Filesystem is Read-Only:** Vercel functions cannot write to project directories. Use `/tmp/` for temporary files, uploaded PDFs (`/tmp/pdf_uploads`), and SQLite DB copies (`/tmp/lab_ninja.sqlite3`).
+- **No DOM Workers in Serverless:** When running libraries like `pdfjs-dist` in serverless route handlers (`/api/pdf/upload`), do not instantiate browser Web Workers. Use in-memory worker loading (`import('pdfjs-dist/legacy/build/pdf.worker.mjs')`) so `pdf.js` operates inline without missing file errors.
+- **Preserve Working Trees for Multi-Agent Work:** Other autonomous agents may be actively coding on other branches (such as `AI-to-do`). Never commit, stash, or reset unstaged changes in unrelated modules (`modules/ai_todo/`, etc.). Always return the repository to the user's active branch when finishing a deployment task.
+
 
 Resume views additionally get an **AI Analyze** panel (ATS + dimension scores + fixes,
 optional job-description input) and a **Tailor to a Job** drawer (`ViewTailorPanel.tsx`): previews a

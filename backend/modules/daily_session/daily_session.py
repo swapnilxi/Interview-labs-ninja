@@ -45,6 +45,8 @@ from modules.daily_session.evaluation import (
 from modules.common.youtube_client import extract_video_id, fetch_transcript, fetch_video_metadata
 
 
+# The data routes (sessions, questions, session-progress) have a Next.js twin for nextjs-api mode:
+# frontend/fe-apis/dailySession/ (see its header for what is and isn't ported). Change both together.
 router = APIRouter(tags=["daily-session"], dependencies=[Depends(get_current_user_id)])
 
 # Utility endpoints that don't touch any user data (just proxy to a locally-running

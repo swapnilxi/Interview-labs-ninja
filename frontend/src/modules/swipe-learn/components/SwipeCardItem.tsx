@@ -1,454 +1,392 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ContentCard, TopicType, QuizDisplayMode } from '../types';
+import { ContentCard, QuizDisplayMode, TopicMeta } from '../types';
 import Icon from '@/components/ui/AppIcon';
 import { topicHue } from '../utils/topicHue';
 
 interface SwipeCardItemProps {
   card: ContentCard;
-  mode?: 'deck' | 'feed';
+  /** The card's topic (label + emoji for the banner); falls back to a title-cased id. */
+  topic?: TopicMeta;
+  /** deck: fills the swipe stack and scrolls inside; feed / saved: natural height in a list. */
+  variant?: 'deck' | 'feed' | 'saved';
   quizMode?: QuizDisplayMode;
   isSaved?: boolean;
+  /** feed: toggles saved. */
   onSave?: () => void;
-  onSkip?: () => void;
-  onReinforceQuiz?: (card: ContentCard) => void;
+  /** feed: hides the card for this visit; saved: removes it from saved. */
+  onDismiss?: () => void;
+  /** "Quiz me on this": generates questions about this card. */
+  onQuizMe?: (card: ContentCard) => void;
+  /** A quiz for this card is being written. */
+  quizMeBusy?: boolean;
+  /** Another generation is running (the button waits for it). */
+  generateBusy?: boolean;
+}
+
+const TYPE_META: Record<string, { label: string; icon: string }> = {
+  code: { label: 'Code', icon: 'CodeBracketIcon' },
+  quiz: { label: 'Quiz', icon: 'QuestionMarkCircleIcon' },
+  concept: { label: 'Concept', icon: 'LightBulbIcon' },
+  tip: { label: 'Tip', icon: 'BoltIcon' },
+  fact: { label: 'Fact', icon: 'NewspaperIcon' },
+  'case-study': { label: 'Interview', icon: 'ChatBubbleLeftRightIcon' },
+};
+
+const DEPTH_ROWS: Array<{
+  key: keyof NonNullable<ContentCard['depth']>;
+  label: string;
+  icon: string;
+  tone?: string;
+}> = [
+  { key: 'howItWorks', label: 'How it works', icon: 'Cog6ToothIcon' },
+  { key: 'architecture', label: 'Flow', icon: 'ArrowsRightLeftIcon' },
+  { key: 'example', label: 'Real-world example', icon: 'GlobeAltIcon' },
+  {
+    key: 'commonMistakes',
+    label: 'Common mistake',
+    icon: 'ExclamationTriangleIcon',
+    tone: 'text-rose-600 dark:text-rose-400',
+  },
+  {
+    key: 'interviewQuestion',
+    label: 'Interview follow-up',
+    icon: 'ChatBubbleLeftRightIcon',
+    tone: 'text-amber-600 dark:text-amber-400',
+  },
+];
+
+function titleCase(id: string): string {
+  return id
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
 export default function SwipeCardItem({
   card,
-  mode = 'deck',
+  topic,
+  variant = 'deck',
   quizMode = 'quiz',
   isSaved = false,
   onSave,
-  onSkip,
-  onReinforceQuiz,
+  onDismiss,
+  onQuizMe,
+  quizMeBusy = false,
+  generateBusy = false,
 }: SwipeCardItemProps) {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [showExplanation, setShowExplanation] = useState(false);
-  const [showDeeperDepth, setShowDeeperDepth] = useState(false);
-  const [isFlippedFlashcard, setIsFlippedFlashcard] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const [showDepth, setShowDepth] = useState(false);
 
-  // Topic theme configuration
-  const getTopicTheme = (topic: TopicType) => {
-    switch (topic) {
-      case 'python':
-        return {
-          label: 'Python',
-          emoji: '🐍',
-          bg: 'bg-[#10957d]',
-          badgeBg: 'bg-white/20',
-        };
-      case 'computer-vision':
-        return {
-          label: 'CV',
-          emoji: '👁️',
-          bg: 'bg-[#0284c7]',
-          badgeBg: 'bg-white/20',
-        };
-      case 'finance':
-        return {
-          label: 'Finance',
-          emoji: '💰',
-          bg: 'bg-[#2563eb]',
-          badgeBg: 'bg-white/20',
-        };
-      case 'ai':
-        return {
-          label: 'AI',
-          emoji: '🤖',
-          bg: 'bg-[#7c3aed]',
-          badgeBg: 'bg-white/20',
-        };
-      case 'genai':
-        return {
-          label: 'GenAI',
-          emoji: '⚡',
-          bg: 'bg-pink-600',
-          badgeBg: 'bg-white/20',
-        };
-      case 'interview':
-        return {
-          label: 'Interview',
-          emoji: '🧠',
-          bg: 'bg-[#d97706]',
-          badgeBg: 'bg-white/20',
-        };
-      case 'quiz':
-        return {
-          label: 'Quiz',
-          emoji: '❓',
-          bg: 'bg-[#e11d48]',
-          badgeBg: 'bg-white/20',
-        };
-      default:
-        return {
-          label: topic.charAt(0).toUpperCase() + topic.slice(1),
-          emoji: '💡',
-          bg: 'bg-indigo-600',
-          badgeBg: 'bg-white/20',
-        };
-    }
-  };
-
-  const theme = getTopicTheme(card.topic);
+  const isDeck = variant === 'deck';
   const hue = topicHue(card.topic);
-
-  const formatDifficulty = (diff?: string) => {
-    if (!diff) return 'Beginner';
-    return diff.charAt(0).toUpperCase() + diff.slice(1);
-  };
-
-  const formatTypeLabel = (type: string) => {
-    switch (type) {
-      case 'code':
-        return 'Code Snippet';
-      case 'quiz':
-        return 'Quiz';
-      case 'concept':
-        return 'Concept';
-      case 'tip':
-        return 'Pro Tip';
-      case 'fact':
-        return 'Fact';
-      case 'case-study':
-        return 'Case Study';
-      default:
-        return 'Insight';
-    }
-  };
-
-  const handleSelectOption = (index: number) => {
-    setSelectedOption(index);
-    setShowExplanation(true);
-  };
-
-  const hasDepth =
-    card.depth &&
-    (card.depth.howItWorks ||
-      card.depth.architecture ||
-      card.depth.example ||
-      card.depth.commonMistakes ||
-      card.depth.interviewQuestion);
+  const typeMeta = TYPE_META[card.type] ?? { label: 'Insight', icon: 'LightBulbIcon' };
+  const topicLabel = topic?.label ?? titleCase(card.topic);
+  const subCategoryLabel = card.subCategory
+    ? (topic?.subTabs?.find((s) => s.id === card.subCategory)?.label ?? titleCase(card.subCategory))
+    : null;
+  const depthRows = DEPTH_ROWS.filter((row) => card.depth?.[row.key]);
+  const answered = selectedOption !== null;
+  const quiz = card.quiz;
 
   return (
-    <div className={`todo-lit lit-soft lit-static w-full bg-card rounded-3xl border border-border overflow-hidden flex flex-col select-none ${mode === 'deck' ? 'h-full' : ''}`}>
-      {/* 1. Header Banner */}
-      <div className="swipe-banner px-[1.5rem] py-4 flex items-center justify-between" style={{ '--tone': hue } as React.CSSProperties}>
-        {/* Left: Topic with Emoji */}
-        <div className="swipe-banner-label flex items-center gap-2 font-bold text-sm sm:text-base tracking-wide">
-          <span className="text-base">{theme.emoji}</span>
-          <span>{theme.label}</span>
-          {card.subCategory && (
-            <span className="text-[11px] font-normal px-1.5 py-0.5 rounded-md" style={{ background: 'color-mix(in srgb, var(--tone) 14%, transparent)' }}>
-              {card.subCategory}
+    <article
+      className={`swipe-card flex w-full flex-col overflow-hidden ${isDeck ? 'h-full' : ''}`}
+      style={{ '--tone': hue } as React.CSSProperties}
+    >
+      {/* Banner: topic on the left, kind + level on the right */}
+      <header className="swipe-banner flex shrink-0 items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
+        <div className="swipe-banner-label flex min-w-0 items-center gap-1.5 text-sm font-semibold">
+          <span aria-hidden="true">{topic?.emoji ?? '💡'}</span>
+          <span className="truncate">{topicLabel}</span>
+          {subCategoryLabel && (
+            <span className="swipe-banner-chip hidden truncate text-xs sm:inline">
+              {subCategoryLabel}
             </span>
           )}
         </div>
-
-        {/* Right: Tag Pills */}
-        <div className="flex items-center gap-1.5 text-xs font-semibold">
-          <span className="swipe-banner-chip flex items-center gap-1">
-            {card.type === 'code' ? (
-              <span className="text-[11px] font-semibold">&lt;/&gt;</span>
-            ) : card.type === 'quiz' ? (
-              <span>?</span>
-            ) : (
-              <span>💡</span>
-            )}
-            <span>{formatTypeLabel(card.type)}</span>
+        <div className="flex shrink-0 items-center gap-1 text-xs font-semibold">
+          {card.source === 'generated' && (
+            <span
+              className="swipe-banner-chip inline-flex items-center gap-1"
+              title="Generated with AI"
+            >
+              <Icon name="SparklesIcon" size={12} variant="solid" />
+              AI
+            </span>
+          )}
+          <span className="swipe-banner-chip inline-flex items-center gap-1">
+            <Icon name={typeMeta.icon} size={12} />
+            {typeMeta.label}
           </span>
-
-          <span className="swipe-banner-chip">
-            {formatDifficulty(card.difficulty)}
-          </span>
+          {card.difficulty && (
+            <span className="swipe-banner-chip hidden capitalize min-[420px]:inline">
+              {card.difficulty}
+            </span>
+          )}
         </div>
-      </div>
+      </header>
 
-      {/* 2. Card Body */}
-      <div className={`p-[1.5rem] sm:p-[2rem] flex-1 flex flex-col ${mode === 'deck' ? 'min-h-0 overflow-y-auto scrollbar-clean' : ''}`}>
-        {/* Optional Hook (<= 100 chars) */}
+      {/* Body (the deck card scrolls here; a vertical drag scrolls, a horizontal one swipes) */}
+      <div
+        className={`flex flex-1 flex-col px-4 pb-4 pt-4 sm:px-[1.5rem] sm:pb-5 sm:pt-5 ${
+          isDeck
+            ? 'swipe-card-scroll min-h-0 overflow-y-auto overscroll-contain scrollbar-clean'
+            : ''
+        }`}
+      >
         {card.hook && (
-          <span className="text-xs font-bold uppercase tracking-wider text-primary mb-1 block">
-            {card.hook.slice(0, 100)}
-          </span>
+          <p className="swipe-hook mb-1.5 text-[13px] font-semibold leading-snug">{card.hook}</p>
         )}
 
-        {/* Title (<= 60 chars) */}
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground font-heading tracking-tight leading-snug">
-          {card.title.slice(0, 60)}
+        <h2 className="font-heading text-[1.3rem] font-bold leading-tight tracking-tight text-foreground sm:text-2xl">
+          {card.title}
         </h2>
 
-        {/* Main Content (<= 300 chars, concise for fast consumption) */}
-        <p className="text-sm sm:text-base text-foreground/85 font-normal mt-2 leading-relaxed">
-          {card.content.slice(0, 300)}
+        <p className="mt-2.5 whitespace-pre-line text-[15px] leading-relaxed mix-text-foreground/85 sm:text-base">
+          {card.content}
         </p>
 
-        {/* Structured Code Block (<= 15 lines) */}
+        {/* Code: wrapped, not side-scrolling, so a horizontal drag on it still swipes the card */}
         {card.code?.code && (
-          <div className="mt-4 space-y-2">
-            <div className="rounded-2xl bg-[#0f172a] text-slate-100 p-4 sm:p-5 font-mono text-xs sm:text-sm overflow-x-auto shadow-inner border border-slate-800/80 leading-relaxed">
-              <pre>{card.code.code.split('\n').slice(0, 15).join('\n')}</pre>
+          <figure className="mt-4">
+            <div className="overflow-hidden rounded-xl border border-slate-800 bg-[#0f172a]">
+              <div className="flex items-center justify-between border-b border-slate-800 px-3 py-1.5 text-xs text-slate-400">
+                <span className="font-mono">{card.code.language}</span>
+                <Icon name="CodeBracketIcon" size={14} />
+              </div>
+              <pre className="whitespace-pre-wrap break-words p-3 font-mono text-[12.5px] leading-relaxed text-slate-100 sm:text-[13px]">
+                {card.code.code}
+              </pre>
             </div>
             {card.code.explanation && (
-              <p className="text-xs text-muted-foreground italic px-1">
+              <figcaption className="mt-2 text-[13px] leading-snug text-muted-foreground">
                 {card.code.explanation}
-              </p>
+              </figcaption>
             )}
-          </div>
+          </figure>
         )}
 
-        {/* Structured Quiz Display: Flashcard Mode vs Multiple-Choice Quiz Mode */}
-        {card.quiz && quizMode === 'flashcard' ? (
-          /* Flashcard Flip View */
-          <div className="mt-4 p-4 rounded-2xl border border-dashed border-border bg-muted/30 text-center space-y-3">
-            {!isFlippedFlashcard ? (
-              <div className="py-3">
-                <span className="text-xs text-muted-foreground block mb-2">
-                  🎴 Flashcard Question
-                </span>
-                <p className="font-semibold text-sm text-foreground">
-                  {card.quiz.question}
+        {/* Quiz: multiple choice, or a flip card in flashcard mode */}
+        {quiz && quizMode === 'flashcard' && (
+          <div className="mt-4 rounded-xl border border-dashed border-border mix-bg-muted/40 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Flashcard
+            </p>
+            <p className="mt-1 text-[15px] font-semibold text-foreground">{quiz.question}</p>
+            {revealed ? (
+              <div className="mt-3 space-y-1.5 animate-fadeIn">
+                <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                  <span className="font-semibold">Answer:</span> {quiz.options[quiz.correctAnswer]}
+                </p>
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  {quiz.explanation}
                 </p>
                 <button
                   type="button"
-                  onClick={() => setIsFlippedFlashcard(true)}
-                  className="mt-3 px-4 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-all"
-                >
-                  Reveal Answer 🔄
-                </button>
-              </div>
-            ) : (
-              <div className="py-3 text-left space-y-2 animate-fadeIn">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
-                  ✓ Answer & Explanation
-                </span>
-                <p className="text-xs sm:text-sm text-foreground leading-relaxed">
-                  <strong>Correct:</strong> {card.quiz.options[card.quiz.correctAnswer]}
-                </p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {card.quiz.explanation}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setIsFlippedFlashcard(false)}
-                  className="text-xs text-primary hover:underline font-semibold block pt-1"
+                  onClick={() => setRevealed(false)}
+                  className="swipe-link mt-1"
                 >
                   Flip back
                 </button>
               </div>
-            )}
-          </div>
-        ) : card.quiz ? (
-          /* Multiple Choice Interactive Quiz */
-          <div className="mt-4 space-y-2.5">
-            {card.quiz.options?.map((opt, idx) => {
-              const isSelected = selectedOption === idx;
-              const isCorrect = idx === card.quiz?.correctAnswer;
-              let optStyle =
-                'bg-muted/50 border-border/80 text-foreground hover:bg-muted hover:border-primary/40';
-
-              if (selectedOption !== null) {
-                if (isCorrect) {
-                  optStyle = 'bg-emerald-500/20 border-emerald-500 text-emerald-700 dark:text-emerald-300 font-bold';
-                } else if (isSelected) {
-                  optStyle = 'bg-rose-500/20 border-rose-500 text-rose-700 dark:text-rose-300 font-bold';
-                } else {
-                  optStyle = 'opacity-50 border-border/40 text-muted-foreground';
-                }
-              }
-
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSelectOption(idx)}
-                  className={`w-full text-left px-4 py-3 rounded-2xl border text-xs sm:text-sm flex items-center justify-between transition-all ${optStyle}`}
-                >
-                  <span>{opt}</span>
-                  {selectedOption !== null && isCorrect && (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓</span>
-                  )}
-                  {selectedOption !== null && isSelected && !isCorrect && (
-                    <span className="text-rose-600 font-bold">✕</span>
-                  )}
-                </button>
-              );
-            })}
-
-            {/* Answer Explanation */}
-            <div className="pt-2">
+            ) : (
               <button
                 type="button"
-                onClick={() => setShowExplanation((prev) => !prev)}
-                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-primary hover:underline transition-all py-0.5"
+                onClick={() => setRevealed(true)}
+                className="swipe-soft-btn mt-3"
               >
-                <Icon name={showExplanation ? 'EyeSlashIcon' : 'EyeIcon'} size={16} />
-                <span>{showExplanation ? 'Hide answer' : 'Show answer'}</span>
+                <Icon name="ArrowPathRoundedSquareIcon" size={16} />
+                Reveal answer
               </button>
-
-              {showExplanation && (
-                <div className="mt-2 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/50 p-4 text-xs sm:text-sm text-sky-950 dark:text-sky-200 leading-relaxed animate-fadeIn">
-                  <p>
-                    <strong className="font-bold">Answer:</strong> {card.quiz.explanation}
-                  </p>
-                </div>
-              )}
-            </div>
+            )}
           </div>
-        ) : null}
+        )}
 
-        {/* 3. EXPANDABLE DEPTH: "↓ Explain deeper" */}
-        {hasDepth && (
-          <div className="mt-4 pt-3 border-t border-border/60">
+        {quiz && quizMode !== 'flashcard' && (
+          <div className="mt-4">
+            {quiz.question && quiz.question !== card.content && (
+              <p className="mb-2.5 text-[15px] font-semibold leading-snug text-foreground">
+                {quiz.question}
+              </p>
+            )}
+            <div className="space-y-2" role="group" aria-label="Answer options">
+              {quiz.options.map((opt, idx) => {
+                const isCorrect = idx === quiz.correctAnswer;
+                const isPicked = selectedOption === idx;
+                const state = !answered
+                  ? 'idle'
+                  : isCorrect
+                    ? 'correct'
+                    : isPicked
+                      ? 'wrong'
+                      : 'dim';
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={answered}
+                    onClick={() => {
+                      setSelectedOption(idx);
+                      setRevealed(true);
+                    }}
+                    data-state={state}
+                    className="swipe-option"
+                  >
+                    <span className="swipe-option-letter" aria-hidden="true">
+                      {state === 'correct' ? (
+                        <Icon name="CheckIcon" size={14} />
+                      ) : state === 'wrong' ? (
+                        <Icon name="XMarkIcon" size={14} />
+                      ) : (
+                        String.fromCharCode(65 + idx)
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">{opt}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {answered || revealed ? (
+              <div
+                className={`mt-3 rounded-xl border p-3.5 text-[13px] leading-relaxed animate-fadeIn sm:text-sm ${
+                  !answered || selectedOption === quiz.correctAnswer
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100'
+                    : 'border-amber-500/30 bg-amber-500/10 text-amber-950 dark:text-amber-100'
+                }`}
+                role="status"
+              >
+                <p className="font-semibold">
+                  {!answered
+                    ? `Answer: ${String.fromCharCode(65 + quiz.correctAnswer)}`
+                    : selectedOption === quiz.correctAnswer
+                      ? 'Correct!'
+                      : `Not quite. The answer is ${String.fromCharCode(65 + quiz.correctAnswer)}.`}
+                </p>
+                <p className="mt-0.5">{quiz.explanation}</p>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setRevealed(true)} className="swipe-link mt-2.5">
+                <Icon name="EyeIcon" size={15} />
+                Show answer
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Explain deeper */}
+        {depthRows.length > 0 && (
+          <div className="mt-4 border-t border-border pt-3">
             <button
               type="button"
-              onClick={() => setShowDeeperDepth((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 transition-colors py-1 px-3 rounded-xl bg-primary/10 hover:bg-primary/15"
+              onClick={() => setShowDepth((v) => !v)}
+              aria-expanded={showDepth}
+              className="swipe-soft-btn"
             >
               <Icon
                 name="ChevronDownIcon"
-                size={14}
-                className={`transition-transform duration-300 ${showDeeperDepth ? 'rotate-180' : ''}`}
+                size={15}
+                className={`transition-transform duration-200 ${showDepth ? 'rotate-180' : ''}`}
               />
-              <span>{showDeeperDepth ? 'Hide deeper breakdown' : '↓ Explain deeper'}</span>
+              {showDepth ? 'Show less' : 'Explain deeper'}
             </button>
 
-            {showDeeperDepth && card.depth && (
-              <div className="mt-3 space-y-3 p-4 sm:p-5 rounded-2xl bg-muted/40 border border-border/80 text-xs sm:text-sm animate-fadeIn">
-                {card.depth.howItWorks && (
-                  <div>
-                    <span className="font-bold text-foreground block mb-0.5 flex items-center gap-1.5 text-xs uppercase tracking-wide">
-                      ⚙️ How it works
-                    </span>
-                    <p className="text-muted-foreground leading-relaxed">
-                      {card.depth.howItWorks}
-                    </p>
+            {showDepth && card.depth && (
+              <dl className="mt-3 space-y-3 animate-fadeIn">
+                {depthRows.map((row) => (
+                  <div key={row.key}>
+                    <dt
+                      className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide ${
+                        row.tone ?? 'text-foreground'
+                      }`}
+                    >
+                      <Icon name={row.icon} size={14} />
+                      {row.label}
+                    </dt>
+                    <dd
+                      className={`mt-1 text-[13px] leading-relaxed sm:text-sm ${
+                        row.key === 'architecture'
+                          ? 'whitespace-pre-wrap rounded-lg border border-border mix-bg-muted/40 px-3 py-2 font-mono text-xs text-foreground'
+                          : row.key === 'interviewQuestion'
+                            ? 'font-medium text-foreground'
+                            : 'text-muted-foreground'
+                      }`}
+                    >
+                      {card.depth?.[row.key]}
+                    </dd>
                   </div>
-                )}
-
-                {card.depth.architecture && (
-                  <div>
-                    <span className="font-bold text-foreground block mb-0.5 flex items-center gap-1.5 text-xs uppercase tracking-wide">
-                      🏛️ Architecture
-                    </span>
-                    <div className="p-2.5 rounded-xl bg-card border border-border text-[11px] text-foreground/90 overflow-x-auto">
-                      {card.depth.architecture}
-                    </div>
-                  </div>
-                )}
-
-                {card.depth.example && (
-                  <div>
-                    <span className="font-bold text-foreground block mb-0.5 flex items-center gap-1.5 text-xs uppercase tracking-wide">
-                      💡 Real-World Example
-                    </span>
-                    <p className="text-muted-foreground leading-relaxed">
-                      {card.depth.example}
-                    </p>
-                  </div>
-                )}
-
-                {card.depth.commonMistakes && (
-                  <div>
-                    <span className="font-bold text-rose-600 dark:text-rose-400 block mb-0.5 flex items-center gap-1.5 text-xs uppercase tracking-wide">
-                      ⚠️ Common Mistakes
-                    </span>
-                    <p className="text-muted-foreground leading-relaxed">
-                      {card.depth.commonMistakes}
-                    </p>
-                  </div>
-                )}
-
-                {card.depth.interviewQuestion && (
-                  <div className="pt-2 border-t border-border/60">
-                    <span className="font-bold text-amber-600 dark:text-amber-400 block mb-0.5 flex items-center gap-1.5 text-xs uppercase tracking-wide">
-                      🎯 Interview Question
-                    </span>
-                    <p className="text-foreground font-medium leading-relaxed">
-                      {card.depth.interviewQuestion}
-                    </p>
-                  </div>
-                )}
-              </div>
+                ))}
+              </dl>
             )}
           </div>
         )}
 
-        {/* 4. LEARN → TEST → REINFORCE PROMPT */}
-        {card.type !== 'quiz' && onReinforceQuiz && (
-          <div className="mt-3 pt-2">
-            <button
-              type="button"
-              onClick={() => onReinforceQuiz(card)}
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors group"
-            >
-              <span>Test your understanding on this</span>
-              <span className="group-hover:translate-x-0.5 transition-transform text-primary">→</span>
-            </button>
+        {/* Learn → test: questions about this exact card */}
+        {card.type !== 'quiz' && onQuizMe && (
+          <button
+            type="button"
+            onClick={() => onQuizMe(card)}
+            disabled={quizMeBusy || generateBusy}
+            className="swipe-quizme mt-3"
+          >
+            {quizMeBusy ? (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <Icon name="AcademicCapIcon" size={16} />
+            )}
+            <span>{quizMeBusy ? 'Writing your quiz…' : 'Quiz me on this'}</span>
+          </button>
+        )}
+
+        {/* Tags + read time */}
+        {(!!card.tags?.length || !!card.estimatedReadTime) && (
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4 text-xs text-muted-foreground">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              {card.tags?.slice(0, 3).map((tag) => (
+                <span key={tag} className="rounded-md mix-bg-muted/70 px-2 py-0.5">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+            {card.estimatedReadTime ? (
+              <span className="inline-flex shrink-0 items-center gap-1">
+                <Icon name="ClockIcon" size={13} />
+                {card.estimatedReadTime}s
+              </span>
+            ) : null}
           </div>
         )}
 
-        {/* 5. Metadata Bar (Read Time, Difficulty, Tags) */}
-        <div className="mt-4 pt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {card.tags?.slice(0, 3).map((tag) => (
-              <span key={tag} className="px-2 py-0.5 rounded-md bg-muted/60 text-muted-foreground">
-                #{tag}
-              </span>
-            ))}
-          </div>
-          {card.estimatedReadTime && (
-            <span className="text-muted-foreground/75">
-              ⏱️ {card.estimatedReadTime}s read
-            </span>
-          )}
-        </div>
-
-        {/* 6. Card Footer */}
-        {mode === 'deck' ? (
-          /* Swipe Deck Footer */
-          <div className="mt-6 pt-4 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground font-medium">
-            <span className="flex items-center gap-1 text-rose-500/80">
-              <span>✕</span>
-              <span>Swipe left to skip</span>
-            </span>
-            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-              <span>✓</span>
-              <span>Swipe right to save</span>
-            </span>
-          </div>
-        ) : (
-          /* Mixed Vertical Feed Footer */
-          <div className="mt-6 pt-4 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
-            <button
-              type="button"
-              onClick={onSkip}
-              className="flex items-center gap-1 text-rose-500 hover:text-rose-600 font-semibold transition-colors py-1 px-2 rounded-lg hover:bg-rose-500/10"
-            >
-              <span className="text-sm leading-none">✕</span>
-              <span>Skip</span>
+        {/* List actions (the deck has its own buttons under the stack) */}
+        {variant === 'feed' && (
+          <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3">
+            <button type="button" onClick={onDismiss} className="swipe-ghost-btn">
+              <Icon name="EyeSlashIcon" size={16} />
+              Hide
             </button>
-
-            <span className="text-[11px] text-muted-foreground/60 hidden xs:inline">
-              swipe to dismiss
-            </span>
-
             <button
               type="button"
               onClick={onSave}
-              className={`flex items-center gap-1.5 font-semibold transition-colors py-1 px-2.5 rounded-lg ${
-                isSaved
-                  ? 'text-primary bg-primary/10'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
+              aria-pressed={isSaved}
+              className={`swipe-ghost-btn ${isSaved ? 'swipe-ghost-btn-on' : ''}`}
             >
-              <Icon name="BookmarkIcon" size={15} variant={isSaved ? 'solid' : 'outline'} />
-              <span>{isSaved ? 'Saved' : 'Save'}</span>
+              <Icon name="BookmarkIcon" size={16} variant={isSaved ? 'solid' : 'outline'} />
+              {isSaved ? 'Saved' : 'Save'}
+            </button>
+          </div>
+        )}
+        {variant === 'saved' && (
+          <div className="mt-4 flex items-center justify-end border-t border-border pt-3">
+            <button type="button" onClick={onDismiss} className="swipe-ghost-btn">
+              <Icon name="BookmarkSlashIcon" size={16} />
+              Remove from saved
             </button>
           </div>
         )}
       </div>
-    </div>
+    </article>
   );
 }

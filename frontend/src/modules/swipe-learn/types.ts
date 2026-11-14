@@ -1,12 +1,5 @@
 export type TopicType =
-  | 'python'
-  | 'computer-vision'
-  | 'finance'
-  | 'ai'
-  | 'genai'
-  | 'interview'
-  | 'quiz'
-  | (string & {}); // allows custom topics
+  'python' | 'computer-vision' | 'finance' | 'ai' | 'genai' | 'interview' | 'quiz' | (string & {}); // allows custom topics
 
 export type FeedMode =
   | 'mixed'
@@ -19,13 +12,7 @@ export type FeedMode =
   | 'quiz'
   | (string & {}); // allows custom feed modes
 
-export type CardContentType =
-  | 'code'
-  | 'concept'
-  | 'quiz'
-  | 'fact'
-  | 'case-study'
-  | 'tip';
+export type CardContentType = 'code' | 'concept' | 'quiz' | 'fact' | 'case-study' | 'tip';
 
 export type DifficultyLevel = 'beginner' | 'intermediate' | 'advanced';
 
@@ -105,7 +92,8 @@ export interface ContentCard {
   createdAt: string;
 }
 
-export type SwipeLearnNavTab = 'feed' | 'mixed' | 'saved' | 'settings';
+/** The three screens: the swipe deck, the scrolling feed and the saved list. */
+export type SwipeLearnView = 'swipe' | 'scroll' | 'saved';
 
 export interface TopicSubTab {
   id: string;
@@ -124,7 +112,10 @@ export interface TopicMeta {
   subTabs?: TopicSubTab[];
 }
 
-export interface GeminiSettings {
-  apiKey: string;
-  model: string;
+/** What the Generate sheet asks for (the service adds the topic and the titles to avoid). */
+export interface GenerateOptions {
+  format: GenerateFormat;
+  count: number;
+  focus: string;
+  difficulty: DifficultyLevel | 'any';
 }

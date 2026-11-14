@@ -8,7 +8,8 @@ level, goal, patterns...) into a plan with the model and returns it unsaved (pro
 auto_plan.py).
 
 `frontend/fe-apis/dsaLab/` is the Next.js twin of the week plan routes only (nextjs-api mode): same paths,
-status codes, shapes, messages and prompt, so change both together. Topics and sections have no twin.
+status codes, shapes, messages and prompt, so change both together. Topics and sections are twinned in
+`frontend/fe-apis/labs/` (with the CV and System Design ones).
 """
 
 from __future__ import annotations

@@ -7,6 +7,7 @@ from modules.common.db import fetch_lab_sections, save_lab_section
 from .seed import fetch_cv_topics, save_cv_topic
 
 
+# Next.js twin (nextjs-api mode): frontend/fe-apis/labs/ — same paths, shapes and storage format; change both.
 router = APIRouter(prefix="/cv", tags=["cv-lab"], dependencies=[Depends(get_current_user_id)])
 
 
