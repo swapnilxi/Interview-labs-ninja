@@ -183,15 +183,20 @@ self.addEventListener('push', (event) => {
     payload = { body: event.data ? event.data.text() : '' };
   }
   const title = payload.title || 'Reminder';
+  const origin = self.location.origin;
+  const icon = new URL('/icons/icon-192.png', origin).href;
+  const badge = new URL('/icons/badge-96.png', origin).href;
+
   event.waitUntil(
     self.registration.showNotification(title, {
       body: payload.body || '',
       tag: payload.tag,
       renotify: Boolean(payload.tag),
-      icon: '/icons/icon-192.png',
-      badge: '/icons/badge-96.png',
+      icon: icon,
+      badge: badge,
       data: { href: payload.href || '/ai-todo?tab=today' },
       requireInteraction: true,
+      vibrate: [200, 100, 200],
     }),
   );
 });

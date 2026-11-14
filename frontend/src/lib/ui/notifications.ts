@@ -278,11 +278,14 @@ export interface DeviceNotificationInput {
  */
 export async function showDeviceNotification(input: DeviceNotificationInput): Promise<boolean> {
   if (!getPrefs().browser || browserPermission() !== 'granted') return false;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const icon = origin ? `${origin}/icons/icon-192.png` : '/icons/icon-192.png';
+  const badge = origin ? `${origin}/icons/badge-96.png` : '/icons/badge-96.png';
   const options: NotificationOptions & { renotify?: boolean; vibrate?: number[] } = {
     body: input.body,
     tag: input.tag,
-    icon: '/icons/icon-192.png',
-    badge: '/icons/badge-96.png',
+    icon,
+    badge,
     data: { href: input.href ?? '/ai-todo' },
     requireInteraction: input.requireInteraction,
     renotify: Boolean(input.tag),
