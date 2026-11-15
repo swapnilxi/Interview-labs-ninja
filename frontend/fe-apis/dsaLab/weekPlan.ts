@@ -115,6 +115,8 @@ export interface PlanBody {
   order: string[];
   /** "<week number>" -> short focus label. */
   labels: Record<string, string>;
+  /** Sprint mode: the weeks are grouped into sprints of 1 or 2 weeks. Absent on a plain plan. */
+  sprintWeeks?: number;
 }
 
 interface ActivePlan extends PlanBody {
@@ -138,13 +140,19 @@ interface ProfileFull extends ProfileSummary {
   plan: PlanBody;
 }
 
-/** plan_json as stored: always the normalised four keys, in this order. */
+/** 1 or 2: the sprint lengths a plan may have (Python's _is_sprint_weeks). */
+function isSprintWeeks(v: unknown): v is number {
+  return v === 1 || v === 2;
+}
+
+/** plan_json as stored: always the normalised four keys, in this order, then sprintWeeks in sprint mode. */
 function planJson(plan: PlanBody): string {
   return JSON.stringify({
     weeks: plan.weeks,
     assignments: plan.assignments,
     order: plan.order,
     labels: plan.labels,
+    ...(plan.sprintWeeks !== undefined ? { sprintWeeks: plan.sprintWeeks } : {}),
   });
 }
 
@@ -155,6 +163,7 @@ function storedPlan(value: unknown): PlanBody {
     assignments: p.assignments ?? {},
     order: p.order ?? [],
     labels: p.labels ?? {},
+    ...(isSprintWeeks(p.sprintWeeks) ? { sprintWeeks: p.sprintWeeks } : {}),
   };
 }
 
@@ -165,6 +174,7 @@ function activePlanOf(row: Row): ActivePlan {
     assignments: plan.assignments,
     order: plan.order,
     labels: plan.labels,
+    ...(plan.sprintWeeks !== undefined ? { sprintWeeks: plan.sprintWeeks } : {}),
     updatedAt: row.updated_at,
     profileId: row.id,
     name: row.name,
@@ -250,7 +260,8 @@ export function validatePlan(
   weeks: number,
   assignments: Record<string, number>,
   order?: unknown,
-  labels?: unknown
+  labels?: unknown,
+  sprintWeeks?: unknown
 ): string | null {
   const counts = new Map<number, number>();
   for (const [topicId, week] of Object.entries(assignments)) {
@@ -286,6 +297,8 @@ export function validatePlan(
     if (cpLength(pyStrip(value)) > LABEL_MAX)
       return `Week ${key}'s label is longer than ${LABEL_MAX} characters.`;
   }
+  if (!absent(sprintWeeks) && !isSprintWeeks(sprintWeeks))
+    return "Field 'sprintWeeks' must be 1 or 2.";
   return null;
 }
 
@@ -295,6 +308,7 @@ interface PlanIn {
   assignments: Record<string, number>;
   order: unknown;
   labels: unknown;
+  sprintWeeks: unknown;
 }
 
 function planTypes(body: Row): PlanIn {
@@ -311,7 +325,13 @@ function planTypes(body: Row): PlanIn {
   if (!entries.every(([, w]) => Number.isInteger(w)))
     throw new HttpError(422, 'Every week must be an integer');
   const assignments = Object.fromEntries(entries) as Record<string, number>;
-  return { weeks, assignments, order: body.order, labels: body.labels };
+  return {
+    weeks,
+    assignments,
+    order: body.order,
+    labels: body.labels,
+    sprintWeeks: body.sprintWeeks,
+  };
 }
 
 /** A plan nested in a profile body: an object, then its type checks. */
@@ -322,7 +342,13 @@ function nestedPlan(value: unknown): PlanIn {
 
 /** validatePlan (422 with its message), then the stored form: every key present, labels trimmed, empty ones dropped. */
 function checkedPlan(plan: PlanIn): PlanBody {
-  const problem = validatePlan(plan.weeks, plan.assignments, plan.order, plan.labels);
+  const problem = validatePlan(
+    plan.weeks,
+    plan.assignments,
+    plan.order,
+    plan.labels,
+    plan.sprintWeeks
+  );
   if (problem) throw new HttpError(422, problem);
   const labels: [string, string][] = [];
   for (const [key, value] of Object.entries((plan.labels ?? {}) as Record<string, string>)) {
@@ -334,6 +360,7 @@ function checkedPlan(plan: PlanIn): PlanBody {
     assignments: plan.assignments,
     order: [...((plan.order ?? []) as string[])],
     labels: Object.fromEntries(labels),
+    ...(absent(plan.sprintWeeks) ? {} : { sprintWeeks: plan.sprintWeeks as number }),
   };
 }
 
@@ -692,7 +719,8 @@ export const routes: TodoRoute[] = [
         raw,
         topics.map((t) => t.id),
         answers.weeks,
-        answers.perWeek
+        answers.perWeek,
+        answers.sprintWeeks
       );
       if (!result.stats.placed)
         throw new HttpError(502, "The AI didn't return a usable plan. Try again.");

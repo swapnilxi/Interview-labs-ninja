@@ -446,10 +446,21 @@ per user and login-required (the lab itself needs a login). A week holds at most
 - **Auto organizer** (`AutoOrganizerWizard.tsx`): five steps (timeline or interview date, level and goal, patterns to emphasise and
   find hard, difficulty and style, review). **Plan with AI** saves the result immediately as an inactive "AI plan" so nothing is lost,
   then offers to switch to it; **Quick plan (no AI)** builds a deterministic plan in the browser (`localOrganize` in `weekPlan.ts`).
+- **Sprint mode** (offered on the wizard's Timeline step when the timeline is a poor fit, `timelineFit` in `weekPlan.ts`): *short* when
+  less than half the questions fit (weeks × per week), *wide* when the weeks are at least 1.5× and 2 more than the questions need, or
+  the interview is more than 24 weeks away. The learner picks 1- or 2-week sprints and the plan is **sized to the work**
+  (`sprintPlanWeeks`): the weeks the questions need, rounded up to whole sprints, never more than the time they have (a short timeline
+  keeps every week; what doesn't fit stays in the queue, which the week view calls the Backlog). The plan carries
+  `sprintWeeks: 1 | 2`: the week view, the organizer, Jump to week and the preview group weeks by sprint ("Sprint 2 · Weeks 3–4")
+  instead of by four. The organizer's **Sprints** control (a select; on phones in the More menu) turns grouping on, off or to the
+  other length at any time (undoable). The auto route takes `answers.sprintWeeks` (0, 1 or 2; the client already sized `weeks`), adds
+  one profile line and rule 9 to the prompt (nothing changes when it is 0) and tags the returned plan.
 - **API** (`backend/modules/dsa_lab/router.py`, twin `frontend/fe-apis/dsaLab/`, route `src/app/api/dsa/[...path]` which must export
   GET/POST/PUT/PATCH/DELETE, rewrite `/dsa/week-plan/:path*` in `next.config.mjs`): `GET/PUT/DELETE /dsa/week-plan` (the active plan),
   `GET/POST /dsa/week-plan/profiles`, `GET/PATCH/DELETE /dsa/week-plan/profiles/{id}`, `POST .../{id}/activate`, and
-  `POST /dsa/week-plan/auto`. A plan is `{ weeks, assignments: {topicId: week}, order: [topicId], labels: {"<week>": "<focus>"} }`.
+  `POST /dsa/week-plan/auto`. A plan is `{ weeks, assignments: {topicId: week}, order: [topicId], labels: {"<week>": "<focus>"} }`,
+  plus `sprintWeeks` (1 or 2) only in sprint mode: it is validated last ("Field 'sprintWeeks' must be 1 or 2."), stored, and left
+  out of a plain plan, so plain plans keep exactly four keys.
   Someone else's plan is a **404**. Storage: `dsa_week_plan_profiles` (one row per plan, one active per user); the older one-row-per-user
   `dsa_week_plans` is migrated into a "My plan" profile the first time the user touches any week-plan route.
 - **The auto route** takes the user's AI settings in the body like every AI endpoint, plus `answers` and the lab's `topics` (id, name,
@@ -648,6 +659,8 @@ owns its shape and runs everything the AI returns through the normalizers in `pr
 2. **Questions** — the AI asks what it still needs; answers (or one-click suggestions) feed every later prompt; "ask follow-up questions" runs another round.
 3. **Timeline** — start and end date, or start and a duration in weeks/months. The server works out the day count so the model never does date maths. "Is this timeline realistic?" returns a verdict (realistic / tight / unrealistic / generous), concerns, recommendations and, when it isn't realistic, a suggested duration you can apply in one click.
 4. **Plan** — phases with dates (forced inside the chosen timeline), objectives, tasks, deliverables, milestones, risks, plus assumptions and success metrics, a timeline chart, and a **Plan with AI** chat that answers questions or edits the plan. The plan can be copied as Markdown or added to the project's Explorer tree (`/plan/apply`: phases as `phase` nodes with due date + context, tasks as `action` children).
+
+**Sprint mode.** When the timeline check says *tight* / *unrealistic* (too little time) or *generous* (far more than the work needs), a panel offers **1- or 2-week sprints** (`SprintModePanel.tsx`; it stays while sprint mode is on, and on the Plan step picking another style writes a new plan). The workspace keeps `plan_style` / `sprint_weeks`; `generate` then takes `plan_style: "sprints"` + `sprint_weeks` and uses its own prompt that lists the sprint slots with fixed dates (back to back from the start, the last cut short at the end, at most 12: `_sprint_slots` ↔ `sprintSlots` in `plannerDates.ts`) and asks for only as many sprints as the work needs, the most important work first, plus a `backlog` of what doesn't fit. The plan is stored as `{style: "sprints", sprint_weeks, phases: [one per sprint], backlog}`: the client dates each sprint by its slot (whatever the AI wrote) and moves sprints past the last slot into the backlog. **Organise** (`SprintBoard.tsx` + pure `sprintPlan.ts`) moves tasks up/down or to another sprint or the backlog, and moves, removes (its tasks go to the backlog) or adds sprints; each change is saved like typing, with Undo on the latest one. Refine and the timeline check get a sprint note in their prompts. "Add to project tasks" adds `Sprint N: …` phase nodes plus a `Backlog` node.
 
 AI results are saved the moment they arrive; typing is saved ~1 s after you stop. The planner is login-only, like every AI feature: guests keep their projects and Explorer but see a sign-in prompt in the planner. It is mirrored in `fe-apis/todo/projects/plan*.ts` (prompts, limits and error texts are copied verbatim, so change both).
 

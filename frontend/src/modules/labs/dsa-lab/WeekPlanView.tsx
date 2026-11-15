@@ -21,6 +21,7 @@ import {
   patternGroups,
   weekCounts,
   weekTheme,
+  type SprintLength,
 } from './weekPlan';
 
 /** Which Organize button opened the organizer: Back returns focus to it (DSALabModule finds it by `data-organize-trigger`). */
@@ -117,10 +118,13 @@ function QuestionRow({
  */
 function JumpSelect({
   weeks,
+  sprint,
   counts,
   onJump,
 }: {
   weeks: number;
+  /** The plan's sprint length: the options are grouped by sprint instead of by four weeks. */
+  sprint?: SprintLength;
   counts: number[];
   onJump: (week: number) => void;
 }) {
@@ -139,9 +143,9 @@ function JumpSelect({
       className="todo-input todo-input-quiet h-8 w-auto max-w-[9rem] cursor-pointer px-2 text-xs"
     >
       <option value="">Jump to week</option>
-      {Array.from({ length: blockCount(weeks) }, (_, b) => (
-        <optgroup key={b} label={blockLabel(b, weeks)}>
-          {blockWeeks(b, weeks).map((w) => (
+      {Array.from({ length: blockCount(weeks, sprint) }, (_, b) => (
+        <optgroup key={b} label={blockLabel(b, weeks, sprint)}>
+          {blockWeeks(b, weeks, sprint).map((w) => (
             <option key={w} value={w}>
               {`Week ${w} (${counts[w - 1] ?? 0}/${WEEK_CAP})`}
             </option>
@@ -174,7 +178,7 @@ function PlanActions({
   onAuto: () => void;
   onOrganize: (trigger: OrganizeTrigger) => void;
 }) {
-  const { weeks } = weekPlan.plan;
+  const { weeks, sprintWeeks } = weekPlan.plan;
   // The compact toolbar never wraps, so it must fit the pane: below TOOLBAR_LABELS_MIN the buttons are icon-only, below
   // TOOLBAR_MENU_MIN the plan menu goes too (the header above still has it).
   const iconOnly = compact && paneWidth > 0 && paneWidth < TOOLBAR_LABELS_MIN;
@@ -184,7 +188,7 @@ function PlanActions({
       <div className={showMenu ? undefined : 'hidden'}>
         <PlanProfileMenu weekPlan={weekPlan} compact suspended={hidden} />
       </div>
-      <JumpSelect weeks={weeks} counts={counts} onJump={onJump} />
+      <JumpSelect weeks={weeks} sprint={sprintWeeks} counts={counts} onJump={onJump} />
       <button
         type="button"
         onClick={onAuto}
@@ -500,8 +504,9 @@ export default function WeekPlanView({
             </div>
             <p className="mt-1 text-sm font-medium tabular-nums mix-text-foreground/[0.74]">
               {weekPlan.loaded ? planName : 'Loading your plan…'} · {plan.weeks}{' '}
-              {plan.weeks === 1 ? 'week' : 'weeks'} · {plannedIds.length} of {topics.length} planned
-              · {doneTotal} done
+              {plan.weeks === 1 ? 'week' : 'weeks'}
+              {plan.sprintWeeks ? ` in ${plan.sprintWeeks}-week sprints` : ''} · {plannedIds.length}{' '}
+              of {topics.length} planned · {doneTotal} done
             </p>
             {weekPlan.hiddenCount > 0 && (
               <p className="mt-0.5 text-[13px] font-medium mix-text-foreground/[0.74]">
@@ -555,8 +560,8 @@ export default function WeekPlanView({
         </div>
       ) : (
         <div className="mt-[2rem] space-y-[2rem]">
-          {Array.from({ length: blockCount(plan.weeks) }, (_, b) => {
-            const blockList = blockWeeks(b, plan.weeks);
+          {Array.from({ length: blockCount(plan.weeks, plan.sprintWeeks) }, (_, b) => {
+            const blockList = blockWeeks(b, plan.weeks, plan.sprintWeeks);
             const ids = blockList.flatMap((w) => lists[w - 1].map((t) => t.id));
             const cap = blockList.length * WEEK_CAP;
             const done = progress.countDone(ids);
@@ -573,7 +578,7 @@ export default function WeekPlanView({
                     className="h-2 w-2 flex-shrink-0 rounded-full bg-primary"
                   />
                   <h3 id={`week-block-${b}`} className="dsa-caption text-foreground">
-                    {blockLabel(b, plan.weeks)}
+                    {blockLabel(b, plan.weeks, plan.sprintWeeks)}
                   </h3>
                   <span className="text-xs font-medium tabular-nums mix-text-foreground/[0.74]">
                     {ids.length} of {cap} planned · {done} done
@@ -581,7 +586,7 @@ export default function WeekPlanView({
                   <div
                     className="h-1.5 w-[9rem] max-w-full flex-shrink-0 overflow-hidden rounded-full mix-bg-foreground/10"
                     role="progressbar"
-                    aria-label={`${blockLabel(b, plan.weeks)}: ${done} of ${ids.length} done`}
+                    aria-label={`${blockLabel(b, plan.weeks, plan.sprintWeeks)}: ${done} of ${ids.length} done`}
                     aria-valuemin={0}
                     aria-valuemax={Math.max(ids.length, 1)}
                     aria-valuenow={done}
@@ -636,12 +641,16 @@ export default function WeekPlanView({
                     size={14}
                     className="flex-shrink-0 text-muted-foreground"
                   />
-                  <span className="dsa-caption text-foreground">Not in a week</span>
+                  <span className="dsa-caption text-foreground">
+                    {plan.sprintWeeks ? 'Backlog' : 'Not in a week'}
+                  </span>
                   <span className="text-xs font-medium tabular-nums mix-text-foreground/[0.74]">
                     {pool.length} {pool.length === 1 ? 'question' : 'questions'}
                   </span>
                   <span className="ml-auto hidden text-[13px] font-medium mix-text-foreground/[0.74] sm:inline">
-                    Optional: pull any of them into a week
+                    {plan.sprintWeeks
+                      ? 'Pull questions into a sprint when you have room'
+                      : 'Optional: pull any of them into a week'}
                   </span>
                 </button>
               </h3>

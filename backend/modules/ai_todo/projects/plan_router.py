@@ -10,7 +10,8 @@ Endpoints (all under /todo):
   PUT  /projects/{id}/plan              — save the workspace
   POST /projects/{id}/plan/questions    — AI asks clarifying questions
   POST /projects/{id}/plan/feasibility  — AI judges whether the chosen timeline is realistic
-  POST /projects/{id}/plan/generate     — AI writes the phased plan
+  POST /projects/{id}/plan/generate     — AI writes the phased plan (or, with plan_style "sprints", a sprint plan:
+                                          1- or 2-week sprints sized to the work, plus a backlog)
   POST /projects/{id}/plan/refine       — AI answers or edits the plan from a chat message
   POST /projects/{id}/plan/apply        — add the plan's phases and tasks to the project's node tree
 
@@ -22,8 +23,8 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import date
-from typing import Any, Dict, List, Optional
+from datetime import date, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -45,6 +46,7 @@ MAX_MESSAGE_CHARS = 2000
 MAX_STATE_BYTES = 500_000
 MAX_PLAN_CHARS = 100_000
 MAX_SPAN_DAYS = 3660
+MAX_SPRINTS = 12  # the client's MAX_SPRINTS (plannerDates.ts) is the same
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -77,6 +79,9 @@ class PlannerRequest(AISettings):
     plan: Optional[Dict[str, Any]] = None
     message: str = ""
     history: List[PlanChatTurn] = []
+    # generate only: "phases" (the default) or "sprints" (sprint mode, with sprint_weeks 1 or 2)
+    plan_style: str = "phases"
+    sprint_weeks: Any = None
 
 
 class PlanStateBody(BaseModel):
@@ -178,6 +183,20 @@ def _plan_json(plan: Optional[Dict[str, Any]]) -> str:
     return text
 
 
+def _is_one(value: Any) -> bool:
+    """value == 1, but not True (JSON true is not a number, as in the twin)."""
+    return value == 1 and not isinstance(value, bool)
+
+
+def _sprint_span(plan: Dict[str, Any]) -> str:
+    """'1-week' or '2-week' for a sprint plan (anything but 1 reads as 2, as the client does)."""
+    return "1-week" if _is_one(plan.get("sprint_weeks")) else "2-week"
+
+
+def _is_sprint_plan(plan: Any) -> bool:
+    return isinstance(plan, dict) and plan.get("style") == "sprints"
+
+
 def _plan_outline(plan: Optional[Dict[str, Any]]) -> str:
     lines = []
     for phase in (plan or {}).get("phases") or []:
@@ -188,7 +207,85 @@ def _plan_outline(plan: Optional[Dict[str, Any]]) -> str:
             f"- {phase.get('name') or 'Phase'}: {phase.get('start_date') or '?'} to {phase.get('end_date') or '?'}, "
             f"{len(tasks) if isinstance(tasks, list) else 0} tasks"
         )
+    if lines and _is_sprint_plan(plan):
+        backlog = plan.get("backlog")
+        lines.insert(0, f"(A plan of {_sprint_span(plan)} sprints sized to the work, so it may finish before the timeline ends.)")
+        lines.append(f"- Backlog: {len(backlog) if isinstance(backlog, list) else 0} tasks that did not fit into a sprint")
     return "\n".join(lines)
+
+
+def _sprint_weeks(body: PlannerRequest) -> Optional[int]:
+    """None for a phased plan, else the sprint length in weeks (1 or 2); 422 for anything else."""
+    if body.plan_style == "phases":
+        return None
+    if body.plan_style != "sprints":
+        raise HTTPException(status_code=422, detail="plan_style must be 'phases' or 'sprints'.")
+    weeks = body.sprint_weeks
+    if isinstance(weeks, bool) or weeks not in (1, 2):
+        raise HTTPException(status_code=422, detail="sprint_weeks must be 1 or 2.")
+    return int(weeks)
+
+
+def _sprint_slots(window: Dict[str, Any], weeks: int) -> List[Tuple[str, str]]:
+    """The sprints that fit in the timeline, back to back from its start (the last one cut short at its end), at
+    most MAX_SPRINTS. The client's sprintSlots (plannerDates.ts) dates the sprints the same way."""
+    first = date.fromisoformat(window["start"])
+    last = date.fromisoformat(window["end"])
+    length = weeks * 7
+    count = min(MAX_SPRINTS, -(-window["days"] // length))
+    slots = []
+    for i in range(count):
+        sprint_end = min(first + timedelta(days=(i + 1) * length - 1), last)
+        slots.append(((first + timedelta(days=i * length)).isoformat(), sprint_end.isoformat()))
+    return slots
+
+
+def _sprint_plan_prompt(material: str, window: Dict[str, Any], weeks: int) -> str:
+    """generate's prompt in sprint mode: sprints sized to the work, the most important work first, a backlog."""
+    slots = _sprint_slots(window, weeks)
+    span = f"{weeks}-week"
+    length = "1 week" if weeks == 1 else f"{weeks} weeks"
+    slot_lines = "\n".join(f"Sprint {i}: {start} to {end}" for i, (start, end) in enumerate(slots, 1))
+    return f"""You are an expert project planner who works in sprints. Plan this project as a run of {span} sprints, sized to the work.
+
+{material}
+
+Timeline: {window['text']}
+Sprint length: {length}. The sprints that fit in the timeline, with their fixed dates:
+{slot_lines}
+
+Plan only as many sprints as the work needs, starting with Sprint 1 (at most {len(slots)}). Put the most important work first, so every sprint ends with something usable. If the work needs more time than these sprints give, fill them with what matters most and put the rest in "backlog". If it needs less, use fewer sprints and finish early instead of stretching the work out.
+
+Return ONLY a valid JSON object:
+{{
+  "summary": "3-5 sentences: what is delivered, how the sprints build on each other, and what waits in the backlog",
+  "sprints": [
+    {{
+      "name": "a short title for the sprint goal, without the sprint number",
+      "description": "1-2 sentences: the sprint goal and why it comes now",
+      "key_tasks": ["..."],
+      "deliverables": ["..."],
+      "milestone": "what can be shown at the sprint review",
+      "risks": ["..."]
+    }}
+  ],
+  "backlog": ["..."],
+  "assumptions": ["..."],
+  "risks": [{{"risk": "...", "mitigation": "..."}}],
+  "success_metrics": ["..."]
+}}
+Rules: 3-8 key_tasks per sprint, each a concrete task that starts with a verb and fits inside the sprint; 1-3 deliverables and risks per sprint; "backlog" lists concrete tasks that did not fit (an empty list when everything fits); use the user's answers and never contradict them; anything important you had to guess goes in "assumptions"; keep every string under 200 characters. No extra text, no markdown."""
+
+
+def _refine_sprint_note(plan: Optional[Dict[str, Any]]) -> str:
+    """The extra paragraph refine's prompt gets for a sprint plan (empty for a phased one)."""
+    if not _is_sprint_plan(plan):
+        return ""
+    return (
+        f'\nThis is a sprint plan: each entry in "phases" is one {_sprint_span(plan)} sprint, in order, and its dates come '
+        'from its position. To change when something happens, move tasks between sprints and "backlog" instead of '
+        'editing dates, and keep "style", "sprint_weeks" and "backlog" in the plan.\n'
+    )
 
 
 def _ai_object(prompt: str, body: PlannerRequest, max_tokens: int, failure: str) -> Dict[str, Any]:
@@ -278,9 +375,13 @@ Give at most 4 concerns and 4 recommendations, each under 160 characters. No ext
 
 @router.post("/projects/{project_id}/plan/generate")
 async def plan_generate_endpoint(project_id: int, payload: PlannerRequest, user_id: int = Depends(get_current_user_id)) -> dict:
-    """AI writes the descriptive phased plan for the chosen timeline."""
+    """AI writes the descriptive phased plan for the chosen timeline (or the sprint plan, in sprint mode)."""
     project = _owned_project(project_id, user_id)
     window = _window(payload.start_date, payload.end_date, required=True)
+    sprint_weeks = _sprint_weeks(payload)
+    if sprint_weeks is not None:
+        prompt = _sprint_plan_prompt(_material(project, payload), window, sprint_weeks)
+        return {"plan": _ai_object(prompt, payload, 7000, "AI Planner failed")}
 
     prompt = f"""You are an expert project planner. Write a realistic, descriptive plan for this project.
 
@@ -344,7 +445,7 @@ Conversation so far:
 User: {message}
 
 If they ask for a change, apply it and keep everything else as it is (same phases, order and wording; dates stay inside the timeline unless the change needs them to move). If they ask a question, or what they ask would break the timeline or the scope, do not change the plan: answer, explain the trade-off and suggest what to do.
-
+{_refine_sprint_note(payload.plan)}
 Return ONLY a valid JSON object:
 {{"reply": "1-3 sentences: what you changed, or your answer", "changed": true, "plan": {{ ...the COMPLETE updated plan in exactly the same shape as above... }}}}
 When "changed" is false, set "plan" to null. No extra text, no markdown."""

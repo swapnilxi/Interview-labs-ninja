@@ -82,6 +82,8 @@ const planBody = (plan: WeekPlan): WeekPlan => ({
   assignments: plan.assignments,
   order: plan.order,
   labels: plan.labels,
+  // Sprint mode only: a plain plan is sent (and stored) without the key.
+  ...(plan.sprintWeeks ? { sprintWeeks: plan.sprintWeeks } : {}),
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

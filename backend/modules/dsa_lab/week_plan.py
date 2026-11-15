@@ -15,7 +15,8 @@ is active now. Omitting `profileId` keeps the plain "write to whatever is active
 
 A plan is {"weeks", "assignments", "order", "labels"}: `assignments` maps topic id -> week (an id that isn't
 listed is in no week, i.e. in the organizer's question queue), `order` is the learner's sequence (inside a
-week questions sort by their index here) and `labels` maps "<week>" -> focus label. The AI auto organizer's
+week questions sort by their index here) and `labels` maps "<week>" -> focus label. A plan in sprint mode also
+has "sprintWeeks" (1 or 2): its weeks are grouped into sprints of that many weeks. A plain plan has no such key. The AI auto organizer's
 prompt and normaliser are in auto_plan.py.
 
 `frontend/fe-apis/dsaLab/` is the Next.js twin (nextjs-api mode): limits, shapes, status codes and messages
@@ -95,11 +96,19 @@ class WeekPlanError(Exception):
 # ── Validation ────────────────────────────────────────────────────────────────
 
 
-def validate_plan(weeks: int, assignments: Dict[str, int], order: Any = None, labels: Any = None) -> Optional[str]:
+def _is_sprint_weeks(value: Any) -> bool:
+    """1 or 2 (an int, not a bool): the sprint lengths a plan may have."""
+    return isinstance(value, int) and not isinstance(value, bool) and value in (1, 2)
+
+
+def validate_plan(
+    weeks: int, assignments: Dict[str, int], order: Any = None, labels: Any = None, sprint_weeks: Any = None
+) -> Optional[str]:
     """Return a human-readable problem with the plan, or None when it is fine.
 
-    `weeks` and `assignments` arrive type-checked (the router's Pydantic model); `order` and `labels` are
-    checked here so their messages match the twin. A missing / null `order` or `labels` means empty. The first
+    `weeks` and `assignments` arrive type-checked (the router's Pydantic model); `order`, `labels` and
+    `sprint_weeks` are checked here so their messages match the twin. A missing / null `order` or `labels`
+    means empty; a missing / null `sprint_weeks` means no sprints (checked last). The first
     failure wins; each `order` item (id, then repeat) and each label (week key, then text, then length) is
     checked in full before the next one, exactly as in the twin. Object keys are walked in the twin's
     (JavaScript) order, see _js_key_order.
@@ -141,19 +150,26 @@ def validate_plan(weeks: int, assignments: Dict[str, int], order: Any = None, la
             return "Every week label must be text."
         if len(label.strip()) > LABEL_MAX:
             return f"Week {key}'s label is longer than {LABEL_MAX} characters."
+    if sprint_weeks is not None and not _is_sprint_weeks(sprint_weeks):
+        return "Field 'sprintWeeks' must be 1 or 2."
     return None
 
 
-def normalize_plan(weeks: int, assignments: Dict[str, int], order: Any = None, labels: Any = None) -> dict:
+def normalize_plan(
+    weeks: int, assignments: Dict[str, int], order: Any = None, labels: Any = None, sprint_weeks: Any = None
+) -> dict:
     """The stored / returned form of a plan that passed validate_plan: every key present, labels trimmed,
-    empty labels dropped."""
+    empty labels dropped, and "sprintWeeks" only when the plan is in sprint mode."""
     trimmed = {key: label.strip() for key, label in (labels or {}).items()}
-    return {
+    plan = {
         "weeks": weeks,
         "assignments": dict(assignments),
         "order": list(order or []),
         "labels": {key: label for key, label in trimmed.items() if label},
     }
+    if sprint_weeks is not None:
+        plan["sprintWeeks"] = sprint_weeks
+    return plan
 
 
 def clean_name(value: Any) -> str:
@@ -230,12 +246,15 @@ def _parse_json(text: str) -> dict:
 
 def _plan_of(row: sqlite3.Row) -> dict:
     plan = _parse_json(row["plan_json"])
-    return {
+    out = {
         "weeks": plan.get("weeks"),
         "assignments": plan.get("assignments") or {},
         "order": plan.get("order") or [],
         "labels": plan.get("labels") or {},
     }
+    if _is_sprint_weeks(plan.get("sprintWeeks")):
+        out["sprintWeeks"] = plan["sprintWeeks"]
+    return out
 
 
 def _profile_summary(row: sqlite3.Row) -> dict:

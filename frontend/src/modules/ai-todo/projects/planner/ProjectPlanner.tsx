@@ -210,17 +210,20 @@ export default function ProjectPlanner({ project, model }: ProjectPlannerProps) 
     }
   };
 
-  const runGenerate = async () => {
+  /** Writes the plan; `style` first switches the workspace to that plan style (sprint mode on, off, or another length). */
+  const runGenerate = async (style?: Pick<PlannerState, 'plan_style' | 'sprint_weeks'>) => {
     const before = stateRef.current;
     if (daysBetween(before.start_date, before.end_date) < 1) return;
     if (before.plan) {
+      const sprints = (style?.plan_style ?? before.plan_style) === 'sprints';
       const ok = await confirmDialog({
-        title: 'Write a new plan?',
-        message: 'The current plan, and any changes you made to it in the chat, will be replaced.',
-        confirmLabel: 'Write new plan',
+        title: sprints ? 'Write a new sprint plan?' : 'Write a new plan?',
+        message: 'The current plan, and any changes you made to it in the chat or by organising it, will be replaced.',
+        confirmLabel: sprints ? 'Write sprint plan' : 'Write new plan',
       });
       if (!ok) return;
     }
+    if (style) patch(style, true);
     setBusy('generate');
     setError(null);
     try {
@@ -295,7 +298,14 @@ export default function ProjectPlanner({ project, model }: ProjectPlannerProps) 
     try {
       const created = await projectPlannerService.applyToProject(projectId, current.plan);
       patch({ applied_at: new Date().toISOString() }, true);
-      toast.success(`Added ${created.phases} ${created.phases === 1 ? 'phase' : 'phases'} and ${created.nodes - created.phases} tasks to the project.`, {
+      const tasks = created.nodes - created.phases;
+      let what = `${created.phases} ${created.phases === 1 ? 'phase' : 'phases'}`;
+      if (current.plan.style === 'sprints') {
+        // The backlog, when there is one, is added as one more top-level node after the sprints.
+        const sprintCount = created.phases - (current.plan.backlog.length ? 1 : 0);
+        what = `${sprintCount} ${sprintCount === 1 ? 'sprint' : 'sprints'}${current.plan.backlog.length ? ', a backlog' : ''}`;
+      }
+      toast.success(`Added ${what} and ${tasks} ${tasks === 1 ? 'task' : 'tasks'} to the project.`, {
         action: { label: 'Open Explorer', onClick: () => router.push(planUrls.project(projectId)) },
       });
     } catch (err) {
@@ -471,6 +481,8 @@ export default function ProjectPlanner({ project, model }: ProjectPlannerProps) 
                 onCopy={() => void copyPlan()}
                 onEditTimeline={() => goStep('timeline')}
                 onUseSuggestion={useSuggestion}
+                onPlanStyle={(planStyle, weeks) => void runGenerate({ plan_style: planStyle, sprint_weeks: weeks })}
+                onOrganise={(plan) => patch({ plan })}
               />
               <PlanChat ref={chatRef} chat={state.chat} busy={busy === 'refine'} onSend={sendChat} />
             </div>

@@ -22,9 +22,13 @@ import {
   NOTES_MAX,
   patternGroups,
   patternKey,
+  SPRINT_LENGTHS,
+  sprintCountText,
+  sprintPlanWeeks,
   STYLE_OPTIONS,
   SUMMARY_MAX,
   TIMELINE_PRESETS,
+  timelineFit,
   WEEK_CAP,
   weekCounts,
   weeksUntil,
@@ -215,11 +219,27 @@ export default function AutoOrganizerWizard({
   const allIds = useMemo(() => topics.map((t) => t.id), [topics]);
   const solved = progress.countDone(allIds);
   const available = answers.includeDone ? topics.length : topics.length - solved;
-  const capacity = effectiveWeeks * answers.perWeek;
+
+  // ── Sprint mode ─────────────────────────────────────────────────────────────────────────────
+  // Offered when the time chosen is a poor fit for the questions: far too short, or far longer than they need
+  // (an interview beyond MAX_WEEKS always counts). The plan is then sized to the work in 1- or 2-week sprints.
+  const beyondMax = timeline === 'date' && weeksValid && Math.ceil((dateDays ?? 0) / 7) > MAX_WEEKS;
+  const fit = weeksValid
+    ? timelineFit({ available, weeks: effectiveWeeks, perWeek: answers.perWeek, beyondMax })
+    : null;
+  const sprint = answers.sprintWeeks || undefined;
+  /** The weeks the plan itself has: all of them, or in sprint mode only as many as the questions need. */
+  const planWeeks = sprint
+    ? sprintPlanWeeks(effectiveWeeks, available, answers.perWeek, sprint)
+    : effectiveWeeks;
+  const capacity = planWeeks * answers.perWeek;
+  const planSpan = sprint
+    ? `${sprintCountText(planWeeks, sprint)} (${plural(planWeeks, 'week')})`
+    : plural(planWeeks, 'week');
 
   const finalAnswers: AutoAnswers = {
     ...answers,
-    weeks: effectiveWeeks,
+    weeks: planWeeks,
     focus: focusNames,
     weak: weakNames,
   };
@@ -437,6 +457,12 @@ export default function AutoOrganizerWizard({
       title: 'Timeline',
       rows: [
         ['Length', weeksValid ? timelineSummary : 'Not set'],
+        ...(sprint && weeksValid
+          ? ([['Sprints', planSpan + (planWeeks < effectiveWeeks ? ', then free weeks' : '')]] as [
+              string,
+              string,
+            ][])
+          : []),
         ['Per week', `Up to ${answers.perWeek}, room for ${capacity} questions`],
       ],
     },
@@ -473,13 +499,89 @@ export default function AutoOrganizerWizard({
   const capacityNote = (
     <p className="rounded-lg px-4 py-3 leading-relaxed text-[13px] font-medium mix-text-foreground/[0.74] mix-bg-foreground/[0.03]">
       Room for up to <span className="font-semibold tabular-nums text-foreground">{capacity}</span>{' '}
-      questions over {plural(effectiveWeeks, 'week')}. The lab has{' '}
+      questions over {planSpan}. The lab has{' '}
       <span className="tabular-nums">{plural(topics.length, 'question')}</span>
       {solved > 0 ? `, ${solved} already solved` : ''}.{' '}
       {available > capacity
         ? 'The planner picks the ones that fit best; the rest stay in the queue.'
         : 'Everything can fit.'}
     </p>
+  );
+
+  const needed = Math.ceil(available / Math.max(1, answers.perWeek));
+  const sprintCopy =
+    fit === 'short'
+      ? {
+          heading: `Short on time: ${effectiveWeeks * answers.perWeek} of ${plural(available, 'question')} fit in ${plural(effectiveWeeks, 'week')}.`,
+          body: 'Work in sprints instead: 1- or 2-week sprints with the most important questions first. The rest wait in the queue as your backlog, ready for the next sprint.',
+        }
+      : fit === 'wide'
+        ? {
+            heading: beyondMax
+              ? `Your interview is more than ${MAX_WEEKS} weeks away.`
+              : `More time than you need: ${plural(available, 'question')} take about ${plural(needed, 'week')} at ${answers.perWeek} a week.`,
+            body: 'Work in sprints: plan only the sprints your questions need, and keep the weeks after them free for review and mock interviews.',
+          }
+        : {
+            heading: 'Sprint mode',
+            body: 'The weeks are grouped into 1- or 2-week sprints, sized to the questions you plan.',
+          };
+  const sprintPanel = weeksValid && (fit || sprint) && (
+    <section aria-labelledby={`${uid}-sprint-title`} className="rounded-lg border px-4 py-3.5">
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg lab-tint lab-ink"
+        >
+          <Icon name="ArrowPathRoundedSquareIcon" size={16} />
+        </span>
+        <div className="min-w-0">
+          <h3
+            id={`${uid}-sprint-title`}
+            className="text-sm font-semibold leading-snug text-foreground"
+          >
+            {sprintCopy.heading}
+          </h3>
+          <p className="mt-0.5 leading-relaxed text-[13px] font-medium mix-text-foreground/[0.74]">
+            {sprintCopy.body}
+          </p>
+        </div>
+      </div>
+      <div
+        role="group"
+        aria-label="Sprint mode"
+        className="mt-3 todo-segmented todo-segmented-quiet todo-segmented-accent"
+      >
+        <button
+          type="button"
+          aria-pressed={!sprint}
+          onClick={() => patch({ sprintWeeks: 0 })}
+          className="todo-segment"
+        >
+          Off
+        </button>
+        {SPRINT_LENGTHS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-pressed={sprint === n}
+            onClick={() => patch({ sprintWeeks: n })}
+            className="todo-segment"
+          >
+            {n}-week sprints
+          </button>
+        ))}
+      </div>
+      {sprint && (
+        <p aria-live="polite" className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
+          The plan: {planSpan}
+          {planWeeks < effectiveWeeks
+            ? `, leaving ${plural(effectiveWeeks - planWeeks, 'week')} free`
+            : ''}
+          . You can regroup the sprints and move questions between them in the organizer.
+        </p>
+      )}
+    </section>
   );
 
   let body: React.ReactNode = null;
@@ -632,6 +734,7 @@ export default function AutoOrganizerWizard({
         </fieldset>
 
         {capacityNote}
+        {sprintPanel}
       </div>
     );
   } else if (step === 'you') {

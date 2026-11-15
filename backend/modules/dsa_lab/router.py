@@ -85,6 +85,7 @@ class WeekPlanIn(BaseModel):
     assignments: Dict[str, StrictInt] = Field(default_factory=dict, max_length=MAX_ENTRIES)
     order: Any = None
     labels: Any = None
+    sprintWeeks: Any = None  # sprint mode: 1 or 2 (null / missing = no sprints)
 
 
 class ActivePlanIn(WeekPlanIn):
@@ -151,10 +152,10 @@ def _parse_plan(raw: Any) -> WeekPlanIn:
 
 def _checked(plan: WeekPlanIn) -> dict:
     """validate_plan (422 with its message) and then the normalised plan."""
-    problem = validate_plan(plan.weeks, plan.assignments, plan.order, plan.labels)
+    problem = validate_plan(plan.weeks, plan.assignments, plan.order, plan.labels, plan.sprintWeeks)
     if problem:
         raise HTTPException(status_code=422, detail=problem)
-    return normalize_plan(plan.weeks, plan.assignments, plan.order, plan.labels)
+    return normalize_plan(plan.weeks, plan.assignments, plan.order, plan.labels, plan.sprintWeeks)
 
 
 @router.get("/week-plan")
@@ -254,7 +255,9 @@ async def auto_week_plan(payload: AutoPlanPayload, user_id: int = Depends(get_cu
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"The AI response couldn't be parsed. Try again. ({exc})")
 
-    plan, summary, stats = normalize_auto_plan(raw, [t["id"] for t in topics], answers["weeks"], answers["perWeek"])
+    plan, summary, stats = normalize_auto_plan(
+        raw, [t["id"] for t in topics], answers["weeks"], answers["perWeek"], answers["sprintWeeks"]
+    )
     if not plan["assignments"]:
         raise HTTPException(status_code=502, detail="The AI didn't return a usable plan. Try again.")
     return {"plan": plan, "summary": summary, "stats": stats}

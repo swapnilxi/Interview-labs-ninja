@@ -32,6 +32,10 @@ export const DEFAULT_PER_WEEK = 7;
 export const WEEK_COUNT_OPTIONS = [5, 6] as const;
 export const PER_WEEK_OPTIONS = [5, 6, 7] as const;
 
+/** Weeks per sprint in sprint mode. */
+export type SprintLength = 1 | 2;
+export const SPRINT_LENGTHS: readonly SprintLength[] = [1, 2];
+
 export interface WeekPlan {
   weeks: number;
   /** topic id → week number (1-based). A question that isn't listed is in no week (the queue). */
@@ -40,6 +44,20 @@ export interface WeekPlan {
   order: string[];
   /** "<week number>" → short focus label (at most LABEL_MAX characters), e.g. { "3": "Graphs" }. */
   labels: Record<string, string>;
+  /**
+   * Sprint mode: the weeks are grouped into sprints of this many weeks (the last one may be shorter) instead of
+   * blocks of four. Absent on a plain plan. Both backends store and validate it (1 or 2).
+   */
+  sprintWeeks?: SprintLength;
+}
+
+const isSprintLength = (v: unknown): v is SprintLength => v === 1 || v === 2;
+
+/** `plan` with `sprintWeeks` set to `sprint` (left out entirely when there is none, so plain plans keep four keys). */
+function withSprint(plan: WeekPlan, sprint: SprintLength | undefined): WeekPlan {
+  if (plan.sprintWeeks === sprint) return plan;
+  const { sprintWeeks: _old, ...rest } = plan;
+  return sprint ? { ...rest, sprintWeeks: sprint } : rest;
 }
 
 /** What the planning helpers need from a question (a DSATopic fits). */
@@ -154,8 +172,12 @@ function cut(ids: readonly string[], sizes: number[]): string[][] {
   });
 }
 
-/** A plan whose weeks hold exactly these lists (lists[0] = week 1), in this order; labels are kept. */
-function fromLists(labels: Record<string, string>, lists: string[][]): WeekPlan {
+/** A plan whose weeks hold exactly these lists (lists[0] = week 1), in this order; labels and sprint length are kept. */
+function fromLists(
+  labels: Record<string, string>,
+  lists: string[][],
+  sprint?: SprintLength
+): WeekPlan {
   const assignments: Record<string, number> = {};
   const order: string[] = [];
   lists.forEach((ids, i) => {
@@ -164,7 +186,7 @@ function fromLists(labels: Record<string, string>, lists: string[][]): WeekPlan 
       order.push(id);
     }
   });
-  return { weeks: lists.length, assignments, order, labels };
+  return withSprint({ weeks: lists.length, assignments, order, labels }, sprint);
 }
 
 /**
@@ -231,18 +253,22 @@ export function normalizePlan(raw: unknown): WeekPlan {
     const label = value.trim().slice(0, LABEL_MAX).trim();
     if (label) labels[key] = label;
   }
-  return {
-    weeks,
-    assignments,
-    order: [...pos.keys()].filter((id) => hasOwn(assignments, id)),
-    labels,
-  };
+  return withSprint(
+    {
+      weeks,
+      assignments,
+      order: [...pos.keys()].filter((id) => hasOwn(assignments, id)),
+      labels,
+    },
+    isSprintLength(src.sprintWeeks) ? src.sprintWeeks : undefined
+  );
 }
 
-/** True when two plans hold the same weeks, assignments, order and labels. */
+/** True when two plans hold the same weeks, assignments, order, labels and sprint length. */
 export function samePlan(a: WeekPlan, b: WeekPlan): boolean {
   if (a === b) return true;
   if (a.weeks !== b.weeks || a.order.length !== b.order.length) return false;
+  if ((a.sprintWeeks ?? 0) !== (b.sprintWeeks ?? 0)) return false;
   if (a.order.some((id, i) => id !== b.order[i])) return false;
   const sameMap = <T>(x: Record<string, T>, y: Record<string, T>) => {
     const keys = Object.keys(x);
@@ -324,7 +350,10 @@ function remapWeeks(
     const next = isWeek(plan, Number(key)) ? mapWeek(Number(key)) : null;
     if (next !== null) labels[String(next)] = label;
   }
-  return { weeks, assignments, order: plan.order.filter((id) => hasOwn(assignments, id)), labels };
+  return withSprint(
+    { weeks, assignments, order: plan.order.filter((id) => hasOwn(assignments, id)), labels },
+    plan.sprintWeeks
+  );
 }
 
 /**
@@ -354,7 +383,7 @@ export function moveQuestion(
     if (week === current && to === from) return { plan };
     target.splice(to, 0, topicId);
   }
-  return { plan: fromLists(plan.labels, lists) };
+  return { plan: fromLists(plan.labels, lists, plan.sprintWeeks) };
 }
 
 /**
@@ -375,7 +404,7 @@ export function swapQuestions(
   const ib = wb === null ? -1 : lists[wb - 1].indexOf(b);
   if (wa !== null) lists[wa - 1][ia] = b;
   if (wb !== null) lists[wb - 1][ib] = a;
-  return { plan: fromLists(plan.labels, lists) };
+  return { plan: fromLists(plan.labels, lists, plan.sprintWeeks) };
 }
 
 /** Inserts an empty week after week `after` (0 = at the start; default: at the end). Later weeks and labels shift up. */
@@ -447,7 +476,7 @@ export function fillWeek(
   }
   if (target.length === before)
     return { error: `There are no questions left to add to week ${week}.` };
-  return { plan: fromLists(plan.labels, lists) };
+  return { plan: fromLists(plan.labels, lists, plan.sprintWeeks) };
 }
 
 /** Keeps the whole sequence (week 1 first) but redistributes it as evenly as possible over every week. */
@@ -456,31 +485,45 @@ export function spreadEvenly(plan: WeekPlan, rank: RankFn = NO_RANK): EditResult
   const sequence = lists.flat().slice(0, plan.weeks * WEEK_CAP);
   const next = cut(sequence, evenSizes(sequence.length, plan.weeks));
   if (next.every((ids, i) => ids.length === lists[i].length)) return { plan };
-  return { plan: fromLists(plan.labels, next) };
+  return { plan: fromLists(plan.labels, next, plan.sprintWeeks) };
 }
 
-/** How many blocks of BLOCK_SIZE weeks a plan of `weeks` weeks has. */
-export function blockCount(weeks: number): number {
-  return Math.max(0, Math.ceil(weeks / BLOCK_SIZE));
+/** Groups the weeks into sprints of `sprint` weeks (0 = back to plain blocks of four). Nothing else changes. */
+export function setSprintWeeks(plan: WeekPlan, sprint: 0 | SprintLength): EditResult {
+  return { plan: withSprint(plan, sprint || undefined) };
 }
 
-/** The week numbers in block `block` (0-based: block 0 is weeks 1-4); the last block may be shorter. */
-export function blockWeeks(block: number, weeks: number): number[] {
-  const first = block * BLOCK_SIZE + 1;
-  const last = Math.min(weeks, first + BLOCK_SIZE - 1);
+/*
+ * Blocks: the week view and the organizer show the weeks in blocks — four weeks each, or one sprint each when the
+ * plan is in sprint mode (pass the plan's `sprintWeeks`). The last block may be shorter.
+ */
+
+/** How many blocks a plan of `weeks` weeks has. */
+export function blockCount(weeks: number, sprint?: SprintLength): number {
+  return Math.max(0, Math.ceil(weeks / (sprint ?? BLOCK_SIZE)));
+}
+
+/** The week numbers in block `block` (0-based: block 0 is weeks 1-4, or sprint 1). */
+export function blockWeeks(block: number, weeks: number, sprint?: SprintLength): number[] {
+  const size = sprint ?? BLOCK_SIZE;
+  const first = block * size + 1;
+  const last = Math.min(weeks, first + size - 1);
   return first > last ? [] : Array.from({ length: last - first + 1 }, (_, i) => first + i);
 }
 
 /** The 0-based block a week falls in. */
-export function blockOf(week: number): number {
-  return Math.floor((week - 1) / BLOCK_SIZE);
+export function blockOf(week: number, sprint?: SprintLength): number {
+  return Math.floor((week - 1) / (sprint ?? BLOCK_SIZE));
 }
 
-/** "Weeks 1–4" for a block's caption ("Week 9" when the block has a single week). */
-export function blockLabel(block: number, weeks: number): string {
-  const list = blockWeeks(block, weeks);
-  if (list.length <= 1) return `Week ${list[0] ?? block * BLOCK_SIZE + 1}`;
-  return `Weeks ${list[0]}–${list[list.length - 1]}`;
+/** "Weeks 1–4" for a block's caption ("Week 9" for a one-week block); "Sprint 2 · Weeks 3–4" in sprint mode. */
+export function blockLabel(block: number, weeks: number, sprint?: SprintLength): string {
+  const list = blockWeeks(block, weeks, sprint);
+  const span =
+    list.length <= 1
+      ? `Week ${list[0] ?? block * (sprint ?? BLOCK_SIZE) + 1}`
+      : `Weeks ${list[0]}–${list[list.length - 1]}`;
+  return sprint ? `Sprint ${block + 1} · ${span}` : span;
 }
 
 /** Sort weight of a difficulty: Easy 0, Easy-Medium 1, Medium 2, Medium-Hard 3, Hard 4, anything else 2. */
@@ -853,10 +896,17 @@ export interface AutoAnswers {
   notes: string;
   /** Plan questions already marked complete too (otherwise they are left out). */
   includeDone: boolean;
+  /**
+   * Sprint mode (0 = off): plan in sprints of this many weeks, sized to the questions (see sprintPlanWeeks). When
+   * it is on, `weeks` is the sprint plan's length, which may be shorter than the time the learner has.
+   */
+  sprintWeeks: 0 | SprintLength;
 }
 
-/** The answers as the request sends them (no `includeDone`). */
-export type AutoRequestAnswers = Omit<AutoAnswers, 'includeDone'>;
+/** The answers as the request sends them: no `includeDone`, and `sprintWeeks` only when sprint mode is on. */
+export type AutoRequestAnswers = Omit<AutoAnswers, 'includeDone' | 'sprintWeeks'> & {
+  sprintWeeks?: SprintLength;
+};
 
 export interface AutoOption<T extends string> {
   value: T;
@@ -902,6 +952,7 @@ export const DEFAULT_AUTO_ANSWERS: AutoAnswers = {
   weak: [],
   notes: '',
   includeDone: false,
+  sprintWeeks: 0,
 };
 
 /** Valid answers from anything (e.g. JSON restored from localStorage): bad fields fall back to the defaults. */
@@ -932,6 +983,7 @@ export function normalizeAutoAnswers(raw: unknown): AutoAnswers {
     weak: names(src.weak),
     notes: typeof src.notes === 'string' ? src.notes.slice(0, NOTES_MAX) : d.notes,
     includeDone: typeof src.includeDone === 'boolean' ? src.includeDone : d.includeDone,
+    sprintWeeks: isSprintLength(src.sprintWeeks) ? src.sprintWeeks : d.sprintWeeks,
   };
 }
 
@@ -948,7 +1000,56 @@ export function autoRequestAnswers(answers: AutoAnswers): AutoRequestAnswers {
     focus: a.focus,
     weak: a.weak,
     notes: a.notes.trim().slice(0, NOTES_MAX),
+    ...(a.sprintWeeks ? { sprintWeeks: a.sprintWeeks } : {}),
   };
+}
+
+/** How a timeline fits the questions to plan: too few weeks for them, far more weeks than they need, or fine. */
+export type TimelineFit = 'short' | 'wide' | null;
+
+/**
+ * 'short' when less than half the questions fit (weeks × perWeek), 'wide' when the weeks are at least half again
+ * (and two more than) what the questions need at that pace, or when the interview is further away than a plan can
+ * reach (`beyondMax`). Nothing to plan = no verdict.
+ */
+export function timelineFit({
+  available,
+  weeks,
+  perWeek,
+  beyondMax = false,
+}: {
+  available: number;
+  weeks: number;
+  perWeek: number;
+  beyondMax?: boolean;
+}): TimelineFit {
+  if (available <= 0 || perWeek < 1) return null;
+  if (weeks * perWeek * 2 < available) return 'short';
+  const needed = Math.ceil(available / perWeek);
+  if (beyondMax || (weeks >= needed + 2 && weeks >= needed * 1.5)) return 'wide';
+  return null;
+}
+
+/**
+ * A sprint plan's length, sized to the work: the weeks the questions need at `perWeek`, rounded up to whole
+ * sprints, but never more than the `weeks` the learner has (a short timeline keeps all of them, and the questions
+ * that don't fit stay in the queue as the backlog for later sprints).
+ */
+export function sprintPlanWeeks(
+  weeks: number,
+  available: number,
+  perWeek: number,
+  sprint: SprintLength
+): number {
+  const needed = Math.max(1, Math.ceil(Math.max(0, available) / Math.max(1, perWeek)));
+  const whole = Math.ceil(needed / sprint) * sprint;
+  return clampInt(Math.min(weeks, whole), 1, MAX_WEEKS);
+}
+
+/** "3 two-week sprints" / "1 one-week sprint" (a plan's last sprint may be a week shorter). */
+export function sprintCountText(weeks: number, sprint: SprintLength): string {
+  const n = Math.ceil(weeks / sprint);
+  return `${n} ${sprint === 1 ? 'one' : 'two'}-week ${n === 1 ? 'sprint' : 'sprints'}`;
 }
 
 /** Whole weeks from `now` until an interview date ("YYYY-MM-DD"), rounded up and clamped to 1..MAX_WEEKS; null if unreadable. */
@@ -1005,7 +1106,8 @@ function balanceHard(lists: string[][], hard: (id: string) => boolean, max = 2):
  * (solved ones dropped unless `includeDone`; 'gentle' moves Hard questions to the end), the emphasised
  * and hard-for-you patterns picked first when they don't all fit ('stretch' drops Easy ones first),
  * put back in learning order, blended per two weeks for 'mixed', cut evenly into the weeks with at most
- * 2 Hard a week (except 'stretch'), and labelled by each week's main patterns.
+ * 2 Hard a week (except 'stretch'), and labelled by each week's main patterns. In sprint mode the plan is
+ * tagged with its sprint length (`answers.weeks` is already the sprint plan's length, see sprintPlanWeeks).
  */
 export function localOrganize({
   topics,
@@ -1054,9 +1156,11 @@ export function localOrganize({
 
   const placed = selected.length;
   const left = candidates.length - placed;
+  const sprint = a.sprintWeeks || undefined;
+  const weeksText = `${a.weeks} week${a.weeks === 1 ? '' : 's'}`;
   const sentences = [
-    `Quick plan: ${placed} question${placed === 1 ? '' : 's'} over ${a.weeks} week${
-      a.weeks === 1 ? '' : 's'
+    `Quick plan: ${placed} question${placed === 1 ? '' : 's'} over ${
+      sprint ? `${sprintCountText(a.weeks, sprint)} (${weeksText})` : weeksText
     }, at most ${a.perWeek} a week, ${
       a.style === 'mixed'
         ? 'with patterns blended inside each week'
@@ -1072,7 +1176,7 @@ export function localOrganize({
     sentences.push(
       `${left} question${left === 1 ? '' : 's'} did not fit the timeline and stay${
         left === 1 ? 's' : ''
-      } in the queue.`
+      } in the queue${sprint ? ', the backlog for later sprints' : ''}.`
     );
   if (!a.includeDone && solved.length)
     sentences.push(
@@ -1085,5 +1189,5 @@ export function localOrganize({
     sentences.push('Hard questions were left out to keep it gentle.');
   if (a.difficulty === 'stretch' && left > 0)
     sentences.push('Easy questions were the first to go.');
-  return { plan: fromLists(labels, lists), summary: sentences.join(' ') };
+  return { plan: fromLists(labels, lists, sprint), summary: sentences.join(' ') };
 }

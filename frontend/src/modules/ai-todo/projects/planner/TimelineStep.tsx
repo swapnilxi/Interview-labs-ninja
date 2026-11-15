@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import type { DurationUnit, PlannerState } from '@/lib/services/projectPlannerService';
 import FeasibilityCard from './FeasibilityCard';
+import SprintModePanel, { timelineFit } from './SprintModePanel';
 import type { PlannerBusy } from './types';
 import { addDays, daysBetween, durationOf, endFromDuration, formatRange, parseDay, todayLocal } from './plannerDates';
 
@@ -61,6 +62,9 @@ export default function TimelineStep({ state, busy, onChange, onCheck, onGenerat
   };
 
   const months = days / 30.4375;
+  const sprints = state.plan_style === 'sprints';
+  const fit = valid ? timelineFit(state.feasibility, start, end) : null;
+  const writeLabel = `${state.plan ? 'Write a new' : 'Write the'} ${sprints ? 'sprint plan' : 'plan'}`;
 
   return (
     <section className="flex flex-col gap-[1rem]" aria-labelledby="planner-timeline-title">
@@ -170,7 +174,7 @@ export default function TimelineStep({ state, busy, onChange, onCheck, onGenerat
               ) : (
                 <Icon name="SparklesIcon" size={14} variant="solid" />
               )}
-              {busy === 'generate' ? 'Writing the plan…' : state.plan ? 'Write a new plan' : 'Write the plan'}
+              {busy === 'generate' ? 'Writing the plan…' : writeLabel}
             </button>
           </div>
         </div>
@@ -186,6 +190,23 @@ export default function TimelineStep({ state, busy, onChange, onCheck, onGenerat
             setDraft(null);
             onChange({ start_date: from, end_date: endFromDuration(from, value, suggestedUnit), unit: suggestedUnit });
           }}
+        />
+      )}
+
+      {/* Sprint mode: offered when the check says the time is too short or far more than needed; stays while it is on. */}
+      {valid && (fit || sprints) && (
+        <SprintModePanel
+          mode="choose"
+          fit={fit}
+          style={state.plan_style}
+          weeks={state.sprint_weeks}
+          start={start}
+          end={end}
+          disabled={locked}
+          onChange={(planStyle, weeks) => onChange({ plan_style: planStyle, sprint_weeks: weeks })}
+          onWrite={onGenerate}
+          writing={busy === 'generate'}
+          hasPlan={!!state.plan}
         />
       )}
     </section>

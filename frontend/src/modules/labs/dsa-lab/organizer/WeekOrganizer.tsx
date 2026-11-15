@@ -67,6 +67,7 @@ import type { DSATopic } from '../types';
 import { menuItemClass, menuPopoverClass } from '../ui';
 import type { WeekPlanApi } from '../useWeekPlan';
 import {
+  BLOCK_SIZE,
   blockCount,
   blockLabel,
   blockWeeks,
@@ -76,11 +77,13 @@ import {
   MAX_WEEKS,
   patternGroups,
   patternKey,
+  SPRINT_LENGTHS,
   WEEK_CAP,
   weekCounts,
   weekQuestions,
   weekTheme,
   type Insight,
+  type SprintLength,
 } from '../weekPlan';
 import BlockHeader from './BlockHeader';
 import {
@@ -995,6 +998,17 @@ export default function WeekOrganizer({
     announce(`Week ${from} is now week ${to}.`);
     revealWeek(to);
   };
+  /** Sprint mode on (1- or 2-week sprints) or off (0): only how the weeks are grouped changes. Undoable. */
+  const setSprint = (next: 0 | SprintLength) => {
+    const err = wp.current.setSprintWeeks(next);
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    announce(
+      next ? `Weeks grouped into ${next}-week sprints.` : 'Sprints off: weeks in blocks of four.'
+    );
+  };
   const addWeek = (after?: number) => {
     const err = wp.current.addWeek(after);
     if (err) {
@@ -1094,23 +1108,26 @@ export default function WeekOrganizer({
     () => Array.from({ length: plan.weeks }, (_, i) => weekSortId(i + 1)),
     [plan.weeks]
   );
+  // Blocks of four weeks, or one block per sprint when the plan is in sprint mode.
+  const sprint = plan.sprintWeeks;
+  const blockSize = sprint ?? BLOCK_SIZE;
   const blocks = useMemo(
     () =>
-      Array.from({ length: blockCount(plan.weeks) }, (_, b) => {
-        const weeks = blockWeeks(b, plan.weeks);
+      Array.from({ length: blockCount(plan.weeks, sprint) }, (_, b) => {
+        const weeks = blockWeeks(b, plan.weeks, sprint);
         return {
           b,
           weeks,
-          label: blockLabel(b, plan.weeks),
+          label: blockLabel(b, plan.weeks, sprint),
           planned: weeks.reduce((sum, w) => sum + (counts[w - 1] ?? 0), 0),
           done: weeks.reduce((sum, w) => sum + (doneByWeek[w - 1] ?? 0), 0),
           capacity: weeks.length * WEEK_CAP,
         };
       }),
-    [plan.weeks, counts, doneByWeek]
+    [plan.weeks, sprint, counts, doneByWeek]
   );
-  /** The last block has fewer than four weeks, so "Add week N" is a cell in its grid instead of a bar under the board. */
-  const lastBlockOpen = blocks.length > 0 && blocks[blocks.length - 1].weeks.length < 4;
+  /** The last block is not full (fewer than four weeks, or than a sprint), so "Add week N" is a cell in its grid instead of a bar under the board. */
+  const lastBlockOpen = blocks.length > 0 && blocks[blocks.length - 1].weeks.length < blockSize;
   const dropStateOf = (week: number): DropState =>
     drag?.kind === 'card' && !outside && overInfo?.container === weekContainerId(week)
       ? overInfo.full
@@ -1198,7 +1215,8 @@ export default function WeekOrganizer({
             </span>
             {!isMobile && (
               <span className="hidden min-w-0 truncate whitespace-nowrap tabular-nums lg:inline">
-                · {plan.weeks} {plan.weeks === 1 ? 'week' : 'weeks'} · {planned} planned
+                · {plan.weeks} {plan.weeks === 1 ? 'week' : 'weeks'}
+                {sprint ? ` in ${sprint}-week sprints` : ''} · {planned} planned
               </span>
             )}
             <SaveStatus weekPlan={weekPlan} compact={isMobile} />
@@ -1272,6 +1290,33 @@ export default function WeekOrganizer({
                 <Icon name="SparklesIcon" size={15} className="text-muted-foreground" />
                 Auto organize
               </button>
+              <p
+                aria-hidden="true"
+                className="px-2.5 pb-1 pt-2 text-xs font-semibold mix-text-foreground/[0.74]"
+              >
+                Sprints
+              </p>
+              {([0, ...SPRINT_LENGTHS] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={(sprint ?? 0) === n}
+                  disabled={loading || !!weekPlan.loadError}
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setSprint(n);
+                  }}
+                  className={`${menuItemClass} items-center text-foreground`}
+                >
+                  <Icon
+                    name="CheckIcon"
+                    size={15}
+                    className={(sprint ?? 0) === n ? 'lab-ink' : 'invisible'}
+                  />
+                  {n ? `${n}-week sprints` : 'No sprints'}
+                </button>
+              ))}
               <button
                 type="button"
                 role="menuitem"
@@ -1295,6 +1340,21 @@ export default function WeekOrganizer({
         ) : (
           <div className="flex shrink-0 items-center gap-2">
             <PlanProfileMenu weekPlan={weekPlan} />
+            <select
+              aria-label="Sprints"
+              title="Group the weeks into 1- or 2-week sprints"
+              value={sprint ?? 0}
+              disabled={loading || !!weekPlan.loadError}
+              onChange={(e) => setSprint(Number(e.target.value) as 0 | SprintLength)}
+              className="todo-input todo-input-quiet h-9 w-auto cursor-pointer px-2.5 text-sm"
+            >
+              <option value={0}>No sprints</option>
+              {SPRINT_LENGTHS.map((n) => (
+                <option key={n} value={n}>
+                  {n}-week sprints
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={() => setWizardOpen(true)}
@@ -1442,7 +1502,12 @@ export default function WeekOrganizer({
             <div className="px-[1rem] pb-[4rem] md:px-[1.5rem]">
               {!loading && plan.weeks > 1 && (
                 <div className="flex items-center justify-end pt-[1rem]">
-                  <WeekJump weeks={plan.weeks} counts={counts} onJump={revealWeek} />
+                  <WeekJump
+                    weeks={plan.weeks}
+                    sprint={sprint}
+                    counts={counts}
+                    onJump={revealWeek}
+                  />
                 </div>
               )}
               {!loading && weekPlan.insights.length > 0 && (
@@ -1514,7 +1579,7 @@ export default function WeekOrganizer({
                             />
                           ))}
                           {/* The last block is not full: its next week is a cell in the grid (the bar under the board is only for a full block). */}
-                          {block.b === blocks.length - 1 && block.weeks.length < 4 && (
+                          {block.b === blocks.length - 1 && block.weeks.length < blockSize && (
                             <button
                               type="button"
                               onClick={() => addWeek()}

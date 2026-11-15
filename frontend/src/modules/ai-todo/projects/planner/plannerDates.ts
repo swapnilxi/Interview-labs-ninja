@@ -97,3 +97,21 @@ export function formatRange(start: string, end: string): string {
 export function clampDay(iso: string, min: string, max: string): string {
   return iso < min ? min : iso > max ? max : iso;
 }
+
+/** Most sprints a sprint plan may have (the server offers the AI the same number). */
+export const MAX_SPRINTS = 12;
+
+/**
+ * The sprints that fit in a timeline, with their fixed dates: back to back from `start`, `weeks` weeks each, the
+ * last one cut short at `end` when the timeline is not a whole number of sprints. At most MAX_SPRINTS.
+ * Twin: `_sprint_slots` in backend/modules/ai_todo/projects/plan_router.py (and fe-apis), which lists them in the prompt.
+ */
+export function sprintSlots(start: string, end: string, weeks: number): { start_date: string; end_date: string }[] {
+  const days = daysBetween(start, end);
+  const length = Math.max(1, Math.round(weeks)) * 7;
+  const count = Math.min(MAX_SPRINTS, Math.ceil(days / length));
+  return Array.from({ length: count }, (_, i) => {
+    const last = addDays(start, (i + 1) * length - 1);
+    return { start_date: addDays(start, i * length), end_date: last > end ? end : last };
+  });
+}

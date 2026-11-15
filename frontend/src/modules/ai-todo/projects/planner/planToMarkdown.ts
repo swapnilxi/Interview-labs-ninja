@@ -1,16 +1,18 @@
-import type { PlannerState } from '@/lib/services/projectPlannerService';
+import { sprintTitle, type PlannerState } from '@/lib/services/projectPlannerService';
 import { formatRange, formatSpan, daysBetween } from './plannerDates';
 
 /** The plan as a Markdown document, ready to paste into a doc, an email or a ticket. */
 export function planToMarkdown(projectTitle: string, state: PlannerState): string {
   const plan = state.plan;
   if (!plan) return '';
-  const lines: string[] = [`# ${projectTitle} — project plan`, ''];
+  const sprints = plan.style === 'sprints';
+  const lines: string[] = [`# ${projectTitle} — ${sprints ? 'sprint plan' : 'project plan'}`, ''];
 
   const window = state.plan_for ?? { start_date: state.start_date, end_date: state.end_date };
   if (window.start_date && window.end_date) {
     lines.push(`**Timeline:** ${formatRange(window.start_date, window.end_date)} (${formatSpan(daysBetween(window.start_date, window.end_date))})`, '');
   }
+  if (sprints) lines.push(`**Sprints:** ${plan.phases.length} × ${plan.sprint_weeks === 1 ? '1 week' : '2 weeks'}`, '');
   if (plan.summary) lines.push(plan.summary, '');
 
   const list = (title: string, items: string[]) => {
@@ -19,16 +21,19 @@ export function planToMarkdown(projectTitle: string, state: PlannerState): strin
   };
 
   plan.phases.forEach((phase, index) => {
-    lines.push(`## ${phase.name || `Phase ${index + 1}`}`, '');
+    lines.push(`## ${sprints ? sprintTitle(index, phase.name) : phase.name || `Phase ${index + 1}`}`, '');
     lines.push(`_${formatRange(phase.start_date, phase.end_date)}${phase.duration ? ` · ${phase.duration}` : ''}_`, '');
     if (phase.description) lines.push(phase.description, '');
     list('Objectives', phase.objectives);
-    if (phase.key_tasks.length) lines.push('**Key tasks**', ...phase.key_tasks.map((task) => `- [ ] ${task}`), '');
+    if (phase.key_tasks.length) lines.push(sprints ? '**Tasks**' : '**Key tasks**', ...phase.key_tasks.map((task) => `- [ ] ${task}`), '');
     list('Deliverables', phase.deliverables);
-    if (phase.milestone) lines.push(`**Milestone:** ${phase.milestone}`, '');
+    if (phase.milestone) lines.push(`**${sprints ? 'Sprint review' : 'Milestone'}:** ${phase.milestone}`, '');
     list('Risks', phase.risks);
   });
 
+  if (sprints && plan.backlog.length) {
+    lines.push('## Backlog', '', ...plan.backlog.map((task) => `- [ ] ${task}`), '');
+  }
   if (plan.assumptions.length) {
     lines.push('## Assumptions', '', ...plan.assumptions.map((a) => `- ${a}`), '');
   }

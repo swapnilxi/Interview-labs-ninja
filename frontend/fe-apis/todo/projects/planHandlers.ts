@@ -21,6 +21,7 @@ const MAX_MESSAGE_CHARS = 2000;
 const MAX_STATE_BYTES = 500_000;
 const MAX_PLAN_CHARS = 100_000;
 const MAX_SPAN_DAYS = 3660;
+const MAX_SPRINTS = 12; // the client's MAX_SPRINTS (plannerDates.ts) is the same
 
 const THINK_BLOCK = /<think>[\s\S]*?<\/think>/gi;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -87,6 +88,9 @@ interface PlannerRequest {
   plan: Row | null;
   message: string;
   history: { role: string; content: string }[];
+  /** generate only: "phases" (the default) or "sprints" (sprint mode, with sprint_weeks 1 or 2). */
+  plan_style: string;
+  sprint_weeks: unknown;
 }
 
 /** `PlannerRequest`: one body for every AI step; each route reads the fields it needs. */
@@ -107,6 +111,8 @@ async function plannerRequest(ctx: TodoCtx): Promise<PlannerRequest> {
       role: t.role === undefined ? 'user' : str(t, 'role', `${loc}.role`),
       content: str(t, 'content', `${loc}.content`),
     })),
+    plan_style: body.plan_style === undefined ? 'phases' : str(body, 'plan_style'),
+    sprint_weeks: body.sprint_weeks ?? null,
   };
 }
 
@@ -199,6 +205,15 @@ function planJson(plan: Row | null): string {
   return out;
 }
 
+/** '1-week' or '2-week' for a sprint plan (anything but 1 reads as 2, as the client does). */
+function sprintSpan(plan: Row): string {
+  return plan.sprint_weeks === 1 ? '1-week' : '2-week';
+}
+
+function isSprintPlan(plan: unknown): plan is Row {
+  return isObject(plan) && plan.style === 'sprints';
+}
+
 function planOutline(plan: Row | null): string {
   const lines: string[] = [];
   const phases = plan?.phases;
@@ -209,7 +224,81 @@ function planOutline(plan: Row | null): string {
       `- ${phase.name || 'Phase'}: ${phase.start_date || '?'} to ${phase.end_date || '?'}, ${Array.isArray(tasks) ? tasks.length : 0} tasks`,
     );
   }
+  if (lines.length && isSprintPlan(plan)) {
+    const backlog = plan.backlog;
+    lines.unshift(`(A plan of ${sprintSpan(plan)} sprints sized to the work, so it may finish before the timeline ends.)`);
+    lines.push(`- Backlog: ${Array.isArray(backlog) ? backlog.length : 0} tasks that did not fit into a sprint`);
+  }
   return lines.join('\n');
+}
+
+/** null for a phased plan, else the sprint length in weeks (1 or 2); 422 for anything else. */
+function sprintWeeksOf(body: PlannerRequest): number | null {
+  if (body.plan_style === 'phases') return null;
+  if (body.plan_style !== 'sprints') throw new HttpError(422, "plan_style must be 'phases' or 'sprints'.");
+  const weeks = body.sprint_weeks;
+  if (weeks !== 1 && weeks !== 2) throw new HttpError(422, 'sprint_weeks must be 1 or 2.');
+  return weeks;
+}
+
+/**
+ * The sprints that fit in the timeline, back to back from its start (the last one cut short at its end), at most
+ * MAX_SPRINTS. The client's sprintSlots (plannerDates.ts) dates the sprints the same way.
+ */
+function sprintSlots(window: Window, weeks: number): [string, string][] {
+  const first = Date.parse(`${window.start}T00:00:00Z`);
+  const length = weeks * 7;
+  const count = Math.min(MAX_SPRINTS, Math.ceil(window.days / length));
+  const day = (offset: number) => new Date(first + offset * 86_400_000).toISOString().slice(0, 10);
+  const slots: [string, string][] = [];
+  for (let i = 0; i < count; i++) {
+    const end = day((i + 1) * length - 1);
+    slots.push([day(i * length), end > window.end ? window.end : end]);
+  }
+  return slots;
+}
+
+/** generate's prompt in sprint mode: sprints sized to the work, the most important work first, a backlog. */
+function sprintPlanPrompt(materialText: string, window: Window, weeks: number): string {
+  const slots = sprintSlots(window, weeks);
+  const span = `${weeks}-week`;
+  const length = weeks === 1 ? '1 week' : `${weeks} weeks`;
+  const slotLines = slots.map(([start, end], i) => `Sprint ${i + 1}: ${start} to ${end}`).join('\n');
+  return `You are an expert project planner who works in sprints. Plan this project as a run of ${span} sprints, sized to the work.
+
+${materialText}
+
+Timeline: ${window.text}
+Sprint length: ${length}. The sprints that fit in the timeline, with their fixed dates:
+${slotLines}
+
+Plan only as many sprints as the work needs, starting with Sprint 1 (at most ${slots.length}). Put the most important work first, so every sprint ends with something usable. If the work needs more time than these sprints give, fill them with what matters most and put the rest in "backlog". If it needs less, use fewer sprints and finish early instead of stretching the work out.
+
+Return ONLY a valid JSON object:
+{
+  "summary": "3-5 sentences: what is delivered, how the sprints build on each other, and what waits in the backlog",
+  "sprints": [
+    {
+      "name": "a short title for the sprint goal, without the sprint number",
+      "description": "1-2 sentences: the sprint goal and why it comes now",
+      "key_tasks": ["..."],
+      "deliverables": ["..."],
+      "milestone": "what can be shown at the sprint review",
+      "risks": ["..."]
+    }
+  ],
+  "backlog": ["..."],
+  "assumptions": ["..."],
+  "risks": [{"risk": "...", "mitigation": "..."}],
+  "success_metrics": ["..."]
+}
+Rules: 3-8 key_tasks per sprint, each a concrete task that starts with a verb and fits inside the sprint; 1-3 deliverables and risks per sprint; "backlog" lists concrete tasks that did not fit (an empty list when everything fits); use the user's answers and never contradict them; anything important you had to guess goes in "assumptions"; keep every string under 200 characters. No extra text, no markdown.`;
+}
+
+/** The extra paragraph refine's prompt gets for a sprint plan (empty for a phased one). */
+function refineSprintNote(plan: Row | null): string {
+  if (!isSprintPlan(plan)) return '';
+  return `\nThis is a sprint plan: each entry in "phases" is one ${sprintSpan(plan)} sprint, in order, and its dates come from its position. To change when something happens, move tasks between sprints and "backlog" instead of editing dates, and keep "style", "sprint_weeks" and "backlog" in the plan.\n`;
 }
 
 /** Run the prompt and parse the JSON object it returns; any failure -> HttpError(500, '<failure>: <why>'). */
@@ -329,6 +418,11 @@ Give at most 4 concerns and 4 recommendations, each under 160 characters. No ext
       const payload = await plannerRequest(ctx);
       const project = ownedProject(projectId, ctx.userId);
       const window = windowOf(payload.start_date, payload.end_date, true)!;
+      const sprintWeeks = sprintWeeksOf(payload);
+      if (sprintWeeks !== null) {
+        const sprintPrompt = sprintPlanPrompt(material(project, payload), window, sprintWeeks);
+        return { plan: await aiObject(sprintPrompt, payload, 7000, 'AI Planner failed') };
+      }
 
       const prompt = `You are an expert project planner. Write a realistic, descriptive plan for this project.
 
@@ -396,7 +490,7 @@ ${history || 'None'}
 User: ${message}
 
 If they ask for a change, apply it and keep everything else as it is (same phases, order and wording; dates stay inside the timeline unless the change needs them to move). If they ask a question, or what they ask would break the timeline or the scope, do not change the plan: answer, explain the trade-off and suggest what to do.
-
+${refineSprintNote(payload.plan)}
 Return ONLY a valid JSON object:
 {"reply": "1-3 sentences: what you changed, or your answer", "changed": true, "plan": { ...the COMPLETE updated plan in exactly the same shape as above... }}
 When "changed" is false, set "plan" to null. No extra text, no markdown.`;

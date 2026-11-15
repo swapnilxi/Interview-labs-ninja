@@ -11,7 +11,7 @@
 
 import { apiFetch, parseApiError } from '../http/apiClient';
 import { aiRequestFields } from './settingsService';
-import { addDays, clampDay, daysBetween, formatSpan, parseDay, type DurationUnit } from '@/modules/ai-todo/projects/planner/plannerDates';
+import { addDays, clampDay, daysBetween, formatSpan, parseDay, sprintSlots, type DurationUnit } from '@/modules/ai-todo/projects/planner/plannerDates';
 
 export type { DurationUnit };
 
@@ -19,6 +19,18 @@ export type { DurationUnit };
 
 export type PlanStep = 'brief' | 'questions' | 'timeline' | 'plan';
 export const PLAN_STEPS: PlanStep[] = ['brief', 'questions', 'timeline', 'plan'];
+
+/**
+ * How the plan is cut up. `phases` covers the whole timeline. `sprints` (sprint mode, offered when the timeline
+ * check finds the time too short or far more than the work needs) is a run of 1- or 2-week sprints sized to the
+ * work: the most important work first, and whatever does not fit waits in a backlog.
+ */
+export type PlanStyle = 'phases' | 'sprints';
+export type SprintWeeks = 1 | 2;
+export const SPRINT_WEEK_OPTIONS: SprintWeeks[] = [1, 2];
+/** Most tasks one sprint, or the backlog, may hold (the server adds at most 30 tasks under one node). */
+export const SPRINT_TASK_MAX = 30;
+export const BACKLOG_MAX = 30;
 
 export interface PlanDocument {
   id: string;
@@ -69,8 +81,14 @@ export interface PlanRisk {
 }
 
 export interface ProjectPlan {
+  /** 'sprints': each entry of `phases` is one sprint, dated by its position (see sprintSlots). */
+  style: PlanStyle;
+  /** The sprint length (only meaningful for a sprint plan). */
+  sprint_weeks: SprintWeeks;
   summary: string;
   phases: PlanPhase[];
+  /** Sprint plans: tasks that did not fit into a sprint. Always empty for a phased plan. */
+  backlog: string[];
   assumptions: string[];
   risks: PlanRisk[];
   success_metrics: string[];
@@ -94,6 +112,9 @@ export interface PlannerState {
   end_date: string;
   /** The unit the duration field is shown in (the dates are what is stored). */
   unit: DurationUnit;
+  /** The style the next plan is written in (the current plan carries its own). */
+  plan_style: PlanStyle;
+  sprint_weeks: SprintWeeks;
   feasibility: Feasibility | null;
   plan: ProjectPlan | null;
   /** The timeline the plan was last written or adjusted for. */
@@ -118,6 +139,8 @@ export function emptyPlannerState(): PlannerState {
     start_date: '',
     end_date: '',
     unit: 'weeks',
+    plan_style: 'phases',
+    sprint_weeks: 2,
     feasibility: null,
     plan: null,
     plan_for: null,
@@ -206,38 +229,112 @@ export function normalizeFeasibility(raw: unknown, startDate: string, endDate: s
   };
 }
 
+/** A sprint's title without the "Sprint 3:" the AI sometimes puts in front (the number comes from its position). */
+function sprintName(value: unknown): string {
+  return text(value, 160)
+    .replace(/^sprint\s*\d+\s*[:\-–—·.)]?\s*/i, '')
+    .trim();
+}
+
+/** "Sprint 2: Payments" (or just "Sprint 2" for a sprint without a title). */
+export function sprintTitle(index: number, name: string): string {
+  return name ? `Sprint ${index + 1}: ${name}` : `Sprint ${index + 1}`;
+}
+
+function sprintWeeksOf(value: unknown): SprintWeeks {
+  return value === 1 ? 1 : 2;
+}
+
+/** A sprint at a fixed slot of the timeline (also used when the user adds one while organising). */
+export function emptySprint(slot: { start_date: string; end_date: string }): PlanPhase {
+  return {
+    name: '',
+    description: '',
+    start_date: slot.start_date,
+    end_date: slot.end_date,
+    duration: formatSpan(daysBetween(slot.start_date, slot.end_date)),
+    objectives: [],
+    key_tasks: [],
+    deliverables: [],
+    milestone: '',
+    risks: [],
+  };
+}
+
+/**
+ * Sprint plans: sprint i gets the i-th slot of the timeline whatever dates the AI wrote, so sprints never overlap
+ * or leave gaps. Sprints past the last slot don't fit: their tasks join the backlog. Empty sprints are kept (the
+ * user may have emptied one while organising); only a reply with no sprint worth showing is refused.
+ */
+function normalizeSprints(body: Record<string, unknown>, startDate: string, endDate: string, weeks: SprintWeeks) {
+  const source = Array.isArray(body.sprints) ? body.sprints : Array.isArray(body.phases) ? body.phases : [];
+  const raw = source.filter(isObject);
+  const slots = sprintSlots(startDate, endDate, weeks);
+  const phases: PlanPhase[] = raw.slice(0, slots.length).map((sprint, index) => ({
+    ...emptySprint(slots[index]),
+    name: sprintName(sprint.name),
+    description: text(sprint.description, 800),
+    objectives: strings(sprint.objectives, 5),
+    key_tasks: strings(sprint.key_tasks, SPRINT_TASK_MAX),
+    deliverables: strings(sprint.deliverables, 5),
+    milestone: text(sprint.milestone, 300),
+    risks: strings(sprint.risks, 5),
+  }));
+  if (!phases.some((p) => p.name || p.key_tasks.length)) throw new Error("The AI didn't return any sprints. Please try again.");
+  const overflow = raw.slice(slots.length).flatMap((sprint) => strings(sprint.key_tasks, SPRINT_TASK_MAX));
+  const backlog = [...strings(body.backlog, BACKLOG_MAX, 400), ...overflow].slice(0, BACKLOG_MAX);
+  return { phases, backlog };
+}
+
 /**
  * The AI's plan, made safe to draw: strings trimmed and capped, phase dates forced inside the chosen timeline
  * (a phase with a missing or unreadable date gets an equal share of it), and each phase's duration worked out
  * from its dates. Throws a sentence a user can act on when there is no usable phase at all.
+ *
+ * `shape` says which kind of plan this is (the style it was asked for); without it the plan's own `style` and
+ * `sprint_weeks` decide, which is how a saved plan reads itself back.
  */
-export function normalizePlan(raw: unknown, startDate: string, endDate: string): ProjectPlan {
+export function normalizePlan(
+  raw: unknown,
+  startDate: string,
+  endDate: string,
+  shape?: { style: PlanStyle; sprintWeeks: SprintWeeks }
+): ProjectPlan {
   const body = isObject(raw) ? raw : {};
-  const rawPhases = (Array.isArray(body.phases) ? body.phases : []).filter(isObject).slice(0, 12);
-  const named = rawPhases.filter((p) => text(p.name, 160));
-  if (!named.length) throw new Error("The AI didn't return any phases. Please try again.");
+  const style: PlanStyle = shape?.style ?? (body.style === 'sprints' ? 'sprints' : 'phases');
+  const sprintWeeks = shape?.sprintWeeks ?? sprintWeeksOf(body.sprint_weeks);
 
-  const totalDays = daysBetween(startDate, endDate) || 1;
-  const phases: PlanPhase[] = named.map((phase, index) => {
-    const slot = Math.max(1, Math.floor(totalDays / named.length));
-    const fallbackStart = addDays(startDate, index * slot);
-    const fallbackEnd = index === named.length - 1 ? endDate : addDays(startDate, (index + 1) * slot - 1);
-    const start = clampDay(dayOr(phase.start_date) ?? fallbackStart, startDate, endDate);
-    let end = clampDay(dayOr(phase.end_date) ?? fallbackEnd, startDate, endDate);
-    if (end < start) end = start;
-    return {
-      name: text(phase.name, 160),
-      description: text(phase.description, 800),
-      start_date: start,
-      end_date: end,
-      duration: formatSpan(daysBetween(start, end)),
-      objectives: strings(phase.objectives, 5),
-      key_tasks: strings(phase.key_tasks, 10),
-      deliverables: strings(phase.deliverables, 5),
-      milestone: text(phase.milestone, 300),
-      risks: strings(phase.risks, 5),
-    };
-  });
+  let phases: PlanPhase[];
+  let backlog: string[] = [];
+  if (style === 'sprints') {
+    ({ phases, backlog } = normalizeSprints(body, startDate, endDate, sprintWeeks));
+  } else {
+    const rawPhases = (Array.isArray(body.phases) ? body.phases : []).filter(isObject).slice(0, 12);
+    const named = rawPhases.filter((p) => text(p.name, 160));
+    if (!named.length) throw new Error("The AI didn't return any phases. Please try again.");
+
+    const totalDays = daysBetween(startDate, endDate) || 1;
+    phases = named.map((phase, index) => {
+      const slot = Math.max(1, Math.floor(totalDays / named.length));
+      const fallbackStart = addDays(startDate, index * slot);
+      const fallbackEnd = index === named.length - 1 ? endDate : addDays(startDate, (index + 1) * slot - 1);
+      const start = clampDay(dayOr(phase.start_date) ?? fallbackStart, startDate, endDate);
+      let end = clampDay(dayOr(phase.end_date) ?? fallbackEnd, startDate, endDate);
+      if (end < start) end = start;
+      return {
+        name: text(phase.name, 160),
+        description: text(phase.description, 800),
+        start_date: start,
+        end_date: end,
+        duration: formatSpan(daysBetween(start, end)),
+        objectives: strings(phase.objectives, 5),
+        key_tasks: strings(phase.key_tasks, 10),
+        deliverables: strings(phase.deliverables, 5),
+        milestone: text(phase.milestone, 300),
+        risks: strings(phase.risks, 5),
+      };
+    });
+  }
 
   const risks: PlanRisk[] = [];
   for (const item of Array.isArray(body.risks) ? body.risks : []) {
@@ -247,8 +344,11 @@ export function normalizePlan(raw: unknown, startDate: string, endDate: string):
   }
 
   return {
+    style,
+    sprint_weeks: sprintWeeks,
     summary: text(body.summary, 1500),
     phases,
+    backlog,
     assumptions: strings(body.assumptions, 8),
     risks,
     success_metrics: strings(body.success_metrics, 8),
@@ -281,7 +381,9 @@ export function normalizeState(raw: unknown): PlannerState {
   state.end_date = dayOr(raw.end_date) ?? '';
   if (state.start_date && state.end_date && state.end_date < state.start_date) state.end_date = state.start_date;
   state.unit = raw.unit === 'months' ? 'months' : 'weeks';
-  state.chat = (Array.isArray(raw.chat) ? raw.chat : [])
+  state.plan_style = raw.plan_style === 'sprints' ? 'sprints' : 'phases';
+  state.sprint_weeks = sprintWeeksOf(raw.sprint_weeks);
+  state.chat =(Array.isArray(raw.chat) ? raw.chat : [])
     .filter(isObject)
     .map((t) => ({ role: t.role === 'assistant' ? ('assistant' as const) : ('user' as const), content: text(t.content, 4000) }))
     .filter((t) => t.content)
@@ -363,12 +465,19 @@ export const projectPlannerService = {
     return normalizeFeasibility(data, state.start_date, state.end_date, !!state.plan);
   },
 
+  /** Writes the plan in the style the workspace has chosen (`plan_style`, `sprint_weeks`). */
   async generate(projectId: number, state: PlannerState, model: string): Promise<ProjectPlan> {
-    const data = await aiPost(projectId, 'generate', inputsOf(state), model);
-    return normalizePlan(data.plan, state.start_date, state.end_date);
+    const sprints = state.plan_style === 'sprints';
+    const data = await aiPost(
+      projectId,
+      'generate',
+      { ...inputsOf(state), plan_style: state.plan_style, ...(sprints ? { sprint_weeks: state.sprint_weeks } : {}) },
+      model
+    );
+    return normalizePlan(data.plan, state.start_date, state.end_date, { style: state.plan_style, sprintWeeks: state.sprint_weeks });
   },
 
-  /** Chat with the AI about the plan. `plan` comes back only when the AI changed it. */
+  /** Chat with the AI about the plan. `plan` comes back only when the AI changed it, in the current plan's style. */
   async refine(projectId: number, state: PlannerState, message: string, model: string): Promise<{ reply: string; plan: ProjectPlan | null }> {
     const data = await aiPost(
       projectId,
@@ -378,13 +487,34 @@ export const projectPlannerService = {
     );
     const reply = text(data.reply, 2000) || 'Done.';
     const changed = data.changed !== false && data.plan != null;
-    return { reply, plan: changed ? normalizePlan(data.plan, state.start_date, state.end_date) : null };
+    const shape = state.plan ? { style: state.plan.style, sprintWeeks: state.plan.sprint_weeks } : undefined;
+    return { reply, plan: changed ? normalizePlan(data.plan, state.start_date, state.end_date, shape) : null };
   },
 
-  /** Add the plan's phases and tasks to the project's node tree. Resolves how many were created. */
+  /**
+   * Add the plan's phases and tasks to the project's node tree. A sprint plan adds "Sprint N: …" nodes and, when
+   * there is one, a "Backlog" node holding the tasks that did not fit. Resolves how many were created.
+   */
   async applyToProject(projectId: number, plan: ProjectPlan): Promise<{ phases: number; nodes: number }> {
-    const res = await apiFetch(`/todo/projects/${projectId}/plan/apply`, { method: 'POST', body: JSON.stringify({ phases: plan.phases }) });
+    const res = await apiFetch(`/todo/projects/${projectId}/plan/apply`, { method: 'POST', body: JSON.stringify({ phases: phasesToApply(plan) }) });
     if (!res.ok) throw new Error(await parseApiError(res));
     return res.json();
   },
 };
+
+/** What "Add to project tasks" sends: the phases as they are, or the sprints (numbered) plus a backlog node. */
+export function phasesToApply(plan: ProjectPlan): PlanPhase[] {
+  if (plan.style !== 'sprints') return plan.phases;
+  const sprints = plan.phases.map((phase, index) => ({ ...phase, name: sprintTitle(index, phase.name) }));
+  if (!plan.backlog.length) return sprints;
+  return [
+    ...sprints,
+    {
+      ...emptySprint({ start_date: '', end_date: '' }),
+      name: 'Backlog',
+      description: 'Work that did not fit into the sprints. Pull tasks into a sprint when there is room.',
+      duration: '',
+      key_tasks: plan.backlog,
+    },
+  ];
+}

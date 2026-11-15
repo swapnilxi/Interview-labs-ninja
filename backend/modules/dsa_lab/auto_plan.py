@@ -1,7 +1,8 @@
 """Prompt + normaliser for the DSA week plan's AI auto organizer (POST /dsa/week-plan/auto).
 
 Kept free of I/O so it is easy to test. The learner answers a few questions (timeline, questions per week,
-level, goal, difficulty, week style, patterns to emphasise / that feel hard, notes) and the frontend sends
+level, goal, difficulty, week style, patterns to emphasise / that feel hard, notes, and optionally sprint mode:
+`sprintWeeks` 1 or 2, when the client has already sized `weeks` to the work) and the frontend sends
 them with the lab's questions in learning order. The router validates that here, builds the prompt, calls the
 model and runs the reply through normalize_auto_plan, which keeps only what fits: known ids, each once, weeks
 1..weeks, at most `perWeek` (never more than WEEK_CAP) per week. The plan is returned, not saved; the frontend
@@ -112,6 +113,12 @@ def validate_auto_request(answers: Any, topics: Any) -> Tuple[Optional[str], Opt
     elif not isinstance(notes, str) or has_lone_surrogate(notes) or len(notes.strip()) > NOTES_MAX:
         return f"Field 'answers.notes' must be at most {NOTES_MAX} characters.", None
     clean["notes"] = notes.strip()
+    sprint_weeks = answers.get("sprintWeeks")
+    if sprint_weeks is None:
+        sprint_weeks = 0
+    elif not _is_int(sprint_weeks) or sprint_weeks not in (0, 1, 2):
+        return "Field 'answers.sprintWeeks' must be 0, 1 or 2.", None
+    clean["sprintWeeks"] = sprint_weeks
 
     if not isinstance(topics, list) or not 1 <= len(topics) <= MAX_TOPICS:
         return f"Field 'topics' must be a list of 1-{MAX_TOPICS} questions.", None
@@ -148,9 +155,34 @@ def validate_auto_request(answers: Any, topics: Any) -> Tuple[Optional[str], Opt
     return None, {"answers": clean, "topics": clean_topics}
 
 
+def sprint_plan_text(weeks: int, sprint_weeks: int) -> str:
+    """'3 sprints of 2 weeks each (sprint 1 = weeks 1-2; sprint 2 = weeks 3-4; sprint 3 = week 5)'."""
+    count = -(-weeks // sprint_weeks)
+    ranges = []
+    for i in range(count):
+        first = i * sprint_weeks + 1
+        last = min(weeks, first + sprint_weeks - 1)
+        ranges.append(f"sprint {i + 1} = week {first}" if first == last else f"sprint {i + 1} = weeks {first}-{last}")
+    return (
+        f"{count} sprint{'' if count == 1 else 's'} of {sprint_weeks} week{'' if sprint_weeks == 1 else 's'} each "
+        f"({'; '.join(ranges)})"
+    )
+
+
 def build_auto_plan_prompt(answers: dict, topics: List[dict]) -> str:
-    """The prompt for a request that passed validate_auto_request (byte-identical to the twin's)."""
+    """The prompt for a request that passed validate_auto_request (byte-identical to the twin's). Sprint mode
+    adds one profile line and one rule; without it the prompt is exactly what it was before sprints existed."""
     weeks, per_week = answers["weeks"], answers["perWeek"]
+    sprint_weeks = answers.get("sprintWeeks") or 0
+    sprint_profile = [f"- Sprints: {sprint_plan_text(weeks, sprint_weeks)}"] if sprint_weeks else []
+    sprint_rule = (
+        [
+            "9. Plan sprint by sprint: give each sprint one clear goal, keep related patterns inside the same sprint, "
+            "and make each week's focus label part of its sprint's goal."
+        ]
+        if sprint_weeks
+        else []
+    )
     topic_lines = [
         f"- {t['id']} | {t['name']} | {t['category']} | {t['difficulty']}" + (" | already solved" if t["done"] else "")
         for t in topics
@@ -168,6 +200,7 @@ def build_auto_plan_prompt(answers: dict, topics: List[dict]) -> str:
         f"- Patterns to emphasise: {', '.join(answers['focus']) or 'none in particular'}",
         f"- Patterns the learner finds hard: {', '.join(answers['weak']) or 'none given'}",
         f"- Notes from the learner: {answers['notes'] or 'none'}",
+        *sprint_profile,
         "",
         "Available questions, in a recommended learning order (id | name | pattern | difficulty):",
         *topic_lines,
@@ -185,6 +218,7 @@ def build_auto_plan_prompt(answers: dict, topics: List[dict]) -> str:
         '6. Questions marked "already solved" are for review only: use them sparingly.',
         "7. You do not have to use every question. Leave out what does not fit the timeline.",
         "8. Give every week a short focus label of at most 6 words naming what it trains.",
+        *sprint_rule,
         "",
         "Reply with ONLY a JSON object, no prose and no code fences, in exactly this shape:",
         '{"summary": "2-3 sentences on how the plan is organised", "weeks": [{"week": 1, "focus": "Hashing basics", '
@@ -202,7 +236,9 @@ def _collapse(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def normalize_auto_plan(raw: Any, topic_ids: List[str], weeks: int, per_week: int) -> Tuple[dict, str, dict]:
+def normalize_auto_plan(
+    raw: Any, topic_ids: List[str], weeks: int, per_week: int, sprint_weeks: int = 0
+) -> Tuple[dict, str, dict]:
     """Turn the model's reply into (plan, summary, stats), keeping only what fits the request.
 
     Weeks outside 1..weeks lose all their questions; inside a week (entries sorted by week, then by position in
@@ -253,4 +289,6 @@ def normalize_auto_plan(raw: Any, topic_ids: List[str], weeks: int, per_week: in
     if isinstance(raw, dict) and isinstance(raw.get("summary"), str):
         summary = _collapse(raw["summary"])[:SUMMARY_MAX].strip()
     plan = {"weeks": weeks, "assignments": assignments, "order": order, "labels": labels}
+    if sprint_weeks:
+        plan["sprintWeeks"] = sprint_weeks
     return plan, summary, {"placed": len(assignments), "dropped": dropped, "slots": weeks * cap}

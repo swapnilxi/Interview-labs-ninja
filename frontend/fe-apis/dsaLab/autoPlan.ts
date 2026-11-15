@@ -60,6 +60,8 @@ export interface AutoAnswers {
   focus: string[];
   weak: string[];
   notes: string;
+  /** Sprint mode: 1 or 2 weeks per sprint (0 = off); `weeks` is then already sized to the work by the client. */
+  sprintWeeks: number;
 }
 
 /** One question the learner can be planned, trimmed; listed in learning order. */
@@ -86,6 +88,7 @@ export interface AutoPlanResult {
     assignments: Record<string, number>;
     order: string[];
     labels: Record<string, string>;
+    sprintWeeks?: number;
   };
   summary: string;
   stats: { placed: number; dropped: number; slots: number };
@@ -195,6 +198,13 @@ export function validateAutoRequest(answers: unknown, topics: unknown): AutoVali
       return { error: `Field 'answers.notes' must be at most ${NOTES_MAX} characters.` };
     notes = pyStrip(answers.notes);
   }
+  let sprintWeeks = 0;
+  if (!absent(answers.sprintWeeks)) {
+    const value = answers.sprintWeeks;
+    if (!isInt(value) || (value !== 0 && value !== 1 && value !== 2))
+      return { error: "Field 'answers.sprintWeeks' must be 0, 1 or 2." };
+    sprintWeeks = value;
+  }
 
   if (!Array.isArray(topics) || topics.length < 1 || topics.length > MAX_TOPICS)
     return { error: `Field 'topics' must be a list of 1-${MAX_TOPICS} questions.` };
@@ -216,7 +226,7 @@ export function validateAutoRequest(answers: unknown, topics: unknown): AutoVali
   return {
     error: null,
     request: {
-      answers: { weeks, perWeek, level, goal, difficulty, style, focus, weak, notes },
+      answers: { weeks, perWeek, level, goal, difficulty, style, focus, weak, notes, sprintWeeks },
       topics: cleaned,
     },
   };
@@ -224,8 +234,35 @@ export function validateAutoRequest(answers: unknown, topics: unknown): AutoVali
 
 // ── Prompt ───────────────────────────────────────────────────────────────────
 
+/** '3 sprints of 2 weeks each (sprint 1 = weeks 1-2; sprint 2 = weeks 3-4; sprint 3 = week 5)'. */
+export function sprintPlanText(weeks: number, sprintWeeks: number): string {
+  const count = Math.ceil(weeks / sprintWeeks);
+  const ranges: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const first = i * sprintWeeks + 1;
+    const last = Math.min(weeks, first + sprintWeeks - 1);
+    ranges.push(
+      first === last
+        ? `sprint ${i + 1} = week ${first}`
+        : `sprint ${i + 1} = weeks ${first}-${last}`
+    );
+  }
+  return `${count} sprint${count === 1 ? '' : 's'} of ${sprintWeeks} week${sprintWeeks === 1 ? '' : 's'} each (${ranges.join('; ')})`;
+}
+
+/**
+ * Sprint mode adds one profile line and one rule; without it the prompt is exactly what it was before sprints
+ * existed (byte-identical to the Python's either way).
+ */
 export function buildAutoPlanPrompt(answers: AutoAnswers, topics: AutoTopic[]): string {
   const { weeks, perWeek } = answers;
+  const sprintWeeks = answers.sprintWeeks || 0;
+  const sprintProfile = sprintWeeks ? [`- Sprints: ${sprintPlanText(weeks, sprintWeeks)}`] : [];
+  const sprintRule = sprintWeeks
+    ? [
+        "9. Plan sprint by sprint: give each sprint one clear goal, keep related patterns inside the same sprint, and make each week's focus label part of its sprint's goal.",
+      ]
+    : [];
   const topicLines = topics.map(
     (t) =>
       `- ${t.id} | ${t.name} | ${t.category} | ${t.difficulty}${t.done ? ' | already solved' : ''}`
@@ -243,6 +280,7 @@ export function buildAutoPlanPrompt(answers: AutoAnswers, topics: AutoTopic[]): 
     `- Patterns to emphasise: ${answers.focus.length ? answers.focus.join(', ') : 'none in particular'}`,
     `- Patterns the learner finds hard: ${answers.weak.length ? answers.weak.join(', ') : 'none given'}`,
     `- Notes from the learner: ${answers.notes || 'none'}`,
+    ...sprintProfile,
     '',
     'Available questions, in a recommended learning order (id | name | pattern | difficulty):',
     ...topicLines,
@@ -256,6 +294,7 @@ export function buildAutoPlanPrompt(answers: AutoAnswers, topics: AutoTopic[]): 
     '6. Questions marked "already solved" are for review only: use them sparingly.',
     '7. You do not have to use every question. Leave out what does not fit the timeline.',
     '8. Give every week a short focus label of at most 6 words naming what it trains.',
+    ...sprintRule,
     '',
     'Reply with ONLY a JSON object, no prose and no code fences, in exactly this shape:',
     '{"summary": "2-3 sentences on how the plan is organised", "weeks": [{"week": 1, "focus": "Hashing basics", "questions": ["<id>", "<id>"]}]}',
@@ -284,7 +323,8 @@ export function normalizeAutoPlan(
   raw: unknown,
   topicIds: string[],
   weeks: number,
-  perWeek: number
+  perWeek: number,
+  sprintWeeks = 0
 ): AutoPlanResult {
   const cap = Math.min(perWeek, WEEK_CAP);
   const known = new Set(topicIds);
@@ -339,6 +379,7 @@ export function normalizeAutoPlan(
       assignments: Object.fromEntries(assignments),
       order,
       labels: Object.fromEntries(keptLabels),
+      ...(sprintWeeks ? { sprintWeeks } : {}),
     },
     summary,
     stats: { placed: assignments.size, dropped, slots: weeks * cap },

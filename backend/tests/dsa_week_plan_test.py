@@ -567,8 +567,36 @@ with TestClient(app) as client:
     )
     check("auto_plan_max_tokens", auto_plan_max_tokens(1, 1) == 840 and auto_plan_max_tokens(12, 7) == 4160 and auto_plan_max_tokens(20, 7) == 6000)
     problem, req = validate_auto_request({"weeks": 2, "perWeek": 3}, [{"id": " a ", "name": " A ", "category": " C ", "difficulty": " Easy "}])
-    check("validate_auto_request trims and fills defaults", problem is None and req["answers"] == {"weeks": 2, "perWeek": 3, "level": "some", "goal": "general", "difficulty": "balanced", "style": "focused", "focus": [], "weak": [], "notes": ""} and req["topics"] == [{"id": "a", "name": "A", "category": "C", "difficulty": "Easy", "done": False}], str(req))
+    check("validate_auto_request trims and fills defaults", problem is None and req["answers"] == {"weeks": 2, "perWeek": 3, "level": "some", "goal": "general", "difficulty": "balanced", "style": "focused", "focus": [], "weak": [], "notes": "", "sprintWeeks": 0} and req["topics"] == [{"id": "a", "name": "A", "category": "C", "difficulty": "Easy", "done": False}], str(req))
     check("build_auto_plan_prompt joins lines with \\n, no trailing newline", not build_auto_plan_prompt(req["answers"], req["topics"]).endswith("\n") and "\r" not in build_auto_plan_prompt(req["answers"], req["topics"]))
+
+    # ── Sprint mode ──────────────────────────────────────────────────────────
+    r = call("erin", "PUT", "", json=plan_body(5, {"tp-3sum": 1}, sprintWeeks=2))
+    check("a plan in sprint mode keeps sprintWeeks", r.status_code == 200 and r.json()["plan"].get("sprintWeeks") == 2, r.text[:200])
+    check("...and reads it back", call("erin", "GET", "").json()["plan"].get("sprintWeeks") == 2)
+    r = call("erin", "PUT", "", json=plan_body(5, {"tp-3sum": 1}))
+    check("a plain plan has no sprintWeeks key", r.status_code == 200 and "sprintWeeks" not in r.json()["plan"], r.text[:200])
+    r = call("erin", "PUT", "", json=plan_body(5, {}, sprintWeeks=None))
+    check("sprintWeeks null means no sprints", r.status_code == 200 and "sprintWeeks" not in r.json()["plan"], r.text[:200])
+    for bad in (0, 3, True, "2", 1.5, [2]):
+        expect_422(f"sprintWeeks {bad!r} is refused", call("erin", "PUT", "", json=plan_body(5, {}, sprintWeeks=bad)), "Field 'sprintWeeks' must be 1 or 2.")
+    expect_422("an earlier problem wins over sprintWeeks", call("erin", "PUT", "", json=plan_body(2, {"tp-3sum": 3}, sprintWeeks=9)), "'tp-3sum' is in week 3, but the plan has weeks 1-2.")
+    r = call("erin", "POST", "/profiles", json={"name": f"Sprints {RUN}", "plan": plan_body(4, {}, sprintWeeks=1)})
+    check("a profile keeps sprintWeeks", r.status_code == 201 and r.json()["profile"]["plan"].get("sprintWeeks") == 1, r.text[:200])
+
+    sprint_answers = {"weeks": 3, "perWeek": 2, "sprintWeeks": 2}
+    r = auto("bob", {"answers": sprint_answers, "topics": topics}, good_reply)
+    prompt = calls[0]["prompt"] if calls else ""
+    check("sprint mode: the plan carries sprintWeeks", r.status_code == 200 and r.json()["plan"].get("sprintWeeks") == 2, r.text[:200])
+    check("sprint mode: the prompt lists the sprints", "- Sprints: 2 sprints of 2 weeks each (sprint 1 = weeks 1-2; sprint 2 = week 3)" in prompt, prompt[-600:])
+    check("sprint mode: the prompt has the sprint rule", "\n9. Plan sprint by sprint:" in prompt)
+    r = auto("bob", {"answers": {**sprint_answers, "sprintWeeks": 0}, "topics": topics}, good_reply)
+    prompt = calls[0]["prompt"] if calls else ""
+    check("sprintWeeks 0: no sprint lines, no sprintWeeks key", "Sprints:" not in prompt and "\n9." not in prompt and "sprintWeeks" not in r.json()["plan"], r.text[:200])
+    for bad in (3, -1, True, "1", 1.0):
+        auto_422(f"answers.sprintWeeks {bad!r} is refused", {"answers": {**sprint_answers, "sprintWeeks": bad}, "topics": topics}, "Field 'answers.sprintWeeks' must be 0, 1 or 2.")
+    plan, _, _ = normalize_auto_plan({"weeks": [{"week": 1, "questions": ["a"]}]}, known, 2, 7, 1)
+    check("normalize_auto_plan adds sprintWeeks last", list(plan) == ["weeks", "assignments", "order", "labels", "sprintWeeks"] and plan["sprintWeeks"] == 1)
 
     check("at most one active profile per user, everywhere", raw_db("SELECT COUNT(*) FROM (SELECT user_id FROM dsa_week_plan_profiles WHERE is_active = 1 GROUP BY user_id HAVING COUNT(*) > 1)")[0][0] == 0)
     bob_active = call("bob", "GET", "").json()["plan"]

@@ -31,6 +31,7 @@ import {
   recommendForWeek as recommendFor,
   removeWeek as removeWeekFrom,
   samePlan,
+  setSprintWeeks as setSprintWeeksOf,
   setWeekLabel as setWeekLabelOf,
   spreadEvenly as spreadEvenlyOf,
   swapQuestions,
@@ -39,6 +40,7 @@ import {
   type AutoAnswers,
   type EditResult,
   type PlanTopic,
+  type SprintLength,
   type WeekPlan,
 } from './weekPlan';
 
@@ -71,6 +73,7 @@ const plain = (p: ActivePlan): WeekPlan => ({
   assignments: p.assignments,
   order: p.order,
   labels: p.labels,
+  ...(p.sprintWeeks ? { sprintWeeks: p.sprintWeeks } : {}),
 });
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
@@ -647,6 +650,8 @@ export function useWeekPlan(topics: readonly PlanTopic[]) {
       edit((p) => fillWeekOf(p, week, ids ?? recommendForWeek(week, 7), live.current.rank)),
     /** Redistributes the planned questions evenly over every week; returns why not, or null. */
     spreadEvenly: () => edit((p) => spreadEvenlyOf(p, live.current.rank)),
+    /** Groups the weeks into sprints of 1 or 2 weeks (0 = blocks of four again); undoable like any edit. */
+    setSprintWeeks: (sprint: 0 | SprintLength) => edit((p) => setSprintWeeksOf(p, sprint)),
     /** Replaces the plan's content (undoable), e.g. with a quick plan. */
     apply: (next: WeekPlan): void => {
       edit(() => ({ plan: prune(normalizePlan(next), live.current.known) }));

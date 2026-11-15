@@ -31,8 +31,8 @@ export default function PlanPreview({
   const byId = useMemo(() => new Map(topics.map((t) => [t.id, t])), [topics]);
   const blocks = useMemo(
     () =>
-      Array.from({ length: blockCount(plan.weeks) }, (_, b) => {
-        const weeks = blockWeeks(b, plan.weeks).map((week) => {
+      Array.from({ length: blockCount(plan.weeks, plan.sprintWeeks) }, (_, b) => {
+        const weeks = blockWeeks(b, plan.weeks, plan.sprintWeeks).map((week) => {
           const ids = weekQuestions(plan, week, rank);
           const topicsInWeek = ids
             .map((id) => byId.get(id))
@@ -41,7 +41,7 @@ export default function PlanPreview({
           return { week, label, count: ids.length, names: topicsInWeek.map((t) => t.name) };
         });
         return {
-          label: blockLabel(b, plan.weeks),
+          label: blockLabel(b, plan.weeks, plan.sprintWeeks),
           weeks,
           total: weeks.reduce((n, w) => n + w.count, 0),
         };

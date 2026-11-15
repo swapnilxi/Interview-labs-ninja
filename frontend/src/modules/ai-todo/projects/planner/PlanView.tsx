@@ -1,16 +1,25 @@
 'use client';
 
+import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import FlatIcon from '@/components/ui/FlatIcon';
-import type { DurationUnit, PlanPhase, PlannerState } from '@/lib/services/projectPlannerService';
+import {
+  sprintTitle,
+  type DurationUnit,
+  type PlanPhase,
+  type PlanStyle,
+  type PlannerState,
+  type ProjectPlan,
+  type SprintWeeks,
+} from '@/lib/services/projectPlannerService';
 import FeasibilityCard from './FeasibilityCard';
+import SprintBoard from './SprintBoard';
+import SprintModePanel, { timelineFit } from './SprintModePanel';
 import type { PlannerBusy } from './types';
 import { daysBetween, formatDay, formatRange, formatSpan } from './plannerDates';
+import { colorOf } from './planColors';
 
-const PHASE_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#14b8a6', '#ef4444'];
-const colorOf = (index: number) => PHASE_COLORS[index % PHASE_COLORS.length];
-
-function PhaseTimeline({ phases, start, end }: { phases: PlanPhase[]; start: string; end: string }) {
+function PhaseTimeline({ phases, start, end, sprints }: { phases: PlanPhase[]; start: string; end: string; sprints: boolean }) {
   const total = daysBetween(start, end) || 1;
   return (
     <div className="todo-glass p-[1.25rem]">
@@ -21,9 +30,10 @@ function PhaseTimeline({ phases, start, end }: { phases: PlanPhase[]; start: str
           const length = Math.max(1, daysBetween(phase.start_date, phase.end_date));
           const left = Math.min(98.5, (from / total) * 100);
           const width = Math.min(100 - left, Math.max(1.5, (length / total) * 100));
+          const name = sprints ? sprintTitle(index, phase.name) : phase.name;
           return (
             <li key={`${phase.name}-${index}`} className="grid grid-cols-[minmax(0,7.5rem)_1fr] items-center gap-3 sm:grid-cols-[minmax(0,12rem)_1fr]">
-              <span className="truncate text-xs font-medium text-foreground" title={phase.name}>{phase.name}</span>
+              <span className="truncate text-xs font-medium text-foreground" title={name}>{name}</span>
               <span className="relative h-[1.25rem] rounded-md" style={{ background: 'color-mix(in srgb, var(--color-foreground) 6%, transparent)' }}>
                 <span
                   className="absolute inset-y-0 rounded-md"
@@ -117,28 +127,79 @@ interface PlanViewProps {
   onCopy: () => void;
   onEditTimeline: () => void;
   onUseSuggestion: (value: number, unit: DurationUnit) => void;
+  /** Write a new plan in this style (sprint mode on, off, or another sprint length). */
+  onPlanStyle: (style: PlanStyle, weeks: SprintWeeks) => void;
+  /** A sprint plan the user organised by hand. */
+  onOrganise: (plan: ProjectPlan) => void;
 }
 
-export default function PlanView({ state, busy, appliedLabel, onCheck, onApply, onCopy, onEditTimeline, onUseSuggestion }: PlanViewProps) {
+/** "3 two-week sprints · 18 tasks · 4 in the backlog · finishes 5 Jan, 6 weeks early" */
+function sprintSummary(plan: ProjectPlan, windowEnd: string): string {
+  const n = plan.phases.length;
+  const tasks = plan.phases.reduce((sum, p) => sum + p.key_tasks.length, 0);
+  const parts = [
+    `${n} ${plan.sprint_weeks === 1 ? 'one' : 'two'}-week ${n === 1 ? 'sprint' : 'sprints'}`,
+    `${tasks} ${tasks === 1 ? 'task' : 'tasks'}`,
+  ];
+  if (plan.backlog.length) parts.push(`${plan.backlog.length} in the backlog`);
+  const last = plan.phases[n - 1]?.end_date;
+  const spare = last ? daysBetween(last, windowEnd) - 1 : 0;
+  if (last && spare >= 7) parts.push(`finishes ${formatDay(last, false)}, ${formatSpan(spare)} early`);
+  return parts.join(' · ');
+}
+
+export default function PlanView({
+  state,
+  busy,
+  appliedLabel,
+  onCheck,
+  onApply,
+  onCopy,
+  onEditTimeline,
+  onUseSuggestion,
+  onPlanStyle,
+  onOrganise,
+}: PlanViewProps) {
+  const [organising, setOrganising] = useState(false);
   const plan = state.plan;
   if (!plan) return null;
   const window = state.plan_for ?? { start_date: state.start_date, end_date: state.end_date };
   const outOfSync = !!state.plan_for && (state.plan_for.start_date !== state.start_date || state.plan_for.end_date !== state.end_date) && !!state.start_date;
   const locked = busy !== null;
   const taskCount = plan.phases.reduce((sum, p) => sum + p.key_tasks.length, 0);
+  const sprints = plan.style === 'sprints';
+  const fit = timelineFit(state.feasibility, state.start_date, state.end_date);
 
   return (
     <div className="flex min-w-0 flex-col gap-[1rem]">
       <section className="todo-glass flex flex-col gap-3 p-[1.25rem] sm:p-[1.5rem]" aria-labelledby="planner-plan-title">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 id="planner-plan-title" className="font-heading text-lg font-semibold text-foreground">Project plan</h3>
+            <h3 id="planner-plan-title" className="font-heading text-lg font-semibold text-foreground">{sprints ? 'Sprint plan' : 'Project plan'}</h3>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {formatRange(window.start_date, window.end_date)} · {formatSpan(daysBetween(window.start_date, window.end_date))} · {plan.phases.length}{' '}
-              {plan.phases.length === 1 ? 'phase' : 'phases'} · {taskCount} {taskCount === 1 ? 'task' : 'tasks'}
+              {formatRange(window.start_date, window.end_date)} ·{' '}
+              {sprints ? (
+                sprintSummary(plan, window.end_date)
+              ) : (
+                <>
+                  {formatSpan(daysBetween(window.start_date, window.end_date))} · {plan.phases.length} {plan.phases.length === 1 ? 'phase' : 'phases'} ·{' '}
+                  {taskCount} {taskCount === 1 ? 'task' : 'tasks'}
+                </>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {sprints && (
+              <button
+                type="button"
+                onClick={() => setOrganising((o) => !o)}
+                aria-pressed={organising}
+                disabled={locked && !organising}
+                className={`todo-btn todo-btn-quiet px-3 py-2 ${organising ? 'todo-btn-active' : ''}`}
+              >
+                <Icon name={organising ? 'CheckIcon' : 'ArrowsRightLeftIcon'} size={14} /> {organising ? 'Done organising' : 'Organise'}
+              </button>
+            )}
             <button type="button" onClick={onCopy} className="todo-btn todo-btn-secondary px-3 py-2">
               <Icon name="ClipboardDocumentIcon" size={14} /> Copy as Markdown
             </button>
@@ -184,13 +245,41 @@ export default function PlanView({ state, busy, appliedLabel, onCheck, onApply, 
         <FeasibilityCard feasibility={state.feasibility} startDate={state.start_date} endDate={state.end_date} onUseSuggestion={onUseSuggestion} />
       )}
 
-      <PhaseTimeline phases={plan.phases} start={window.start_date} end={window.end_date} />
+      {fit && (
+        <SprintModePanel
+          mode="rewrite"
+          fit={fit}
+          style={plan.style}
+          weeks={plan.sprint_weeks}
+          start={state.start_date}
+          end={state.end_date}
+          disabled={locked}
+          onChange={(style, weeks) => {
+            if (style === plan.style && (style === 'phases' || weeks === plan.sprint_weeks)) return;
+            setOrganising(false);
+            onPlanStyle(style, weeks);
+          }}
+        />
+      )}
 
-      <div className="flex flex-col gap-[0.75rem]">
-        {plan.phases.map((phase, index) => (
-          <PhaseCard key={`${phase.name}-${index}`} phase={phase} index={index} />
-        ))}
-      </div>
+      <PhaseTimeline phases={plan.phases} start={window.start_date} end={window.end_date} sprints={sprints} />
+
+      {sprints ? (
+        <SprintBoard
+          plan={plan}
+          start={window.start_date}
+          end={window.end_date}
+          organising={organising}
+          locked={locked}
+          onChange={onOrganise}
+        />
+      ) : (
+        <div className="flex flex-col gap-[0.75rem]">
+          {plan.phases.map((phase, index) => (
+            <PhaseCard key={`${phase.name}-${index}`} phase={phase} index={index} />
+          ))}
+        </div>
+      )}
 
       {(plan.assumptions.length > 0 || plan.risks.length > 0 || plan.success_metrics.length > 0) && (
         <div className="todo-glass flex flex-col gap-[1.25rem] p-[1.25rem]">
