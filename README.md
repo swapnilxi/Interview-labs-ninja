@@ -371,7 +371,7 @@ a video without a pasted transcript always gets the 422 that opens the paste box
 |---|---|
 | `frontend/src/modules/labs/common/GenerateQuestionsPanel.tsx` | Shared panel (used by all 3 labs) — tab UI, YouTube URL/context/manual-transcript inputs, preview, and the "Add to Topic & Save Questions" confirm action. |
 | `frontend/src/modules/labs/common/MarkdownLite.tsx` | Minimal line-based markdown renderer used both for the generation preview and for displaying a saved subtopic's video-based lab content afterward. |
-| `frontend/src/modules/{cv-lab/CVLabModule,dsa-lab/DSALabModule,system-design-lab/SystemDesignLabModule}.tsx` | Each wires `onAddSubtopic` to persist the generated subtopic to its own topics endpoint and renders `content`/`sourceUrl` on the subtopic's detail view. |
+| `frontend/src/modules/labs/common/TopicLab.tsx` (CV, System Design and the topic labs) and `labs/dsa-lab/DSALabModule.tsx` | Each wires `onAddSubtopic` to persist the generated subtopic to its own topics endpoint and renders `content`/`sourceUrl` on the subtopic's detail view. |
 | `frontend/src/modules/config/ConfigModule.tsx` | Optional "YouTube Data API Key" field, with instructions for obtaining one. |
 
 ## Labs Project (`/labs-project`)
@@ -476,6 +476,56 @@ per user and login-required (the lab itself needs a login). A week holds at most
   (and its swap hint), and the week view's sticky toolbar. The queue panel, the week columns and the wizard panel are plain
   `border bg-card` surfaces. Colours, borders and spacing follow the "Lab visual system" below.
 
+## Lab code layout (`frontend/src/modules/labs/`)
+
+Every lab lives under one folder: shared code in `common/`, and one folder per lab that holds only what is specific to it.
+
+```
+modules/labs/
+  common/             shared by every lab: TopicLab.tsx (the lab page), topicLabTypes.ts, WikiParts, LabSidebarParts,
+                      LabTags, LabProgressUi, LabMobile, labNavigation, OnDemandSection, QuizCarousel, LabCopilot,
+                      GenerateQuestionsPanel, Lab settings/guide dialogs, useLabSections/useLabQuiz/useLabSettings,
+                      labCatalog.ts, labSectionDefaults.ts, project/ (Labs Project picker + save-to-project)
+  cv-lab/             labConfig.ts, sectionDefs.ts, sectionContent.ts, prerequisites.ts, topics.ts, types.ts, CVLabModule.tsx
+  system-design-lab/  same files as cv-lab
+  communication-lab/  labConfig.ts + an 8-line module
+  finance-lab/        labConfig.ts + an 8-line module
+  python-lab/         labConfig.ts + an 8-line module
+  dsa-lab/            its own page (see below)
+  home/               /labs        project/   /labs-project
+```
+
+**One page for five labs.** CV, System Design, Communication, Finance and Python are all rendered by `common/TopicLab.tsx`; each
+lab's module is `<TopicLab config={X_LAB} />` and everything that differs is its `TopicLabConfig` (`common/topicLabTypes.ts`) in
+`<lab>/labConfig.ts`. A lab extends the page through the config, it never copies it:
+
+| Config field | What it changes | Used by |
+|---|---|---|
+| `sectionDefs` | the sections, in page order, each with its default AI prompt (`guidance`) | all |
+| `defaultContent(sectionId, topic)` | template text of a plain Generate (no AI); without it Prerequisites comes from `prereqBaseline` and the other sections are AI-written (`aiGenerated`) | CV, System Design |
+| `fallbackTopics` | built-in topics shown at once and kept when the server fails or is empty; without them the page has loading and error states | CV, System Design |
+| `customTopic` | the fields a topic added from the sidebar is saved with | all |
+| `topicTags`, `wikiMetrics`, `subtopicLabel` | extra topic fields on the sidebar row, wiki card and header, extra hero numbers, the subtopic chip | System Design (`scale`, LLD, "Deep Dive") |
+
+A lab whose topics carry extra fields passes its own type (`TopicLabConfig<SDTopic>`). The page derives the hyphenated key the copilot and
+Generate Practice use (`system-design`) from the stored key (`system_design`).
+
+**Prompts have one source.** A lab's sections and their default prompts live in its own folder (`sectionDefs.ts` for CV and System
+Design, `labConfig.ts` for the others) and `common/labSectionDefaults.ts` imports them for the Config page's prompt editor. Before the
+unification CV and System Design kept a second copy there whose texts had drifted from what the lab pages sent to the AI; the pages'
+texts were kept, so the AI input did not change and Settings now shows the prompts that are really used. `sectionDefs.ts` is data only:
+the Config page bundles it, so it must not import topic lists or templates.
+
+**DSA keeps its own page** (`dsa-lab/DSALabModule.tsx`), on purpose. Its week plan, organizer and auto organizer, approach tabs, LeetCode
+tags and pattern-wise wiki don't fit the topic-lab layout, and pushing them into `TopicLab` would make the shared page carry DSA-only
+state. It still uses the shared parts from `common/` (sidebar, wiki parts, tags, progress, sections, AI quiz, copilot, Generate Practice,
+settings), and its data and templates are split the same way (`sectionContent.ts`, `DSAWikiIndex.tsx`, `types.ts`). Don't fold it into
+`TopicLab`; share a piece through `common/` when a second lab needs it.
+
+**Adding a lab:** a `labConfig.ts` (+ `sectionDefs.ts` if the config imports anything heavy) and an 8-line module in `modules/labs/<lab>/`,
+an entry in `common/labCatalog.ts`, `getSectionDefsForLab` / `LABS_CONFIG` in `labSectionDefaults.ts`, the route page in `app/<lab>/`,
+and the backend wrapper below.
+
 ## Labs home and the Learning Labs (Communication, Finance, Python)
 
 **Labs home (`/labs`, public).** A card per lab, in two groups, then Labs Project. The groups come from one list,
@@ -486,8 +536,9 @@ start closed; the group of the page you are on opens itself. Add a new lab to `l
 
 **The three Learning Labs** (`/communication-lab`, `/finance-lab`, `/python-lab`) are one component, not three copies:
 
-- **Frontend:** `modules/labs/common/TopicLab.tsx` renders the CV Lab's layout (topic tree, wiki index, on-demand sections, copilot)
-  from a `TopicLabConfig` (`topicLabTypes.ts`). Each lab is a config file, `modules/<lab>-lab/labConfig.ts`: its section list with
+- **Frontend:** `modules/labs/common/TopicLab.tsx` renders the lab layout (topic tree, wiki index, on-demand sections, copilot)
+  from a `TopicLabConfig` (`topicLabTypes.ts`); CV and System Design use the same page (see "Lab code layout" above). Each
+  lab is a config file, `modules/labs/<lab>-lab/labConfig.ts`: its section list with
   each section's guidance (the AI prompt the lab settings show), the Prerequisites template groups per category, nouns and texts. Every
   section except Prerequisites (an instant template) is AI-written (`aiGenerated: true`), and the Quiz is the AI quiz
   (`useLabQuiz`, like DSA). Topics come from the server only (loading and error states, no built-in fallback list); sidebar categories

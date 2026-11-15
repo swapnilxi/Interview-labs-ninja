@@ -1,8 +1,11 @@
-import { settingsSections } from '@/modules/labs/common/LabSettings';
-import { SD_DEFAULT_GUIDANCE } from './sectionGuidance';
 import { buildSdPrerequisitesMarkdown } from './prerequisites';
 import type { SDTopic } from './types';
 
+/**
+ * What a plain Generate fills each System Design section with, without the AI: a template built from the topic (the
+ * Prerequisites list comes from ./prerequisites.ts). The pen rewrites a section with the AI using the guidance in
+ * ./sectionDefs.ts.
+ */
 export function getContent(sectionId: string, topic: SDTopic): string {
   const name = topic.name;
 
@@ -43,37 +46,3 @@ export function getContent(sectionId: string, topic: SDTopic): string {
 
   return templates[sectionId] ?? `**${name} — ${sectionId}**\n\nProduction-quality system design content for this section.`;
 }
-
-// Standing instructions for the Prerequisites section when it is rewritten with the pen (the plain
-// Generate fills in the template from ./prerequisites.ts, which has the same groups).
-const PREREQUISITES_GUIDANCE = `List the specific things a learner must already know to follow THIS design, as short bullets under these bold headings, in this order:
-**Networking & web basics** - protocols and web pieces the design uses (for example HTTP redirects 301 vs 302, WebSocket vs polling, CDN caching headers).
-**Data & storage** - the storage concepts it relies on (for example indexes, replication lag, Redis sorted sets, object storage vs a database).
-**Distributed-systems concepts** - the ideas to know first (for example consistent hashing, quorum, idempotency, CAP, fan-out on write).
-**Estimation & math** - the numbers and formulas used in the back-of-envelope step (for example QPS = requests per day / 86,400, storage = records x size x retention).
-Add **Coding skills** as a fifth group only for low-level-design topics (classes, design patterns, data structures).
-
-Every bullet names ONE concrete skill, never a vague area like "databases" or "networking". Put a tiny example in backticks where it helps. Use 8-14 bullets in total, no paragraphs, and never write that no prerequisites are needed.`;
-
-export const SECTION_DEFS = [
-  { id: 'prerequisites', label: 'Prerequisites', icon: 'AcademicCapIcon', subtitle: 'Specific networking, data and distributed-systems skills to have first', guidance: PREREQUISITES_GUIDANCE },
-  { id: 'problem', label: 'Problem Statement & Why It Matters', icon: 'DocumentTextIcon', subtitle: 'Context, challenges, interview importance' },
-  { id: 'requirements', label: 'Functional & Non-Functional Requirements', icon: 'ClipboardDocumentListIcon', subtitle: 'User stories, SLOs, constraints' },
-  { id: 'estimation', label: 'Back-of-Envelope Estimation', icon: 'CalculatorIcon', subtitle: 'QPS, storage, bandwidth, memory' },
-  { id: 'api', label: 'API Design', icon: 'CodeBracketSquareIcon', subtitle: 'REST endpoints, schemas, pagination' },
-  { id: 'datamodel', label: 'Data Model', icon: 'CircleStackIcon', subtitle: 'SQL schema, indexing, sharding key' },
-  { id: 'architecture', label: 'High-Level Architecture', icon: 'ServerStackIcon', subtitle: 'Component diagram + request flow' },
-  { id: 'scaling', label: 'Scaling Strategy', icon: 'ArrowTrendingUpIcon', subtitle: 'Horizontal scaling, caching layers, CDN' },
-  { id: 'reliability', label: 'Reliability & Resiliency', icon: 'ShieldCheckIcon', subtitle: 'Replication, circuit breakers, retries' },
-  { id: 'consistency', label: 'Consistency vs Availability (CAP)', icon: 'ScaleIcon', subtitle: 'CAP applied to this specific system' },
-  { id: 'security', label: 'Security Design', icon: 'LockClosedIcon', subtitle: 'Auth, rate limiting, encryption, PII' },
-  { id: 'monitoring', label: 'Monitoring & Observability', icon: 'ChartBarIcon', subtitle: 'SLOs, metrics, traces, alerting' },
-  { id: 'bottlenecks', label: 'Bottleneck Analysis', icon: 'BoltSlashIcon', subtitle: 'What breaks at scale + solutions' },
-  { id: 'interview_tips', label: 'Interview Discussion Tips', icon: 'AcademicCapIcon', subtitle: '45-min structure, what FAANG expects' },
-  { id: 'insights', label: 'Real-World Production Insights', icon: 'BuildingOffice2Icon', subtitle: 'Big tech war stories, lessons learned' },
-  { id: 'quiz', label: 'Quiz', icon: 'TrophyIcon', subtitle: '4 questions with explanations' },
-  { id: 'lld', label: 'Low-Level Design', icon: 'PuzzlePieceIcon', subtitle: 'Design patterns, class diagrams, Python code' },
-];
-
-// The sections the lab settings dialog lists (the quiz here is a fixed question bank, so it is left out).
-export const SETTINGS_SECTIONS = settingsSections(SECTION_DEFS, SD_DEFAULT_GUIDANCE, { skip: ['quiz'] });

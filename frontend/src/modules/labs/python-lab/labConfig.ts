@@ -217,6 +217,6 @@ export const PYTHON_LAB: TopicLabConfig = {
       { title: 'Tools & setup', items: ['Running a script and installing packages with `pip`'] },
     ],
   },
-  customTopic: { brief: 'Custom lesson.', difficulty: 'Medium' },
+  customTopic: { brief: 'Custom lesson.', difficulty: 'Medium', prerequisites: [] },
   recentKey: 'python-lab-recent-topics',
 };

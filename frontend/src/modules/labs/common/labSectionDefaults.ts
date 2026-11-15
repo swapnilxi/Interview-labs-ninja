@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react';
 import type { LabName } from '@/lib/services/labSectionsService';
 import { COMMUNICATION_SECTION_DEFS } from '@/modules/labs/communication-lab/labConfig';
+import { CV_SECTION_DEFS } from '@/modules/labs/cv-lab/sectionDefs';
 import { FINANCE_SECTION_DEFS } from '@/modules/labs/finance-lab/labConfig';
 import { PYTHON_SECTION_DEFS } from '@/modules/labs/python-lab/labConfig';
+import { SYSTEM_DESIGN_SECTION_DEFS } from '@/modules/labs/system-design-lab/sectionDefs';
 
 export interface SectionDef {
   id: string;
@@ -66,58 +68,9 @@ export const DSA_SECTION_DEFS: readonly SectionDef[] = [
   { id: 'references',      label: 'References & Resources',      icon: 'BookOpenIcon',               subtitle: 'NeetCode, LeetCode, Striver, GFG, MIT OCW', guidance: 'Curate top reference links, problem IDs, NeetCode/Striver roadmap mappings, and MIT OCW lectures.' },
 ];
 
-/* ── CV GUIDANCE ── */
-export const CV_PREREQUISITES_GUIDANCE = `List the specific things a learner must already know to follow THIS topic, as short bullets under these bold headings, in this order:
-**Python & library skills** - concrete NumPy / OpenCV / PyTorch skills the topic uses (for example matrix multiplication with \`@\`, tensor shapes and permute, updating a dict of results after converting arrays to lists, hashmap lookups).
-**Math & tensor operations** - the maths the topic leans on (for example matrix multiplication, homogeneous coordinates, gradients, softmax).
-**Core concepts** - vision and deep-learning ideas to know first (for example intrinsic vs extrinsic camera parameters, convolution, IoU), and the earlier topics in this lab it builds on.
-
-Every bullet names ONE concrete skill, never a vague area like "basic Python" or "linear algebra". Put a tiny example in backticks where it helps. Use 8-14 bullets in total, no paragraphs, and never write that no prerequisites are needed.`;
-
-export const CV_SECTION_DEFS: readonly SectionDef[] = [
-  { id: 'prerequisites',   label: 'Prerequisites',                       icon: 'AcademicCapIcon',            subtitle: 'Specific Python, math and vision skills to have first', guidance: CV_PREREQUISITES_GUIDANCE },
-  { id: 'theory',          label: 'Core Theory',                         icon: 'CalculatorIcon',             subtitle: 'Mathematical foundations + equations', guidance: 'Present the rigorous mathematical foundations, coordinate geometry, continuous/discrete transforms, and theoretical derivations.' },
-  { id: 'visual',          label: 'Visual Explanation & Architecture',   icon: 'PhotoIcon',                  subtitle: 'Data flow diagrams + architecture', guidance: 'Provide ASCII diagrams of pixel coordinate transformations, convolutional kernels, receptive fields, feature maps, or neural network pipelines.' },
-  { id: 'implementation',  label: 'Practical Implementation',            icon: 'CodeBracketIcon',            subtitle: 'OpenCV / PyTorch code examples', guidance: 'Provide production-ready Python code using OpenCV and PyTorch with tensor dimension assertions, input normalization, and visualization hooks.' },
-  { id: 'hyperparameters', label: 'Hyperparameters & Design Choices',     icon: 'AdjustmentsHorizontalIcon',  subtitle: 'What to tune, typical values, tradeoffs', guidance: 'Break down kernel sizes, thresholds, learning rates, anchor boxes, loss weights, and resolution tradeoffs with recommended default ranges.' },
-  { id: 'pitfalls',        label: 'Common Pitfalls & Debugging',         icon: 'BugAntIcon',                 subtitle: 'What goes wrong and how to fix it', guidance: 'Cover sensor noise, illumination variations, color space mix-ups (RGB vs BGR), stride alignment, coordinate flips, and vanishing gradients.' },
-  { id: 'applications',    label: 'Real-World Applications',             icon: 'BuildingOffice2Icon',        subtitle: 'Industry use cases + company examples', guidance: 'Explain deployment in autonomous vehicles, medical imaging, robotics, satellite imagery, industrial quality inspection, and mobile AR.' },
-  { id: 'interview',       label: 'Important Interview Questions',       icon: 'ChatBubbleLeftRightIcon',    subtitle: 'Conceptual + coding + detailed answers', guidance: 'Top Computer Vision engineer interview questions (Tesla, Waymo, Apple, Meta), mathematical whiteboarding probes, and coding questions.' },
-  { id: 'comparison',      label: 'Comparison with Alternatives',         icon: 'ScaleIcon',                  subtitle: 'Tradeoff table + when to use each', guidance: 'Detailed comparison table of classical vs deep learning approaches, computational latency, parameter counts, and edge device suitability.' },
-  { id: 'paper',           label: 'Paper & Research Context',            icon: 'DocumentMagnifyingGlassIcon',subtitle: 'Original paper + SOTA evolution', guidance: 'Trace the history from classical papers to modern transformer/diffusion vision breakthroughs and state-of-the-art benchmarks.' },
-  { id: 'quiz',            label: 'Quiz',                                icon: 'TrophyIcon',                 subtitle: '4 questions, score tracked, generate more' },
-  { id: 'references',      label: 'References & Resources',              icon: 'BookOpenIcon',               subtitle: 'CS231n, Papers With Code, OpenCV docs', guidance: 'Key references to Stanford CS231n, PapersWithCode, official OpenCV/PyTorch documentation, and CVPR benchmark papers.' },
-];
-
-/* ── SYSTEM DESIGN GUIDANCE ── */
-export const SD_PREREQUISITES_GUIDANCE = `List the specific things a learner must already know to follow THIS design, as short bullets under these bold headings, in this order:
-**Networking & web basics** - protocols and web pieces the design uses (for example HTTP redirects 301 vs 302, WebSocket vs polling, CDN caching headers).
-**Data & storage** - the storage concepts it relies on (for example indexes, replication lag, Redis sorted sets, object storage vs a database).
-**Distributed-systems concepts** - the ideas to know first (for example consistent hashing, quorum, idempotency, CAP, fan-out on write).
-**Estimation & math** - the numbers and formulas used in the back-of-envelope step (for example QPS = requests per day / 86,400, storage = records x size x retention).
-Add **Coding skills** as a fifth group only for low-level-design topics (classes, design patterns, data structures).
-
-Every bullet names ONE concrete skill, never a vague area like "databases" or "networking". Put a tiny example in backticks where it helps. Use 8-14 bullets in total, no paragraphs, and never write that no prerequisites are needed.`;
-
-export const SYSTEM_DESIGN_SECTION_DEFS: readonly SectionDef[] = [
-  { id: 'prerequisites',   label: 'Prerequisites',                       icon: 'AcademicCapIcon',            subtitle: 'Specific networking, data and distributed-systems skills to have first', guidance: SD_PREREQUISITES_GUIDANCE },
-  { id: 'problem',         label: 'Problem Statement & Why It Matters',  icon: 'DocumentTextIcon',           subtitle: 'Context, challenges, interview importance', guidance: 'Clarify the core business context, scale challenges, why this system is architecturally challenging, and what FAANG interviewers assess.' },
-  { id: 'requirements',    label: 'Functional & Non-Functional Requirements', icon: 'ClipboardDocumentListIcon', subtitle: 'User stories, SLOs, constraints', guidance: 'Formulate crisp functional user stories, non-functional targets (99.99% availability, p99 latency < 50ms, strong vs eventual consistency), and out-of-scope boundaries.' },
-  { id: 'estimation',      label: 'Back-of-Envelope Estimation',         icon: 'CalculatorIcon',             subtitle: 'QPS, storage, bandwidth, memory', guidance: 'Calculate read/write QPS, peak multipliers, 5-year storage growth, network ingress/egress bandwidth in MB/s, and Redis cache RAM using 80/20 Pareto rule.' },
-  { id: 'api',             label: 'API Design',                          icon: 'CodeBracketSquareIcon',      subtitle: 'REST endpoints, schemas, pagination', guidance: 'Define exact REST or gRPC endpoint signatures, request/response JSON payloads, status codes, idempotent keys, and cursor-based pagination.' },
-  { id: 'datamodel',       label: 'Data Model',                          icon: 'CircleStackIcon',            subtitle: 'SQL schema, indexing, sharding key', guidance: 'Provide database schemas, primary/foreign keys, B-tree indexes, NoSQL document/wide-column choices, and partition/sharding key strategies.' },
-  { id: 'architecture',    label: 'High-Level Architecture',             icon: 'ServerStackIcon',            subtitle: 'Component diagram + request flow', guidance: 'Provide a complete ASCII architectural block diagram with Load Balancers, API Gateways, Microservices, Caches, Queues, DBs, and step-by-step numbered request flow.' },
-  { id: 'scaling',         label: 'Scaling Strategy',                    icon: 'ArrowTrendingUpIcon',        subtitle: 'Horizontal scaling, caching layers, CDN', guidance: 'Detail horizontal stateless service scaling, cache eviction (LRU), read replicas, database sharding/partitioning, and CDN edge termination.' },
-  { id: 'reliability',     label: 'Reliability & Resiliency',            icon: 'ShieldCheckIcon',            subtitle: 'Replication, circuit breakers, retries', guidance: 'Explain failure handling: circuit breakers (Netflix Hystrix pattern), exponential backoff with jitter, dead letter queues, and multi-region failover.' },
-  { id: 'consistency',     label: 'Consistency vs Availability (CAP)',   icon: 'ScaleIcon',                  subtitle: 'CAP applied to this specific system', guidance: 'Analyze the CAP and PACELC tradeoff for this exact system, explaining where consistency is mandatory (payments/balances) vs where eventual consistency is optimal.' },
-  { id: 'security',        label: 'Security Design',                     icon: 'LockClosedIcon',             subtitle: 'Auth, rate limiting, encryption, PII', guidance: 'Cover OAuth2/JWT auth, token bucket / leaky bucket rate limiting, TLS 1.3 in-transit, AES-256 at-rest, HMAC request signing, and PII anonymization.' },
-  { id: 'monitoring',      label: 'Monitoring & Observability',          icon: 'ChartBarIcon',               subtitle: 'SLOs, metrics, traces, alerting', guidance: 'Define the Golden Signals (latency, traffic, errors, saturation), Prometheus metrics, OpenTelemetry distributed traces, and P1 on-call alert thresholds.' },
-  { id: 'bottlenecks',     label: 'Bottleneck Analysis',                 icon: 'BoltSlashIcon',              subtitle: 'What breaks at scale + solutions', guidance: 'Identify single points of failure (SPOFs), database hot partitions (celebrity problem), cache stampedes, thundering herds, and their architectural fixes.' },
-  { id: 'interview_tips',  label: 'Interview Discussion Tips',           icon: 'AcademicCapIcon',            subtitle: '45-min structure, what FAANG expects', guidance: 'Provide a 45-minute interview pacing timeline (5m reqs, 5m estimation, 15m high-level, 15m deep-dive, 5m wrap-up) and pitfalls that fail candidates.' },
-  { id: 'insights',        label: 'Real-World Production Insights',      icon: 'BuildingOffice2Icon',        subtitle: 'Big tech war stories, lessons learned', guidance: 'Share real engineering war stories and post-mortems from Netflix, Uber, Stripe, Amazon, or Google on how similar architectures evolved under 100x growth.' },
-  { id: 'quiz',            label: 'Quiz',                                icon: 'TrophyIcon',                 subtitle: '4 questions with explanations' },
-  { id: 'lld',             label: 'Low-Level Design',                    icon: 'PuzzlePieceIcon',            subtitle: 'Design patterns, class diagrams, Python code', guidance: 'Provide concrete object-oriented design (SOLID principles, GoF patterns), class hierarchy ASCII diagram, and clean thread-safe Python implementation.' },
-];
+/* CV and System Design keep their sections (with the default AI prompts the lab pages use) in their own folders, like
+   the topic labs; the Config page's prompt editor reads them from here. */
+export { CV_SECTION_DEFS, SYSTEM_DESIGN_SECTION_DEFS };
 
 /* ── LAB METADATA & QUICK ADDONS ── */
 export const LABS_CONFIG: Record<LabName, LabMeta> = {

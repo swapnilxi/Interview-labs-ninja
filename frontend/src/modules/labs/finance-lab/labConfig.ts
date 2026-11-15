@@ -236,6 +236,6 @@ export const FINANCE_LAB: TopicLabConfig = {
       },
     ],
   },
-  customTopic: { brief: 'Custom lesson.', difficulty: 'Medium' },
+  customTopic: { brief: 'Custom lesson.', difficulty: 'Medium', prerequisites: [] },
   recentKey: 'finance-lab-recent-topics',
 };

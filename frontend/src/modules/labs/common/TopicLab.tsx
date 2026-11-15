@@ -1,14 +1,18 @@
 'use client';
 
 /**
- * The page of a topic lab (Communication, Finance, Python): the CV Lab's layout — topic tree, wiki index, topic
- * page with on-demand sections, copilot — driven by a TopicLabConfig (topicLabTypes.ts) instead of being copied
- * per lab. Differences from the CV page:
- * - topics come from the server only (`${apiPrefix}/topics`, seeded from the lab's topics.json), with a loading and
- *   an error state instead of a built-in fallback list;
- * - every section but Prerequisites (a template) is written by the AI, and the Quiz is the AI quiz (useLabQuiz);
+ * The page of every topic lab except DSA: CV, System Design, Communication, Finance and Python. One layout (topic tree,
+ * wiki index, topic page with on-demand sections, AI quiz, copilot), driven by a TopicLabConfig (topicLabTypes.ts) that
+ * each lab keeps in its own folder (`labs/<lab>/labConfig.ts`). A lab never copies this page; it extends it through
+ * the config:
+ * - topics come from `${apiPrefix}/topics`; a lab with `fallbackTopics` (CV, System Design) shows those at once and
+ *   keeps them when the server fails, the others show a loading and an error state;
+ * - a plain Generate fills a section from `defaultContent` (CV, System Design templates) or, without it, Prerequisites
+ *   from `prereqBaseline` and every other section by the AI; the pen always asks the AI; the Quiz is the AI quiz;
+ * - lab-specific topic fields are shown through `topicTags` / `wikiMetrics` (System Design's scale and LLD);
  * - sidebar categories start collapsed; the open topic's category expands itself;
  * - a failed save is reported instead of being kept only in the page.
+ * DSA (labs/dsa-lab) has its own page: its week plan, organizer and approach tabs don't fit this layout.
  */
 
 import {
@@ -17,6 +21,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type Dispatch,
   type SetStateAction,
 } from 'react';
@@ -69,7 +74,12 @@ import type { SectionDef } from '@/modules/labs/common/labSectionDefaults';
 import { prereqMarkdown } from '@/modules/labs/common/prereqMarkdown';
 import ProjectSelector from '@/modules/labs/common/project/ProjectSelector';
 import { sectionSaveInfo } from '@/modules/labs/common/project/sectionProject';
-import type { TopicLabConfig, TopicLabTopic } from '@/modules/labs/common/topicLabTypes';
+import type {
+  TopicLabConfig,
+  TopicLabName,
+  TopicLabTopic,
+  TopicTag,
+} from '@/modules/labs/common/topicLabTypes';
 import { useLabQuiz } from '@/modules/labs/common/useLabQuiz';
 import { useLabSections, type SectionState } from '@/modules/labs/common/useLabSections';
 import { useLabSettings } from '@/modules/labs/common/useLabSettings';
@@ -86,12 +96,40 @@ type Recent = { id: string; name: string; subId?: string; subName?: string };
 const anchorFor = (lab: string, name: string) =>
   `${lab}-cat-${name.replace(/[^a-zA-Z0-9]+/g, '-')}`;
 
-function prerequisitesFor(config: TopicLabConfig, topic: TopicLabTopic): string {
-  const base = config.prereqBaseline[topic.category] ?? config.prereqBaseline['*'] ?? [];
+/**
+ * The hyphenated lab key the copilot and the Generate Practice panel use ('system-design'), where the stored key is
+ * 'system_design'. The other labs' keys have no underscore, so they are unchanged.
+ */
+type LabSlug = NonNullable<ComponentProps<typeof LabCopilot>['labType']>;
+const labSlug = (lab: TopicLabName) => lab.replace(/_/g, '-') as LabSlug;
+
+/** The default Prerequisites template: the topic's own prerequisites, then the lab's baseline for its category. */
+function prerequisitesFor<T extends TopicLabTopic>(config: TopicLabConfig<T>, topic: T): string {
+  const baseline = config.prereqBaseline ?? {};
+  const base = baseline[topic.category] ?? baseline['*'] ?? [];
   return prereqMarkdown(`Prerequisites for ${topic.name}`, [
-    { title: config.ownPrereqTitle, items: topic.prerequisites },
+    { title: config.ownPrereqTitle ?? 'Study these first', items: topic.prerequisites ?? [] },
     ...base,
   ]);
+}
+
+/** Lab-specific tags (TopicLabConfig.topicTags) after a topic's difficulty. */
+function TopicTags({ tags }: { tags: TopicTag[] }) {
+  return (
+    <>
+      {tags.map((tag) =>
+        tag.tone === 'text' ? (
+          <span key={tag.label} className="text-xs font-medium tabular-nums text-muted-foreground">
+            {tag.label}
+          </span>
+        ) : (
+          <span key={tag.label} className={tag.tone === 'accent' ? LAB_CHIP_ACCENT : LAB_CHIP}>
+            {tag.label}
+          </span>
+        )
+      )}
+    </>
+  );
 }
 
 function readRecent(key: string): Recent[] {
@@ -115,7 +153,7 @@ function writeRecent(key: string, items: Recent[]) {
 /* ══════════════════════════════════════════════════════════════════════
    WIKI INDEX
 ══════════════════════════════════════════════════════════════════════ */
-function TopicLabWikiIndex({
+function TopicLabWikiIndex<T extends TopicLabTopic>({
   config,
   groupedSections,
   allTopics,
@@ -123,9 +161,9 @@ function TopicLabWikiIndex({
   onSelectSub,
   onOpenGuide,
 }: {
-  config: TopicLabConfig;
-  groupedSections: { name: string; topics: TopicLabTopic[] }[];
-  allTopics: TopicLabTopic[];
+  config: TopicLabConfig<T>;
+  groupedSections: { name: string; topics: T[] }[];
+  allTopics: T[];
   onSelectTopic: (id: string) => void;
   onSelectSub: (topicId: string, subId: string) => void;
   onOpenGuide: () => void;
@@ -150,6 +188,7 @@ function TopicLabWikiIndex({
           { label: 'Categories', value: groupedSections.length },
           { label: nounMany, value: allTopics.length },
           { label: 'Subtopics', value: totalSubs },
+          ...(config.wikiMetrics?.(allTopics) ?? []),
           { label: 'Hard', value: hardCount, tone: 'hard' },
           { label: 'Easy', value: easyCount, tone: 'easy' },
         ]}
@@ -218,12 +257,13 @@ function TopicLabWikiIndex({
                         </h3>
                         <div className="mt-[0.5rem] flex flex-wrap items-center gap-x-[0.5rem] gap-y-[0.25rem]">
                           <DifficultyTag difficulty={t.difficulty} />
+                          <TopicTags tags={config.topicTags?.(t, 'card') ?? []} />
                           <DoneMark lab={config.lab} topicId={t.id} />
                         </div>
                         <p className="mt-[0.625rem] text-[13px] font-medium leading-relaxed mix-text-foreground/[0.78]">
                           {t.brief}
                         </p>
-                        {t.prerequisites.length > 0 && (
+                        {t.prerequisites && t.prerequisites.length > 0 && (
                           <p className="mt-[0.5rem] text-xs font-medium text-muted-foreground">
                             <span className="font-semibold">Prereqs</span>{' '}
                             {t.prerequisites.join(' · ')}
@@ -263,8 +303,13 @@ function TopicLabWikiIndex({
 /* ══════════════════════════════════════════════════════════════════════
    PAGE
 ══════════════════════════════════════════════════════════════════════ */
-export default function TopicLab({ config }: { config: TopicLabConfig }) {
-  const { lab, apiPrefix } = config;
+export default function TopicLab<T extends TopicLabTopic>({
+  config,
+}: {
+  config: TopicLabConfig<T>;
+}) {
+  const { lab, apiPrefix, fallbackTopics } = config;
+  const slug = labSlug(lab);
   const sectionDefs = config.sectionDefs;
   const defaultGuidance = useMemo(
     () =>
@@ -279,7 +324,8 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
     [sectionDefs, defaultGuidance, config.quizSettingsNote]
   );
 
-  const [topics, setTopics] = useState<TopicLabTopic[]>([]);
+  // A lab with built-in topics shows them while the server answers (and keeps them if it can't).
+  const [topics, setTopics] = useState<T[]>(() => [...(fallbackTopics ?? [])]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const nav = useLabNav(topics, status !== 'loading');
   const selectedTopicId = nav.topicId;
@@ -316,15 +362,21 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then((data: TopicLabTopic[]) => {
-        setTopics(Array.isArray(data) ? data : []);
+      .then((data: T[]) => {
+        const list = Array.isArray(data) ? data : [];
+        setTopics(list.length === 0 && fallbackTopics ? [...fallbackTopics] : list);
         setStatus('ready');
       })
       .catch((err) => {
         console.error(`${config.labName}: could not load topics`, err);
-        setStatus('error');
+        if (fallbackTopics) {
+          setTopics([...fallbackTopics]);
+          setStatus('ready');
+        } else {
+          setStatus('error');
+        }
       });
-  }, [apiPrefix, config.labName]);
+  }, [apiPrefix, config.labName, fallbackTopics]);
 
   useEffect(() => {
     loadTopics();
@@ -373,7 +425,7 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
   }, [currentCategory, currentTopicId]);
 
   // ── Saving (topics and categories are shared by everyone; a custom category is the user's own) ──
-  const postTopic = async (topic: Omit<TopicLabTopic, 'isCustom'>): Promise<boolean> => {
+  const postTopic = async (topic: Omit<T, 'isCustom'>): Promise<boolean> => {
     setSaveError(null);
     try {
       const res = await apiFetch(`${apiPrefix}/topics`, {
@@ -389,7 +441,7 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
     }
   };
 
-  const withoutFlags = ({ isCustom: _isCustom, ...rest }: TopicLabTopic) => rest;
+  const withoutFlags = ({ isCustom: _isCustom, ...rest }: T): Omit<T, 'isCustom'> => rest;
 
   const handleAddCustomSection = async () => {
     const name = customSectionInput.trim();
@@ -422,21 +474,19 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
     const name = newTopicInputSection.trim();
     if (!name) return;
     const topic = {
+      ...config.customTopic,
       id: `custom-${Date.now()}`,
       name,
-      brief: config.customTopic.brief,
       category: sectionName,
-      difficulty: config.customTopic.difficulty,
-      prerequisites: [],
       subtopics: [],
-    };
+    } as unknown as Omit<T, 'isCustom'>;
     if (!(await postTopic(topic))) return;
-    setTopics((prev) => [...prev, { ...topic, isCustom: true }]);
+    setTopics((prev) => [...prev, { ...topic, isCustom: true } as T]);
     setNewTopicInputSection('');
     setAddingTopicToSection(null);
   };
 
-  const appendSubtopic = async (topicId: string, sub: TopicLabTopic['subtopics'][number]) => {
+  const appendSubtopic = async (topicId: string, sub: T['subtopics'][number]) => {
     const parent = allTopics.find((t) => t.id === topicId);
     if (!parent) return false;
     const updated = { ...parent, subtopics: [...parent.subtopics, sub] };
@@ -473,8 +523,11 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
     topic: currentTopic,
     subtopic: currentSubtopic,
     sectionDefs,
-    getDefaultContent: (id) =>
-      currentTopic && id === 'prerequisites' ? prerequisitesFor(config, currentTopic) : '',
+    getDefaultContent: (id) => {
+      if (!currentTopic) return '';
+      if (config.defaultContent) return config.defaultContent(id, currentTopic);
+      return id === 'prerequisites' ? prerequisitesFor(config, currentTopic) : '';
+    },
     defaultGuidance,
   });
   const quiz = useLabQuiz({
@@ -752,6 +805,7 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
                                       </span>
                                       <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                                         <DifficultyTag difficulty={topic.difficulty} />
+                                        <TopicTags tags={config.topicTags?.(topic, 'row') ?? []} />
                                         <DoneMark lab={lab} topicId={topic.id} />
                                       </span>
                                     </span>
@@ -860,7 +914,8 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
               currentName={currentSubtopic ? currentSubtopic.name : currentTopic.name}
             />
           )}
-          {nav.pending || (status === 'loading' && selectedTopicId === 'wiki') ? (
+          {nav.pending ||
+          (status === 'loading' && selectedTopicId === 'wiki' && topics.length === 0) ? (
             <LabScreenLoading />
           ) : status === 'error' ? (
             <div className="flex h-full flex-col items-center justify-center px-[1.5rem] text-center">
@@ -917,7 +972,10 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <span className={LAB_CHIP_ACCENT}>{currentTopic.category}</span>
                   <DifficultyTag difficulty={currentTopic.difficulty} />
-                  {currentSubtopic && <span className={LAB_CHIP}>Subtopic</span>}
+                  <TopicTags tags={config.topicTags?.(currentTopic, 'header') ?? []} />
+                  {currentSubtopic && (
+                    <span className={LAB_CHIP}>{config.subtopicLabel ?? 'Subtopic'}</span>
+                  )}
                   {currentTopic.isCustom && <span className={LAB_CHIP}>Custom</span>}
                   <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                     <ProjectSelector />
@@ -957,7 +1015,7 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
                   {currentSubtopic?.brief ?? currentTopic.brief}
                 </p>
 
-                {currentTopic.prerequisites.length > 0 && (
+                {currentTopic.prerequisites && currentTopic.prerequisites.length > 0 && (
                   <div className="mt-[1rem] flex flex-wrap items-center gap-1.5">
                     <span className="text-xs font-semibold text-muted-foreground">Prereqs</span>
                     {currentTopic.prerequisites.map((p) => (
@@ -1040,7 +1098,7 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
               <GenerateQuestionsPanel
                 topicName={currentTopic.name}
                 subtopicName={currentSubtopic?.name}
-                labName={lab}
+                labName={slug}
                 accentVar="--lab-accent"
                 onAddSubtopic={(generated) =>
                   handleAddGeneratedSubtopic(currentTopic.id, generated)
@@ -1199,7 +1257,7 @@ export default function TopicLab({ config }: { config: TopicLabConfig }) {
           <div className={rightExpanded ? 'h-full w-[300px] max-md:w-full' : 'hidden'}>
             <LabCopilot
               context={contextLabel}
-              labType={lab}
+              labType={slug}
               collapseLabel={sheets.isMobile ? 'Close' : 'Collapse'}
               onCollapse={() => collapseRight()}
             />

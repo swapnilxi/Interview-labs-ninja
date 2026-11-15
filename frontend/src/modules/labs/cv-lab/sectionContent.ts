@@ -1,8 +1,11 @@
-import { settingsSections } from '@/modules/labs/common/LabSettings';
-import { CV_DEFAULT_GUIDANCE } from './sectionGuidance';
 import { buildCvPrerequisitesMarkdown } from './prerequisites';
 import type { CVTopic } from './types';
 
+/**
+ * What a plain Generate fills each CV section with, without the AI: a template built from the topic (the
+ * Prerequisites list comes from ./prerequisites.ts). The pen rewrites a section with the AI using the guidance in
+ * ./sectionDefs.ts.
+ */
 export function getContent(sectionId: string, topic: CVTopic): string {
   const name = topic.name;
 
@@ -32,30 +35,3 @@ export function getContent(sectionId: string, topic: CVTopic): string {
 
   return templates[sectionId] ?? `**${name} — ${sectionId}**\n\nProfessional-grade content for this section covering ${name} in depth. This material is formatted for interview preparation and production engineering contexts.`;
 }
-
-// Standing instructions for the Prerequisites section when it is rewritten with the pen (the plain
-// Generate fills in the template from ./prerequisites.ts, which has the same groups).
-const PREREQUISITES_GUIDANCE = `List the specific things a learner must already know to follow THIS topic, as short bullets under these bold headings, in this order:
-**Python & library skills** - concrete NumPy / OpenCV / PyTorch skills the topic uses (for example matrix multiplication with \`@\`, tensor shapes and permute, updating a dict of results after converting arrays to lists, hashmap lookups).
-**Math & tensor operations** - the maths the topic leans on (for example matrix multiplication, homogeneous coordinates, gradients, softmax).
-**Core concepts** - vision and deep-learning ideas to know first (for example intrinsic vs extrinsic camera parameters, convolution, IoU), and the earlier topics in this lab it builds on.
-
-Every bullet names ONE concrete skill, never a vague area like "basic Python" or "linear algebra". Put a tiny example in backticks where it helps. Use 8-14 bullets in total, no paragraphs, and never write that no prerequisites are needed.`;
-
-export const SECTION_DEFS = [
-  { id: 'prerequisites', label: 'Prerequisites', icon: 'AcademicCapIcon', subtitle: 'Specific Python, math and vision skills to have first', guidance: PREREQUISITES_GUIDANCE },
-  { id: 'theory', label: 'Core Theory', icon: 'CalculatorIcon', subtitle: 'Mathematical foundations + equations' },
-  { id: 'visual', label: 'Visual Explanation & Architecture', icon: 'PhotoIcon', subtitle: 'Data flow diagrams + architecture' },
-  { id: 'implementation', label: 'Practical Implementation', icon: 'CodeBracketIcon', subtitle: 'OpenCV / PyTorch code examples' },
-  { id: 'hyperparameters', label: 'Hyperparameters & Design Choices', icon: 'AdjustmentsHorizontalIcon', subtitle: 'What to tune, typical values, tradeoffs' },
-  { id: 'pitfalls', label: 'Common Pitfalls & Debugging', icon: 'BugAntIcon', subtitle: 'What goes wrong and how to fix it' },
-  { id: 'applications', label: 'Real-World Applications', icon: 'BuildingOffice2Icon', subtitle: 'Industry use cases + company examples' },
-  { id: 'interview', label: 'Important Interview Questions', icon: 'ChatBubbleLeftRightIcon', subtitle: 'Conceptual + coding + detailed answers' },
-  { id: 'comparison', label: 'Comparison with Alternatives', icon: 'ScaleIcon', subtitle: 'Tradeoff table + when to use each' },
-  { id: 'paper', label: 'Paper & Research Context', icon: 'DocumentMagnifyingGlassIcon', subtitle: 'Original paper + SOTA evolution' },
-  { id: 'quiz', label: 'Quiz', icon: 'TrophyIcon', subtitle: '4 questions, score tracked, generate more' },
-  { id: 'references', label: 'References & Resources', icon: 'BookOpenIcon', subtitle: 'CS231n, Papers With Code, OpenCV docs' },
-];
-
-// The sections the lab settings dialog lists (the quiz here is a fixed question bank, so it is left out).
-export const SETTINGS_SECTIONS = settingsSections(SECTION_DEFS, CV_DEFAULT_GUIDANCE, { skip: ['quiz'] });

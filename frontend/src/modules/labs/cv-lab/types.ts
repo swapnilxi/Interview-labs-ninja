@@ -1,10 +1,6 @@
-export interface CVTopic {
-  id: string;
-  name: string;
-  brief: string;
-  category: string;
-  difficulty: string;
+import type { TopicLabTopic } from '@/modules/labs/common/topicLabTypes';
+
+/** A CV Lab topic: a shared topic whose prerequisites are always listed (the Prerequisites template uses them). */
+export interface CVTopic extends TopicLabTopic {
   prerequisites: string[];
-  subtopics: { id: string; name: string; brief: string; content?: string; sourceUrl?: string }[];
-  isCustom?: boolean;
 }

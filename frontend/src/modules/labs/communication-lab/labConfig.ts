@@ -193,6 +193,6 @@ export const COMMUNICATION_LAB: TopicLabConfig = {
       },
     ],
   },
-  customTopic: { brief: 'Custom lesson.', difficulty: 'Medium' },
+  customTopic: { brief: 'Custom lesson.', difficulty: 'Medium', prerequisites: [] },
   recentKey: 'communication-lab-recent-topics',
 };

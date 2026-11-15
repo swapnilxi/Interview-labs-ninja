@@ -122,15 +122,15 @@ further down in `README.md` — check there before assuming a module's shape.
   (prompts byte-identical), and rule validation `frontend/src/lib/schedules/scheduleRules.ts` (`normalizeRule`) ↔
   `schedules/rules.py` (same error texts, same stored JSON). Runs happen on the device (web engine + the native Android
   plugin in `app/android/.../scheduler/`), never on a server cron. Details: README.md ("Scheduler").
-- **Frontend lab layout: `frontend/src/modules/labs/`.** `common/` = everything labs share (TopicLab, wiki/sidebar parts, hooks,
-  GenerateQuestionsPanel, LabCopilot, `project/`); one folder per lab beside it (`cv-lab/`, `dsa-lab/`, `system-design-lab/`,
-  `communication-lab/`, `finance-lab/`, `python-lab/`), plus `home/` (`/labs`) and `project/` (`/labs-project`). A lab folder holds only
-  what is specific to it (`topics.ts`, `sectionContent.ts`, `*WikiIndex.tsx`, `prerequisites.ts`, `*LabModule.tsx`); anything a second lab
-  would need goes in `labs/common/` (e.g. `wikiAnchor`). `modules/common/copilot/CopilotChat.tsx` stays shared with non-lab modules.
-- **Learning Labs (Communication, Finance, Python) are config, not copies.** One page (`modules/labs/common/TopicLab.tsx`) + a
-  `modules/<lab>-lab/labConfig.ts` each; backend `modules/common/topic_lab.py` + thin `<lab>_lab/` wrappers; seed topics in
-  `<lab>_lab/topics.json` (ASCII only). Every lab (old and new) is listed once in `modules/labs/common/labCatalog.ts`, which drives
-  `/labs`, the sidebar's Labs menu and the phone Labs sheet: add a new lab there. README: "Labs home and the Learning Labs".
+- **Labs: one page, config per lab (`frontend/src/modules/labs/`).** `common/` = everything labs share; one folder per lab
+  holds only what is specific to it. CV, System Design, Communication, Finance and Python are ALL rendered by
+  `common/TopicLab.tsx` from their `<lab>/labConfig.ts` (`TopicLabConfig<T>`: `sectionDefs`, `defaultContent`, `fallbackTopics`,
+  `customTopic`, `topicTags`/`wikiMetrics` for extra topic fields): extend the config, never copy the page. **DSA keeps its own
+  page on purpose** (week plan, organizer, approaches) but uses the `common/` parts. A lab's section prompts have ONE source (its
+  `sectionDefs.ts`/`labConfig.ts`, data only), which `common/labSectionDefaults.ts` imports for the Config page. Backend
+  `modules/common/topic_lab.py` + thin `<lab>_lab/` wrappers; seed topics in `<lab>_lab/topics.json` (ASCII only). Every lab is
+  listed once in `common/labCatalog.ts` (`/labs`, the sidebar Labs menu, the phone Labs sheet). `modules/common/copilot/CopilotChat.tsx`
+  stays shared with non-lab modules. README: "Lab code layout" and "Labs home and the Learning Labs".
 - **AI LMS hierarchy:** Class > Subject (-> Lessons) or Project (-> Module/Step -> Sub-step,
   each generating one Lesson). A Project is an `lms_subjects` row with `kind='project'`; its
   outline lives in `project_plan` JSON. Both levels of outline items carry `{title, focus,
