@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
 import Icon from '@/components/ui/AppIcon';
 import RequireAuth from '@/modules/auth/RequireAuth';
-import LabsProjectModule from '@/modules/labs-project/LabsProjectModule';
-import LabsProjectGuideHeader from '@/modules/labs-project/LabsProjectGuideHeader';
+import LabsProjectModule from '@/modules/labs/project/LabsProjectModule';
+import LabsProjectGuideHeader from '@/modules/labs/project/LabsProjectGuideHeader';
 
 export const metadata: Metadata = {
   title: 'Labs Project — InterviewNinja',

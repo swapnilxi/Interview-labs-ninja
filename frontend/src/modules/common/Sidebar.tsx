@@ -10,7 +10,7 @@ import ThemeToggleIcon from '@/modules/common/ThemeToggleIcon';
 import BrandMark from '@/modules/common/BrandMark';
 import { initialsFor } from '@/lib/ui/initials';
 import { useIsNativeApp } from '@/lib/pwa/installApp';
-import { LAB_GROUPS, LABS_HOME, LABS_PROJECT_LINK, isLabsPath, labsInGroup } from '@/modules/common/lab/labCatalog';
+import { LAB_GROUPS, LABS_HOME, LABS_PROJECT_LINK, isLabsPath, labsInGroup } from '@/modules/labs/common/labCatalog';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   SidebarMode,

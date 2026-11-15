@@ -16,7 +16,20 @@ import { sessionService, SessionAnswer } from '@/lib/services/sessionService';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
 import AnswerWorkspace from './coach/AnswerWorkspace';
 import RichText from './coach/RichText';
-import { Bar, DifficultyChip, Ring, WeekStrip, dayKey, difficultyTone, isTypingTarget, readPracticeDays, relativeDay, toneClass, uniqueByText } from './components/ds';
+import {
+  Bar,
+  DifficultyChip,
+  PipStrip,
+  Ring,
+  WeekStrip,
+  dayKey,
+  difficultyTone,
+  isTypingTarget,
+  readPracticeDays,
+  relativeDay,
+  toneClass,
+  uniqueByText,
+} from './components/ds';
 import { useCompanionStats } from './companion/useCompanion';
 import TopicPicker from './components/TopicPicker';
 import { readFocusTopics, DEFAULT_TOPICS } from './topics';
@@ -1376,9 +1389,10 @@ export default function DailySessionInteractive() {
   // ── Quiz (focus mode: the page header is hidden) and the all-questions overview ──
   return (
     <div className="pt-3 sm:pt-4">
-      {/* Floating top bar: leave, progress, time, overview */}
-      <div className="ds-topbar">
-        <div className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
+      {/* Run bar (the quiz's navigation bar): leave, where you are, time, overview. One pip per question sits under it:
+          the progress bar and the question navigator in one line. */}
+      <div className="ds-topbar ds-runbar">
+        <div className="ds-runbar-row">
           <button
             type="button"
             onClick={() => goBack(viewAll ? quizUrl : setupUrl)}
@@ -1388,33 +1402,43 @@ export default function DailySessionInteractive() {
           >
             <Icon name={viewAll ? 'ArrowLeftIcon' : 'XMarkIcon'} size={20} />
           </button>
-          <div className="min-w-0 flex-1">
-            <div className="mb-1.5 flex items-center justify-between gap-2 text-xs font-semibold">
-              <span className="ds-muted">
-                {viewAll ? 'All questions' : `Question ${currentIndex + 1} of ${questions.length}`}
-              </span>
-              <span className="ds-faint ds-num">
-                {answeredCount}/{questions.length} answered
-              </span>
-            </div>
-            <Bar value={answeredCount / Math.max(1, questions.length)} tone={allAnswered ? 'jade' : 'indigo'} label="Session progress" />
+          <div className="ds-runbar-title">
+            <h1 className="ds-runbar-name">
+              {viewAll ? (
+                'All questions'
+              ) : (
+                <>
+                  Question {currentIndex + 1}
+                  <span> of {questions.length}</span>
+                </>
+              )}
+            </h1>
+            <p className="ds-runbar-sub ds-num">
+              {answeredCount} of {questions.length} answered
+            </p>
           </div>
-          <span className="hidden sm:inline-flex" title="Time on questions">
-            <span className="ds-chip ds-tone-neutral ds-num">
-              <Icon name="ClockIcon" size={14} />
-              {formatTime(elapsedSeconds)}
-            </span>
+          <span className="ds-runbar-time ds-num" title="Time on questions">
+            <Icon name="ClockIcon" size={15} />
+            {formatTime(elapsedSeconds)}
           </span>
           <button
             type="button"
             onClick={() => (viewAll ? goBack(quizUrl) : update({ view: 'all' }, 'push'))}
-            className="ds-btn ds-btn-secondary ds-btn-sm"
+            className="ds-btn ds-btn-secondary ds-btn-sm ds-runbar-all"
             aria-label={viewAll ? 'One question at a time' : 'See all questions'}
+            title={viewAll ? 'One question at a time' : 'See all questions'}
           >
-            <Icon name={viewAll ? 'RectangleStackIcon' : 'Squares2X2Icon'} size={16} />
+            <Icon name={viewAll ? 'RectangleStackIcon' : 'Squares2X2Icon'} size={17} />
             <span className="hidden sm:inline">{viewAll ? 'One at a time' : 'All questions'}</span>
           </button>
         </div>
+        <PipStrip
+          count={questions.length}
+          current={viewAll ? undefined : currentIndex}
+          isDone={(i) => isAnswered(questions[i])}
+          onSelect={viewAll ? undefined : (i) => update({ q: i + 1 }, 'replace')}
+          label={viewAll ? 'Session progress' : 'Questions'}
+        />
       </div>
 
       <div className="mt-4 space-y-3">
@@ -1463,7 +1487,7 @@ export default function DailySessionInteractive() {
               <button
                 type="button"
                 onClick={() => update({ view: null, q: idx + 1 }, 'push')}
-                className="text-left text-[0.95rem] font-semibold leading-snug ds-ink hover:underline"
+                className="text-left text-[0.95rem] font-medium leading-[1.5] ds-ink hover:underline"
                 title="Open this question"
               >
                 {q.questionText}
@@ -1511,38 +1535,30 @@ export default function DailySessionInteractive() {
       ) : (
         <div className="mt-5 grid grid-cols-1 gap-5 pb-[8rem] lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0 space-y-4">
-            {/* Question navigator */}
-            <div className="ds-qnav" role="group" aria-label="Questions">
-              {questions.map((q, idx) => {
-                const done = isAnswered(q);
-                const current = idx === currentIndex;
-                return (
-                  <button
-                    key={q.id ?? idx}
-                    type="button"
-                    onClick={() => update({ q: idx + 1 }, 'replace')}
-                    aria-label={`Question ${idx + 1}${done ? ' (answered)' : ''}`}
-                    aria-current={current}
-                    data-done={done}
-                    className="ds-qdot"
-                  >
-                    {done && !current ? <Icon name="CheckIcon" size={14} /> : idx + 1}
-                  </button>
-                );
-              })}
-            </div>
-
             {/* The question */}
-            <section key={activeQuestion?.id ?? currentIndex} className="ds-card-raised p-5 sm:p-[1.75rem] ds-enter" aria-labelledby="ds-q-text">
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                {activeQuestion?.subType && <span className="ds-chip ds-tone-neutral">{activeQuestion.subType}</span>}
-                {activeQuestion?.difficulty && <DifficultyChip difficulty={activeQuestion.difficulty} />}
+            <section
+              key={activeQuestion?.id ?? currentIndex}
+              className="ds-card-raised ds-qmain ds-enter"
+              aria-labelledby="ds-q-text"
+            >
+              <div className="ds-qmeta">
+                <div className="ds-qmeta-tags">
+                  {activeQuestion?.subType && (
+                    <span className="ds-chip ds-tone-neutral">{activeQuestion.subType}</span>
+                  )}
+                  {activeQuestion?.difficulty && (
+                    <DifficultyChip difficulty={activeQuestion.difficulty} />
+                  )}
+                </div>
                 <Link
                   href={`/question-review?id=${activeQuestion?.id || currentIndex + 1}`}
                   prefetch={false}
-                  className="ds-link ml-auto text-xs"
+                  className="ds-reviewlink"
+                  aria-label="Full review of this question"
+                  title="Full review"
                 >
-                  Full review
+                  <span className="hidden sm:inline">Full review</span>
+                  <Icon name="ArrowTopRightOnSquareIcon" size={16} />
                 </Link>
               </div>
               <h2 id="ds-q-text" className="ds-question">
@@ -1552,7 +1568,7 @@ export default function DailySessionInteractive() {
 
             {/* Answer + code space + AI coach */}
             {activeQuestion && (
-              <section className="ds-card p-5 sm:p-[1.5rem]">
+              <section className="ds-card ds-answer p-5 sm:p-[1.5rem]">
                 <AnswerWorkspace
                   question={{
                     questionText: activeQuestion.questionText,
@@ -1570,7 +1586,7 @@ export default function DailySessionInteractive() {
           </div>
 
           {/* Hint + session tools */}
-          <aside className="space-y-4 self-start lg:sticky lg:top-[9rem]">
+          <aside className="ds-rail space-y-4 self-start">
             <CompanionStrip c={companion} className="px-1" />
 
             <section className="ds-card overflow-hidden" data-semantic="hint" aria-labelledby="ds-hint-title">
@@ -1639,28 +1655,41 @@ export default function DailySessionInteractive() {
             </p>
           </aside>
 
-          {/* Bottom action bar */}
-          <div className="ds-actionbar">
-            <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-2 sm:px-4">
-              <button
-                type="button"
-                disabled={currentIndex === 0}
-                onClick={() => update({ q: currentIndex }, 'replace')}
-                className="ds-btn ds-btn-ghost"
-              >
-                <Icon name="ArrowLeftIcon" size={16} />
-                <span className="hidden sm:inline">Previous</span>
-              </button>
-              <div className="flex items-center gap-2">
-                {!isLast && (
-                  <button type="button" onClick={() => update({ q: currentIndex + 2 }, 'replace')} className="ds-btn ds-btn-ghost">
-                    Skip
-                  </button>
-                )}
-                <button type="button" onClick={handleSaveAndNext} disabled={loading} className="ds-btn ds-btn-primary ds-btn-lg min-w-[11rem]">
-                  {loading ? 'Saving…' : isLast ? 'Save answer' : 'Save & next'}
-                  {!loading && <Icon name={isLast ? 'CheckIcon' : 'ArrowRightIcon'} size={17} />}
+          {/* Dock: previous, skip, save & next. A floating glass capsule, the same material as the tab bar it replaces
+              while a question is on screen; on desktop it sits under the question column. */}
+          <div className="ds-dock">
+            <div className="ds-dock-inner">
+              <div className="ds-dock-bar">
+                <button
+                  type="button"
+                  disabled={currentIndex === 0}
+                  onClick={() => update({ q: currentIndex }, 'replace')}
+                  className="ds-btn ds-btn-ghost ds-dock-prev"
+                  aria-label="Previous question"
+                >
+                  <Icon name="ArrowLeftIcon" size={18} />
+                  <span className="hidden sm:inline">Previous</span>
                 </button>
+                <div className="ds-dock-end">
+                  {!isLast && (
+                    <button
+                      type="button"
+                      onClick={() => update({ q: currentIndex + 2 }, 'replace')}
+                      className="ds-btn ds-btn-ghost ds-dock-skip"
+                    >
+                      Skip
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSaveAndNext}
+                    disabled={loading}
+                    className="ds-btn ds-btn-primary ds-dock-next"
+                  >
+                    {loading ? 'Saving…' : isLast ? 'Save answer' : 'Save & next'}
+                    {!loading && <Icon name={isLast ? 'CheckIcon' : 'ArrowRightIcon'} size={18} />}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

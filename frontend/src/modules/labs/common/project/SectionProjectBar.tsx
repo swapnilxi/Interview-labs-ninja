@@ -1,0 +1,98 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import Icon from '@/components/ui/AppIcon';
+import {
+  sectionHref,
+  type LabProject,
+  type ProjectSection,
+} from '@/lib/services/labProjectsService';
+import SaveToProjectDialog, {
+  type SaveSource,
+} from '@/modules/labs/common/project/SaveToProjectDialog';
+import { useLabProjects } from '@/modules/labs/common/project/useLabProjects';
+
+/** What a lab tells its section card so the card can offer "Save to Project" (the text itself is the card's own). */
+export type SectionSaveInfo = Omit<SaveSource, 'content'>;
+
+/**
+ * The strip under a generated lab section: which project it was written for (when it was written for
+ * one), and the explicit "Save to Project" action. Saving is always the user's choice, never automatic.
+ */
+export default function SectionProjectBar({
+  content,
+  info,
+  busy = false,
+}: {
+  content: string;
+  info: SectionSaveInfo;
+  /** The section is being regenerated: saving the old text now would be confusing. */
+  busy?: boolean;
+}) {
+  const { allProjects, selected } = useLabProjects();
+  const [open, setOpen] = useState(false);
+  const [saved, setSaved] = useState<{ project: LabProject; section: ProjectSection } | null>(null);
+
+  // New text (regenerated or edited) is not what was saved a moment ago.
+  useEffect(() => setSaved(null), [content]);
+
+  const forId = info.generatedForProjectId ?? null;
+  const forProject = forId !== null ? allProjects.find((p) => p.id === forId) : undefined;
+  const differs = forId !== (selected?.id ?? null);
+
+  let chip: string | null = null;
+  if (forId !== null)
+    chip = forProject ? `Written for ${forProject.name}` : 'Written for a deleted project';
+
+  let hint: string | null = null;
+  if (selected && differs) {
+    hint =
+      forId === null
+        ? `Written without a project. Use the pen to rewrite it for “${selected.name}”.`
+        : `Use the pen to rewrite it for “${selected.name}”.`;
+  } else if (!selected && forId !== null) {
+    hint = 'No project is selected now: regenerating will give a general answer.';
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-[1.25rem] py-2.5">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
+        {chip && (
+          <span className="inline-flex max-w-full items-center gap-1 rounded-md lab-tint lab-ink px-2 py-0.5 text-xs font-semibold">
+            <Icon name="FolderOpenIcon" size={12} className="flex-shrink-0" />
+            <span className="truncate">{chip}</span>
+          </span>
+        )}
+        {hint && <span className="text-xs font-medium text-muted-foreground">{hint}</span>}
+        {saved && (
+          <span data-semantic="done" className="text-xs font-semibold text-success" role="status">
+            Saved to {saved.project.name} ·{' '}
+            <Link
+              href={sectionHref(saved.project.id, saved.section.id)}
+              className="font-semibold underline underline-offset-2"
+            >
+              Open section
+            </Link>
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={busy || !content.trim()}
+        className="todo-btn border mix-border-primary/30 lab-tint lab-ink hover:mix-bg-primary/[0.18]"
+      >
+        <Icon name="BookmarkIcon" size={13} />
+        Save to Project
+      </button>
+
+      <SaveToProjectDialog
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        source={{ ...info, content }}
+        onSaved={(project, section) => setSaved({ project, section })}
+      />
+    </div>
+  );
+}

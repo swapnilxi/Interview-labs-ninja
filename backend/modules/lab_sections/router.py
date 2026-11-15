@@ -428,6 +428,100 @@ async def copilot(payload: CopilotPayload) -> dict:
     return {"answer": answer}
 
 
+# ── Quiz: "Expand with AI" ────────────────────────────────────────────────────
+# Twin of POST /quiz/expand in frontend/fe-apis/labSections/handlers.ts -- keep the prompt and limits identical.
+
+_EXPAND_MAX_TOKENS = 1500
+
+
+class ExpandQuizPayload(AISettings):
+    lab: LabName
+    topic: str = Field(min_length=1, max_length=400)
+    question: str = Field(min_length=1, max_length=2000)
+    options: List[str] = Field(min_length=2, max_length=6)
+    answer: int = Field(ge=0, le=5)
+    selected: Optional[int] = Field(default=None, ge=0, le=5)
+    explanation: str = Field(default="", max_length=4000)
+    previous: List[str] = Field(default_factory=list, max_length=10)  # earlier expansions, oldest first
+    focus: Literal["answer", "question"] = "answer"  # 'question' = unpack the question without giving the answer away
+
+
+def _build_expand_prompt(p: ExpandQuizPayload) -> str:
+    letters = "ABCDEFG"
+    options = "\n".join(f"{letters[i]}. {o[:600]}" for i, o in enumerate(p.options))
+    chosen = (
+        f"The learner picked {letters[p.selected]}."
+        if p.selected is not None and p.selected < len(p.options)
+        else "The learner has not picked an option."
+    )
+    earlier = "\n\n".join(f"Explanation {i + 1}:\n{t[:3000]}" for i, t in enumerate(p.previous[-4:]))
+    depth = len(p.previous)
+    if depth:
+        task = (
+            f"The learner has already read the explanations below and wants MORE detail (round {depth + 1}). "
+            "Do not repeat them. Go one level deeper: the underlying mechanism or theory, a concrete worked example "
+            "or small numbers, the exact misconception behind each wrong option, and what to remember for next time."
+        )
+    else:
+        task = (
+            "Explain why the correct option is right, then go through every wrong option one by one and say exactly "
+            "why it is wrong (and what misconception makes it tempting). End with one sentence on what to remember."
+        )
+    if p.focus == "question":
+        if depth:
+            task = (
+                f"The learner has already read the notes below and wants MORE help understanding the question (round {depth + 1}). "
+                "Do not repeat them. Go deeper on the background ideas, the vocabulary, and how to rule options in or out."
+            )
+        else:
+            task = (
+                "Help the learner understand this question BEFORE answering: restate what it is really asking, define "
+                "the key terms, name the concepts needed, and give a way to think about narrowing the options. "
+                "Do NOT say or hint which option is correct."
+            )
+        return f"""You are a patient tutor inside a {_DOMAINS[p.lab]} lab. Topic: {p.topic.strip()}.
+
+Quiz question: {p.question.strip()}
+Options:
+{options}
+
+{earlier}
+
+{task}
+
+Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key terms, `inline code` for identifiers, no headings, no preamble. Under 250 words."""
+    return f"""You are a patient tutor inside a {_DOMAINS[p.lab]} lab. Topic: {p.topic.strip()}.
+
+Quiz question: {p.question.strip()}
+Options:
+{options}
+Correct answer: {letters[p.answer]}. {chosen}
+Short explanation already shown: {p.explanation.strip() or "(none)"}
+
+{earlier}
+
+{task}
+
+Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key terms, `inline code` for identifiers, no headings, no preamble. Label each option by its letter. Under 250 words."""
+
+
+@router.post("/quiz/expand")
+async def expand_quiz(payload: ExpandQuizPayload, user_id: int = Depends(get_current_user_id)) -> dict:
+    if payload.answer >= len(payload.options):
+        raise HTTPException(status_code=422, detail="answer must point at one of the options")
+    try:
+        text = call_ai_text(_build_expand_prompt(payload), payload, max_tokens=_EXPAND_MAX_TOKENS)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No API key configured or all providers failed. Add a key in Config. Last error: {exc}",
+        )
+    answer = _clean(text)
+    if not answer:
+        raise HTTPException(status_code=502, detail="The model returned an empty answer. Try again.")
+    return {"explanation": answer}
+
+
 # ── Progress ("Mark as complete") ─────────────────────────────────────────────
 
 

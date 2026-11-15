@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import SystemDesignLabInteractive from '@/modules/system-design-lab/SystemDesignLabModule';
+import SystemDesignLabInteractive from '@/modules/labs/system-design-lab/SystemDesignLabModule';
 
 import Header from '@/components/common/Header';
 import RequireAuth from '@/modules/auth/RequireAuth';
-import { LabScreenLoading } from '@/modules/common/lab/labNavigation';
+import { LabScreenLoading } from '@/modules/labs/common/labNavigation';
 
 export const metadata: Metadata = {
   title: 'System Design Lab — InterviewNinja',

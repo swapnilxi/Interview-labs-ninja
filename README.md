@@ -350,6 +350,13 @@ transcripts for videos you don't own, since that's an API restriction, not a cho
 made here. If auto-fetch fails (no captions available), the panel falls back to a
 manual transcript-paste box.
 
+**nextjs-api mode (the Vercel site and the Android app):** both routes have a twin,
+`frontend/fe-apis/dailySession/labGenerate.ts` (+ `youtube.ts`), served by `src/app/api/lab/[...path]` (rewrite
+`/lab/:path+`). Prompts, the lab -> domain map and error texts are byte-identical to `daily_session.py` (checked by running
+the Python prompt builders and diffing them with what the twin sent to a mock provider). One deliberate difference: the
+twin does not download captions (that library scrapes YouTube's internal API, and YouTube refuses most cloud IPs anyway), so
+a video without a pasted transcript always gets the 422 that opens the paste box; the Data API title/description still work.
+
 ### Backend layout
 
 | File | Responsibility |
@@ -362,8 +369,8 @@ manual transcript-paste box.
 
 | File | Responsibility |
 |---|---|
-| `frontend/src/modules/common/GenerateQuestionsPanel.tsx` | Shared panel (used by all 3 labs) — tab UI, YouTube URL/context/manual-transcript inputs, preview, and the "Add to Topic & Save Questions" confirm action. |
-| `frontend/src/modules/common/lab/MarkdownLite.tsx` | Minimal line-based markdown renderer used both for the generation preview and for displaying a saved subtopic's video-based lab content afterward. |
+| `frontend/src/modules/labs/common/GenerateQuestionsPanel.tsx` | Shared panel (used by all 3 labs) — tab UI, YouTube URL/context/manual-transcript inputs, preview, and the "Add to Topic & Save Questions" confirm action. |
+| `frontend/src/modules/labs/common/MarkdownLite.tsx` | Minimal line-based markdown renderer used both for the generation preview and for displaying a saved subtopic's video-based lab content afterward. |
 | `frontend/src/modules/{cv-lab/CVLabModule,dsa-lab/DSALabModule,system-design-lab/SystemDesignLabModule}.tsx` | Each wires `onAddSubtopic` to persist the generated subtopic to its own topics endpoint and renders `content`/`sourceUrl` on the subtopic's detail view. |
 | `frontend/src/modules/config/ConfigModule.tsx` | Optional "YouTube Data API Key" field, with instructions for obtaining one. |
 
@@ -403,8 +410,8 @@ generations (in any lab) can build on. Everything is per user and login-required
 - **Prompts are twinned.** `lab_projects/knowledge.py` ↔ `fe-apis/labProjects/knowledge.ts` (with `text.ts` for Python's `len`/`strip`
   semantics) and `lab_sections/{router,quiz}.py` ↔ `fe-apis/labSections/{handlers,quiz}.ts` must stay byte-identical: change both and diff the
   prompts both backends send to a mock provider.
-- **Frontend**: `src/modules/labs-project/` (page `/labs-project`: Projects list, Project Context, Project Sections, section detail;
-  screens live in the URL: `?project=&tab=context|sections&section=&status=&new=1`), `src/modules/common/lab/project/` (shared store +
+- **Frontend**: `src/modules/labs/project/` (page `/labs-project`: Projects list, Project Context, Project Sections, section detail;
+  screens live in the URL: `?project=&tab=context|sections&section=&status=&new=1`), `src/modules/labs/common/project/` (shared store +
   `useLabProjects`, `ProjectSelector` in each lab's header, `SectionProjectBar` under each generated section with **Save to Project**,
   `SaveToProjectDialog`), `src/lib/services/labProjectsService.ts`. The selection is shared by all labs and kept in localStorage per user.
   `useLabSections`/`useLabQuiz` read it at click time (`resolveSelectedProject`); with a project selected even the labs' template
@@ -424,10 +431,10 @@ per user and login-required (the lab itself needs a login). A week holds at most
 
 - **Screens (URL per screen):** `?view=week` is the week view; `?view=week&organize=1` is the organizer (a full-screen layer with its
   own Back). The plan menu, the wizard and the dialogs are not screens, so they have no URL.
-- **Week view** (`src/modules/dsa-lab/WeekPlanView.tsx`): weeks in blocks of four with a progress line each, a "Jump to week"
+- **Week view** (`src/modules/labs/dsa-lab/WeekPlanView.tsx`): weeks in blocks of four with a progress line each, a "Jump to week"
   select, the plan menu, Auto organize and Organize buttons, and on every question the original per-question week `<select>` (full
   weeks are disabled, "Not in a week" takes it out).
-- **Organizer** (`src/modules/dsa-lab/organizer/`): question queue on the left (search, pattern, difficulty, hide done, sort
+- **Organizer** (`src/modules/labs/dsa-lab/organizer/`): question queue on the left (search, pattern, difficulty, hide done, sort
   including a recommended order), weeks on the right. Drag with @dnd-kit (pointer, touch via the grip, keyboard with Space and
   arrows); a drop into a full week is refused with a message, a drop on a card inside a full week swaps the two. Each week has a menu
   (rename focus, fill with suggestions, clear, move earlier/later, insert after, remove), an editable focus label, a capacity bar and
@@ -461,14 +468,14 @@ per user and login-required (the lab itself needs a login). A week holds at most
 ## Labs home and the Learning Labs (Communication, Finance, Python)
 
 **Labs home (`/labs`, public).** A card per lab, in two groups, then Labs Project. The groups come from one list,
-`frontend/src/modules/common/lab/labCatalog.ts`, which also drives the sidebar's Labs menu (All labs, *Interview Labs*: DSA, System
+`frontend/src/modules/labs/common/labCatalog.ts`, which also drives the sidebar's Labs menu (All labs, *Interview Labs*: DSA, System
 Design, CV; *Learning Labs*: Communication, Finance, Python; Labs Project), the phone Labs sheet (`MobileTabBar.tsx`) and the Labs
 Project empty state. The header bar has one **Labs** link (active on any lab page) instead of one link per lab. Sidebar menu groups
 start closed; the group of the page you are on opens itself. Add a new lab to `labCatalog.ts`, not to each menu.
 
 **The three Learning Labs** (`/communication-lab`, `/finance-lab`, `/python-lab`) are one component, not three copies:
 
-- **Frontend:** `modules/common/lab/TopicLab.tsx` renders the CV Lab's layout (topic tree, wiki index, on-demand sections, copilot)
+- **Frontend:** `modules/labs/common/TopicLab.tsx` renders the CV Lab's layout (topic tree, wiki index, on-demand sections, copilot)
   from a `TopicLabConfig` (`topicLabTypes.ts`). Each lab is a config file, `modules/<lab>-lab/labConfig.ts`: its section list with
   each section's guidance (the AI prompt the lab settings show), the Prerequisites template groups per category, nouns and texts. Every
   section except Prerequisites (an instant template) is AI-written (`aiGenerated: true`), and the Quiz is the AI quiz
@@ -486,7 +493,7 @@ start closed; the group of the page you are on opens itself. Add a new lab to `l
 - **Prompts:** `lab_sections` accepts `communication`, `finance`, `python`. They get their own audience line (section + copilot) and
   quiz profile (`_AUDIENCE`, `_COPILOT_GOAL` in `lab_sections/router.py`; `_PROFILES` in `quiz.py`; same texts in
   `fe-apis/labSections/handlers.ts` and `quiz.ts`); DSA/CV/System Design prompts are byte-identical to before. The Generate Questions
-  panel's prompt (`daily_session.py`, FastAPI-only) has its own interviewer/question types for Communication and Finance.
+  panel's prompt (`daily_session.py`, twin `fe-apis/dailySession/labGenerate.ts`) has its own interviewer/question types for Communication and Finance.
 - **Identity hues** (hero glow + icon tile only): `--lab-communication`, `--lab-finance`, `--lab-python` in `tailwind.css`,
   `.lab-shell[data-lab=...]`.
 - **Checks:** `backend/tests/topic_labs_test.py` (seeding, routes, per-user sections, ordering, prompts; runs on a DB copy). Twin
@@ -497,7 +504,7 @@ start closed; the group of the page you are on opens itself. Add a new lab to `l
 
 The three practice labs and the pages around them (Daily Session, Labs Project, Config) share one visual language: calm surfaces, one
 hairline border, and the **Settings accent as the only interactive colour**. It lives in the "Lab visual system" block of
-`frontend/src/styles/tailwind.css` plus a few shared parts in `frontend/src/modules/common/lab/`, so a change there restyles every lab.
+`frontend/src/styles/tailwind.css` plus a few shared parts in `frontend/src/modules/labs/common/`, so a change there restyles every lab.
 
 - **Tokens.** `--lab-accent` is `--color-primary` (so `applyAccent()` and the inline script in `app/layout.tsx` drive it live, in
   light and dark, with no reload). `--lab-accent-soft` is a 12% tint of it, `--lab-accent-ink` is the accent mixed with the text colour
@@ -518,12 +525,12 @@ hairline border, and the **Settings accent as the only interactive colour**. It 
   shadow (`shadow-lg` only on dialogs and overlays) and no gradient. The selected-segment ink rule (`html :is(.lab-shell, ...)
   :is(.todo-segmented-accent .todo-segment[aria-pressed='true'], ...)`) only wins because it comes after the shared
   `html:not(.dark)` patch in the file: keep the order.
-- **Shared parts** (`src/modules/common/lab/`): `WikiParts.tsx` (`WikiHero`, `WikiIndexNav`, `WikiSectionHeading`, `WIKI_CARD`,
+- **Shared parts** (`src/modules/labs/common/`): `WikiParts.tsx` (`WikiHero`, `WikiIndexNav`, `WikiSectionHeading`, `WIKI_CARD`,
   `WIKI_CHIP`, `LAB_CHIP`, `LAB_CHIP_ACCENT`; test hooks `data-wiki-hero|metrics|progress|index|index-list`), `LabSidebarParts.tsx`
   (`LabSidebarHeader`, `LabAddRow`, `LabInlineAdd`, `LabRecentList`, `LAB_REVEAL`), `LabTags.tsx` (`DifficultyTag`,
   `difficultyDotClass`; `dsa-lab/ui.tsx` re-exports them), `LabProgressUi.tsx` (`LabProgressSummary` is the one-line progress row inside
   the hero), `LabMobile.tsx` (`useLabSheets`: the phone sheets; `useLabPanes`: below 1280px the Copilot starts as its 48px rail, below
-  1024px the sidebar too and only one side pane is open at a time) and `modules/common/LabCopilot.tsx` (`LabCopilot`,
+  1024px the sidebar too and only one side pane is open at a time) and `modules/labs/common/LabCopilot.tsx` (`LabCopilot`,
   `LabCopilotRail`).
 - **Host contract for a lab:** a `lab-shell` root (`data-lab` for CV and System Design), `useLabSheets` + `useLabPanes`, a sidebar
   `<aside aria-label="Topics">` built on the sidebar parts, `<aside aria-label="AI Copilot">` with the Copilot **always mounted**

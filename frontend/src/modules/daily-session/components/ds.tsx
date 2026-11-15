@@ -126,6 +126,68 @@ export function Bar({
 }
 
 /**
+ * One pip per question: a progress bar that is also the navigator (like the segments of a story).
+ * - With `onSelect` each pip is a button that jumps to that question; `current` (0-based) is the one on screen.
+ * - Without it the pips are a plain, read-only progress display (the "all questions" overview).
+ * Colour is never the only signal: the bar's title says "n of N answered", and a pip's label says "(answered)".
+ * Styles: `.ds-pips` / `.ds-pip` in daily-session.css.
+ */
+export function PipStrip({
+  count,
+  current,
+  isDone,
+  onSelect,
+  label,
+  className = '',
+}: {
+  count: number;
+  current?: number;
+  isDone: (index: number) => boolean;
+  onSelect?: (index: number) => void;
+  label: string;
+  className?: string;
+}) {
+  const pips = Array.from({ length: Math.max(0, count) }, (_, i) => i);
+  if (!onSelect) {
+    const done = pips.filter(isDone).length;
+    return (
+      <div
+        className={`ds-pips ${className}`}
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={count}
+        aria-valuenow={done}
+        aria-valuetext={`${done} of ${count} answered`}
+      >
+        {pips.map((i) => (
+          <span key={i} className="ds-pip" data-done={isDone(i)} aria-hidden="true" />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className={`ds-pips ${className}`} role="group" aria-label={label}>
+      {pips.map((i) => {
+        const done = isDone(i);
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onSelect(i)}
+            className="ds-pip"
+            data-done={done}
+            aria-current={i === current}
+            aria-label={`Question ${i + 1}${done ? ' (answered)' : ''}`}
+            title={`Question ${i + 1}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/**
  * A step's label: "Topic", with an optional hint on the right. `n` is the step's place in the flow; it is announced
  * to screen readers but not drawn (numbered circles read as clutter next to the cards' own structure).
  */

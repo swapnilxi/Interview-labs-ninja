@@ -11,6 +11,7 @@ import PerformanceMetricsCard from './PerformanceMetricsCard';
 import ActionButtonsPanel from './ActionButtonsPanel';
 import InterviewerPerspectiveCard from './InterviewerPerspectiveCard';
 import AILabChat from './AILabChat';
+import StarExplainer from './StarExplainer';
 import BackButton from '@/components/ui/BackButton';
 import { questionsService, Question as ServiceQuestion } from '@/lib/services/questionsService';
 import { toast } from '@/lib/ui/toast';
@@ -292,6 +293,13 @@ function QuestionReviewContent() {
               initialResponse={currentQuestion.userResponse}
               onResponseUpdate={handleResponseUpdate}
               questionId={currentQuestion.id}
+            />
+            <StarExplainer
+              questionText={currentQuestion.content}
+              category={currentQuestion.category}
+              subType={currentQuestion.subCategory}
+              difficulty={currentQuestion.difficulty}
+              answerText={liveResponse}
             />
             <FeedbackPanel
               feedback={currentQuestion.feedback}

@@ -121,10 +121,10 @@
   color: var(--ds-ink);
 }
 .ds-skin .ds-question {
-  font-size: clamp(1.15rem, 1rem + 0.55vw, 1.42rem);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.42;
+  font-size: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
   color: var(--ds-ink);
 }
 /* Small label above a heading: sentence case, like an iOS grouped-list header (tracked capitals read as chrome). */
@@ -617,45 +617,6 @@
   transition: stroke-dashoffset 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Numbered question navigator */
-.ds-skin .ds-qdot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  color: var(--ds-ink-2);
-  background: var(--color-fill);
-  border: 1px solid transparent;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    background-color 0.18s ease,
-    color 0.18s ease,
-    box-shadow 0.18s ease;
-}
-.ds-skin .ds-qdot:hover {
-  background: var(--color-fill-strong);
-  color: var(--ds-ink);
-}
-.ds-skin .ds-qdot:focus-visible {
-  outline: 2px solid var(--ds-indigo);
-  outline-offset: 2px;
-}
-.ds-skin .ds-qdot[data-done='true'] {
-  background: var(--ds-jade-soft);
-  color: var(--ds-jade-ink);
-  border-color: transparent;
-}
-.ds-skin .ds-qdot[aria-current='true'] {
-  background: var(--ds-indigo);
-  color: var(--ds-on-solid);
-  border-color: transparent;
-}
-
 /* Week strip */
 .ds-skin .ds-day {
   display: flex;
@@ -715,6 +676,38 @@
   outline: none;
   border-color: var(--ds-indigo);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--ds-indigo) 14%, transparent);
+}
+
+/* ── Dropdowns / Popovers ─────────────────────────────────────────────── */
+.ds-skin .ds-dropdown-menu {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line-strong);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.15);
+  border-radius: 14px;
+}
+.dark .ds-skin .ds-dropdown-menu {
+  background: var(--ds-surface);
+  border-color: var(--ds-line-strong);
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+.ds-skin .ds-dropdown-header {
+  border-bottom: 1px solid var(--ds-line);
+}
+.ds-skin .ds-dropdown-item {
+  color: var(--ds-ink-2);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.ds-skin .ds-dropdown-item:hover {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+.ds-skin .ds-dropdown-check {
+  border: 1px solid var(--ds-line-strong);
+  background: var(--ds-surface);
+}
+.ds-skin .ds-dropdown-check.is-checked {
+  background: var(--ds-indigo);
+  border-color: var(--ds-indigo);
 }
 
 /* Disclosure (Tailor to you) */
@@ -1210,29 +1203,6 @@
   letter-spacing: 0;
   color: var(--t-ink, var(--ds-ink-3));
 }
-/* The numbered question navigator: one line that scrolls sideways, never a second row. */
-.ds-skin .ds-qnav {
-  display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin: 0 -1rem;
-  padding: 0.3rem 1rem;
-}
-.ds-skin .ds-qnav::-webkit-scrollbar {
-  display: none;
-}
-.ds-skin .ds-qnav > .ds-qdot {
-  flex-shrink: 0;
-}
-@media (min-width: 640px) {
-  .ds-skin .ds-qnav {
-    margin: 0;
-    padding: 0.3rem 0.1rem;
-    flex-wrap: wrap;
-  }
-}
-
 /* Focus mode (a question on screen, phones): the app's floating tab bar steps aside so the run's own action bar sits
    on the bottom edge, as in a lesson. DailySessionContainer sets html.ds-focus; leaving the run brings the bar back. */
 @media (max-width: 767px) {
@@ -1248,6 +1218,385 @@
       opacity 0.2s ease,
       transform 0.3s var(--ease-ios, ease),
       visibility 0s 0.3s;
+  }
+}
+
+/* ── Question screen (a session's quiz) ───────────────────────────────────────────────────────────────────────
+   Apple-style chrome for a question on screen. Top: a slim glass run bar (title, time, overview, and one pip per
+   question that is both the progress bar and the navigator). Middle: calm cards. Bottom: a floating dock of
+   Previous / Skip / Save & next. Phones follow the iOS tab bar the dock replaces (a floating glass capsule, same
+   material); on desktop the dock sits under the question column. Scoped to this screen on purpose: PracticeMode
+   keeps the shared .ds-topbar / .ds-actionbar. */
+.ds-skin {
+  /* The bars' glass: the card surface, 82% opaque, over a 24px blur (a lift in dark mode too, where --material is
+     darker than the page). */
+  --ds-bar: color-mix(in srgb, var(--ds-surface) 82%, transparent);
+  --ds-bar-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 10px 28px -14px rgba(16, 24, 40, 0.22);
+}
+.dark .ds-skin {
+  --ds-bar-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+}
+
+/* Run bar */
+.ds-skin .ds-runbar {
+  top: calc(var(--chrome-top, 60px) + 0.5rem);
+  padding: 0.3rem 0.4rem 0.05rem;
+  border-radius: 22px;
+  background: var(--ds-bar);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+  box-shadow: var(--ds-bar-shadow);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ds-skin .ds-runbar,
+  .ds-skin .ds-dock-bar {
+    background: var(--ds-surface);
+  }
+}
+.ds-skin .ds-runbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.ds-skin .ds-runbar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+}
+.ds-skin .ds-runbar-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.25;
+  color: var(--ds-ink);
+}
+.ds-skin .ds-runbar-name > span {
+  font-weight: 500;
+  color: var(--ds-ink-3);
+}
+.ds-skin .ds-runbar-sub {
+  margin-top: 1px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ds-ink-3);
+}
+.ds-skin .ds-runbar-time {
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ds-ink-3);
+}
+/* Phones: both bar buttons are plain 44px icon buttons, like the two ends of an iOS navigation bar. */
+@media (max-width: 639px) {
+  .ds-skin .ds-runbar .ds-btn-icon,
+  .ds-skin .ds-runbar-all {
+    width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0;
+  }
+  .ds-skin .ds-runbar-all {
+    background: transparent;
+    color: var(--ds-ink-2);
+  }
+  .ds-skin .ds-runbar-all:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
+}
+@media (min-width: 640px) {
+  .ds-skin .ds-runbar {
+    padding: 0.45rem 0.6rem 0.15rem;
+  }
+  .ds-skin .ds-runbar-row {
+    gap: 0.5rem;
+  }
+  .ds-skin .ds-runbar-title {
+    padding-left: 0.15rem;
+    text-align: left;
+  }
+  .ds-skin .ds-runbar-name {
+    font-size: 1rem;
+  }
+  .ds-skin .ds-runbar-time {
+    display: inline-flex;
+  }
+}
+
+/* Pips: one per question. Grey = to do, green = answered, a taller dark/light one = the question on screen. */
+.ds-skin .ds-pips {
+  display: flex;
+  gap: 4px;
+  padding: 0 0.45rem;
+}
+.ds-skin .ds-pip {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 6px;
+  height: 1.5rem;
+  -webkit-tap-highlight-color: transparent;
+}
+.ds-skin .ds-pip::before {
+  content: '';
+  position: absolute;
+  top: calc(50% - 2px);
+  right: 0;
+  left: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-fill-strong);
+  transition:
+    background-color 0.25s ease,
+    top 0.25s var(--ease-ios, ease),
+    height 0.25s var(--ease-ios, ease);
+}
+.ds-skin .ds-pip[data-done='true']::before {
+  background: var(--ds-jade);
+}
+.ds-skin .ds-pip[aria-current='true']::before {
+  top: calc(50% - 3px);
+  height: 6px;
+  background: var(--ds-ink);
+}
+.ds-skin button.ds-pip:not([aria-current='true']):hover::before {
+  top: calc(50% - 3px);
+  height: 6px;
+}
+/* The focus ring hugs the visible bar, not its taller touch area. */
+.ds-skin .ds-pip:focus-visible {
+  outline: none;
+}
+.ds-skin .ds-pip:focus-visible::before {
+  outline: 2px solid var(--ds-indigo);
+  outline-offset: 3px;
+}
+@media (pointer: coarse) {
+  .ds-skin .ds-pip {
+    height: 1.75rem;
+  }
+}
+/* Forced colours (Windows high contrast): keep the three states apart with system colours. */
+@media (forced-colors: active) {
+  .ds-skin .ds-pip {
+    forced-color-adjust: none;
+  }
+  .ds-skin .ds-pip::before {
+    background: GrayText;
+  }
+  .ds-skin .ds-pip[data-done='true']::before {
+    background: Highlight;
+  }
+  .ds-skin .ds-pip[aria-current='true']::before {
+    background: CanvasText;
+  }
+}
+/* A short landscape phone has no height to spare: the run bar scrolls away with the page instead of staying pinned. */
+@media (max-height: 480px) and (orientation: landscape) {
+  .ds-skin .ds-runbar {
+    position: static;
+  }
+}
+
+/* The question card */
+.ds-skin .ds-qmain {
+  padding: 1.25rem;
+}
+@media (min-width: 640px) {
+  .ds-skin .ds-qmain {
+    padding: 1.5rem 1.75rem 1.75rem;
+  }
+}
+.ds-skin .ds-qmeta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.ds-skin .ds-qmeta-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+/* "Full review": a quiet pill link; icon only on phones (its label is still announced). The negative margins keep the
+   chips' row height, so a 32px target does not make the row taller. */
+.ds-skin .ds-reviewlink {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2rem;
+  margin: -0.2rem -0.5rem -0.2rem 0;
+  padding: 0 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ds-indigo-ink);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.18s ease;
+}
+.ds-skin .ds-reviewlink:hover {
+  background: var(--ds-indigo-soft);
+}
+.ds-skin .ds-reviewlink:focus-visible {
+  outline: 2px solid var(--ds-indigo);
+  outline-offset: 1px;
+}
+.ds-skin .ds-qmain .ds-question {
+  text-wrap: pretty;
+}
+
+/* The answer card: the text box is a filled "well", the same tone as the code space under it (not a white box on a
+   white card), and the kind of question is a quiet caption, not a third chip. */
+.ds-skin .ds-answer .ds-field {
+  background: var(--bs-code-bg);
+}
+.ds-skin .ds-answer .ds-field:focus {
+  background: var(--ds-surface);
+}
+.ds-skin .ds-kind {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ds-ink-3);
+}
+
+/* The side column (desktop): hint and tools, held in view under the run bar while the question column scrolls. */
+@media (min-width: 1024px) {
+  .ds-skin .ds-rail {
+    position: sticky;
+    top: calc(var(--chrome-top, 60px) + 6.5rem);
+  }
+}
+
+/* Dock: previous, skip, save & next. The wrapper only places the capsule (it lets clicks through), the capsule is the bar. */
+.ds-skin .ds-dock {
+  position: fixed;
+  right: 0;
+  bottom: max(0.75rem, calc(var(--safe-bottom) - 0.25rem));
+  left: 0;
+  z-index: 40;
+  padding: 0 1rem;
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.26s var(--ease-ios, ease);
+  animation: ds-dock-in 0.5s var(--ease-ios, ease) backwards;
+}
+@keyframes ds-dock-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+.ds-skin .ds-dock-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.ds-skin .ds-dock-bar {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding: 6px;
+  border: 1px solid var(--ds-line);
+  border-radius: 999px;
+  background: var(--ds-bar);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 12px 32px -12px rgba(16, 24, 40, 0.3),
+    0 1px 3px rgba(16, 24, 40, 0.06);
+  pointer-events: auto;
+}
+.dark .ds-skin .ds-dock-bar {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 12px 32px -12px rgba(0, 0, 0, 0.6);
+}
+.ds-skin .ds-dock-bar .ds-btn {
+  min-height: 3rem;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+}
+.ds-skin .ds-dock-prev {
+  width: 3rem;
+  padding: 0;
+}
+.ds-skin .ds-dock-skip {
+  padding: 0 1rem;
+}
+.ds-skin .ds-dock-end {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+.ds-skin .ds-dock-next {
+  flex: 1 1 auto;
+  padding: 0 1.25rem;
+}
+@media (min-width: 640px) {
+  .ds-skin .ds-dock {
+    padding: 0 2rem;
+  }
+  /* A compact capsule centred under the question column, not a bar across the page. */
+  .ds-skin .ds-dock-bar {
+    justify-self: center;
+    width: min(100%, 30rem);
+  }
+  .ds-skin .ds-dock-prev {
+    width: auto;
+    padding: 0 1.1rem 0 0.9rem;
+  }
+  .ds-skin .ds-dock-end {
+    flex: 0 0 auto;
+  }
+  .ds-skin .ds-dock-next {
+    flex: 0 0 auto;
+    min-width: 10.5rem;
+  }
+}
+@media (min-width: 768px) {
+  .ds-skin .ds-dock {
+    bottom: 1.25rem;
+  }
+  /* The desktop rail takes the left 60px of the page (body padding): centre on what is left, like the header does. */
+  html.has-sidebar-rail .ds-skin .ds-dock,
+  body.has-sidebar-rail .ds-skin .ds-dock {
+    left: calc(60px + var(--safe-left));
+  }
+}
+@media (min-width: 1024px) {
+  /* The same two columns as the screen's grid, so the capsule is centred under the question column. */
+  .ds-skin .ds-dock-inner {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    column-gap: 1.25rem;
+  }
+}
+/* While the on-screen keyboard is up (MobileTabBar sets html.keyboard-open) the dock steps aside, as the tab bar does:
+   it would ride on top of the keyboard, over the text box. */
+@media (max-width: 767px) {
+  html.keyboard-open .ds-skin .ds-dock {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  html.keyboard-open .ds-skin .ds-dock-bar {
+    pointer-events: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-skin .ds-dock {
+    animation: none;
   }
 }
 

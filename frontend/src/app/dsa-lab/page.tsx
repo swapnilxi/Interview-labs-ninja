@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import DSALabInteractive from '@/modules/dsa-lab/DSALabModule';
+import DSALabInteractive from '@/modules/labs/dsa-lab/DSALabModule';
 import Header from '@/components/common/Header';
 import RequireAuth from '@/modules/auth/RequireAuth';
-import { LabScreenLoading } from '@/modules/common/lab/labNavigation';
+import { LabScreenLoading } from '@/modules/labs/common/labNavigation';
 
 export const metadata: Metadata = {
   title: 'DSA Lab — InterviewNinja',

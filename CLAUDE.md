@@ -77,7 +77,7 @@ further down in `README.md` — check there before assuming a module's shape.
   `--lab-identity` (hero glow and `.lab-tile`), never buttons, rows, links or progress. Inside `.lab-shell`/`.lab-page`/
   `.dsa-type` `--color-border` is redefined to ONE hairline: use bare `border`; a dialog or popover that portals to
   `<body>` needs `lab-page` (DSA: `dsa-type`) on its panel or it shows the global border. Wiki/sidebar pieces live in
-  `modules/common/lab/{WikiParts,LabSidebarParts,LabTags}`; pane collapsing is `useLabPanes`. Names wrap, they are never
+  `modules/labs/common/{WikiParts,LabSidebarParts,LabTags}`; pane collapsing is `useLabPanes`. Names wrap, they are never
   cut with an ellipsis (chips and one-line UI labels may truncate). `check:tailwind` enforces these folders; details in
   `README.md` ("Lab visual system").
 - **`backend/modules/todo/` and `frontend/src/modules/todo/` are dead leftovers from
@@ -122,9 +122,14 @@ further down in `README.md` — check there before assuming a module's shape.
   (prompts byte-identical), and rule validation `frontend/src/lib/schedules/scheduleRules.ts` (`normalizeRule`) ↔
   `schedules/rules.py` (same error texts, same stored JSON). Runs happen on the device (web engine + the native Android
   plugin in `app/android/.../scheduler/`), never on a server cron. Details: README.md ("Scheduler").
-- **Learning Labs (Communication, Finance, Python) are config, not copies.** One page (`modules/common/lab/TopicLab.tsx`) + a
+- **Frontend lab layout: `frontend/src/modules/labs/`.** `common/` = everything labs share (TopicLab, wiki/sidebar parts, hooks,
+  GenerateQuestionsPanel, LabCopilot, `project/`); one folder per lab beside it (`cv-lab/`, `dsa-lab/`, `system-design-lab/`,
+  `communication-lab/`, `finance-lab/`, `python-lab/`), plus `home/` (`/labs`) and `project/` (`/labs-project`). A lab folder holds only
+  what is specific to it (`topics.ts`, `sectionContent.ts`, `*WikiIndex.tsx`, `prerequisites.ts`, `*LabModule.tsx`); anything a second lab
+  would need goes in `labs/common/` (e.g. `wikiAnchor`). `modules/common/copilot/CopilotChat.tsx` stays shared with non-lab modules.
+- **Learning Labs (Communication, Finance, Python) are config, not copies.** One page (`modules/labs/common/TopicLab.tsx`) + a
   `modules/<lab>-lab/labConfig.ts` each; backend `modules/common/topic_lab.py` + thin `<lab>_lab/` wrappers; seed topics in
-  `<lab>_lab/topics.json` (ASCII only). Every lab (old and new) is listed once in `modules/common/lab/labCatalog.ts`, which drives
+  `<lab>_lab/topics.json` (ASCII only). Every lab (old and new) is listed once in `modules/labs/common/labCatalog.ts`, which drives
   `/labs`, the sidebar's Labs menu and the phone Labs sheet: add a new lab there. README: "Labs home and the Learning Labs".
 - **AI LMS hierarchy:** Class > Subject (-> Lessons) or Project (-> Module/Step -> Sub-step,
   each generating one Lesson). A Project is an `lms_subjects` row with `kind='project'`; its
@@ -228,7 +233,9 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   `fe-apis/labs` = topics + sections of DSA/CV/System Design (`/dsa/topics|sections` share the
   `api/dsa/[...path]` route with the week plan; `/cv/*`, `/system-design/*`) and of the Learning Labs (`/communication/*`,
   `/finance/*`, `/python/*`, which seed from the same `backend/modules/<lab>_lab/topics.json` FastAPI reads); `fe-apis/dailySession` = sessions,
-  questions, session progress and stats (not its AI routes, deck import, export, or the unauthenticated
+  questions, session progress and stats, plus the answer coach (`fe-apis/dailySession/coach.ts` ↔ `daily_session.py` / `evaluation.py`: generate-answer, evaluate-answer, expand-answer, learn-chat; prompts and rubrics verbatim, change both) and the labs' Generate Practice panel (`fe-apis/dailySession/labGenerate.ts` ↔ `daily_session.py`: `POST /lab/generate-questions`
+  and `/lab/generate-from-youtube`, prompts verbatim; the twin never downloads captions, it always asks for a pasted transcript)
+  (not convert-flashcards, upload-resume, deck import, export, or the unauthenticated
   `POST /questions/clear-duplicates`); `fe-apis/account` = `GET/PUT /auth/profile` and `/access-requests`. Each has a
   `next.config.mjs` rewrite and an `outputFileTracingIncludes` entry — every `/api/**` route that opens the database
   needs one, or a Vercel function ships without the file and serves an empty DB. Verified the twin way (same requests
@@ -248,7 +255,7 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   identical and never add a code path that fetches without it.** Constants, cleaning and parsing in each pair must
   match; verify twins by sending the same requests to both. README ("AI memory and web research").
 - Still FastAPI-only: `career_studio`, `linkedin_post_generator`, the admin user-management routes (`/admin/*` except
-  db push/pull), Daily Session's AI routes, and the local-Ollama helpers. Don't assume feature parity between modes
+  db push/pull), Daily Session's convert-flashcards / upload-resume, and the local-Ollama helpers. Don't assume feature parity between modes
   without checking whether a module has a `frontend/src/app/api/**` + `frontend/fe-apis/**` counterpart.
 
 ## Working style for this repo

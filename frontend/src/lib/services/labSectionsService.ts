@@ -254,6 +254,38 @@ export async function resetLabSettings(
   return res.json();
 }
 
+/**
+ * "Expand with AI" on a quiz question: why the right option is right and why each wrong one is wrong.
+ * Pass the earlier expansions as `previous` to get a deeper one each time. Throws with a readable message.
+ */
+export async function expandQuizExplanation(args: {
+  lab: LabName;
+  topic: string;
+  question: QuizQuestion;
+  selected: number | null;
+  previous: string[];
+  /** 'question' unpacks the question itself without revealing the answer; default explains the answer. */
+  focus?: 'answer' | 'question';
+}): Promise<string> {
+  const res = await apiFetch('/lab-sections/quiz/expand', {
+    method: 'POST',
+    body: JSON.stringify({
+      lab: args.lab,
+      topic: args.topic.slice(0, 400),
+      question: args.question.q.slice(0, 2000),
+      options: args.question.options.map((o) => o.slice(0, 600)),
+      answer: args.question.answer,
+      selected: args.selected,
+      focus: args.focus ?? 'answer',
+      explanation: args.question.explanation.slice(0, 4000),
+      previous: args.previous.slice(-4).map((t) => t.slice(0, 3000)),
+      ...defaultAIRequestFields(),
+    }),
+  });
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return String((await res.json()).explanation ?? '');
+}
+
 export type CopilotMode = 'chat' | 'hint' | 'deeper' | 'eli5';
 
 /** Asks the lab copilot (an LLM call with the open topic and the conversation as context). Throws with a readable message. */

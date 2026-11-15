@@ -21,7 +21,7 @@
  *     line that also says `uppercase`) (rule `tiny-text`).
  *  4. An emoji used as an icon. The To-Do UI draws its illustrations with `FlatIcon` (react-icons' flat colour
  *     set) and its controls with `Icon` (Heroicons); emoji vary by OS and can't be recoloured. The only
- *     exception is a project icon the user picked — mark such a line `emoji-ok`. `common/lab/labSectionDefaults.ts`
+ *     exception is a project icon the user picked — mark such a line `emoji-ok`. `labs/common/labSectionDefaults.ts`
  *     is exempt as a file: its emoji are the preset add-on labels users read and save (content, not icons)
  *     (rule `emoji`).
  *  5. A palette colour with an opacity step Tailwind 3.4 does not have: `bg-emerald-500/8`, `to-blue-600/8`,
@@ -36,7 +36,7 @@
  * Usage:  npm run check:tailwind                 checks the enforced area (exit 1 on a hit; a long list prints counts per
  *                                                file, add --list for every hit)
  *         npm run check:tailwind -- --all        reports every module, for information (exit 0)
- *         npm run check:tailwind -- --only src/modules/cv-lab    list the hits of one path (comma-separate or repeat
+ *         npm run check:tailwind -- --only src/modules/labs/cv-lab    list the hits of one path (comma-separate or repeat
  *                                                --only for several); exit 1 on a hit. A fragment that matches no scanned file
  *                                                exits 2, so a typo cannot pass as green (a path outside TODO_ROOTS needs --all).
  * Rules per root: `daily-session` runs only dead-opacity, pixel, palette-alpha, invalid-keys and mix-unknown (its
@@ -58,22 +58,20 @@ const TODO_ROOTS = [
   'src/modules/common/PendingStatusBanner.tsx',
   'src/modules/common/copilot',
   'src/lib/ui',
-  'src/modules/dsa-lab',
+  'src/modules/labs/dsa-lab',
   'src/app/dsa-lab',
-  'src/modules/cv-lab',
-  'src/modules/system-design-lab',
-  'src/modules/communication-lab',
-  'src/modules/finance-lab',
-  'src/modules/python-lab',
-  'src/modules/labs-home',
+  'src/modules/labs/cv-lab',
+  'src/modules/labs/system-design-lab',
+  'src/modules/labs/communication-lab',
+  'src/modules/labs/finance-lab',
+  'src/modules/labs/python-lab',
+  'src/modules/labs/home',
   'src/app/labs',
   'src/app/communication-lab',
   'src/app/finance-lab',
   'src/app/python-lab',
-  'src/modules/common/lab',
-  'src/modules/common/LabCopilot.tsx',
-  'src/modules/common/GenerateQuestionsPanel.tsx',
-  'src/modules/labs-project',
+  'src/modules/labs/common',
+  'src/modules/labs/project',
   'src/app/labs-project',
   'src/modules/config',
   'src/app/config',
@@ -112,7 +110,7 @@ const ROOT_RULES = {
   ],
 };
 /** Files whose emoji are content, not icons. */
-const EMOJI_EXEMPT_FILES = ['src/modules/common/lab/labSectionDefaults.ts'];
+const EMOJI_EXEMPT_FILES = ['src/modules/labs/common/labSectionDefaults.ts'];
 
 // --- command line ---------------------------------------------------------------------------------------------
 const argv = process.argv.slice(2);
@@ -125,7 +123,7 @@ argv.forEach((arg, i) => {
 });
 const onlyFragments = only.map((s) => s.trim().replace(/^\.\//, '')).filter(Boolean);
 if (argv.includes('--only') && onlyFragments.length === 0) {
-  console.error('check:tailwind — --only needs a path fragment, e.g. --only src/modules/cv-lab');
+  console.error('check:tailwind — --only needs a path fragment, e.g. --only src/modules/labs/cv-lab');
   process.exit(2);
 }
 const roots = all ? ['src'] : TODO_ROOTS;

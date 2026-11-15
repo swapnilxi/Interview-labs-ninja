@@ -12,6 +12,10 @@ export interface CoachInput {
   difficulty?: string;
   /** answerText is a tutor/learner chat transcript. */
   isTranscript?: boolean;
+  /** 'star' rewrites the expansion as Situation/Task/Action/Result. */
+  style?: 'star';
+  /** The user's real background to ground a STAR answer in. */
+  context?: string;
 }
 
 export interface ChatTurn {
@@ -71,6 +75,8 @@ const body = (i: CoachInput) =>
     sub_type: i.subType,
     difficulty: i.difficulty,
     is_transcript: i.isTranscript || undefined,
+    style: i.style,
+    context: i.context?.trim() || undefined,
     ...defaultAIRequestFields(),
   });
 

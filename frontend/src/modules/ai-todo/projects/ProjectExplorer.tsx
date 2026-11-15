@@ -8,7 +8,7 @@ import { Project, ProjectNode, projectService } from '@/lib/services/projectServ
 import ProjectNodeDetailModal from './ProjectNodeDetailModal';
 import ParetoModal from '@/components/ui/ParetoModal';
 import { confirmDialog } from '@/lib/ui/confirm';
-import { LAB_CATALOG } from '@/modules/common/lab/labCatalog';
+import { LAB_CATALOG } from '@/modules/labs/common/labCatalog';
 import AddFromLabSheet from '../labs/AddFromLabSheet';
 import { labLinkFromContext, linkedLabNodes } from '../labs/labContent';
 

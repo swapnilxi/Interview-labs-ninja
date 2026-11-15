@@ -1,6 +1,6 @@
 import { apiFetch } from '@/lib/http/apiClient';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
-import { normalizePlan, type AutoRequestAnswers, type WeekPlan } from '@/modules/dsa-lab/weekPlan';
+import { normalizePlan, type AutoRequestAnswers, type WeekPlan } from '@/modules/labs/dsa-lab/weekPlan';
 
 /**
  * Client for the DSA week plan API (`/dsa/week-plan/*`; FastAPI backend/modules/dsa_lab and its

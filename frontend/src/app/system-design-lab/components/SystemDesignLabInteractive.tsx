@@ -1,1 +1,1 @@
-export { default } from '@/modules/system-design-lab/SystemDesignLabModule';
+export { default } from '@/modules/labs/system-design-lab/SystemDesignLabModule';

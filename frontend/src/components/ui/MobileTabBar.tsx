@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Modal from '@/components/ui/Modal';
 import NotificationBell from '@/components/ui/NotificationCenter';
-import { LAB_GROUPS, LABS_HOME, LABS_PROJECT_LINK, isLabsPath, labsInGroup } from '@/modules/common/lab/labCatalog';
+import { LAB_GROUPS, LABS_HOME, LABS_PROJECT_LINK, isLabsPath, labsInGroup } from '@/modules/labs/common/labCatalog';
 
 /**
  * Bottom tab bar for phones (< md): the four places used daily, within thumb reach, plus "More"

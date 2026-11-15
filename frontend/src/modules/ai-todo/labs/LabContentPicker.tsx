@@ -5,8 +5,8 @@ import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
 import type { LabName } from '@/lib/services/labSectionsService';
-import { LAB_CATALOG, LAB_GROUPS, labsInGroup } from '@/modules/common/lab/labCatalog';
-import { useLabProgress } from '@/modules/common/lab/useLabProgress';
+import { LAB_CATALOG, LAB_GROUPS, labsInGroup } from '@/modules/labs/common/labCatalog';
+import { useLabProgress } from '@/modules/labs/common/useLabProgress';
 import {
   fetchLabTopics,
   groupByCategory,

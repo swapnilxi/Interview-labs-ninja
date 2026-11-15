@@ -14,9 +14,11 @@
  *   GET  /session-progress?session_date=  get_session_progress_endpoint (login)
  *   GET  /session-progress/stats        get_progress_stats_endpoint    (login)
  *   POST /sessions/generate-session-questions  generate_session_questions_endpoint (login; generate.ts + dedup.ts)
+ *   POST /sessions/{generate,evaluate,expand}-answer, /sessions/learn-chat   the answer coach (login; coach.ts)
+ *   POST /lab/generate-questions        generate_lab_questions         (login; labGenerate.ts, the labs' Generate Practice)
+ *   POST /lab/generate-from-youtube     generate_lab_from_youtube      (login; labGenerate.ts + youtube.ts)
  *
- * Not ported yet (FastAPI only): the other AI routes (generate/evaluate/expand answer, learn
- * chat, flashcards, lab question generation, YouTube), resume upload, deck import, export, the local-Ollama model list,
+ * Not ported yet (FastAPI only): flashcards, resume upload, deck import, export, the local-Ollama model list,
  * and POST /questions/clear-duplicates (unauthenticated and destructive in FastAPI — deliberately not copied onto a
  * public deployment). Keep in sync with the Python code (CLAUDE.md, "Dual deployment modes").
  */
@@ -24,9 +26,11 @@
 import { withNeonSync } from '@/lib/server/neonSync';
 import { getUserFromAuthHeader } from '@/lib/server/authHelper';
 import { compileRoutes, dispatch, type TodoRoute } from '../todo/router';
+import { evaluateAnswer, expandAnswer, generateAnswer, learnChat } from './coach';
 import { HttpError, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
 import { hashesFor } from './dedup';
 import { generateSessionQuestions } from './generate';
+import { generateLabFromYoutube, generateLabQuestions } from './labGenerate';
 import { memoryLines, record as recordMemory } from '../memory/db';
 
 // ── Schema (copies of common/db.py; the git-tracked database already has these) ──────────────────────────────
@@ -504,6 +508,11 @@ const PRIVATE: TodoRoute[] = [
   },
   { method: 'GET', path: '/session-progress', handler: (ctx) => getProgress(ctx.userId, ctx.query) },
   { method: 'GET', path: '/session-progress/stats', handler: (ctx) => progressStats(ctx.userId) },
+  // The answer coach (hint, evaluation, deep dive, learn chat): AI only, nothing is read or written in the database.
+  { method: 'POST', path: '/sessions/generate-answer', handler: async (ctx) => generateAnswer(await ctx.json()) },
+  { method: 'POST', path: '/sessions/evaluate-answer', handler: async (ctx) => evaluateAnswer(await ctx.json()) },
+  { method: 'POST', path: '/sessions/expand-answer', handler: async (ctx) => expandAnswer(await ctx.json()) },
+  { method: 'POST', path: '/sessions/learn-chat', handler: async (ctx) => learnChat(await ctx.json()) },
   {
     method: 'POST',
     path: '/sessions/generate-session-questions',
@@ -515,6 +524,9 @@ const PRIVATE: TodoRoute[] = [
       return generateSessionQuestions(body, bank, memoryLines(ctx.userId, 'daily-session', ''));
     },
   },
+  // The labs' Generate Practice panel (FastAPI serves these from the same daily_session router).
+  { method: 'POST', path: '/lab/generate-questions', handler: async (ctx) => generateLabQuestions(await ctx.json()) },
+  { method: 'POST', path: '/lab/generate-from-youtube', handler: async (ctx) => generateLabFromYoutube(await ctx.json()) },
 ];
 const PRIVATE_ROUTES = compileRoutes(PRIVATE);
 
@@ -546,12 +558,15 @@ async function dispatchSession(req: Request, segments: string[]): Promise<Respon
 const writeSession = withNeonSync(dispatchSession);
 
 /**
- * Entry point for src/app/api/{sessions,questions,session-progress}/[[...path]]/route.ts. `segments` include the
- * first path part ('sessions', 'questions' or 'session-progress'), so they match the Python paths.
+ * Entry point for src/app/api/{sessions,questions,session-progress}/[[...path]]/route.ts and src/app/api/lab/[...path].
+ * `segments` include the first path part ('sessions', 'questions', 'session-progress' or 'lab'), so they match the
+ * Python paths.
  */
 export function handleDailySession(req: Request, segments: string[]): Promise<Response> {
   // Generating questions only reads the bank (the session is saved by the POST /sessions/questions that follows),
   // so it skips the Neon snapshot push that wraps the other writes.
-  const readOnly = req.method === 'GET' || (segments[0] === 'sessions' && segments[1] === 'generate-session-questions');
+  const AI_ONLY = ['generate-session-questions', 'generate-answer', 'evaluate-answer', 'expand-answer', 'learn-chat'];
+  const readOnly =
+    req.method === 'GET' || segments[0] === 'lab' || (segments[0] === 'sessions' && AI_ONLY.includes(segments[1]));
   return readOnly ? dispatchSession(req, segments) : writeSession(req, segments);
 }

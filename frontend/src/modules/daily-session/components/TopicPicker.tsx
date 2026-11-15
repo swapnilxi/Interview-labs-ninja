@@ -272,10 +272,10 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
             role="listbox"
             aria-multiselectable="true"
             aria-labelledby="ds-companies"
-            className="absolute z-50 mt-1 w-full overflow-hidden rounded-xl border ds-border ds-surface shadow-lg"
+            className="ds-dropdown-menu absolute z-50 mt-1 w-full overflow-hidden"
           >
             {/* Search / add input */}
-            <div className="border-b ds-border p-2">
+            <div className="ds-dropdown-header p-2">
               <input
                 type="text"
                 value={companyDraft}
@@ -313,14 +313,14 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
                     <button
                       type="button"
                       onClick={() => (isCustom ? (selected ? removeCustomCompany(c) : (toggleCompany(c))) : toggleCompany(c))}
-                      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-sm transition-colors hover:ds-surface-raised ${selected ? 'ds-ink font-medium' : 'ds-faint'}`}
+                      className={`ds-dropdown-item flex w-full items-center gap-2.5 px-3 py-1.5 text-sm ${selected ? 'font-medium ds-ink' : ''}`}
                     >
                       <span
-                        className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors ${selected ? 'bg-indigo-500 border-indigo-500' : 'ds-border'}`}
+                        className={`ds-dropdown-check flex h-4 w-4 flex-shrink-0 items-center justify-center rounded transition-colors ${selected ? 'is-checked' : ''}`}
                       >
                         {selected && <Icon name="CheckIcon" size={10} className="text-white" />}
                       </span>
-                      {c}
+                      <span>{c}</span>
                       {isCustom && <span className="ml-auto text-xs ds-faint">custom</span>}
                     </button>
                   </li>
@@ -333,7 +333,7 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
                   <button
                     type="button"
                     onClick={addCustomCompany}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-sm ds-faint hover:ds-surface-raised"
+                    className="ds-dropdown-item flex w-full items-center gap-2 px-3 py-1.5 text-sm ds-faint"
                   >
                     <Icon name="PlusIcon" size={14} />
                     Add &ldquo;{companyDraft.trim()}&rdquo;

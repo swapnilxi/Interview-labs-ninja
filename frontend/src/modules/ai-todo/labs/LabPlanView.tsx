@@ -8,7 +8,7 @@ import { useUrlState } from '@/lib/navigation/urlState';
 import type { LabName } from '@/lib/services/labSectionsService';
 import { type Project, projectService } from '@/lib/services/projectService';
 import { toast } from '@/lib/ui/toast';
-import { LAB_CATALOG } from '@/modules/common/lab/labCatalog';
+import { LAB_CATALOG } from '@/modules/labs/common/labCatalog';
 import ProjectIcon from '../projects/ProjectIcon';
 import { planUrls } from '../projects/projectUrls';
 import LabContentPicker from './LabContentPicker';

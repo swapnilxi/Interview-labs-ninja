@@ -26,6 +26,18 @@ export const ACCENT_PRESETS: AccentPreset[] = [
   { key: 'emerald', label: 'Emerald', hex: '#10B981' },
   { key: 'sky', label: 'Sky Blue', hex: '#0EA5E9' },
   { key: 'rose', label: 'Rose', hex: '#EC4899' },
+  // Apple system colours (iOS / visionOS), so the picker offers the familiar native palette.
+  { key: 'ios-blue', label: 'Blue', hex: '#0A84FF' },
+  { key: 'ios-teal', label: 'Teal', hex: '#30B0C7' },
+  { key: 'ios-mint', label: 'Mint', hex: '#00C7BE' },
+  { key: 'ios-green', label: 'Green', hex: '#30D158' },
+  { key: 'ios-yellow', label: 'Yellow', hex: '#FFD60A' },
+  { key: 'ios-red', label: 'Red', hex: '#FF453A' },
+  { key: 'ios-pink', label: 'Pink', hex: '#FF375F' },
+  { key: 'ios-purple', label: 'Purple', hex: '#BF5AF2' },
+  { key: 'ios-indigo', label: 'Indigo (iOS)', hex: '#5E5CE6' },
+  { key: 'ios-brown', label: 'Brown', hex: '#AC8E68' },
+  { key: 'vision-graphite', label: 'Graphite', hex: '#8E8E93' },
 ];
 
 type RGB = [number, number, number];

@@ -11,7 +11,7 @@ import {
   type OllamaStatus,
   type UserSettings,
 } from '@/lib/services/settingsService';
-import LabSettingsManager, { type LabSaveReport } from '@/modules/common/lab/LabSettingsManager';
+import LabSettingsManager, { type LabSaveReport } from '@/modules/labs/common/LabSettingsManager';
 import AppearanceSettingsCard from './AppearanceSettingsCard';
 import {
   ConfigContext,

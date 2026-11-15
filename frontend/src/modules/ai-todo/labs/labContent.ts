@@ -3,7 +3,7 @@
 import { apiFetch } from '@/lib/http/apiClient';
 import type { LabName } from '@/lib/services/labSectionsService';
 import { projectService, type ProjectNode } from '@/lib/services/projectService';
-import { LAB_CATALOG, type LabCatalogEntry } from '@/modules/common/lab/labCatalog';
+import { LAB_CATALOG, type LabCatalogEntry } from '@/modules/labs/common/labCatalog';
 
 /**
  * Lab content for the To-Do planner: "Lab plan" (Plan & Project) and "Add from lab" (a project's Explorer).

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Header from '@/components/common/Header';
-import LabsHomeModule from '@/modules/labs-home/LabsHomeModule';
+import LabsHomeModule from '@/modules/labs/home/LabsHomeModule';
 
 export const metadata: Metadata = {
   title: 'Labs — InterviewNinja',

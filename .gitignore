@@ -63,6 +63,8 @@ pnpm-lock.yaml
 *.tsbuildinfo
 next-env.d.ts
 .next-lint-scratch/
+# Scratch Next.js build/dev folders (DIST_DIR=.next-<name>, used to run a second dev server or a test build)
+.next-*/
 
 # ESLint cache
 .eslintcache

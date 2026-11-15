@@ -49,6 +49,7 @@ const nextConfig = {
     '/api/lab-sections/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/lab-projects/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/sessions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/lab/[...path]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/questions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/session-progress/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     // Auth only (the account-status check reads the users table); the cards themselves live in the browser.
@@ -134,6 +135,8 @@ const nextConfig = {
       { source: '/finance/:path+', destination: '/api/finance/:path+' },
       { source: '/python/:path+', destination: '/api/python/:path+' },
       { source: '/sessions/:path*', destination: '/api/sessions/:path*' },
+      // The labs' Generate Practice panel (fe-apis/dailySession/labGenerate.ts). No page lives under /lab.
+      { source: '/lab/:path+', destination: '/api/lab/:path+' },
       { source: '/questions/:path*', destination: '/api/questions/:path*' },
       { source: '/session-progress/:path*', destination: '/api/session-progress/:path*' },
       { source: '/memory/:path*', destination: '/api/memory/:path*' },

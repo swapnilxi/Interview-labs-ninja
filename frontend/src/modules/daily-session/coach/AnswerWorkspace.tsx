@@ -51,7 +51,7 @@ export default function AnswerWorkspace({
           <label htmlFor="answer-box" className="text-sm font-semibold ds-ink">
             Your answer
           </label>
-          <span className="ds-chip">{KIND_LABEL[kind]}</span>
+          <span className="ds-kind">{KIND_LABEL[kind]}</span>
         </div>
         {mic.error && (
           <p className="ds-banner ds-tone-rose mb-2 text-xs" role="alert">

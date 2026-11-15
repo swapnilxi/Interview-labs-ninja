@@ -102,6 +102,9 @@ class EvaluateRequest(AISettings):
 class ExpandRequest(AISettings):
     question_text: str
     answer_text: str = ""
+    # "star" = rewrite as Situation/Task/Action/Result; context = the user's real background to ground it in.
+    style: Optional[str] = None
+    context: Optional[str] = None
     code_text: Optional[str] = None
     language: Optional[str] = None
     category: Optional[str] = None
@@ -166,6 +169,19 @@ Return ONLY one JSON object with exactly these keys:
 If the answer is already excellent, say so, keep "improvements" short, and still add one stretch suggestion."""
 
 
+def _star_block(req: ExpandRequest) -> str:
+    if (req.style or "").lower() != "star":
+        return ""
+    ctx = (req.context or "").strip()
+    ctx_line = (
+        f"\nCandidate's real background/context (ground the answer in this; do not invent facts beyond it):\n{ctx}\n"
+        if ctx
+        else "\nNo personal context was given: write a plausible model answer and mark any invented specifics as [placeholder] for the candidate to replace.\n"
+    )
+    return f"""
+OUTPUT STYLE - STAR: "expanded_answer" MUST be written as a spoken-style interview answer in the STAR pattern, using these markdown headings in order: **Situation**, **Task**, **Action**, **Result**. Keep Action the longest section (use "I", not "we"), and make Result concrete and measurable where the facts allow.{ctx_line}"""
+
+
 def build_expand_prompt(req: ExpandRequest, kind: str) -> str:
     return f"""You are a senior interviewer helping a candidate turn a rough draft into a complete, interview-ready answer.
 Question type: {KIND_TITLES[kind]}   Difficulty: {req.difficulty or 'unspecified'}
@@ -180,7 +196,7 @@ Expand the candidate's draft into a strong, complete answer:
 - Correct anything wrong and list each correction.
 - Add what is missing for this question type ({KIND_TITLES[kind]}): for DSA brute force -> optimal approach, correct code, complexity, edge cases; for system design requirements, estimates, architecture, data model, bottlenecks, trade-offs; for debugging hypotheses, diagnosis steps, root cause, fix, prevention; for behavioral STAR with a measurable result; for CV/ML mechanism, maths, trade-offs, practice.
 - If the draft is empty, write a model answer from scratch and say so in "summary".
-
+{_star_block(req)}
 {_ACCURACY_RULES}
 
 Return ONLY one JSON object with exactly these keys:

@@ -418,6 +418,92 @@ Be accurate and concrete. Keep it short (under 200 words unless the task needs m
     },
   },
   {
+    // Twin of POST /quiz/expand in backend/modules/lab_sections/router.py -- keep the prompt and limits identical.
+    method: 'POST',
+    path: '/quiz/expand',
+    handler: async ({ json }) => {
+      const body = await json();
+      const lab = oneOf(body.lab, LAB_NAMES, 'lab');
+      const topic = strField(body, 'topic', 400, { min: 1 });
+      const question = strField(body, 'question', 2000, { min: 1 });
+      const explanation = strField(body, 'explanation', 4000, { def: '' });
+      const options = body.options;
+      if (!Array.isArray(options) || options.length < 2 || options.length > 6 || options.some((o: unknown) => typeof o !== 'string')) {
+        throw new HttpError(422, "Field 'options' must be a list of 2-6 strings");
+      }
+      const answer = Number(body.answer);
+      if (!Number.isInteger(answer) || answer < 0 || answer >= options.length) {
+        throw new HttpError(422, 'answer must point at one of the options');
+      }
+      let selected: number | null = null;
+      if (body.selected !== undefined && body.selected !== null) {
+        selected = Number(body.selected);
+        if (!Number.isInteger(selected) || selected < 0 || selected > 5) throw new HttpError(422, "Field 'selected' must be 0-5");
+      }
+      const rawPrev = body.previous === undefined || body.previous === null ? [] : body.previous;
+      if (!Array.isArray(rawPrev) || rawPrev.length > 10 || rawPrev.some((t: unknown) => typeof t !== 'string')) {
+        throw new HttpError(422, "Field 'previous' must be a list of at most 10 strings");
+      }
+      const previous: string[] = rawPrev;
+      const focus = body.focus === undefined || body.focus === null ? 'answer' : oneOf(body.focus, ['answer', 'question'] as const, 'focus');
+
+      const letters = 'ABCDEFG';
+      const optionLines = (options as string[]).map((o, i) => `${letters[i]}. ${o.slice(0, 600)}`).join('\n');
+      const chosen =
+        selected !== null && selected < options.length ? `The learner picked ${letters[selected]}.` : 'The learner has not picked an option.';
+      const earlier = previous
+        .slice(-4)
+        .map((t, i) => `Explanation ${i + 1}:\n${t.slice(0, 3000)}`)
+        .join('\n\n');
+      const depth = previous.length;
+      const task = depth
+        ? `The learner has already read the explanations below and wants MORE detail (round ${depth + 1}). ` +
+          'Do not repeat them. Go one level deeper: the underlying mechanism or theory, a concrete worked example ' +
+          'or small numbers, the exact misconception behind each wrong option, and what to remember for next time.'
+        : 'Explain why the correct option is right, then go through every wrong option one by one and say exactly ' +
+          'why it is wrong (and what misconception makes it tempting). End with one sentence on what to remember.';
+      if (focus === 'question') {
+        const qTask = depth
+          ? `The learner has already read the notes below and wants MORE help understanding the question (round ${depth + 1}). ` +
+            'Do not repeat them. Go deeper on the background ideas, the vocabulary, and how to rule options in or out.'
+          : 'Help the learner understand this question BEFORE answering: restate what it is really asking, define ' +
+            'the key terms, name the concepts needed, and give a way to think about narrowing the options. ' +
+            'Do NOT say or hint which option is correct.';
+        const qPrompt = `You are a patient tutor inside a ${DOMAINS[lab]} lab. Topic: ${topic.trim()}.
+
+Quiz question: ${question.trim()}
+Options:
+${optionLines}
+
+${earlier}
+
+${qTask}
+
+Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key terms, \`inline code\` for identifiers, no headings, no preamble. Under 250 words.`;
+        const qText = clean(await askAi(qPrompt, body, 1500));
+        if (!qText) throw new HttpError(502, 'The model returned an empty answer. Try again.');
+        return { explanation: qText };
+      }
+      const prompt = `You are a patient tutor inside a ${DOMAINS[lab]} lab. Topic: ${topic.trim()}.
+
+Quiz question: ${question.trim()}
+Options:
+${optionLines}
+Correct answer: ${letters[answer]}. ${chosen}
+Short explanation already shown: ${explanation.trim() || '(none)'}
+
+${earlier}
+
+${task}
+
+Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key terms, \`inline code\` for identifiers, no headings, no preamble. Label each option by its letter. Under 250 words.`;
+
+      const text = clean(await askAi(prompt, body, 1500));
+      if (!text) throw new HttpError(502, 'The model returned an empty answer. Try again.');
+      return { explanation: text };
+    },
+  },
+  {
     method: 'POST',
     path: '/quiz/generate',
     handler: async ({ userId, json }) => {

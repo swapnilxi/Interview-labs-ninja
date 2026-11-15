@@ -11,7 +11,7 @@ import BrandMark from '@/modules/common/BrandMark';
 import { initialsFor } from '@/lib/ui/initials';
 import NotificationBell from '@/components/ui/NotificationCenter';
 import { OPEN_NAV_EVENT } from '@/components/ui/MobileTabBar';
-import { isLabsPath } from '@/modules/common/lab/labCatalog';
+import { isLabsPath } from '@/modules/labs/common/labCatalog';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, API_BASE_URL } from '@/lib/http/apiClient';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
