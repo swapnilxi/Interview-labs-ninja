@@ -13,13 +13,21 @@ import ProjectScreen from './ProjectScreen';
 import { parseProjectId, planUrls } from './projectUrls';
 import ProjectRoadmap from './ProjectRoadmap';
 import CreateProjectModal from './CreateProjectModal';
+import LabPlanView from '../labs/LabPlanView';
 import { Project, ProjectNodeFlat, projectService } from '@/lib/services/projectService';
 import { paretoService } from '@/lib/services/paretoService';
 import { toast } from '@/lib/ui/toast';
 import { confirmParetoRun } from '../shared/confirmPareto';
 
-type PlanSubView = 'projects' | 'matrix' | 'roadmap';
-const VALID_VIEWS: PlanSubView[] = ['projects', 'matrix', 'roadmap'];
+type PlanSubView = 'projects' | 'matrix' | 'roadmap' | 'labs';
+const VALID_VIEWS: PlanSubView[] = ['projects', 'matrix', 'roadmap', 'labs'];
+
+const VIEW_META: Record<PlanSubView, { label: string; icon: string }> = {
+  projects: { label: 'Projects', icon: 'FolderIcon' },
+  matrix: { label: 'Matrix', icon: 'Squares2X2Icon' },
+  roadmap: { label: 'Roadmap', icon: 'MapIcon' },
+  labs: { label: 'Lab plan', icon: 'BeakerIcon' },
+};
 
 interface PlanProjectProps {
   model: 'ollama' | 'gemini';
@@ -58,6 +66,15 @@ const TAB_GUIDE: Record<PlanSubView, { title: string; steps: string[] }> = {
       'Click Generate Roadmap — AI creates 3-5 structured phases with tasks & milestones.',
       'Each phase card shows duration, key tasks, and a milestone target.',
       'Hover a task row to push it directly to Smart To-Do or Quick Daily.',
+    ],
+  },
+  labs: {
+    title: 'Lab plan — Plan your study from the labs',
+    steps: [
+      'Pick a lab, then tick the topics you want to work through. Open a topic to choose its lessons.',
+      'Mix labs freely: the bar at the bottom keeps everything you picked.',
+      'Add to project puts them in a new or existing project; each item links back to its lab page.',
+      'Inside a project, From lab in the Explorer adds more without leaving it.',
     ],
   },
 };
@@ -264,20 +281,19 @@ export default function PlanProject({ model }: PlanProjectProps) {
       {/* Header & Sub-view Switcher: unboxed — a full-width segmented control on phones, actions under it. */}
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="todo-segmented w-full shrink-0 sm:w-auto">
-          {(['projects', 'matrix', 'roadmap'] as PlanSubView[]).map((view) => {
-            const icons: Record<PlanSubView, string> = { projects: 'FolderIcon', matrix: 'Squares2X2Icon', roadmap: 'MapIcon' };
-            const labels: Record<PlanSubView, string> = { projects: 'Projects', matrix: 'Matrix', roadmap: 'Roadmap' };
-            return (
-              <button
-                key={view}
-                onClick={() => setActiveSubView(view)}
-                aria-pressed={activeSubView === view}
-                className="todo-segment flex-1 gap-1.5 px-2 py-2 text-sm font-semibold sm:flex-none sm:px-4"
-              >
-                <Icon name={icons[view]} size={15} variant={activeSubView === view ? 'solid' : 'outline'} /> {labels[view]}
-              </button>
-            );
-          })}
+          {VALID_VIEWS.map((view) => (
+            <button
+              key={view}
+              type="button"
+              onClick={() => setActiveSubView(view)}
+              aria-pressed={activeSubView === view}
+              className="todo-segment flex-1 gap-1.5 px-2 py-2 text-sm font-semibold sm:flex-none sm:px-4"
+            >
+              {/* Phones fit four segments by dropping the icons */}
+              <Icon name={VIEW_META[view].icon} size={15} variant={activeSubView === view ? 'solid' : 'outline'} className="hidden sm:block" />
+              {VIEW_META[view].label}
+            </button>
+          ))}
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
@@ -430,6 +446,10 @@ export default function PlanProject({ model }: PlanProjectProps) {
               />
             )}
           </div>
+        )}
+
+        {activeSubView === 'labs' && (
+          <LabPlanView projects={projects} onProjectCreated={(p) => setProjects((prev) => [p, ...prev.filter((x) => x.id !== p.id)])} />
         )}
 
         {activeSubView === 'roadmap' && (

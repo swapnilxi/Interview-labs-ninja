@@ -48,7 +48,10 @@ function useAppliedAccent(): { applied: string; fallbackDefault: string } {
   return state;
 }
 
-export default function AppearanceSettingsCard() {
+/** `hideHeader`: the Settings page already titles this section, so the card drops its own icon and title. */
+export default function AppearanceSettingsCard({
+  hideHeader = false,
+}: { hideHeader?: boolean } = {}) {
   const [accentHex, setAccentHex] = useState<string | null>(null);
   const [customHex, setCustomHex] = useState('#7131CC');
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('icon-only');
@@ -86,11 +89,13 @@ export default function AppearanceSettingsCard() {
 
   return (
     <div id="appearance" className={`${SETTINGS_CARD} scroll-mt-[calc(var(--chrome-top)+1rem)]`}>
-      <SettingsCardHeader
-        icon="SwatchIcon"
-        title="Appearance"
-        description="Pick an accent color for buttons, highlights, focus rings, and glow effects across the whole app"
-      />
+      {!hideHeader && (
+        <SettingsCardHeader
+          icon="SwatchIcon"
+          title="Appearance"
+          description="Pick an accent color for buttons, highlights, focus rings, and glow effects across the whole app"
+        />
+      )}
 
       {/* Live preview: real controls drawn with the accent tokens, so the choice is visible right here as well as
           everywhere else (the whole app re-tints at the same moment). */}

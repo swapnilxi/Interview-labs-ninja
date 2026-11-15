@@ -8,6 +8,9 @@ export const LAB_DISPLAY_NAMES: Record<LabName, string> = {
   dsa: 'DSA Lab',
   cv: 'CV Lab',
   system_design: 'System Design Lab',
+  communication: 'Communication Lab',
+  finance: 'Finance Lab',
+  python: 'Python Lab',
 };
 
 /**

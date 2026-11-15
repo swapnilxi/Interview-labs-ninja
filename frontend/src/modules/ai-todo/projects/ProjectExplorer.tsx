@@ -1,22 +1,34 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
-import FlatIcon from '@/components/ui/FlatIcon';
+import Popover from '@/components/ui/Popover';
 import { Project, ProjectNode, projectService } from '@/lib/services/projectService';
 import ProjectNodeDetailModal from './ProjectNodeDetailModal';
 import ParetoModal from '@/components/ui/ParetoModal';
 import { confirmDialog } from '@/lib/ui/confirm';
+import { LAB_CATALOG } from '@/modules/common/lab/labCatalog';
+import AddFromLabSheet from '../labs/AddFromLabSheet';
+import { labLinkFromContext, linkedLabNodes } from '../labs/labContent';
 
 interface ProjectExplorerProps {
   project: Project;
   model: 'ollama' | 'gemini';
 }
 
+type NodeAction = 'dive' | 'chunk' | 'smart' | 'quick';
+
+/** Indent per tree level, in px. */
+const INDENT = 22;
+
+function labIconFor(href: string): string {
+  return LAB_CATALOG.find((l) => href.startsWith(`${l.path}?`))?.icon ?? 'BeakerIcon';
+}
+
 function NodeItem({
   node,
   level,
-  projectId,
   model,
   collapsedIds,
   onSetExpanded,
@@ -25,19 +37,24 @@ function NodeItem({
   onDeleteNode,
   onOpenDetails,
   onParetoUpdate,
+  parentLabLabel,
 }: {
   node: ProjectNode;
   level: number;
-  projectId: number;
+  /** The lab its parent was added from: a lesson under that topic then shows just the lab's icon, not its name again. */
+  parentLabLabel?: string;
   model: 'ollama' | 'gemini';
   collapsedIds: Set<number>;
   onSetExpanded: (nodeId: number, expanded: boolean) => void;
-  onAction: (node: ProjectNode, action: 'dive' | 'chunk' | 'smart' | 'quick') => void;
+  onAction: (node: ProjectNode, action: NodeAction) => void;
   /** Resolves true when the subtask was created (so the input is only cleared on success). */
   onAddSubtask: (parentId: number, title: string, nodeType: string) => Promise<boolean>;
   onDeleteNode: (nodeId: number) => Promise<void>;
   onOpenDetails: (node: ProjectNode) => void;
-  onParetoUpdate: (node: ProjectNode, updates: { pareto_score?: number | null; is_top_20?: boolean }) => void;
+  onParetoUpdate: (
+    node: ProjectNode,
+    updates: { pareto_score?: number | null; is_top_20?: boolean }
+  ) => void;
 }) {
   // Expand/collapse lives in the parent so Expand All / Collapse All can drive it
   const expanded = !collapsedIds.has(node.id);
@@ -46,18 +63,18 @@ function NodeItem({
   const [subtaskType, setSubtaskType] = useState<string>('action');
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [showParetoModal, setShowParetoModal] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
 
-  const hasChildren = node.children && node.children.length > 0;
+  const hasChildren = !!node.children && node.children.length > 0;
+  const exported = node.exported_to_smart_todo || node.exported_to_quick;
+  const labLink = labLinkFromContext(node.context);
 
-  const depthColors = [
-    'border-border',
-    'border-blue-500/30',
-    'border-purple-500/30',
-    'border-pink-500/30',
-    'border-amber-500/30',
-  ];
-  const borderClass = depthColors[Math.min(level, depthColors.length - 1)];
+  const openSubtask = () => {
+    setShowAddSubtask((open) => !open);
+    if (!showAddSubtask) setTimeout(() => subtaskInputRef.current?.focus(), 50);
+  };
 
   const handleSubtaskSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -74,183 +91,284 @@ function NodeItem({
     setTimeout(() => subtaskInputRef.current?.focus(), 50);
   };
 
-  // 80/20 styling — gold glow for high-but-not-confirmed leverage, grey dim for low leverage
+  // 80/20 styling — gold edge for high-but-not-confirmed leverage, dimmed for low leverage
   let paretoClasses = '';
   if (!node.is_top_20 && node.pareto_score !== undefined && node.pareto_score !== null) {
     if (node.pareto_score >= 0.6) paretoClasses = 'shadow-[inset_2px_0_0_0_rgba(251,191,36,0.6)]';
     else if (node.pareto_score < 0.3) paretoClasses = 'opacity-60 grayscale-[30%]';
   }
 
+  const menuItem = (
+    label: string,
+    icon: string,
+    onClick: () => void,
+    opts: { disabled?: boolean; danger?: boolean } = {}
+  ) => (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={opts.disabled}
+      onClick={() => {
+        setMenuOpen(false);
+        onClick();
+      }}
+      className={`pe-menu-item ${opts.danger ? 'pe-menu-danger' : ''}`}
+    >
+      <Icon name={icon} size={18} />
+      {label}
+    </button>
+  );
+
   return (
     <div className="flex flex-col">
       <div
-        className={`group relative flex items-start gap-2 py-2 pr-2 rounded-lg hover:mix-bg-muted/30 transition-smooth ${paretoClasses}`}
-        style={{ paddingLeft: `${level * 24}px` }}
+        className={`todo-row flex items-start gap-2 py-2.5 pr-1.5 sm:pr-2 ${paretoClasses}`}
+        style={{ paddingLeft: `${level * INDENT + 6}px` }}
       >
-        {/* Indent Guide Line */}
+        {/* Guide line beside a parent's children */}
         {level > 0 && (
-          <div
-            className={`absolute left-[11px] top-0 bottom-0 w-px ${borderClass}`}
-            style={{ left: `${level * 24 - 13}px` }}
+          <span
+            className="pe-guide"
+            style={{ left: `${level * INDENT - 6}px` }}
+            aria-hidden="true"
           />
         )}
 
-        {/* Expand/Collapse Toggle */}
-        <div className="w-4 flex items-center justify-center shrink-0 mt-0.5 z-10 bg-card">
+        {/* Expand/Collapse */}
+        <div className="mt-px flex h-[1.5rem] w-[1.5rem] shrink-0 items-center justify-center">
           {hasChildren ? (
             <button
+              type="button"
               onClick={() => onSetExpanded(node.id, !expanded)}
-              className="text-muted-foreground hover:text-foreground transition-smooth"
-              title={expanded ? 'Collapse' : 'Expand'}
+              className="todo-focus flex h-[1.5rem] w-[1.5rem] items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+              aria-expanded={expanded}
+              aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.title}`}
             >
-              <Icon name={expanded ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={12} />
+              <Icon
+                name="ChevronRightIcon"
+                size={14}
+                className={`transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+              />
             </button>
           ) : (
-            <div className="w-1.5 h-1.5 rounded-full bg-border" />
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: 'var(--color-fill-strong)' }}
+              aria-hidden="true"
+            />
           )}
         </div>
 
-        {/* Node Content */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="min-w-0 flex-1">
+          {/* Title and state */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <button
+              type="button"
               onClick={() => onOpenDetails(node)}
-              className={`text-sm font-medium text-left hover:text-primary transition-smooth ${
-                node.exported_to_smart_todo || node.exported_to_quick
-                  ? 'text-muted-foreground line-through'
-                  : 'text-foreground'
+              className={`todo-focus rounded text-left text-[15px] font-medium leading-snug transition-colors hover:text-primary ${
+                exported ? 'text-muted-foreground line-through' : 'text-foreground'
               }`}
-              title="Click to open details, context & due date"
+              title="Open details, context & due date"
             >
               {node.title}
             </button>
-            {(node.context || node.due_date || node.time_estimate) && (
-              <button
-                onClick={() => onOpenDetails(node)}
-                className="text-muted-foreground hover:text-primary transition-smooth"
-                title="Has context / details"
-              >
-                <Icon name="PaperClipIcon" size={12} />
-              </button>
-            )}
 
             <button
+              type="button"
               onClick={() => setShowParetoModal(true)}
-              className={`text-xs font-bold px-1 py-0.5 rounded border transition-smooth ${
-                node.is_top_20
-                  ? 'border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400'
-                  : 'mix-border-border/60 text-muted-foreground hover:bg-muted'
+              className={`todo-focus inline-flex h-[1.5rem] w-[1.5rem] items-center justify-center rounded-full transition-colors ${
+                node.is_top_20 ? 'text-amber-500' : 'text-muted-foreground hover:text-foreground'
               }`}
-              title="80/20 Pareto Analysis"
+              title="80/20 Pareto analysis"
+              aria-label={
+                node.is_top_20 ? '80/20: top 20%. Open the analysis' : 'Open the 80/20 analysis'
+              }
             >
-              {node.is_top_20 && node.pareto_locked ? <Icon name="BookmarkIcon" size={16} variant="solid" /> : <Icon name="StarIcon" size={16} variant={node.is_top_20 ? 'solid' : 'outline'} />}
+              <Icon
+                name={node.is_top_20 && node.pareto_locked ? 'BookmarkIcon' : 'StarIcon'}
+                size={15}
+                variant={node.is_top_20 ? 'solid' : 'outline'}
+              />
             </button>
 
-            {/* Badges */}
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold capitalize text-muted-foreground">
-              {node.node_type}
-            </span>
+            <span className="pe-chip">{node.node_type}</span>
             {node.generation_type !== 'manual' && (
-              <span className="copilot-tint rounded-full px-2 py-0.5 text-xs font-semibold">
+              <span className="pe-chip copilot-tint">
                 AI {node.generation_type.replace('_', ' ')}
               </span>
             )}
-
-            {/* Exported Badges */}
             {node.exported_to_smart_todo && (
-              <span className="text-xs font-bold text-emerald-500 flex items-center gap-0.5">
-                <Icon name="CheckIcon" size={10} /> Smart To-Do
+              <span className="pe-chip pe-chip-done normal-case">
+                <Icon name="CheckIcon" size={11} /> Smart To-Do
               </span>
             )}
             {node.exported_to_quick && (
-              <span className="text-xs font-bold text-amber-500 flex items-center gap-0.5">
-                <Icon name="CheckIcon" size={10} /> Quick Daily
+              <span className="pe-chip pe-chip-done normal-case">
+                <Icon name="CheckIcon" size={11} /> Quick Daily
               </span>
             )}
-
-            {node.time_estimate && (
-              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-0.5">
-                <Icon name="ClockIcon" size={10} /> {node.time_estimate}
-              </span>
-            )}
-            {node.due_date && (
-              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-0.5">
-                <Icon name="CalendarIcon" size={10} /> {node.due_date}
-              </span>
+            {labLink && (
+              <Link
+                href={labLink.href}
+                className="pe-chip pe-chip-link"
+                title={`Open in ${labLink.label}`}
+                aria-label={`Open ${node.title} in ${labLink.label}`}
+              >
+                <Icon name={labIconFor(labLink.href)} size={12} />
+                {labLink.label !== parentLabLabel && labLink.label}
+                <Icon name="ArrowUpRightIcon" size={10} />
+              </Link>
             )}
           </div>
 
-          {/* Action Buttons (visible everytime, not on hover) */}
-          <div className="flex items-center gap-1.5 mt-1 transition-opacity flex-wrap">
+          {/* Quiet meta line */}
+          {((node.context && !labLink) || node.time_estimate || node.due_date) && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-muted-foreground">
+              {node.context && !labLink && (
+                <button
+                  type="button"
+                  onClick={() => onOpenDetails(node)}
+                  className="todo-focus inline-flex items-center gap-1 rounded hover:text-foreground"
+                >
+                  <Icon name="PaperClipIcon" size={12} /> Notes
+                </button>
+              )}
+              {node.time_estimate && (
+                <span className="inline-flex items-center gap-1">
+                  <Icon name="ClockIcon" size={12} /> {node.time_estimate}
+                </span>
+              )}
+              {node.due_date && (
+                <span className="inline-flex items-center gap-1">
+                  <Icon name="CalendarIcon" size={12} /> {node.due_date}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Actions: always visible on wider screens (one quiet style for all of them); behind "···" on phones */}
+          <div className="-ml-2.5 mt-1 hidden flex-wrap items-center gap-0.5 sm:flex">
             <button
+              type="button"
               onClick={() => onOpenDetails(node)}
-              className="text-xs font-semibold px-2 py-0.5 rounded border mix-border-primary/30 text-primary hover:mix-bg-primary/10 transition-smooth flex items-center gap-1"
-              title="Open details page for context, due date & more"
+              className="pe-act"
+              title="Open details for context, due date & more"
             >
-              <FlatIcon name="details" size={14} /> Details
+              <Icon name="DocumentTextIcon" size={13} /> Details
             </button>
             <button
-              onClick={() => {
-                setShowAddSubtask(!showAddSubtask);
-                if (!showAddSubtask) setTimeout(() => subtaskInputRef.current?.focus(), 50);
-              }}
-              className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-smooth flex items-center gap-1"
+              type="button"
+              onClick={openSubtask}
+              className="pe-act"
+              aria-expanded={showAddSubtask}
             >
-              <Icon name="PlusIcon" size={10} /> Subtask
+              <Icon name="PlusIcon" size={13} /> Subtask
             </button>
             <button
+              type="button"
               onClick={() => onAction(node, 'dive')}
-              className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth flex items-center gap-1"
+              className="pe-act"
+              title="Break into strategic subtopics"
             >
-              <FlatIcon name="search" size={14} /> Dive Deeper
+              <Icon name="MagnifyingGlassIcon" size={13} /> Dive deeper
             </button>
             <button
+              type="button"
               onClick={() => onAction(node, 'chunk')}
-              className="todo-btn todo-btn-quiet px-2.5 py-1 text-xs"
+              className="pe-act"
+              title="Break into actionable steps"
             >
-              <FlatIcon name="quick" size={14} /> Chunk It
+              <Icon name="ScissorsIcon" size={13} /> Chunk it
             </button>
-            <div className="w-px h-3 bg-border mx-0.5" />
+            <span
+              className="mx-1 h-3.5 w-px"
+              style={{ background: 'var(--color-separator)' }}
+              aria-hidden="true"
+            />
             <button
+              type="button"
               onClick={() => onAction(node, 'smart')}
               disabled={node.exported_to_smart_todo}
-              className="text-xs font-semibold px-2 py-0.5 rounded border border-border hover:bg-muted transition-smooth disabled:opacity-50 flex items-center gap-1"
+              className="pe-act"
+              title="Send to Smart To-Do"
             >
-              <FlatIcon name="brain" size={14} /> → Smart
+              <Icon name="CpuChipIcon" size={13} /> To Smart
             </button>
             <button
+              type="button"
               onClick={() => onAction(node, 'quick')}
               disabled={node.exported_to_quick}
-              className="text-xs font-semibold px-2 py-0.5 rounded border border-border hover:bg-muted transition-smooth disabled:opacity-50 flex items-center gap-1"
+              className="pe-act"
+              title="Send to Quick Daily"
             >
-              <FlatIcon name="quick" size={14} /> → Quick
+              <Icon name="BoltIcon" size={13} /> To Quick
             </button>
-
             <button
+              type="button"
               onClick={() => onDeleteNode(node.id)}
-              className="text-xs p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-smooth ml-auto"
-              title="Delete node"
+              className="pe-act pe-act-danger ml-auto h-7 w-7 justify-center px-0"
+              title="Delete"
+              aria-label={`Delete ${node.title}`}
             >
-              <Icon name="TrashIcon" size={11} />
+              <Icon name="TrashIcon" size={13} />
             </button>
           </div>
         </div>
+
+        {/* Phones: every action in one menu */}
+        <button
+          ref={menuBtnRef}
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
+          className="pe-act h-8 w-8 shrink-0 justify-center px-0 sm:hidden"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label={`Actions for ${node.title}`}
+        >
+          <Icon name="EllipsisHorizontalIcon" size={18} />
+        </button>
+        <Popover
+          open={menuOpen}
+          anchorRef={menuBtnRef}
+          onClose={() => setMenuOpen(false)}
+          role="menu"
+          label={`Actions for ${node.title}`}
+          className="todo-popover min-w-[14rem] p-1.5"
+        >
+          {menuItem('Details', 'DocumentTextIcon', () => onOpenDetails(node))}
+          {menuItem('Add subtask', 'PlusIcon', openSubtask)}
+          {menuItem('Dive deeper', 'MagnifyingGlassIcon', () => onAction(node, 'dive'))}
+          {menuItem('Chunk it', 'ScissorsIcon', () => onAction(node, 'chunk'))}
+          <div className="pe-menu-sep" role="separator" />
+          {menuItem('Send to Smart To-Do', 'CpuChipIcon', () => onAction(node, 'smart'), {
+            disabled: node.exported_to_smart_todo,
+          })}
+          {menuItem('Send to Quick Daily', 'BoltIcon', () => onAction(node, 'quick'), {
+            disabled: node.exported_to_quick,
+          })}
+          <div className="pe-menu-sep" role="separator" />
+          {menuItem('Delete', 'TrashIcon', () => void onDeleteNode(node.id), { danger: true })}
+        </Popover>
       </div>
 
-      {/* Inline On-Page Subtask Add Form */}
+      {/* Inline subtask form */}
       {showAddSubtask && (
         <form
           onSubmit={handleSubtaskSubmit}
-          className="flex items-center gap-2 py-1.5 my-1 rounded-lg mix-bg-muted/40 border border-emerald-500/30 transition-smooth"
-          style={{ marginLeft: `${(level + 1) * 24}px` }}
+          className="my-1 mr-1 flex flex-wrap items-center gap-2 rounded-[14px] p-1.5 sm:flex-nowrap sm:rounded-full sm:pl-3.5"
+          style={{
+            marginLeft: `min(${(level + 1) * INDENT + 6}px, 30%)`,
+            background: 'var(--color-fill)',
+          }}
         >
           <input
             ref={subtaskInputRef}
             type="text"
             value={subtaskTitle}
             onChange={(e) => setSubtaskTitle(e.target.value)}
-            placeholder={`Add subtask under "${node.title}"...`}
-            className="flex-1 min-w-0 bg-transparent px-2 py-0.5 text-xs text-foreground focus:outline-none placeholder:mix-text-muted-foreground/60"
+            placeholder={`Subtask under “${node.title}”`}
+            aria-label={`New subtask under ${node.title}`}
+            className="h-8 min-w-0 basis-full bg-transparent px-2 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none sm:basis-auto sm:flex-1 sm:px-0"
             onKeyDown={(e) => {
               if (e.key === 'Escape') setShowAddSubtask(false);
             }}
@@ -258,26 +376,29 @@ function NodeItem({
           <select
             value={subtaskType}
             onChange={(e) => setSubtaskType(e.target.value)}
-            className="bg-card border mix-border-border/80 rounded px-1.5 py-0.5 text-xs font-semibold text-muted-foreground"
+            className="pe-type"
+            style={{ backgroundColor: 'var(--color-card)' }}
+            aria-label="Subtask type"
           >
             <option value="action">Action</option>
             <option value="topic">Topic</option>
             <option value="idea">Idea</option>
           </select>
-          <button
-            type="submit"
-            disabled={!subtaskTitle.trim() || addingSubtask}
-            className="px-2 py-0.5 text-xs font-bold rounded bg-emerald-500 text-white hover:bg-emerald-600 transition-smooth disabled:opacity-50 shrink-0 mr-1.5"
-          >
-            {addingSubtask ? '...' : '+ Add'}
-          </button>
+          <span className="flex-1 sm:hidden" />
           <button
             type="button"
             onClick={() => setShowAddSubtask(false)}
-            className="text-xs text-muted-foreground hover:text-foreground px-1 mr-1"
+            className="pe-act h-8 px-3"
             aria-label="Cancel adding a subtask"
           >
-            <Icon name="XMarkIcon" size={14} />
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!subtaskTitle.trim() || addingSubtask}
+            className="todo-btn todo-btn-primary h-8 px-3.5"
+          >
+            {addingSubtask ? 'Adding…' : 'Add'}
           </button>
         </form>
       )}
@@ -289,7 +410,6 @@ function NodeItem({
               key={child.id}
               node={child}
               level={level + 1}
-              projectId={projectId}
               model={model}
               collapsedIds={collapsedIds}
               onSetExpanded={onSetExpanded}
@@ -298,6 +418,7 @@ function NodeItem({
               onDeleteNode={onDeleteNode}
               onOpenDetails={onOpenDetails}
               onParetoUpdate={onParetoUpdate}
+              parentLabLabel={labLink?.label}
             />
           ))}
         </div>
@@ -332,16 +453,24 @@ function collectParentIds(nodes: ProjectNode[], acc: number[] = []): number[] {
   return acc;
 }
 
+const NODE_TYPES = [
+  { value: 'topic', label: 'Topic' },
+  { value: 'phase', label: 'Phase' },
+  { value: 'action', label: 'Action' },
+  { value: 'idea', label: 'Idea' },
+];
+
 export default function ProjectExplorer({ project, model }: ProjectExplorerProps) {
   const [nodes, setNodes] = useState<ProjectNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [detailNode, setDetailNode] = useState<ProjectNode | null>(null);
+  const [labSheetOpen, setLabSheetOpen] = useState(false);
   // Collapsed node ids — empty means everything is expanded (the default)
   const [collapsedIds, setCollapsedIds] = useState<Set<number>>(new Set());
 
-  // On-Page Root Node Add Form State
+  // Inline root add form
   const [rootTitle, setRootTitle] = useState('');
   const [rootType, setRootType] = useState<string>('topic');
   const [addingRoot, setAddingRoot] = useState(false);
@@ -354,8 +483,15 @@ export default function ProjectExplorer({ project, model }: ProjectExplorerProps
     setLoading(false);
   };
 
+  // Reload without the loading state (after an edit), so the tree doesn't flash.
+  const refreshTree = async () => {
+    const tree = await projectService.fetchProjectTree(project.id);
+    setNodes(tree);
+  };
+
   useEffect(() => {
     loadTree();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
   const setNodeExpanded = (nodeId: number, expanded: boolean) => {
@@ -379,41 +515,48 @@ export default function ProjectExplorer({ project, model }: ProjectExplorerProps
 
     const created = await projectService.createNode(project.id, {
       title: rootTitle.trim(),
-      node_type: rootType as any,
+      node_type: rootType as ProjectNode['node_type'],
     });
 
     if (created) {
-      await loadTree();
+      await refreshTree();
       setRootTitle('');
     }
     setAddingRoot(false);
     setTimeout(() => rootInputRef.current?.focus(), 50);
   };
 
-  const handleAddSubtask = async (parentId: number, title: string, nodeType: string): Promise<boolean> => {
+  const handleAddSubtask = async (
+    parentId: number,
+    title: string,
+    nodeType: string
+  ): Promise<boolean> => {
     const created = await projectService.createNode(project.id, {
       title,
       parent_node_id: parentId,
-      node_type: nodeType as any,
+      node_type: nodeType as ProjectNode['node_type'],
     });
     if (!created) return false;
-    await loadTree();
+    await refreshTree();
     return true;
   };
 
   const handleDeleteNode = async (nodeId: number) => {
     const ok = await projectService.deleteNode(nodeId);
     if (ok) {
-      await loadTree();
+      await refreshTree();
     }
   };
 
-  const handleParetoUpdate = async (node: ProjectNode, updates: { pareto_score?: number | null; is_top_20?: boolean }) => {
+  const handleParetoUpdate = async (
+    node: ProjectNode,
+    updates: { pareto_score?: number | null; is_top_20?: boolean }
+  ) => {
     const updated = await projectService.updateProjectNode(node.id, updates);
-    if (updated) await loadTree();
+    if (updated) await refreshTree();
   };
 
-  const handleAction = async (node: ProjectNode, action: 'dive' | 'chunk' | 'smart' | 'quick') => {
+  const handleAction = async (node: ProjectNode, action: NodeAction) => {
     setActionLoading(`${action}-${node.id}`);
     setActionError(null);
 
@@ -436,13 +579,13 @@ export default function ProjectExplorer({ project, model }: ProjectExplorerProps
         } else {
           await projectService.chunkIt(node.id, model);
         }
-        await loadTree();
+        await refreshTree();
       } else if (action === 'smart') {
         await projectService.moveToSmart(node.id);
-        await loadTree();
+        await refreshTree();
       } else if (action === 'quick') {
         await projectService.moveToQuick(node.id);
-        await loadTree();
+        await refreshTree();
       }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Action failed.');
@@ -451,115 +594,161 @@ export default function ProjectExplorer({ project, model }: ProjectExplorerProps
     }
   };
 
+  const typeSelect = (className: string) => (
+    <select
+      value={rootType}
+      onChange={(e) => setRootType(e.target.value)}
+      className={`pe-type ${className}`}
+      aria-label="Item type"
+    >
+      {NODE_TYPES.map((t) => (
+        <option key={t.value} value={t.value}>
+          {t.label}
+        </option>
+      ))}
+    </select>
+  );
+
+  const fromLabButton = (
+    <button
+      type="button"
+      onClick={() => setLabSheetOpen(true)}
+      className="todo-btn todo-btn-quiet h-9 shrink-0 px-3.5 sm:h-10"
+    >
+      <Icon name="BeakerIcon" size={15} /> From lab
+    </button>
+  );
+
   return (
-    <div className="flex flex-col h-full bg-card border mix-border-border/80 rounded-xl shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-      {/* Toolbar: the project's own header (title, Back, sections) lives in ProjectScreen */}
-      {(project.description || parentIds.length > 0) && (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b mix-border-border/50 mix-bg-muted/20 px-4 py-3">
-          {project.description ? (
-            <p className="min-w-0 flex-1 text-xs italic text-muted-foreground">&ldquo;{project.description}&rdquo;</p>
-          ) : (
-            <span className="flex-1" />
-          )}
+    <div className="todo-glass relative flex flex-col overflow-hidden rounded-[1.25rem]">
+      <div className="flex flex-col gap-3 p-3 sm:p-4">
+        {/* Description, and Expand / Collapse All */}
+        {(project.description || parentIds.length > 0) && (
+          <div className="flex items-center justify-between gap-3 px-1">
+            {project.description ? (
+              <p className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">
+                {project.description}
+              </p>
+            ) : (
+              <span className="flex-1" />
+            )}
+            {parentIds.length > 0 && (
+              <div className="flex shrink-0 items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={handleExpandAll}
+                  disabled={collapsedCount === 0}
+                  className="pe-act h-8 w-8 justify-center px-0"
+                  title="Expand all"
+                  aria-label="Expand all"
+                >
+                  <Icon name="ChevronDoubleDownIcon" size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCollapseAll}
+                  disabled={collapsedCount === parentIds.length}
+                  className="pe-act h-8 w-8 justify-center px-0"
+                  title="Collapse all"
+                  aria-label="Collapse all"
+                >
+                  <Icon name="ChevronDoubleUpIcon" size={15} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
-          {/* Expand / Collapse All */}
-          {parentIds.length > 0 && (
-            <div className="inline-flex shrink-0 items-center gap-1.5">
-              <button
-                onClick={handleExpandAll}
-                disabled={collapsedCount === 0}
-                className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
-                title="Expand all tasks"
-              >
-                <Icon name="ChevronDoubleDownIcon" size={12} />
-                <span className="hidden sm:inline">Expand All</span>
-              </button>
-              <button
-                onClick={handleCollapseAll}
-                disabled={collapsedCount === parentIds.length}
-                className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth flex items-center gap-1 disabled:opacity-40 disabled:hover:bg-card"
-                title="Collapse all tasks"
-              >
-                <Icon name="ChevronDoubleUpIcon" size={12} />
-                <span className="hidden sm:inline">Collapse All</span>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* AI action error */}
-      {actionError && (
-        <div className="mx-4 mt-3 p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-          <FlatIcon name="warning" size={16} className="mt-px" />
-          <p className="text-xs text-red-600 dark:text-red-400 flex-1 leading-relaxed">{actionError}</p>
-          <button onClick={() => setActionError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
-            <Icon name="XMarkIcon" size={12} />
-          </button>
-        </div>
-      )}
-
-      {/* ── On-Page Inline Root Task Add Form (NO MODAL, NO POPUP) ───────── */}
-      <div className="p-3 border-b mix-border-border/60 mix-bg-muted/20">
-        <form onSubmit={handleAddRootNode} className="flex items-center gap-2">
-          <div className="relative flex-1">
+        {/* Composer: a capture capsule; From lab beside it (under it on phones, with the type) */}
+        <form
+          onSubmit={handleAddRootNode}
+          className="flex flex-col gap-2 sm:flex-row sm:items-center"
+        >
+          <div className="todo-capture min-w-0 flex-1 gap-2 py-1 pl-4 pr-1">
             <input
               ref={rootInputRef}
               type="text"
               value={rootTitle}
               onChange={(e) => setRootTitle(e.target.value)}
-              placeholder="Add a topic or task to this project..."
-              className="w-full bg-input border mix-border-border/80 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+              placeholder="Add a topic or task"
+              aria-label="New topic or task"
+              className="h-9 min-w-0 flex-1 bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
+            {typeSelect('hidden sm:block')}
+            <button
+              type="submit"
+              disabled={!rootTitle.trim() || addingRoot}
+              className="todo-btn todo-btn-primary h-9 shrink-0 px-4"
+            >
+              {addingRoot ? (
+                <span
+                  className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Icon name="PlusIcon" size={15} />
+              )}
+              Add
+            </button>
           </div>
-          <select
-            value={rootType}
-            onChange={(e) => setRootType(e.target.value)}
-            className="bg-card border mix-border-border/80 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground focus:outline-none"
-          >
-            <option value="topic">Topic</option>
-            <option value="phase">Phase</option>
-            <option value="action">Action</option>
-            <option value="idea">Idea</option>
-          </select>
-          <button
-            type="submit"
-            disabled={!rootTitle.trim() || addingRoot}
-            className="px-3.5 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:mix-bg-primary/90 transition-smooth flex items-center gap-1 disabled:opacity-50 shrink-0"
-          >
-            {addingRoot ? (
-              <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Icon name="PlusIcon" size={13} />
-            )}
-            Add Task
-          </button>
+          <div className="flex items-center justify-between gap-2 sm:contents">
+            {typeSelect('h-9 sm:hidden')}
+            {fromLabButton}
+          </div>
         </form>
+
+        {/* AI action error */}
+        {actionError && (
+          <div className="todo-alert todo-alert-error" role="alert">
+            <Icon name="ExclamationTriangleIcon" size={16} className="mt-px" />
+            <p className="flex-1 text-[13px] leading-relaxed text-inherit">{actionError}</p>
+            <button
+              type="button"
+              onClick={() => setActionError(null)}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full opacity-70 hover:opacity-100"
+              aria-label="Dismiss"
+            >
+              <Icon name="XMarkIcon" size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Tree Content */}
-      <div className="flex-1 overflow-y-auto p-4 scrollbar-clean relative">
+      {/* Tree */}
+      <div
+        className="relative border-t px-1.5 py-2 sm:px-2.5"
+        style={{ borderColor: 'var(--color-separator)' }}
+      >
         {loading ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3">
-            <span className="w-[1.5rem] h-[1.5rem] border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
-            <span className="text-xs font-medium">Loading project structure...</span>
+          <div
+            className="flex flex-col items-center justify-center gap-3 py-[3rem] text-muted-foreground"
+            role="status"
+          >
+            <span className="h-[1.5rem] w-[1.5rem] animate-spin rounded-full border-2 mix-border-primary/20 border-t-primary" />
+            <span className="text-[13px]">Loading the project…</span>
           </div>
         ) : nodes.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-4 opacity-70">
-            <FlatIcon name="idea" size={44} />
-            <div className="text-center">
-              <p className="text-sm font-medium">This project has no tasks yet.</p>
-              <p className="text-xs mt-1">Use the input bar above to add your first topic or task.</p>
+          <div className="flex flex-col items-center gap-4 px-4 py-[3rem] text-center">
+            <span className="todo-icon-chip h-[3.25rem] w-[3.25rem] rounded-[15px]">
+              <Icon name="RectangleStackIcon" size={26} />
+            </span>
+            <div>
+              <p className="text-[15px] font-semibold text-foreground">
+                Nothing in this project yet
+              </p>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                Type a topic above, or bring in lessons and problems from a lab.
+              </p>
             </div>
+            {fromLabButton}
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="flex flex-col">
             {nodes.map((node) => (
               <NodeItem
                 key={node.id}
                 node={node}
                 level={0}
-                projectId={project.id}
                 model={model}
                 collapsedIds={collapsedIds}
                 onSetExpanded={setNodeExpanded}
@@ -572,17 +761,25 @@ export default function ProjectExplorer({ project, model }: ProjectExplorerProps
             ))}
           </div>
         )}
-
-        {/* Global Loading Overlay for AI Actions */}
-        {actionLoading && (
-          <div className="absolute inset-0 mix-bg-background/50 backdrop-blur-[1px] flex items-center justify-center z-50">
-            <div className="bg-card border border-border shadow-lg rounded-xl px-4 py-3 flex items-center gap-3">
-              <span className="w-5 h-5 border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
-              <span className="text-xs font-bold text-foreground">AI generating breakdown...</span>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* AI actions in progress */}
+      {actionLoading && (
+        <div
+          className="absolute inset-0 z-40 flex items-center justify-center"
+          style={{ background: 'color-mix(in srgb, var(--color-background) 55%, transparent)' }}
+          role="status"
+        >
+          <div className="todo-glass flex items-center gap-3 rounded-full px-4 py-2.5 shadow-lg">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 mix-border-primary/20 border-t-primary" />
+            <span className="text-[13px] font-semibold text-foreground">
+              {actionLoading.startsWith('dive') || actionLoading.startsWith('chunk')
+                ? 'AI is breaking it down…'
+                : 'Working…'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Node Detail Modal */}
       <ProjectNodeDetailModal
@@ -591,9 +788,18 @@ export default function ProjectExplorer({ project, model }: ProjectExplorerProps
         onClose={() => setDetailNode(null)}
         onUpdate={(updated) => {
           setDetailNode((prev) => (prev ? { ...prev, ...updated } : prev));
-          loadTree();
+          refreshTree();
         }}
       />
+
+      {labSheetOpen && (
+        <AddFromLabSheet
+          project={project}
+          existing={linkedLabNodes(nodes)}
+          onClose={() => setLabSheetOpen(false)}
+          onAdded={refreshTree}
+        />
+      )}
     </div>
   );
 }

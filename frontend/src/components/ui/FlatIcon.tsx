@@ -37,9 +37,37 @@ import {
   TrophyIcon,
   UserGroupIcon,
   ArrowPathRoundedSquareIcon,
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
+  MusicalNoteIcon,
+  BellIcon,
+  CloudIcon,
+  MicrophoneIcon,
+  ChatBubbleLeftRightIcon,
+  FaceSmileIcon,
+  FlagIcon,
+  ArrowUpTrayIcon,
+  ArrowsRightLeftIcon,
+  ChartBarIcon,
+  InboxIcon,
+  LockClosedIcon,
+  ShieldCheckIcon,
+  PencilSquareIcon,
+  CubeTransparentIcon,
+  SunIcon,
+  KeyIcon,
 } from '@heroicons/react/24/solid';
 
 type Glyph = ComponentType<SVGProps<SVGSVGElement>>;
+
+/** Heroicons has no headphones; drawn here in the same solid 24px style. */
+function HeadphonesGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M12 3a9 9 0 0 0-9 9v5.25A2.75 2.75 0 0 0 5.75 20h1.5c.69 0 1.25-.56 1.25-1.25v-5.5c0-.69-.56-1.25-1.25-1.25H4.6a7.4 7.4 0 0 1 14.8 0h-2.65c-.69 0-1.25.56-1.25 1.25v5.5c0 .69.56 1.25 1.25 1.25h1.5A2.75 2.75 0 0 0 21 17.25V12a9 9 0 0 0-9-9Z" />
+    </svg>
+  );
+}
 
 /**
  * The To-Do UI's illustrative icons: one solid glyph per meaning, tinted with a colour that carries that meaning
@@ -91,6 +119,27 @@ const ICONS = {
   money: [BanknotesIcon, 'text-emerald-600 dark:text-emerald-400'],
   code: [CommandLineIcon, 'text-slate-600 dark:text-slate-300'],
   travel: [GlobeAmericasIcon, 'text-teal-600 dark:text-teal-400'],
+  // Daily Session (companion sounds and voices, the AI tutor, My Space)
+  sound: [SpeakerWaveIcon, 'text-sky-600 dark:text-sky-400'],
+  mute: [SpeakerXMarkIcon, 'text-slate-500 dark:text-slate-400'],
+  music: [MusicalNoteIcon, 'text-violet-500 dark:text-violet-400'], // a drone / tone
+  bell: [BellIcon, 'text-amber-500 dark:text-amber-400'],
+  cloud: [CloudIcon, 'text-sky-500 dark:text-sky-300'], // calm
+  mic: [MicrophoneIcon, 'text-rose-500 dark:text-rose-400'],
+  chat: [ChatBubbleLeftRightIcon, 'text-teal-600 dark:text-teal-400'], // a tutor conversation
+  smile: [FaceSmileIcon, 'text-amber-500 dark:text-amber-400'],
+  headphones: [HeadphonesGlyph, 'text-slate-500 dark:text-slate-400'],
+  target: [FlagIcon, 'text-rose-500 dark:text-rose-400'], // a goal, a dream role
+  upload: [ArrowUpTrayIcon, 'text-sky-600 dark:text-sky-400'],
+  shuffle: [ArrowsRightLeftIcon, 'text-indigo-500 dark:text-indigo-400'],
+  chart: [ChartBarIcon, 'text-emerald-600 dark:text-emerald-400'], // progress
+  inbox: [InboxIcon, 'text-slate-500 dark:text-slate-400'],
+  lock: [LockClosedIcon, 'text-slate-500 dark:text-slate-400'], // private
+  shield: [ShieldCheckIcon, 'text-emerald-600 dark:text-emerald-400'], // verified
+  write: [PencilSquareIcon, 'text-indigo-500 dark:text-indigo-400'],
+  design: [CubeTransparentIcon, 'text-teal-600 dark:text-teal-400'], // system design sketch
+  sun: [SunIcon, 'text-amber-500 dark:text-amber-400'],
+  key: [KeyIcon, 'text-amber-600 dark:text-amber-400'],
 } as const satisfies Record<string, readonly [Glyph, string]>;
 
 export type FlatIconName = keyof typeof ICONS;

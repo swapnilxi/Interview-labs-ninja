@@ -6,21 +6,29 @@
  *   /dsa/topics            /dsa/sections             backend/modules/dsa_lab/router.py (+ dsa_lab/seed.py)
  *   /cv/topics             /cv/sections              backend/modules/cv_lab/router.py (+ cv_lab/seed.py)
  *   /system-design/topics  /system-design/sections   backend/modules/system_design_lab/router.py (+ seed.py)
+ *   /communication/topics, /finance/topics, /python/topics (+ /sections each)
+ *                                                    backend/modules/common/topic_lab.py (+ <lab>_lab/topics.json)
  *
  * GET/POST each, login required (router-level get_current_user_id). Topics are shared by everyone; sections are the
  * shared defaults plus the caller's own (common/db.py fetch_lab_sections/save_lab_section). Stored JSON is written with
  * Python's json.dumps formatting so both backends can share one SQLite file. A change to those Python files must be
  * mirrored here (CLAUDE.md, "Dual deployment modes").
  *
- * Not ported: the topic seed data (FastAPI's init_db seeds it; the git-tracked database already holds it).
+ * Seed data: the DSA/CV/System Design topics are not ported (FastAPI's init_db seeds them; the git-tracked database
+ * already holds them). The Communication, Finance and Python labs seed from the same backend/modules/<lab>_lab/topics.json
+ * files FastAPI reads (seedTopicLabs below, once per process, INSERT OR IGNORE like topic_lab.seed_topics), so they work
+ * even on a database FastAPI never started on. Each route's next.config.mjs outputFileTracingIncludes ships its file.
  */
+
+import fs from 'node:fs';
+import path from 'node:path';
 
 import { withNeonSync } from '@/lib/server/neonSync';
 import { compileRoutes, dispatch, type TodoRoute } from '../todo/router';
 import { HttpError, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
 import { pyJsonDumps } from '../todo/py';
 
-export type LabKey = 'dsa' | 'cv' | 'system-design';
+export type LabKey = 'dsa' | 'cv' | 'system-design' | 'communication' | 'finance' | 'python';
 
 interface LabConfig {
   table: string;
@@ -31,12 +39,17 @@ interface LabConfig {
   order: 'id' | 'rowid';
   /** cv/system design catch a malformed JSON column and use []; dsa lets json.loads raise. */
   lenientJson: boolean;
+  /** backend/modules/<seedDir>/topics.json holds the seed topics (the topic labs; see seedTopicLabs). */
+  seedDir?: string;
 }
 
 const LABS: Record<LabKey, LabConfig> = {
   dsa: { table: 'dsa_topics', sectionLab: 'dsa', shape: 'prerequisites', order: 'id', lenientJson: false },
   cv: { table: 'cv_topics', sectionLab: 'cv', shape: 'prerequisites', order: 'rowid', lenientJson: true },
   'system-design': { table: 'system_design_topics', sectionLab: 'system_design', shape: 'system-design', order: 'rowid', lenientJson: true },
+  communication: { table: 'communication_topics', sectionLab: 'communication', shape: 'prerequisites', order: 'rowid', lenientJson: true, seedDir: 'communication_lab' },
+  finance: { table: 'finance_topics', sectionLab: 'finance', shape: 'prerequisites', order: 'rowid', lenientJson: true, seedDir: 'finance_lab' },
+  python: { table: 'python_topics', sectionLab: 'python', shape: 'prerequisites', order: 'rowid', lenientJson: true, seedDir: 'python_lab' },
 };
 
 // ── Schema (CREATE TABLE IF NOT EXISTS copies of the Python ones; no seeding) ────────────────────────────────
@@ -45,7 +58,7 @@ let schemaReady = false;
 
 function ensureLabSchema(db: TodoDb) {
   if (schemaReady) return;
-  for (const table of ['dsa_topics', 'cv_topics']) {
+  for (const table of ['dsa_topics', 'cv_topics', 'communication_topics', 'finance_topics', 'python_topics']) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS ${table} (
         id TEXT PRIMARY KEY,
@@ -80,7 +93,54 @@ function ensureLabSchema(db: TodoDb) {
       user_id INTEGER DEFAULT NULL,
       UNIQUE(user_id, lab_name, name)
     )`);
+  seedTopicLabs(db);
   schemaReady = true;
+}
+
+/** The parsed backend/modules/<dir>/topics.json (run from frontend/ or the repo root), or null if it can't be read. */
+function readSeedTopics(dir: string): Row[] | null {
+  const cwd = process.cwd();
+  for (const base of [path.join(cwd, '..', 'backend'), path.join(cwd, 'backend')]) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(path.join(base, 'modules', dir, 'topics.json'), 'utf8'));
+      if (Array.isArray(parsed)) return parsed as Row[];
+    } catch {
+      /* try the next location */
+    }
+  }
+  return null;
+}
+
+/**
+ * The topic labs' seed (topic_lab.seed_topics + the category rows init_db adds): every seed topic whose id is missing
+ * is inserted as a default (is_custom 0) topic, and every seed category becomes a shared default section. Existing rows
+ * are never touched, so a user's added subtopics survive.
+ */
+function seedTopicLabs(db: TodoDb) {
+  for (const lab of Object.values(LABS)) {
+    if (!lab.seedDir) continue;
+    const topics = readSeedTopics(lab.seedDir);
+    if (!topics) {
+      console.warn(`[fe-apis/labs] backend/modules/${lab.seedDir}/topics.json not found: ${lab.table} is not seeded`);
+      continue;
+    }
+    for (const t of topics) {
+      db.run(
+        `INSERT OR IGNORE INTO ${lab.table} (
+           id, name, brief, category, difficulty, prerequisites_json, subtopics_json, is_custom
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+        t.id, t.name, t.brief, t.category, t.difficulty, pyJsonDumps(t.prerequisites ?? []), pyJsonDumps(t.subtopics ?? [])
+      );
+    }
+    for (const category of new Set(topics.map((t) => t.category as string))) {
+      db.run(
+        `INSERT INTO lab_sections (lab_name, name, is_custom, user_id)
+         SELECT ?, ?, 0, NULL
+         WHERE NOT EXISTS (SELECT 1 FROM lab_sections WHERE lab_name = ? AND name = ? AND user_id IS NULL)`,
+        lab.sectionLab, category, lab.sectionLab, category
+      );
+    }
+  }
 }
 
 function withLabsDb<T>(fn: (db: TodoDb) => T): T {
@@ -237,7 +297,24 @@ function saveTopic(key: LabKey, lab: LabConfig, body: unknown): Row {
            is_custom=COALESCE((SELECT is_custom FROM dsa_topics WHERE id=excluded.id), 1)`,
         id, name, brief, category, difficulty, pyJsonDumps(prerequisites), pyJsonDumps(subs)
       );
+    } else if (lab.seedDir) {
+      // The topic labs (common/topic_lab.py save_topic): an upsert keeps an edited lesson's rowid, so it keeps its
+      // place in the lab's ordered path (INSERT OR REPLACE would re-insert it at the end), and keeps is_custom.
+      db.run(
+        `INSERT INTO ${lab.table} (
+           id, name, brief, category, difficulty, prerequisites_json, subtopics_json, is_custom
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+         ON CONFLICT(id) DO UPDATE SET
+           name = excluded.name,
+           brief = excluded.brief,
+           category = excluded.category,
+           difficulty = excluded.difficulty,
+           prerequisites_json = excluded.prerequisites_json,
+           subtopics_json = excluded.subtopics_json`,
+        id, name, brief, category, difficulty, pyJsonDumps(prerequisites), pyJsonDumps(subs)
+      );
     } else {
+      // cv_lab/seed.py save_cv_topic
       db.run(
         `INSERT OR REPLACE INTO cv_topics (
            id, name, brief, category, difficulty, prerequisites_json, subtopics_json, is_custom
@@ -287,6 +364,9 @@ const COMPILED: Record<LabKey, ReturnType<typeof compileRoutes>> = {
   dsa: compileRoutes(routesFor('dsa')),
   cv: compileRoutes(routesFor('cv')),
   'system-design': compileRoutes(routesFor('system-design')),
+  communication: compileRoutes(routesFor('communication')),
+  finance: compileRoutes(routesFor('finance')),
+  python: compileRoutes(routesFor('python')),
 };
 
 /** True for the paths this module serves (the DSA catch-all also serves the week plan). */
@@ -302,9 +382,12 @@ const writers: Record<LabKey, (req: Request, segments: string[]) => Promise<Resp
   dsa: withNeonSync(dispatchLab('dsa')),
   cv: withNeonSync(dispatchLab('cv')),
   'system-design': withNeonSync(dispatchLab('system-design')),
+  communication: withNeonSync(dispatchLab('communication')),
+  finance: withNeonSync(dispatchLab('finance')),
+  python: withNeonSync(dispatchLab('python')),
 };
 
-/** Entry point for src/app/api/{dsa,cv,system-design}/[...path]/route.ts. */
+/** Entry point for src/app/api/{dsa,cv,system-design,communication,finance,python}/[...path]/route.ts. */
 export function handleLabTopics(key: LabKey, req: Request, segments: string[]): Promise<Response> {
   return req.method === 'GET' ? dispatchLab(key)(req, segments) : writers[key](req, segments);
 }

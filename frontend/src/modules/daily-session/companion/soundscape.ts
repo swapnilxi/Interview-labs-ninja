@@ -11,18 +11,19 @@ export type SoundscapeId = 'off' | 'om' | 'alpha' | 'theta' | 'gamma' | 'calm432
 export interface SoundscapeInfo {
   id: SoundscapeId;
   label: string;
-  emoji: string;
+  /** A FlatIcon name (components/ui/FlatIcon). */
+  icon: 'mute' | 'music' | 'cloud' | 'night' | 'quick' | 'bell';
   hint: string;
   headphones?: boolean;
 }
 
 export const SOUNDSCAPES: SoundscapeInfo[] = [
-  { id: 'off', label: 'Silence', emoji: '🔇', hint: 'No background sound' },
-  { id: 'om', label: 'Om drone', emoji: '🕉️', hint: 'Deep 136.1 Hz "Om" tone with a soft fifth. Grounding.' },
-  { id: 'alpha', label: 'Calm focus', emoji: '🪷', hint: '10 Hz alpha binaural beat. Relaxed alertness.', headphones: true },
-  { id: 'theta', label: 'Deep theta', emoji: '🌙', hint: '6 Hz theta binaural beat. Slow, meditative.', headphones: true },
-  { id: 'gamma', label: 'Gamma spark', emoji: '⚡', hint: '40 Hz binaural beat. Bright, high-frequency focus.', headphones: true },
-  { id: 'calm432', label: '432 Hz pad', emoji: '🔔', hint: 'Warm 432 Hz pad with gentle shimmer. Works on speakers.' },
+  { id: 'off', label: 'Silence', icon: 'mute', hint: 'No background sound' },
+  { id: 'om', label: 'Om drone', icon: 'music', hint: 'Deep 136.1 Hz "Om" tone with a soft fifth. Grounding.' },
+  { id: 'alpha', label: 'Calm focus', icon: 'cloud', hint: '10 Hz alpha binaural beat. Relaxed alertness.', headphones: true },
+  { id: 'theta', label: 'Deep theta', icon: 'night', hint: '6 Hz theta binaural beat. Slow, meditative.', headphones: true },
+  { id: 'gamma', label: 'Gamma spark', icon: 'quick', hint: '40 Hz binaural beat. Bright, high-frequency focus.', headphones: true },
+  { id: 'calm432', label: '432 Hz pad', icon: 'bell', hint: 'Warm 432 Hz pad with gentle shimmer. Works on speakers.' },
 ];
 
 interface Engine {

@@ -89,6 +89,9 @@ export default function LabGuideModal({
     { key: 'dsa', label: 'DSA Lab', icon: 'CodeBracketIcon' },
     { key: 'cv', label: 'CV Lab', icon: 'EyeIcon' },
     { key: 'system_design', label: 'System Design', icon: 'ServerStackIcon' },
+    { key: 'communication', label: 'Communication', icon: 'ChatBubbleOvalLeftEllipsisIcon' },
+    { key: 'finance', label: 'Finance', icon: 'BanknotesIcon' },
+    { key: 'python', label: 'Python', icon: 'CommandLineIcon' },
     { key: 'labs_project', label: 'Labs Project', icon: 'FolderOpenIcon' },
   ];
 

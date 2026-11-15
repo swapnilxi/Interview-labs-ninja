@@ -1,4 +1,4 @@
-export type LabGuideKey = 'dsa' | 'cv' | 'system_design' | 'labs_project';
+export type LabGuideKey = 'dsa' | 'cv' | 'system_design' | 'communication' | 'finance' | 'python' | 'labs_project';
 
 export interface GuideStep {
   number: number;
@@ -328,6 +328,186 @@ export const LAB_GUIDES: Record<LabGuideKey, LabGuideItem> = {
         answer:
           'Yes! Use the "Add category / section" row in the sidebar to add any system (e.g., "Real-time Stock Ticker" or "IoT Telemetry Ingestion").',
       },
+    ],
+  },
+  communication: {
+    key: 'communication',
+    name: 'Communication Lab',
+    shortName: 'Communication',
+    tagline: 'Business English, effective communication and leadership, practised on real workplace situations.',
+    icon: 'ChatBubbleOvalLeftEllipsisIcon',
+    accentVar: 'var(--lab-communication, #b03a7a)',
+    accentBg: 'rgba(176, 58, 122, 0.12)',
+    overview:
+      'Communication Lab helps you say things clearly and confidently at work. It moves from Business English (emails, meetings, presentations, negotiation) through everyday communication skills (listening, structure, storytelling, feedback, difficult conversations) to leadership (coaching, delegation, decisions, change and executive communication). Every lesson is written for you on demand, with phrases, worked examples, role-plays and a quiz.',
+    quickSteps: [
+      {
+        number: 1,
+        title: 'Pick a lesson from the three tracks',
+        summary: 'Business English, Effective Communication and Leadership.',
+        icon: 'RectangleStackIcon',
+        details: [
+          'Business English: register, grammar at work, emails, meetings, small talk, presenting and negotiating.',
+          'Effective Communication: listening, the Pyramid Principle, storytelling, feedback, persuasion and conflict.',
+          'Leadership: one-on-ones, delegation, motivation, decisions, leading change and leadership interviews.',
+        ],
+      },
+      {
+        number: 2,
+        title: 'Generate the sections you need',
+        summary: 'Each section is written by the AI for the open lesson.',
+        icon: 'SparklesIcon',
+        details: [
+          'Useful Phrases gives a say-this / avoid-this table with the formality of each phrase.',
+          'Worked Examples shows a weak and a strong version side by side and explains what changed.',
+          'Practice Scenarios gives role-plays with a model answer and the curveballs to expect.',
+        ],
+      },
+      {
+        number: 3,
+        title: 'Practise with the copilot',
+        summary: 'Use the copilot on the right to rehearse or check your wording.',
+        icon: 'ChatBubbleLeftRightIcon',
+        details: [
+          'Paste a draft email or message and ask how to make it clearer or more polite.',
+          'Ask it to play your manager or a client and reply to your answer.',
+        ],
+      },
+    ],
+    sectionsExplained: [
+      { name: 'Frameworks & Structure', icon: 'RectangleGroupIcon', purpose: 'Repeatable structures such as STAR, SBI, BLUF, SCQA and GROW, with an example per step.', proTip: 'Learn one framework per week and use it in a real message the same day.' },
+      { name: 'Useful Phrases & Vocabulary', icon: 'ChatBubbleBottomCenterTextIcon', purpose: 'Phrases to use and to avoid, with formality levels and idioms explained.', proTip: 'Turn on the "Simple English" add-on in Lab Settings if English is not your first language.' },
+      { name: 'Practice Scenarios', icon: 'UserGroupIcon', purpose: 'Role-plays of rising difficulty with model answers and follow-up curveballs.', proTip: 'Say your answer out loud before reading the model answer.' },
+      { name: 'Daily Drills & Self-Check', icon: 'CalendarDaysIcon', purpose: 'A 7-day plan of short drills and a rubric to rate yourself.', proTip: 'Mark the lesson complete only after a week of drills.' },
+    ],
+    powerTips: [
+      'Lab Settings: tell the lab your role, company type and English level once, and every section is tailored to it.',
+      'Prompt add-ons: "Startup & Tech Team" or "Corporate & Formal" change the setting of every example.',
+      'Labs Project: save the phrases and scripts you like to a project, for example an upcoming promotion conversation.',
+    ],
+    faqs: [
+      { question: 'Is this only for non-native English speakers?', answer: 'No. The Business English track helps non-native speakers most, while the Effective Communication and Leadership tracks are useful for everyone.' },
+      { question: 'Can I practise a real conversation I have coming up?', answer: 'Yes. Open the closest lesson, use the pen on Practice Scenarios and describe your situation; the scenarios are rewritten around it.' },
+    ],
+  },
+  finance: {
+    key: 'finance',
+    name: 'Finance Lab',
+    shortName: 'Finance',
+    tagline: 'Finance for beginners, from money basics to using AI in finance.',
+    icon: 'BanknotesIcon',
+    accentVar: 'var(--lab-finance, #2563a8)',
+    accentBg: 'rgba(37, 99, 168, 0.12)',
+    overview:
+      'Finance Lab assumes no background. It starts with what money, interest and risk are, moves through personal finance, markets and company financial statements, then teaches the Python, statistics and machine learning used in finance, and ends with LLMs, RAG and AI agents applied to financial work. Every lesson explains terms in plain English, works through numbers step by step, shows a spreadsheet and a Python version, and explains where AI fits. It is education, not financial advice.',
+    quickSteps: [
+      {
+        number: 1,
+        title: 'Follow the path in order',
+        summary: 'Basics, personal finance, markets, business finance, then data, ML and AI.',
+        icon: 'MapIcon',
+        details: [
+          'Finance Basics and Personal Finance need only percentages and a calculator.',
+          'Markets & Investing and Business Finance add valuation, portfolios and financial statements.',
+          'Data & Python, Machine Learning and AI & LLMs in Finance teach you to build with finance data.',
+        ],
+      },
+      {
+        number: 2,
+        title: 'Learn each idea three ways',
+        summary: 'Plain-English concepts, worked numbers, then a spreadsheet and Python.',
+        icon: 'SparklesIcon',
+        details: [
+          'Formulas & Worked Numbers uses small round numbers so you can follow every step.',
+          'Spreadsheet Walkthrough gives the exact Excel / Google Sheets formula for each cell.',
+          'Python Hands-On gives a short runnable example with sample data defined in the code.',
+        ],
+      },
+      {
+        number: 3,
+        title: 'See where AI fits',
+        summary: 'Every lesson has a "How AI Is Used Here" section.',
+        icon: 'CpuChipIcon',
+        details: [
+          'Real use cases: credit scoring, fraud detection, forecasting, research assistants.',
+          'A small project to build for each lesson, and the main risk of each use.',
+        ],
+      },
+    ],
+    sectionsExplained: [
+      { name: 'Key Concepts in Plain English', icon: 'LightBulbIcon', purpose: 'Every term defined in one sentence with an everyday analogy.', proTip: 'Read this before anything else in a lesson.' },
+      { name: 'Formulas & Worked Numbers', icon: 'CalculatorIcon', purpose: 'The formula, what each symbol means and a step-by-step example.', proTip: 'Redo the example with your own numbers in the spreadsheet section.' },
+      { name: 'Python Hands-On', icon: 'CodeBracketIcon', purpose: 'Beginner-friendly code with sample data and the expected output.', proTip: 'Run it in Google Colab: nothing to install.' },
+      { name: 'How AI Is Used Here', icon: 'SparklesIcon', purpose: 'Concrete AI and ML use cases, a practice project and the limits of each.', proTip: 'Collect the practice projects into a Labs Project as your portfolio plan.' },
+    ],
+    powerTips: [
+      'Prompt add-ons: pick "Indian Context (₹)" or "US Context ($)" so examples use your country\'s accounts and markets.',
+      'Lab Settings: say how much Python you know once, and the code sections adapt.',
+      'The Projects category at the end combines everything into five portfolio projects.',
+    ],
+    faqs: [
+      { question: 'Do I need to know Python first?', answer: 'No. The first four categories need no code. Before the Data & Python lessons, the Python Lab\'s basics track is a good warm-up.' },
+      { question: 'Is this investment advice?', answer: 'No. Everything here is general education. Figures in examples are approximate and dated, and nothing is a recommendation to buy or sell.' },
+    ],
+  },
+  python: {
+    key: 'python',
+    name: 'Python Lab',
+    shortName: 'Python',
+    tagline: 'Python from your first program to professional, data and AI code.',
+    icon: 'CommandLineIcon',
+    accentVar: 'var(--lab-python, #6d4fc2)',
+    accentBg: 'rgba(109, 79, 194, 0.12)',
+    overview:
+      'Python Lab takes you from installing Python to writing professional code. It covers the basics, data structures, functions and modules, object-oriented Python, files and data, testing and tooling, and advanced topics like concurrency and internals, then finishes with NumPy, pandas, machine learning and building AI apps. Each lesson has annotated examples with their output, an under-the-hood explanation, exercises with solutions and a predict-the-output quiz.',
+    quickSteps: [
+      {
+        number: 1,
+        title: 'Start where you are',
+        summary: 'Nine categories from Python Basics to Python for Data & AI.',
+        icon: 'RectangleStackIcon',
+        details: [
+          'New to programming: start at Getting Started with Python and go in order.',
+          'Know the basics: jump to Functions & Modules or Object-Oriented Python.',
+          'Heading for AI work: NumPy & pandas, Python for Machine Learning and Building AI Apps.',
+        ],
+      },
+      {
+        number: 2,
+        title: 'Read, run, then practise',
+        summary: 'Examples with output, then exercises with solutions.',
+        icon: 'CodeBracketIcon',
+        details: [
+          'Syntax & Examples shows the exact output of each snippet so you can check yourself.',
+          'How It Works Under the Hood explains references, protocols and cost.',
+          'Hands-On Exercises go from easy to hard, each with a hint and a solution.',
+        ],
+      },
+      {
+        number: 3,
+        title: 'Test yourself',
+        summary: 'Predict-the-output and spot-the-bug quiz questions.',
+        icon: 'TrophyIcon',
+        details: [
+          'Generate more quiz questions at any time; ones you have seen are not repeated.',
+          'Ask the copilot to explain any snippet you got wrong.',
+        ],
+      },
+    ],
+    sectionsExplained: [
+      { name: 'Syntax & Examples', icon: 'CodeBracketIcon', purpose: 'Runnable examples that build on each other, with their output.', proTip: 'Type the examples yourself instead of copying them.' },
+      { name: 'How It Works Under the Hood', icon: 'CpuChipIcon', purpose: 'Objects, references, protocols and the cost of each operation.', proTip: 'This is what separates a working answer from a strong one in interviews.' },
+      { name: 'Common Mistakes & Gotchas', icon: 'BugAntIcon', purpose: 'The bugs beginners hit, with a snippet that shows each one and the fix.', proTip: 'Mutable defaults and late-binding closures show up in many interviews.' },
+      { name: 'Pythonic Style & Best Practices', icon: 'SparklesIcon', purpose: 'Before/after idioms and PEP 8 conventions.', proTip: 'Pair it with the Code Quality & Tooling lesson to automate the style.' },
+    ],
+    powerTips: [
+      'Prompt add-ons: "Type Hints Everywhere" or "Test-Driven" change every code example in the lab.',
+      'The DSA Lab is the next step once you are comfortable with Data Structures and Functions.',
+      'Finance Lab\'s Data & Python lessons are a good applied project track after Python for Data & AI.',
+    ],
+    faqs: [
+      { question: 'Which Python version does the lab use?', answer: 'Modern Python 3 (3.11 or newer). Ask in the copilot or add a standing context in Lab Settings if you are on an older version.' },
+      { question: 'Where do I run the code?', answer: 'Any Python 3 install, VS Code, Jupyter, or Google Colab in the browser. The Getting Started lesson walks through the setup.' },
     ],
   },
   labs_project: {

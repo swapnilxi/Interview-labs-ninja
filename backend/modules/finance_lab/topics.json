@@ -1,0 +1,381 @@
+[
+  {
+    "id": "what-is-finance",
+    "name": "What Is Finance?",
+    "brief": "Money, assets and the three areas of finance, explained from zero.",
+    "category": "Finance Basics",
+    "difficulty": "Easy",
+    "prerequisites": ["Basic arithmetic and percentages"],
+    "subtopics": [
+      {"id": "fin-money-basics", "name": "Income, Expenses & Savings", "brief": "Where money comes from, where it goes and what is left."},
+      {"id": "fin-assets-liabilities", "name": "Assets, Liabilities & Net Worth", "brief": "What you own, what you owe and the difference."},
+      {"id": "fin-three-areas", "name": "Personal, Corporate & Public Finance", "brief": "The same ideas applied to people, companies and governments."}
+    ]
+  },
+  {
+    "id": "time-value-of-money",
+    "name": "Time Value of Money",
+    "brief": "Why money today is worth more than the same money next year.",
+    "category": "Finance Basics",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["What Is Finance?"],
+    "subtopics": [
+      {"id": "fin-simple-compound", "name": "Simple vs Compound Interest", "brief": "Interest on the original amount vs interest on interest."},
+      {"id": "fin-pv-fv", "name": "Present Value & Future Value", "brief": "Moving money backwards and forwards in time."},
+      {"id": "fin-annuities", "name": "Annuities & Loan Payments", "brief": "Equal payments over time: EMIs, mortgages and pensions."}
+    ]
+  },
+  {
+    "id": "interest-inflation",
+    "name": "Interest Rates & Inflation",
+    "brief": "How prices rise, how rates are set and what that does to your money.",
+    "category": "Finance Basics",
+    "difficulty": "Easy",
+    "prerequisites": ["What Is Finance?"],
+    "subtopics": [
+      {"id": "fin-nominal-real", "name": "Nominal vs Real Returns", "brief": "A 7% return with 5% inflation is really about 2%."},
+      {"id": "fin-central-banks", "name": "How Central Banks Set Rates", "brief": "Policy rates and how they reach loans and savings."},
+      {"id": "fin-cpi", "name": "Measuring Inflation (CPI)", "brief": "The basket of goods behind the inflation number."}
+    ]
+  },
+  {
+    "id": "risk-and-return",
+    "name": "Risk & Return",
+    "brief": "Why higher expected returns come with bigger ups and downs.",
+    "category": "Finance Basics",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Time Value of Money"],
+    "subtopics": [
+      {"id": "fin-return-calc", "name": "Calculating Returns", "brief": "Percent change, annualised returns and CAGR."},
+      {"id": "fin-volatility", "name": "Volatility & Standard Deviation", "brief": "Measuring how much returns jump around."},
+      {"id": "fin-diversification", "name": "Diversification", "brief": "Why holding many things lowers risk."}
+    ]
+  },
+  {
+    "id": "budgeting-saving",
+    "name": "Budgeting & Saving",
+    "brief": "Plan where your money goes and build a safety net.",
+    "category": "Personal Finance",
+    "difficulty": "Easy",
+    "prerequisites": ["What Is Finance?"],
+    "subtopics": [
+      {"id": "fin-budget-50-30-20", "name": "The 50/30/20 Budget", "brief": "Needs, wants and savings as a simple starting split."},
+      {"id": "fin-emergency-fund", "name": "Emergency Funds", "brief": "How much to keep aside and where."},
+      {"id": "fin-tracking", "name": "Tracking Your Spending", "brief": "Categories, apps and a simple spreadsheet."}
+    ]
+  },
+  {
+    "id": "debt-and-credit",
+    "name": "Debt, Credit & Loans",
+    "brief": "Borrow wisely, understand credit scores and pay debt down.",
+    "category": "Personal Finance",
+    "difficulty": "Easy",
+    "prerequisites": ["Time Value of Money"],
+    "subtopics": [
+      {"id": "fin-credit-score", "name": "How Credit Scores Work", "brief": "What raises and lowers your score."},
+      {"id": "fin-loan-types", "name": "Types of Loans & APR", "brief": "Credit cards, personal loans, mortgages and the true cost of each."},
+      {"id": "fin-debt-payoff", "name": "Paying Off Debt: Avalanche vs Snowball", "brief": "Highest rate first or smallest balance first."}
+    ]
+  },
+  {
+    "id": "investing-basics",
+    "name": "Investing for Beginners",
+    "brief": "Start investing with index funds, a sensible mix and time on your side.",
+    "category": "Personal Finance",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Risk & Return", "Budgeting & Saving"],
+    "subtopics": [
+      {"id": "fin-index-funds", "name": "Index Funds & ETFs", "brief": "Owning the whole market cheaply."},
+      {"id": "fin-asset-allocation", "name": "Asset Allocation", "brief": "Splitting money between stocks, bonds and cash."},
+      {"id": "fin-retirement", "name": "Retirement Accounts & Long-Term Compounding", "brief": "Tax-advantaged accounts and starting early."}
+    ]
+  },
+  {
+    "id": "financial-markets",
+    "name": "How Financial Markets Work",
+    "brief": "Stocks, bonds, exchanges and how a trade actually happens.",
+    "category": "Markets & Investing",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Investing for Beginners"],
+    "subtopics": [
+      {"id": "fin-stocks", "name": "Stocks & Stock Exchanges", "brief": "Owning a small piece of a company."},
+      {"id": "fin-bonds", "name": "Bonds & Yields", "brief": "Lending money to a company or government, and why prices move against yields."},
+      {"id": "fin-orders", "name": "Orders, Bid-Ask Spread & Liquidity", "brief": "Market vs limit orders and the cost of trading."}
+    ]
+  },
+  {
+    "id": "stock-valuation",
+    "name": "Stock Valuation Basics",
+    "brief": "How investors decide whether a stock is cheap or expensive.",
+    "category": "Markets & Investing",
+    "difficulty": "Medium",
+    "prerequisites": ["How Financial Markets Work", "Reading Financial Statements"],
+    "subtopics": [
+      {"id": "fin-pe-ratio", "name": "P/E and Other Valuation Ratios", "brief": "Price compared with earnings, sales and book value."},
+      {"id": "fin-dcf-intro", "name": "Intro to Discounted Cash Flow (DCF)", "brief": "Valuing a business by its future cash."},
+      {"id": "fin-growth-value", "name": "Growth vs Value Investing", "brief": "Two styles and what each one bets on."}
+    ]
+  },
+  {
+    "id": "portfolio-theory",
+    "name": "Portfolio Theory",
+    "brief": "Combine investments to get the most return for the risk you take.",
+    "category": "Markets & Investing",
+    "difficulty": "Medium",
+    "prerequisites": ["Risk & Return"],
+    "subtopics": [
+      {"id": "fin-mpt", "name": "Modern Portfolio Theory & the Efficient Frontier", "brief": "The best possible mixes of risk and return."},
+      {"id": "fin-sharpe", "name": "The Sharpe Ratio", "brief": "Return earned per unit of risk."},
+      {"id": "fin-capm", "name": "CAPM & Beta", "brief": "How sensitive a stock is to the whole market."}
+    ]
+  },
+  {
+    "id": "derivatives-intro",
+    "name": "Derivatives for Beginners",
+    "brief": "Options and futures: what they are and why people use them.",
+    "category": "Markets & Investing",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["How Financial Markets Work"],
+    "subtopics": [
+      {"id": "fin-options", "name": "Options: Calls & Puts", "brief": "The right, not the obligation, to buy or sell."},
+      {"id": "fin-futures", "name": "Futures & Forwards", "brief": "Agreeing today on a price for later."},
+      {"id": "fin-hedging", "name": "Hedging with Derivatives", "brief": "Using derivatives to reduce risk, not add it."}
+    ]
+  },
+  {
+    "id": "financial-statements",
+    "name": "Reading Financial Statements",
+    "brief": "Read the three statements every company publishes.",
+    "category": "Business Finance",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["What Is Finance?"],
+    "subtopics": [
+      {"id": "fin-income-statement", "name": "The Income Statement", "brief": "Revenue, costs and profit over a period."},
+      {"id": "fin-balance-sheet", "name": "The Balance Sheet", "brief": "Assets = Liabilities + Equity at a point in time."},
+      {"id": "fin-cash-flow", "name": "The Cash Flow Statement", "brief": "Why profit and cash are not the same."}
+    ]
+  },
+  {
+    "id": "financial-ratios",
+    "name": "Financial Ratio Analysis",
+    "brief": "Turn financial statements into a quick health check.",
+    "category": "Business Finance",
+    "difficulty": "Medium",
+    "prerequisites": ["Reading Financial Statements"],
+    "subtopics": [
+      {"id": "fin-profitability", "name": "Profitability Ratios", "brief": "Margins, ROE and ROA."},
+      {"id": "fin-liquidity", "name": "Liquidity & Solvency Ratios", "brief": "Can the company pay its bills and its debts?"},
+      {"id": "fin-efficiency", "name": "Efficiency Ratios", "brief": "How well a company uses its assets and inventory."}
+    ]
+  },
+  {
+    "id": "corporate-finance",
+    "name": "Corporate Finance Essentials",
+    "brief": "How companies decide what to invest in and how to pay for it.",
+    "category": "Business Finance",
+    "difficulty": "Medium",
+    "prerequisites": ["Time Value of Money", "Reading Financial Statements"],
+    "subtopics": [
+      {"id": "fin-npv-irr", "name": "NPV & IRR", "brief": "Deciding whether a project is worth doing."},
+      {"id": "fin-wacc", "name": "Cost of Capital (WACC)", "brief": "The return a company must earn to satisfy its investors."},
+      {"id": "fin-capital-structure", "name": "Debt vs Equity Funding", "brief": "Borrowing vs selling shares to raise money."}
+    ]
+  },
+  {
+    "id": "python-for-finance",
+    "name": "Python for Finance",
+    "brief": "Load, analyse and plot price data with pandas, starting from basic Python.",
+    "category": "Data & Python for Finance",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Basic Python (variables, lists, functions)", "Risk & Return"],
+    "subtopics": [
+      {"id": "fin-py-pandas", "name": "pandas for Price Data", "brief": "DataFrames, dates as an index and selecting columns."},
+      {"id": "fin-py-returns", "name": "Returns & Moving Averages in pandas", "brief": "pct_change, rolling windows and cumulative returns."},
+      {"id": "fin-py-plotting", "name": "Plotting Prices & Returns", "brief": "Line charts and histograms with matplotlib."}
+    ]
+  },
+  {
+    "id": "financial-data",
+    "name": "Financial Data Sources & Cleaning",
+    "brief": "Where financial data comes from and how to keep it honest.",
+    "category": "Data & Python for Finance",
+    "difficulty": "Medium",
+    "prerequisites": ["Python for Finance"],
+    "subtopics": [
+      {"id": "fin-data-sources", "name": "Where Financial Data Comes From", "brief": "Market data APIs, company filings and economic data."},
+      {"id": "fin-data-cleaning", "name": "Missing Data, Splits & Adjusted Prices", "brief": "Fixing gaps and corporate actions."},
+      {"id": "fin-data-bias", "name": "Survivorship & Look-ahead Bias", "brief": "Two mistakes that make results look better than they are."}
+    ]
+  },
+  {
+    "id": "statistics-for-finance",
+    "name": "Statistics for Finance",
+    "brief": "The statistics you need before building any model.",
+    "category": "Data & Python for Finance",
+    "difficulty": "Medium",
+    "prerequisites": ["Python for Finance"],
+    "subtopics": [
+      {"id": "fin-stat-distributions", "name": "Return Distributions & Fat Tails", "brief": "Why big market moves happen more often than a bell curve says."},
+      {"id": "fin-stat-correlation", "name": "Correlation & Covariance", "brief": "How two assets move together."},
+      {"id": "fin-stat-regression", "name": "Linear Regression", "brief": "Fitting a line, and what beta really is."}
+    ]
+  },
+  {
+    "id": "time-series-basics",
+    "name": "Time Series Basics",
+    "brief": "Model data that arrives in order: prices, sales and rates.",
+    "category": "Data & Python for Finance",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Statistics for Finance"],
+    "subtopics": [
+      {"id": "fin-ts-stationarity", "name": "Trend, Seasonality & Stationarity", "brief": "The patterns inside a time series."},
+      {"id": "fin-ts-arima", "name": "ARIMA Models", "brief": "A classic forecasting model, step by step."},
+      {"id": "fin-ts-garch", "name": "Volatility Models (GARCH)", "brief": "Forecasting how risky tomorrow will be."}
+    ]
+  },
+  {
+    "id": "backtesting",
+    "name": "Backtesting a Strategy",
+    "brief": "Test a trading idea on past data without fooling yourself.",
+    "category": "Data & Python for Finance",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Python for Finance", "Financial Data Sources & Cleaning"],
+    "subtopics": [
+      {"id": "fin-bt-sma", "name": "A Simple Moving-Average Strategy", "brief": "Your first backtest in about 30 lines of pandas."},
+      {"id": "fin-bt-metrics", "name": "Performance Metrics: CAGR, Drawdown, Sharpe", "brief": "Judging a strategy by more than its return."},
+      {"id": "fin-bt-pitfalls", "name": "Overfitting & Transaction Costs", "brief": "Why great backtests often fail in real trading."}
+    ]
+  },
+  {
+    "id": "ml-in-finance-intro",
+    "name": "Introduction to Machine Learning in Finance",
+    "brief": "How machine learning is applied to financial data, and how it differs from other data.",
+    "category": "Machine Learning in Finance",
+    "difficulty": "Medium",
+    "prerequisites": ["Python for Finance", "Statistics for Finance"],
+    "subtopics": [
+      {"id": "fin-ml-workflow", "name": "The ML Workflow on Financial Data", "brief": "Question, data, features, model, evaluation, decision."},
+      {"id": "fin-ml-features", "name": "Feature Engineering for Prices & Transactions", "brief": "Turning raw data into useful model inputs."},
+      {"id": "fin-ml-splits", "name": "Train/Test Splits for Time Series", "brief": "Why you never shuffle financial time series."}
+    ]
+  },
+  {
+    "id": "credit-risk-ml",
+    "name": "Credit Risk Scoring",
+    "brief": "Predict who will repay a loan, and explain the decision.",
+    "category": "Machine Learning in Finance",
+    "difficulty": "Medium",
+    "prerequisites": ["Introduction to Machine Learning in Finance", "Debt, Credit & Loans"],
+    "subtopics": [
+      {"id": "fin-cr-logistic", "name": "Logistic Regression for Default Prediction", "brief": "The classic, explainable credit model."},
+      {"id": "fin-cr-boosting", "name": "Gradient Boosting Models", "brief": "XGBoost and LightGBM for tabular credit data."},
+      {"id": "fin-cr-fairness", "name": "Explainability & Fair Lending", "brief": "Reason codes, SHAP and avoiding discrimination."}
+    ]
+  },
+  {
+    "id": "fraud-detection",
+    "name": "Fraud & Anomaly Detection",
+    "brief": "Spot unusual transactions when fraud is rare.",
+    "category": "Machine Learning in Finance",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Introduction to Machine Learning in Finance"],
+    "subtopics": [
+      {"id": "fin-fraud-imbalance", "name": "Imbalanced Data", "brief": "When only 1 in 1,000 transactions is fraud."},
+      {"id": "fin-fraud-isolation", "name": "Isolation Forest & Anomaly Scores", "brief": "Finding the odd ones out without labels."},
+      {"id": "fin-fraud-realtime", "name": "Real-Time Fraud Scoring", "brief": "Scoring a card payment in milliseconds."}
+    ]
+  },
+  {
+    "id": "forecasting-ml",
+    "name": "Forecasting with Machine Learning",
+    "brief": "Use ML models to forecast returns, sales or risk, and know their limits.",
+    "category": "Machine Learning in Finance",
+    "difficulty": "Hard",
+    "prerequisites": ["Time Series Basics", "Introduction to Machine Learning in Finance"],
+    "subtopics": [
+      {"id": "fin-fc-trees", "name": "Tree Models for Return Prediction", "brief": "Random forests and boosting on lagged features."},
+      {"id": "fin-fc-lstm", "name": "LSTMs & Deep Learning for Sequences", "brief": "Neural networks that read data in order."},
+      {"id": "fin-fc-limits", "name": "Why Markets Are Hard to Predict", "brief": "Noise, efficient markets and regime changes."}
+    ]
+  },
+  {
+    "id": "llms-in-finance",
+    "name": "LLMs in Finance",
+    "brief": "Where large language models help in finance, and where they must not be trusted alone.",
+    "category": "AI & LLMs in Finance",
+    "difficulty": "Medium",
+    "prerequisites": ["What Is Finance?", "Basic Python (variables, lists, functions)"],
+    "subtopics": [
+      {"id": "fin-llm-uses", "name": "Where LLMs Help", "brief": "Research summaries, report drafting and customer support."},
+      {"id": "fin-llm-prompting", "name": "Prompting for Financial Analysis", "brief": "Giving the model data, a role and a format."},
+      {"id": "fin-llm-hallucination", "name": "Hallucinations & Checking the Numbers", "brief": "Never let a model do the maths unchecked."}
+    ]
+  },
+  {
+    "id": "sentiment-nlp",
+    "name": "News & Sentiment Analysis",
+    "brief": "Measure the mood of news, filings and earnings calls.",
+    "category": "AI & LLMs in Finance",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["LLMs in Finance", "Python for Finance"],
+    "subtopics": [
+      {"id": "fin-nlp-sentiment", "name": "Sentiment from News & Earnings Calls", "brief": "Positive, negative or neutral, and how to score it."},
+      {"id": "fin-nlp-finbert", "name": "FinBERT & Domain Models", "brief": "Why finance language needs finance-trained models."},
+      {"id": "fin-nlp-signals", "name": "Turning Sentiment into Signals", "brief": "Testing whether sentiment actually predicts anything."}
+    ]
+  },
+  {
+    "id": "rag-financial-documents",
+    "name": "RAG over Financial Documents",
+    "brief": "Build an assistant that answers questions from annual reports, with sources.",
+    "category": "AI & LLMs in Finance",
+    "difficulty": "Hard",
+    "prerequisites": ["LLMs in Finance", "Reading Financial Statements"],
+    "subtopics": [
+      {"id": "fin-rag-chunking", "name": "Chunking & Embedding Annual Reports", "brief": "Splitting long filings into searchable pieces."},
+      {"id": "fin-rag-qa", "name": "Question Answering over Filings", "brief": "Retrieve, then answer with citations."},
+      {"id": "fin-rag-eval", "name": "Evaluating Answers & Citations", "brief": "Checking that answers are correct and grounded."}
+    ]
+  },
+  {
+    "id": "ai-agents-finance",
+    "name": "AI Agents in Finance",
+    "brief": "LLMs that use tools like calculators and data APIs, with a human in charge.",
+    "category": "AI & LLMs in Finance",
+    "difficulty": "Hard",
+    "prerequisites": ["RAG over Financial Documents"],
+    "subtopics": [
+      {"id": "fin-agent-tools", "name": "Agents with Tools", "brief": "Giving a model a calculator and a data API."},
+      {"id": "fin-agent-research", "name": "An Automated Research Assistant", "brief": "From a question to a sourced one-page brief."},
+      {"id": "fin-agent-guardrails", "name": "Guardrails & Human Review", "brief": "Limits, logging and approval before anything is acted on."}
+    ]
+  },
+  {
+    "id": "responsible-ai-finance",
+    "name": "Responsible AI & Regulation",
+    "brief": "Fairness, explainability and the rules for AI in financial services.",
+    "category": "AI & LLMs in Finance",
+    "difficulty": "Medium",
+    "prerequisites": ["Credit Risk Scoring"],
+    "subtopics": [
+      {"id": "fin-rai-bias", "name": "Bias & Fairness in Financial Models", "brief": "How models can treat groups unfairly, and how to test for it."},
+      {"id": "fin-rai-explain", "name": "Explainability Requirements", "brief": "Explaining a model's decision to a customer or regulator."},
+      {"id": "fin-rai-model-risk", "name": "Model Risk Management", "brief": "Validating, monitoring and documenting models."}
+    ]
+  },
+  {
+    "id": "finance-ai-projects",
+    "name": "End-to-End Projects",
+    "brief": "Beginner-to-advanced projects that combine finance and AI.",
+    "category": "Projects",
+    "difficulty": "Mixed",
+    "prerequisites": ["Python for Finance", "Introduction to Machine Learning in Finance"],
+    "subtopics": [
+      {"id": "fin-proj-budget", "name": "Build a Personal Budget Analyzer [Easy]", "brief": "Categorise bank transactions and chart spending."},
+      {"id": "fin-proj-portfolio", "name": "Build a Portfolio Tracker & Risk Dashboard [Medium]", "brief": "Returns, volatility and Sharpe for your own holdings."},
+      {"id": "fin-proj-credit", "name": "Build a Credit Default Predictor [Medium]", "brief": "Train, evaluate and explain a credit model."},
+      {"id": "fin-proj-sentiment", "name": "Build a News Sentiment Signal [Hard]", "brief": "Score headlines and test them against returns."},
+      {"id": "fin-proj-rag", "name": "Build a Chat-with-Annual-Report Assistant [Hard]", "brief": "RAG over a company filing with cited answers."}
+    ]
+  }
+]

@@ -26,7 +26,7 @@ export type AIProvider = (typeof AI_PROVIDERS)[number];
 export const PROVIDER_DEFAULT_MODELS: Record<AIProvider, string> = {
   gemini: 'gemini-flash-latest',
   vertex: 'vertex_gemini_gemini-2.5-flash',
-  deepseek: 'deepseek-chat',
+  deepseek: 'deepseek-flash',
   groq: 'llama-3.3-70b-versatile',
   openai: 'gpt-4o-mini',
   anthropic: 'claude-sonnet-5',
@@ -35,7 +35,7 @@ export const PROVIDER_DEFAULT_MODELS: Record<AIProvider, string> = {
   custom: 'custom',
 };
 
-export const FALLBACK_MODEL = 'deepseek-chat';
+export const FALLBACK_MODEL = 'deepseek-flash';
 
 export interface AIDefaultInfo {
   provider: AIProvider | null;

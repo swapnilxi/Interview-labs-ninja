@@ -1,0 +1,756 @@
+/*
+ * Daily Session: Progress and Question bank tabs (the embedded progress-dashboard and question-bank modules).
+ * Scoped to .ds-skin, built on the tokens and classes in ../daily-session.css. Classes here start with `ins-`.
+ */
+
+/* ── Shared ───────────────────────────────────────────────────────────── */
+@keyframes ins-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.ds-skin .ins-skel {
+  border-radius: var(--ds-radius);
+  background: var(--color-fill);
+  animation: ins-pulse 1.4s ease-in-out infinite;
+}
+
+/* A card's own heading row: title + caption on the left, something small on the right. */
+.ds-skin .ins-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+}
+.ds-skin .ins-card-head h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  color: var(--ds-ink);
+}
+.ds-skin .ins-card-head p {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--ds-ink-3);
+}
+/* The heading row as the first row of a .ds-list card. */
+.ds-skin .ds-list > .ins-card-head {
+  padding: 1rem 1rem 0.6rem;
+}
+
+/* A dot in a series / category colour (legends, the difficulty mix). */
+.ds-skin .ins-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ds-ink-2);
+  white-space: nowrap;
+}
+.ds-skin .ins-key > i {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--t, var(--ds-ink-3));
+  flex-shrink: 0;
+}
+
+/* ── Progress: metric cards ───────────────────────────────────────────── */
+.ds-skin .ins-metric {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.95rem 1rem 1rem;
+}
+@media (min-width: 640px) {
+  .ds-skin .ins-metric {
+    padding: 1.1rem 1.2rem 1.15rem;
+  }
+}
+.ds-skin .ins-metric-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ds-ink-2);
+}
+.ds-skin .ins-metric-label .ds-icon-tile {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 8px;
+}
+.ds-skin .ins-metric-value {
+  margin-top: 0.85rem;
+  font-size: clamp(1.5rem, 1.25rem + 0.9vw, 1.9rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-ink);
+  white-space: nowrap;
+}
+.ds-skin .ins-metric-value small {
+  margin-left: 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ds-ink-3);
+}
+.ds-skin .ins-metric-value[data-empty='true'] {
+  color: var(--ds-ink-3);
+}
+.ds-skin .ins-metric-note {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--ds-ink-3);
+}
+
+/* ── Progress: chart ──────────────────────────────────────────────────── */
+.ds-skin .ins-chart {
+  height: 240px;
+}
+@media (min-width: 768px) {
+  .ds-skin .ins-chart {
+    height: 280px;
+  }
+}
+.ds-skin .ins-tooltip {
+  min-width: 10rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  background: var(--color-popover, var(--ds-surface));
+  border: 1px solid var(--ds-line-strong);
+  box-shadow: var(--ds-shadow-lg);
+}
+.ds-skin .ins-tooltip p {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--ds-ink-2);
+}
+.ds-skin .ins-tooltip p + p {
+  margin-top: 0.2rem;
+}
+.ds-skin .ins-tooltip b {
+  margin-left: auto;
+  padding-left: 0.75rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-ink);
+}
+.ds-skin .ins-chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 13rem;
+  padding: 1.5rem 1rem;
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface-2);
+  text-align: center;
+}
+.dark .ds-skin .ins-chart-empty {
+  background: color-mix(in srgb, var(--ds-ink) 4%, transparent);
+}
+
+/* ── Progress: rows with a bar (skills, difficulty) ───────────────────── */
+.ds-skin .ins-barrow {
+  align-items: flex-start;
+  padding-top: 0.85rem;
+  padding-bottom: 0.9rem;
+}
+.ds-skin .ins-barrow .ds-icon-tile {
+  margin-top: 0.1rem;
+}
+.ds-skin .ins-barrow-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.ds-skin .ins-barrow-name {
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ds-ink);
+}
+.ds-skin .ins-barrow-pct {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-ink);
+}
+.ds-skin .ins-barrow-pct[data-empty='true'] {
+  font-weight: 500;
+  color: var(--ds-ink-3);
+}
+.ds-skin .ins-barrow-note {
+  margin-top: 0.1rem;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-ink-3);
+}
+.ds-skin .ins-barrow .ds-track {
+  height: 0.375rem;
+  margin-top: 0.6rem;
+}
+
+/* ── Question bank: summary card ──────────────────────────────────────── */
+/* One track split into Easy / Medium / Hard, a 2px surface gap between the parts. */
+.ds-skin .ins-mix {
+  display: flex;
+  gap: 2px;
+  height: 0.5rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--ds-surface-2);
+}
+.dark .ds-skin .ins-mix {
+  background: var(--ds-line-strong);
+}
+.ds-skin .ins-mix > span {
+  background: var(--t);
+  min-width: 0.25rem;
+  transition: flex-grow 0.5s var(--ease-ios, ease);
+}
+.ds-skin .ins-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: var(--ds-gold);
+}
+.ds-skin .ins-stars svg[data-off='true'] {
+  color: var(--ds-line-strong);
+}
+.dark .ds-skin .ins-stars svg[data-off='true'] {
+  color: color-mix(in srgb, var(--ds-ink) 22%, transparent);
+}
+
+/* ── Question bank: toolbar ───────────────────────────────────────────── */
+.ds-skin .ins-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.ds-skin .ins-search > svg {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--ds-ink-3);
+  pointer-events: none;
+}
+.ds-skin .ins-search > input {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 2.6rem 0 2.45rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--color-fill);
+  color: var(--ds-ink);
+  font-size: 0.92rem;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.ds-skin .ins-search > input::placeholder {
+  color: var(--ds-ink-3);
+}
+.ds-skin .ins-search > input:focus {
+  outline: none;
+  border-color: var(--ds-indigo);
+  background: var(--ds-surface);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ds-indigo) 14%, transparent);
+}
+.ds-skin .ins-search > input::-webkit-search-cancel-button {
+  display: none;
+}
+.ds-skin .ins-search > button {
+  position: absolute;
+  right: 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 999px;
+  color: var(--ds-ink-3);
+}
+.ds-skin .ins-search > button:hover {
+  color: var(--ds-ink);
+}
+
+/* A pill-shaped menu button around a native <select> (the OS picker on phones). */
+.ds-skin .ins-select {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+.ds-skin .ins-select > select {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2.5rem;
+  max-width: 15rem;
+  padding: 0 2rem 0 0.95rem;
+  border-radius: 999px;
+  border: 0;
+  background: var(--color-fill);
+  color: var(--ds-ink);
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+.dark .ds-skin .ins-select > select {
+  color-scheme: dark;
+}
+.ds-skin .ins-select > select:hover {
+  background: var(--color-fill-strong);
+}
+.ds-skin .ins-select > select:focus-visible {
+  outline: 2px solid var(--ds-indigo);
+  outline-offset: 2px;
+}
+.ds-skin .ins-select[data-active='true'] > select {
+  background: var(--ds-indigo-soft);
+  color: var(--ds-indigo-ink);
+}
+.ds-skin .ins-select > svg {
+  position: absolute;
+  right: 0.75rem;
+  color: var(--ds-ink-3);
+  pointer-events: none;
+}
+.ds-skin .ins-select[data-active='true'] > svg {
+  color: var(--ds-indigo-ink);
+}
+.ds-skin .ins-select > svg.ins-lead {
+  right: auto;
+  left: 0.8rem;
+}
+.ds-skin .ins-select > svg.ins-lead ~ select,
+.ds-skin .ins-select > select.ins-has-lead {
+  padding-left: 2.1rem;
+}
+
+/* The filter pills: one line that scrolls sideways on a phone, wrapping from the tablet up. */
+.ds-skin .ins-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -1rem;
+  padding: 0.1rem 1rem;
+}
+@media (max-width: 639px) {
+  .ds-skin .ins-pills {
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent 0,
+      #000 1rem,
+      #000 calc(100% - 1.75rem),
+      transparent
+    );
+    mask-image: linear-gradient(
+      90deg,
+      transparent 0,
+      #000 1rem,
+      #000 calc(100% - 1.75rem),
+      transparent
+    );
+  }
+}
+.ds-skin .ins-pills::-webkit-scrollbar {
+  display: none;
+}
+@media (min-width: 640px) {
+  .ds-skin .ins-pills {
+    flex-wrap: wrap;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+}
+.ds-skin .ins-vrule {
+  flex-shrink: 0;
+  width: 1px;
+  height: 1.4rem;
+  margin: 0 0.15rem;
+  background: var(--ds-line-strong);
+}
+
+/* A round icon button (sort order, row actions). */
+.ds-skin .ins-icon-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  color: var(--ds-ink-3);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.ds-skin .ins-icon-btn:hover {
+  background: var(--color-fill);
+  color: var(--ds-ink);
+}
+.ds-skin .ins-icon-btn:focus-visible {
+  outline: 2px solid var(--ds-indigo);
+  outline-offset: -2px;
+}
+.ds-skin .ins-icon-btn[data-filled='true'] {
+  background: var(--color-fill);
+  color: var(--ds-ink);
+}
+.ds-skin .ins-icon-btn[data-filled='true']:hover {
+  background: var(--color-fill-strong);
+}
+.ds-skin .ins-icon-btn svg {
+  transition: transform 0.25s var(--ease-ios, ease);
+}
+.ds-skin .ins-icon-btn[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+/* The list / grid switch: a compact segmented control that keeps its own width. */
+.ds-skin .ins-seg {
+  display: inline-grid;
+  flex-shrink: 0;
+  padding: 3px;
+  border-radius: 12px;
+}
+.ds-skin .ins-seg > button {
+  min-height: 2.125rem;
+  padding: 0 0.7rem;
+  border-radius: 9px;
+}
+
+/* ── Question bank: selection ─────────────────────────────────────────── */
+/* An iOS-style round check, 22px, inside a 40px hit area. */
+.ds-skin .ins-check-hit {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ds-skin .ins-check {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 1.375rem;
+  height: 1.375rem;
+  margin: 0;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--ds-ink-3) 70%, transparent);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.ds-skin .ins-check:hover {
+  border-color: var(--ds-ink-2);
+}
+.ds-skin .ins-check:checked {
+  border-color: var(--ds-indigo);
+  background: var(--ds-indigo);
+}
+.ds-skin .ins-check:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 0.36rem;
+  height: 0.66rem;
+  border: solid var(--ds-on-solid);
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.ds-skin .ins-check:focus-visible {
+  outline: 2px solid var(--ds-indigo);
+  outline-offset: 2px;
+}
+
+/* The bar above the results: select all, count, clear duplicates. */
+.ds-skin .ins-resultbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 0 0 0.15rem;
+}
+.ds-skin .ins-resultbar > button {
+  flex-shrink: 0;
+  min-height: 2.5rem;
+}
+.ds-skin .ins-resultbar .ins-count {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ds-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Question bank: list rows ─────────────────────────────────────────── */
+.ds-skin .ins-qlist {
+  --ds-list-inset: 3.6rem;
+}
+.ds-skin .ins-qrow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'check text text'
+    'check meta meta'
+    'check foot actions';
+  align-items: start;
+  row-gap: 0;
+  column-gap: 0.35rem;
+  min-height: 0;
+  padding: 0.7rem 0.5rem 0.4rem 0.5rem;
+  cursor: pointer;
+}
+@media (min-width: 768px) {
+  .ds-skin .ins-qrow {
+    grid-template-areas:
+      'check text actions'
+      'check meta actions';
+    column-gap: 0.5rem;
+    padding: 0.75rem 0.75rem 0.75rem 0.6rem;
+  }
+  .ds-skin .ins-qrow > .ins-actions {
+    align-self: center;
+  }
+}
+.ds-skin .ins-qrow:hover {
+  background: color-mix(in srgb, var(--ds-ink) 3.5%, transparent);
+}
+.ds-skin .ins-qrow[data-selected='true'] {
+  background: color-mix(in srgb, var(--ds-indigo) 8%, transparent);
+}
+.ds-skin .ins-qrow > .ins-check-hit {
+  grid-area: check;
+  margin-top: -0.4rem;
+}
+.ds-skin .ins-qtext {
+  grid-area: text;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  padding-top: 0.05rem;
+  font-size: 0.93rem;
+  font-weight: 500;
+  line-height: 1.42;
+  letter-spacing: -0.005em;
+  color: var(--ds-ink);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.ds-skin .ins-qtext[data-expanded='true'] {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+.ds-skin .ins-qtext:focus-visible {
+  outline: 2px solid var(--ds-indigo);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.ds-skin .ins-meta {
+  grid-area: meta;
+  align-self: center;
+  min-width: 0;
+  margin-top: 0.4rem;
+  overflow: hidden;
+}
+/* Items sit --g apart; an item with [data-sep] draws a "·" in that gap. The row is pulled left by --g and the meta
+   clips it, so a separator that would start a wrapped line falls outside and is never seen. */
+.ds-skin .ins-meta-in {
+  --g: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 0.3rem;
+  margin-left: calc(var(--g) * -1);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--ds-ink-3);
+}
+.ds-skin .ins-meta-in > * {
+  position: relative;
+  margin-left: var(--g);
+  white-space: nowrap;
+}
+.ds-skin .ins-meta-in > .ds-chip + * {
+  margin-left: 0.5rem;
+}
+.ds-skin .ins-meta-in > [data-sep]::before {
+  content: '·';
+  position: absolute;
+  left: calc(var(--g) * -1);
+  width: var(--g);
+  text-align: center;
+  color: color-mix(in srgb, var(--ds-ink-3) 70%, transparent);
+}
+.ds-skin .ins-meta .ds-chip {
+  min-height: 1.35rem;
+  padding: 0 0.5rem;
+  font-size: 0.7rem;
+}
+.ds-skin .ins-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  align-self: center;
+  margin-right: -0.1rem;
+}
+/* Phones: the date part sits in the row's foot, left of the actions; the meta line above stays one line. */
+.ds-skin .ins-foot {
+  grid-area: foot;
+  align-self: center;
+  min-width: 0;
+  overflow: hidden;
+}
+@media (max-width: 767px) {
+  .ds-skin .ins-meta .ins-when {
+    display: none;
+  }
+  .ds-skin .ins-meta .ins-meta-in {
+    flex-wrap: nowrap;
+  }
+  .ds-skin .ins-qrow > .ins-actions,
+  .ds-skin .ins-qrow > .ins-foot {
+    margin-top: 0.15rem;
+    margin-bottom: -0.2rem;
+  }
+}
+@media (min-width: 768px) {
+  .ds-skin .ins-foot {
+    display: none;
+  }
+  .ds-skin .ins-actions {
+    margin-right: 0;
+  }
+}
+/* The sub-type shortens before anything else does (the outer span keeps its "·" outside the clipped text). */
+.ds-skin .ins-meta-in > .ins-sub {
+  min-width: 0;
+  flex-shrink: 1;
+}
+.ds-skin .ins-sub > span {
+  display: block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Question bank: grid cards ────────────────────────────────────────── */
+.ds-skin .ins-qcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.9rem 0.9rem 0.6rem 1.05rem;
+  border-radius: 18px;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line);
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+}
+.ds-skin .ins-qcard:hover {
+  border-color: var(--ds-line-strong);
+}
+.ds-skin .ins-qcard[data-selected='true'] {
+  border-color: var(--ds-indigo);
+  background: color-mix(in srgb, var(--ds-indigo) 6%, var(--ds-surface));
+}
+.ds-skin .ins-qcard .ins-qtext {
+  -webkit-line-clamp: 4;
+  margin-top: 0.55rem;
+}
+.ds-skin .ins-qcard-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ds-line);
+}
+
+/* ── Question bank: bulk actions (floats above the phone tab bar) ─────── */
+.ds-skin .ins-bulk {
+  position: fixed;
+  z-index: 45;
+  left: 1rem;
+  right: 1rem;
+  bottom: calc(var(--mobile-tab-h, 0px) + 0.75rem + var(--safe-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.45rem 0.45rem 0.6rem;
+  border-radius: 18px;
+  background: var(--ds-glass);
+  -webkit-backdrop-filter: saturate(1.6) blur(18px);
+  backdrop-filter: saturate(1.6) blur(18px);
+  border: 1px solid var(--ds-line-strong);
+  box-shadow: var(--ds-shadow-lg);
+  animation: ds-enter 0.3s var(--ease-ios, ease) both;
+}
+@media (min-width: 768px) {
+  .ds-skin .ins-bulk {
+    left: 50%;
+    right: auto;
+    bottom: 1.5rem;
+    transform: translateX(-50%);
+    animation: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-skin .ins-bulk,
+  .ds-skin .ins-skel {
+    animation: none;
+  }
+}
+
+/* Phones: the bank's four counts stay small, so the list starts high on the screen. */
+@media (max-width: 639px) {
+  .ds-skin .ins-tiles .ds-stat-tile {
+    padding: 0.55rem 0.8rem 0.6rem;
+  }
+  .ds-skin .ins-tiles .ds-stat-tile dd {
+    margin-top: 0.05rem;
+    font-size: 1.15rem;
+  }
+}

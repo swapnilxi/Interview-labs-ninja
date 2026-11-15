@@ -9,6 +9,8 @@ import Icon from '@/components/ui/AppIcon';
 import ThemeToggleIcon from '@/modules/common/ThemeToggleIcon';
 import BrandMark from '@/modules/common/BrandMark';
 import { initialsFor } from '@/lib/ui/initials';
+import { useIsNativeApp } from '@/lib/pwa/installApp';
+import { LAB_GROUPS, LABS_HOME, LABS_PROJECT_LINK, isLabsPath, labsInGroup } from '@/modules/common/lab/labCatalog';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   SidebarMode,
@@ -32,12 +34,12 @@ const DAILY_SESSION_LINKS: SidebarLink[] = [
   { label: 'Question Bank', path: '/daily-session?tab=question-bank', icon: 'BookOpenIcon' },
 ];
 
-const LAB_LINKS: SidebarLink[] = [
-  { label: 'CV Lab', path: '/cv-lab', icon: 'EyeIcon' },
-  { label: 'DSA Lab', path: '/dsa-lab', icon: 'CpuChipIcon' },
-  { label: 'System Design', path: '/system-design-lab', icon: 'ServerStackIcon' },
-  { label: 'Labs Project', path: '/labs-project', icon: 'FolderOpenIcon' },
-];
+// The Labs menu (labCatalog.ts): the Labs home, each group of labs, then Labs Project.
+const toLink = (l: { label: string; path: string; icon: string }): SidebarLink => ({ label: l.label, path: l.path, icon: l.icon });
+const LAB_GROUP_LINKS = LAB_GROUPS.map((g) => ({ ...g, links: labsInGroup(g.id).map(toLink) }));
+const LAB_LINKS: SidebarLink[] = [toLink(LABS_HOME), ...LAB_GROUP_LINKS.flatMap((g) => g.links), toLink(LABS_PROJECT_LINK)];
+/** Icon rail: a thin divider before each of these (between the groups of the Labs menu). */
+const LAB_RAIL_DIVIDERS = [...LAB_GROUP_LINKS.map((g) => g.links[0]?.path), LABS_PROJECT_LINK.path].filter(Boolean) as string[];
 
 const CAREER_LINKS: SidebarLink[] = [
   { label: 'Profiles', path: '/career?tab=profiles', icon: 'IdentificationIcon' },
@@ -74,6 +76,7 @@ export default function Sidebar({
   onOpenDrawer,
 }: SidebarProps) {
   const pathname = usePathname();
+  const isNativeApp = useIsNativeApp();
   // Live ?query (same on server and first client render): the 'current tab' highlight must not read window.location in render.
   const search = useLocationSearch();
   const { user, isGuest, isAdmin, logout } = useAuth();
@@ -110,7 +113,7 @@ export default function Sidebar({
     pathname === '/daily-session' ||
     pathname === '/progress-dashboard' ||
     pathname === '/question-bank';
-  const isLabRoute = LAB_LINKS.some((link) => link.path === pathname);
+  const isLabRoute = isLabsPath(pathname);
   const isCareerRoute = pathname === '/career' || pathname.startsWith('/career/');
   const isAiTodoRoute = pathname === '/ai-todo';
 
@@ -126,10 +129,11 @@ export default function Sidebar({
     },
   ];
 
-  const [dailySessionOpen, setDailySessionOpen] = useState(true);
-  const [labsOpen, setLabsOpen] = useState(true);
-  const [careerOpen, setCareerOpen] = useState(true);
-  const [todoOpen, setTodoOpen] = useState(true);
+  // Menu groups start closed; the group of the page you are on opens itself (effects below).
+  const [dailySessionOpen, setDailySessionOpen] = useState(false);
+  const [labsOpen, setLabsOpen] = useState(false);
+  const [careerOpen, setCareerOpen] = useState(false);
+  const [todoOpen, setTodoOpen] = useState(false);
 
   // Icon rail: which groups are expanded inline (sub-icons render directly under the main icon).
   const [railOpen, setRailOpen] = useState({ daily: false, labs: false, todo: false, career: false });
@@ -222,6 +226,21 @@ export default function Sidebar({
   const drawerRowClass = (active: boolean) => `drawer-row ${active ? 'drawer-row-active' : ''}`;
   const drawerHeadClass = (active: boolean) => `drawer-row drawer-row-head ${active ? 'drawer-row-active' : ''}`;
 
+  const labDrawerRow = (link: SidebarLink) => (
+    <Link
+      key={link.path}
+      href={link.path}
+      onClick={onClose}
+      aria-current={isActivePath(link.path) ? 'page' : undefined}
+      className={`${drawerRowClass(isActivePath(link.path))} drawer-row-sub`}
+    >
+      <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
+        <Icon name={link.icon as any} size={16} variant="outline" />
+      </span>
+      <span className="min-w-0 flex-1 truncate">{link.label}</span>
+    </Link>
+  );
+
   const railItemClass = (active: boolean) =>
     `relative group flex items-center justify-center w-9 h-9 rounded-lg transition-smooth ${
       active
@@ -238,7 +257,8 @@ export default function Sidebar({
     label: string,
     links: SidebarLink[],
     groupActive: boolean,
-    isLinkActive: (path: string) => boolean
+    isLinkActive: (path: string) => boolean,
+    dividerBefore: string[] = []
   ) => {
     const open = railOpen[id];
     return (
@@ -270,15 +290,17 @@ export default function Sidebar({
             style={{ background: 'color-mix(in srgb, var(--color-foreground) 5%, transparent)' }}
           >
             {links.map((link) => (
-              <Link
-                key={link.path}
-                href={link.path}
-                aria-label={link.label}
-                className={railItemClass(isLinkActive(link.path))}
-                {...tip(link.label)}
-              >
-                <Icon name={link.icon as any} size={17} variant="outline" />
-              </Link>
+              <div key={link.path} className="flex flex-col items-center gap-1">
+                {dividerBefore.includes(link.path) && <span aria-hidden="true" className="my-0.5 h-px w-5 bg-border" />}
+                <Link
+                  href={link.path}
+                  aria-label={link.label}
+                  className={railItemClass(isLinkActive(link.path))}
+                  {...tip(link.label)}
+                >
+                  <Icon name={link.icon as any} size={17} variant="outline" />
+                </Link>
+              </div>
             ))}
           </div>
         )}
@@ -337,7 +359,7 @@ export default function Sidebar({
             </Link>
 
             {/* Labs Popover Group */}
-            {renderRailGroup('labs', '/cv-lab', 'RectangleGroupIcon', 'Specialized Labs', LAB_LINKS, isLabRoute, (path) => pathname === path)}
+            {renderRailGroup('labs', LABS_HOME.path, 'RectangleGroupIcon', 'Labs', LAB_LINKS, isLabRoute, (path) => pathname === path, LAB_RAIL_DIVIDERS)}
 
             <div className="w-[1.5rem] h-[1px] bg-border my-1" />
 
@@ -545,6 +567,20 @@ export default function Sidebar({
               <span className="min-w-0 flex-1 truncate">Settings</span>
               <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
             </Link>
+            {/* Settings ▸ Install app (the APK and the web app). Nothing to install from inside the Android app. */}
+            {!isNativeApp && (
+              <Link
+                href="/config?section=install"
+                onClick={onClose}
+                className={drawerRowClass(false)}
+              >
+                <span className="drawer-icon" aria-hidden="true">
+                  <Icon name="ArrowDownTrayIcon" size={18} variant="outline" />
+                </span>
+                <span className="min-w-0 flex-1 truncate">Install app</span>
+                <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
+              </Link>
+            )}
             <div className="drawer-row">
               <span className="drawer-icon" aria-hidden="true">
                 <ThemeToggleIcon theme={theme} size={18} variant="outline" />
@@ -679,21 +715,20 @@ export default function Sidebar({
               />
             </button>
 
-            {labsOpen &&
-              LAB_LINKS.map((link) => (
-                <Link
-                  key={link.path}
-                  href={link.path}
-                  onClick={onClose}
-                  aria-current={isActivePath(link.path) ? 'page' : undefined}
-                  className={`${drawerRowClass(isActivePath(link.path))} drawer-row-sub`}
-                >
-                  <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
-                    <Icon name={link.icon as any} size={16} variant="outline" />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{link.label}</span>
-                </Link>
-              ))}
+            {labsOpen && (
+              <>
+                {labDrawerRow(toLink(LABS_HOME))}
+                {LAB_GROUP_LINKS.map((group) => (
+                  <div key={group.id} role="group" aria-labelledby={`drawer-labs-${group.id}`} className="flex flex-col">
+                    <p id={`drawer-labs-${group.id}`} className="px-[1.5rem] pb-1 pt-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {group.label}
+                    </p>
+                    {group.links.map(labDrawerRow)}
+                  </div>
+                ))}
+                {labDrawerRow(toLink(LABS_PROJECT_LINK))}
+              </>
+            )}
           </section>
 
           {/* Personalised To-do Accordion with Subtabs */}

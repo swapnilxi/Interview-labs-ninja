@@ -35,6 +35,7 @@ import {
   type ResolvedGemini,
 } from './services/geminiService';
 import { useRouter } from 'next/navigation';
+import { remember } from '@/lib/services/memoryService';
 import { useAuth } from '@/contexts/AuthContext';
 import { sounds } from './utils/soundEffects';
 import { useSwipeLearnStorage } from './utils/useSwipeLearnStorage';
@@ -335,6 +336,8 @@ export default function SwipeLearnModule() {
       } else {
         sounds.playMastered();
         saveCard(card.id);
+        // Saving is the clearest "this interests me" signal: the shared AI memory uses it to pick future cards.
+        remember({ module: 'swipe-learn', topic: String(card.topic), kind: 'interest', fact: `Saved a card: "${card.title.slice(0, 90)}"` });
       }
     },
     [savedSet, saveCard, unsaveCard]
@@ -386,6 +389,9 @@ export default function SwipeLearnModule() {
       const wasSaved = savedSet.has(card.id);
       sounds.playMastered();
       saveCard(card.id);
+      if (!wasSaved) {
+        remember({ module: 'swipe-learn', topic: String(card.topic), kind: 'interest', fact: `Saved a card: "${card.title.slice(0, 90)}"` });
+      }
       markSeen(card, 'save', wasSaved);
     },
     [markSeen, saveCard, savedSet]
@@ -572,6 +578,7 @@ export default function SwipeLearnModule() {
 
   const handleQuizMe = useCallback(
     (card: ContentCard) => {
+      remember({ module: 'swipe-learn', topic: String(card.topic), kind: 'interest', fact: `Asked to be quizzed on: "${card.title.slice(0, 90)}"` });
       void runGenerate(
         { format: 'quiz', count: 2, difficulty: card.difficulty ?? 'any', focus: '' },
         { aboutCard: card }

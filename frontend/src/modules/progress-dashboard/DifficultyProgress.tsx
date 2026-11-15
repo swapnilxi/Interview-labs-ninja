@@ -1,57 +1,62 @@
+import { Bar, difficultyTone, toneClass } from '@/modules/daily-session/components/ds';
+
 interface DifficultyLevel {
   level: string;
+  /** Questions at this level in your bank. */
   attempted: number;
+  /** Of those, how many you rated 4 or 5 out of 5. */
   correct: number;
+  /** correct / attempted, 0-100. */
   accuracy: number;
-  color: string;
+  /** Ignored: the colour comes from the level's Daily Session tone (Easy jade, Medium saffron, Hard rose). */
+  color?: string;
 }
 
 interface DifficultyProgressCardProps {
   difficulties: DifficultyLevel[];
 }
 
-export default function DifficultyProgressCard({
-  difficulties,
-}: DifficultyProgressCardProps) {
+/** Each level: how many of its questions you rated 4 or 5 out of 5. */
+export default function DifficultyProgressCard({ difficulties }: DifficultyProgressCardProps) {
   return (
-    <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-24">
-      <h3 className="font-heading text-lg font-medium text-foreground mb-24">
-        Difficulty Progression
-      </h3>
-      <div className="space-y-24">
-        {difficulties.map((difficulty) => (
-          <div key={difficulty.level}>
-            <div className="flex items-center justify-between mb-12">
-              <div className="flex items-center gap-12">
-                <div
-                  className="w-12 h-12 rounded-full"
-                  style={{ backgroundColor: difficulty.color }}
-                />
-                <span className="text-sm font-medium text-foreground">
-                  {difficulty.level}
+    <section className="ds-list" aria-labelledby="ins-diff-title">
+      <div className="ins-card-head">
+        <div className="min-w-0">
+          <h3 id="ins-diff-title">By difficulty</h3>
+          <p>Questions you rated 4 or 5 out of 5</p>
+        </div>
+      </div>
+      {difficulties.map((d) => {
+        const tone = difficultyTone(d.level);
+        const none = d.attempted === 0;
+        return (
+          <div key={d.level} className="ds-list-row ins-barrow">
+            <div className="min-w-0 flex-1">
+              <div className="ins-barrow-top">
+                <p className={`ins-barrow-name ins-key ${toneClass(tone)}`}>
+                  <i aria-hidden="true" />
+                  <span className="ds-ink">{d.level}</span>
+                </p>
+                <span className="ins-barrow-pct" data-empty={none || undefined}>
+                  {none ? 'No questions' : `${d.accuracy}%`}
                 </span>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-foreground">
-                  {difficulty.accuracy}%
-                </p>
-                <p className="text-xs text-muted-foreground font-caption">
-                  {difficulty.correct}/{difficulty.attempted}
-                </p>
-              </div>
-            </div>
-            <div className="h-8 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full transition-smooth"
-                style={{
-                  width: `${difficulty.accuracy}%`,
-                  backgroundColor: difficulty.color,
-                }}
-              />
+              {!none && (
+                <>
+                  <p className="ins-barrow-note">
+                    {d.correct} of {d.attempted} rated 4+
+                  </p>
+                  <Bar
+                    value={d.accuracy / 100}
+                    tone={tone}
+                    label={`${d.level}: ${d.correct} of ${d.attempted} rated 4 or 5`}
+                  />
+                </>
+              )}
             </div>
           </div>
-        ))}
-      </div>
-    </div>
+        );
+      })}
+    </section>
   );
 }

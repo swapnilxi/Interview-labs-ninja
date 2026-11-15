@@ -58,7 +58,7 @@ def test_provider_key(provider: str, api_key: str, base_url: str = "") -> tuple[
         elif provider == "anthropic":
             _call_anthropic(probe, api_key, "claude-3-5-haiku-latest", max_tokens=8)
         elif provider == "deepseek":
-            _call_openai_compatible(probe, api_key, "https://api.deepseek.com", "deepseek-chat", max_tokens=8)
+            _call_openai_compatible(probe, api_key, "https://api.deepseek.com", "deepseek-flash", max_tokens=8)
         elif provider == "groq":
             _call_openai_compatible(probe, api_key, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", max_tokens=8)
         elif provider == "openrouter":
@@ -91,7 +91,42 @@ _SELF_ROUTED = ("vertex", "ollama", "custom")
 
 
 def _provider_order(model: str) -> List[str]:
-    return list(_PROVIDER_ORDERS[model_provider_hint(model)])
+    order = list(_PROVIDER_ORDERS[model_provider_hint(model)])
+    # OpenRouter's DeepSeek ids ("deepseek/deepseek-chat"): without an OpenRouter key, DeepSeek's own API is the
+    # natural next stop. Before Gemini, so someone who picked DeepSeek and added a DeepSeek key isn't answered by
+    # Gemini just because a Gemini key also exists. Twin: providerOrder() in frontend/fe-apis/ai/providers.ts.
+    if model.startswith("deepseek/") and order[0] == "openrouter":
+        order.remove("deepseek")
+        order.insert(1, "deepseek")
+    return order
+
+
+# DeepSeek's reasoning models think before answering, and the thinking counts against max_tokens: live-tested
+# 2026-11-15, deepseek-v4-pro spent all 8192 tokens thinking on a 2-card SwipeLearn prompt and returned an empty
+# answer after 99s. So they get low reasoning effort, room for the thinking on top of the caller's budget, and a
+# longer timeout. Twin: deepseekCallOptions() in frontend/fe-apis/ai/client.ts.
+_DEEPSEEK_REASONING_PREFIXES = ("deepseek-v4-pro",)
+_DEEPSEEK_REASONING_HEADROOM = 8192
+_DEEPSEEK_REASONING_TIMEOUT_S = 240
+
+
+def _deepseek_call_options(model: str, max_tokens: int) -> dict:
+    if model.startswith(_DEEPSEEK_REASONING_PREFIXES):
+        return {
+            "max_tokens": max_tokens + _DEEPSEEK_REASONING_HEADROOM,
+            "extra": {"reasoning_effort": "low"},
+            "timeout": _DEEPSEEK_REASONING_TIMEOUT_S,
+        }
+    return {"max_tokens": max_tokens}
+
+
+def _deepseek_model(model: str, exact: bool) -> str:
+    """The id to send to DeepSeek's own API. OpenRouter's ids ("deepseek/deepseek-chat", "deepseek/deepseek-r1")
+    become DeepSeek's names: its API rejects them with a 400. Twin: deepseekModel() in fe-apis/ai/client.ts."""
+    if model.startswith("deepseek/"):
+        name = model.split("/", 1)[1].lower()
+        return "deepseek-reasoner" if ("r1" in name or "reason" in name) else "deepseek-flash"
+    return model if exact or model.startswith("deepseek") else "deepseek-flash"
 
 
 def _preferred_env_provider(model: str) -> Optional[str]:
@@ -153,8 +188,11 @@ def call_ai_text(prompt: str, settings: AISettings, max_tokens: int = 2048) -> s
             if provider == "deepseek":
                 deepseek_key = settings.deepseekKey or os.environ.get("DEEPSEEK_API_KEY", "")
                 if deepseek_key:
-                    deepseek_model = model if exact or model.startswith("deepseek") else "deepseek-chat"
-                    return _call_openai_compatible(prompt, deepseek_key, "https://api.deepseek.com", deepseek_model, max_tokens=max_tokens)
+                    deepseek_model = _deepseek_model(model, exact)
+                    return _call_openai_compatible(
+                        prompt, deepseek_key, "https://api.deepseek.com", deepseek_model,
+                        **_deepseek_call_options(deepseek_model, max_tokens),
+                    )
             if provider == "groq":
                 groq_key = settings.groqKey or os.environ.get("GROQ_API_KEY", "")
                 if groq_key:

@@ -30,13 +30,31 @@ import {
   type PromptProject,
 } from '../labProjects/knowledge';
 
-const LAB_NAMES = ['dsa', 'cv', 'system_design'] as const;
+const LAB_NAMES = ['dsa', 'cv', 'system_design', 'communication', 'finance', 'python'] as const;
 const SECTION_MODES = ['generate', 'update', 'regenerate'] as const;
 
 const DOMAINS: Record<string, string> = {
   dsa: 'Data Structures & Algorithms',
   cv: 'Computer Vision',
   system_design: 'System Design',
+  communication: 'Business Communication',
+  finance: 'Finance',
+  python: 'Python',
+};
+
+// Who a section (and the copilot) is written for; the three interview labs share the default. Same texts as
+// _AUDIENCE / _COPILOT_GOAL in backend/modules/lab_sections/router.py.
+const DEFAULT_AUDIENCE = 'someone preparing for technical interviews';
+const AUDIENCE: Record<string, string> = {
+  communication: 'a professional improving their business English, communication and leadership skills',
+  finance: 'a beginner learning finance step by step, from the basics up to using AI in finance',
+  python: 'a learner going from Python basics to writing professional Python for software, data and AI work',
+};
+const DEFAULT_COPILOT_GOAL = 'helping someone prepare for technical interviews';
+const COPILOT_GOAL: Record<string, string> = {
+  communication: 'helping a professional improve their business English, communication and leadership',
+  finance: 'helping a beginner learn finance and how AI is used in it',
+  python: 'helping someone learn Python, from the basics to professional, data and AI work',
 };
 
 // A section is a long document; a small token budget would silently truncate it mid-output.
@@ -230,7 +248,7 @@ Output rules:
 - Begin with a bold title line, for example **${p.sectionLabel} — ${subject}**.
 - Use bold lines (**Like this**) for sub-headings, '-' bullets, numbered lists, GitHub-style tables where a comparison helps, and \`inline code\` for identifiers.
 - Put every code snippet and every ASCII/text diagram in a fenced block with a language tag (\`\`\`python, \`\`\`text). Use Python for code unless the learner's context asks for another language.
-- Be concrete and accurate, aimed at someone preparing for technical interviews. Keep it focused: roughly 250-600 words excluding code, unless the section requirements above ask for more.`;
+- Be concrete and accurate, aimed at ${AUDIENCE[p.lab] ?? DEFAULT_AUDIENCE}. Keep it focused: roughly 250-600 words excluding code, unless the section requirements above ask for more.`;
 }
 
 /** Models sometimes wrap the whole reply in a ```markdown fence despite being told not to. */
@@ -242,6 +260,26 @@ function clean(text: string): string {
   return (m ? m[1] : t).trim();
 }
 
+// ── Copilot ─────────────────────────────────────────────────────────────────
+// Twin of the /copilot route in backend/modules/lab_sections/router.py -- keep prompts and limits identical.
+
+const COPILOT_MAX_TOKENS = 1500;
+const COPILOT_MODES = ['chat', 'hint', 'deeper', 'eli5'] as const;
+
+const COPILOT_TASKS: Record<(typeof COPILOT_MODES)[number], string> = {
+  chat: "Answer the learner's question. If it is not about this topic, say so briefly and connect it back.",
+  hint:
+    'Give hint level {level} of 3 for working on this topic. Level 1 is a gentle nudge about how to think about it, ' +
+    'level 2 names the pattern or key insight, level 3 lays out the approach step by step without final code. ' +
+    "Do not repeat earlier hints. Output only the hint, starting with 'Level {level} — '.",
+  deeper:
+    'Go deeper on this topic: internals, trade-offs, production behaviour and what senior engineers know that ' +
+    'juniors miss. Use 4-6 numbered points, each starting with a bold lead-in.',
+  eli5:
+    "Explain this topic like the learner is five: one concrete everyday analogy, plain words, no jargon or formulas, " +
+    'then one sentence tying the analogy back to the real thing.',
+};
+
 // ── Routes ──────────────────────────────────────────────────────────────────
 
 export const routes: TodoRoute[] = [
@@ -251,6 +289,52 @@ export const routes: TodoRoute[] = [
     handler: ({ userId, query }) => {
       const { lab, topicId, subtopicId } = queryPage(query);
       return { sections: fetchSavedSections(userId, lab, topicId, subtopicId) };
+    },
+  },
+  {
+    method: 'POST',
+    path: '/copilot',
+    handler: async ({ json }) => {
+      const body = await json();
+      const lab = oneOf(body.lab, LAB_NAMES, 'lab');
+      const context = strField(body, 'context', 400, { min: 1 });
+      const topicBrief = strField(body, 'topic_brief', 2000, { def: '' });
+      const mode = body.mode === undefined || body.mode === null ? 'chat' : oneOf(body.mode, COPILOT_MODES, 'mode');
+      const question = strField(body, 'question', 2000, { def: '' });
+      const level = body.hint_level === undefined || body.hint_level === null ? 1 : Number(body.hint_level);
+      if (!Number.isInteger(level) || level < 1 || level > 3) {
+        throw new HttpError(422, "Field 'hint_level' must be 1-3");
+      }
+      const rawHistory = body.history === undefined || body.history === null ? [] : body.history;
+      if (!Array.isArray(rawHistory) || rawHistory.length > 40) {
+        throw new HttpError(422, "Field 'history' must be a list of at most 40 turns");
+      }
+      const history = rawHistory.map((t: any) => {
+        if (!t || (t.role !== 'user' && t.role !== 'ai')) throw new HttpError(422, "history turns need role 'user' or 'ai'");
+        const content = t.content === undefined || t.content === null ? '' : t.content;
+        if (typeof content !== 'string' || content.length > 4000) throw new HttpError(422, 'history content is invalid or too long');
+        return { role: t.role as 'user' | 'ai', content };
+      });
+      if (mode === 'chat' && !question.trim()) throw new HttpError(422, 'question is required');
+
+      const turns = history
+        .slice(-8)
+        .map((t) => `${t.role === 'user' ? 'Learner' : 'Copilot'}: ${t.content.slice(0, 800)}`)
+        .join('\n');
+      const brief = topicBrief.trim() ? `\nTopic summary: ${topicBrief.trim()}` : '';
+      const task = COPILOT_TASKS[mode].split('{level}').join(String(level));
+      const questionLine = mode === 'chat' ? `\nLearner: ${question.trim()}` : '';
+      const prompt = `You are the study copilot inside a ${DOMAINS[lab]} lab, ${COPILOT_GOAL[lab] ?? DEFAULT_COPILOT_GOAL}. The learner has this topic open: ${context.trim()}.${brief}
+
+${turns ? `Conversation so far:\n${turns}` : ''}${questionLine}
+
+${task}
+
+Be accurate and concrete. Keep it short (under 200 words unless the task needs more): short paragraphs or "- " bullets, **bold** for key terms, \`inline code\` for identifiers, no headings, no preamble.`;
+
+      const answer = clean(await askAi(prompt, body, COPILOT_MAX_TOKENS));
+      if (!answer) throw new HttpError(502, 'The model returned an empty answer. Try again.');
+      return { answer };
     },
   },
   {

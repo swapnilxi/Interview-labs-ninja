@@ -1,0 +1,340 @@
+[
+  {
+    "id": "business-english-foundations",
+    "name": "Business English Foundations",
+    "brief": "The vocabulary, tone and sentence patterns people use at work.",
+    "category": "Business English",
+    "difficulty": "Easy",
+    "prerequisites": ["Intermediate English reading and writing"],
+    "subtopics": [
+      {"id": "com-be-register", "name": "Formal vs Informal Register", "brief": "Choosing the right level of formality for the person and the situation."},
+      {"id": "com-be-core-vocab", "name": "Core Workplace Vocabulary", "brief": "Words for meetings, deadlines, budgets, clients and projects."},
+      {"id": "com-be-plain-english", "name": "Plain English & Concise Sentences", "brief": "Cutting filler words and long-winded phrasing."}
+    ]
+  },
+  {
+    "id": "workplace-grammar",
+    "name": "Grammar & Word Choice at Work",
+    "brief": "Fix the grammar and usage mistakes that make work messages unclear.",
+    "category": "Business English",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Business English Foundations"],
+    "subtopics": [
+      {"id": "com-gr-tenses", "name": "Tenses for Updates, Plans & Results", "brief": "Present perfect vs past simple, and talking about the future."},
+      {"id": "com-gr-confusing-words", "name": "Confusing Words & False Friends", "brief": "Pairs like affect/effect, revert/reply and do the needful."},
+      {"id": "com-gr-collocations", "name": "Prepositions & Business Collocations", "brief": "Make a decision, on behalf of, in charge of, and similar fixed phrases."}
+    ]
+  },
+  {
+    "id": "professional-emails",
+    "name": "Writing Professional Emails",
+    "brief": "Emails that get read, understood and answered.",
+    "category": "Business English",
+    "difficulty": "Easy",
+    "prerequisites": ["Business English Foundations"],
+    "subtopics": [
+      {"id": "com-email-structure", "name": "Subject Lines & Email Structure", "brief": "Purpose first, details next, a clear ask at the end."},
+      {"id": "com-email-requests", "name": "Polite Requests & Follow-ups", "brief": "Asking for things and chasing replies without sounding pushy."},
+      {"id": "com-email-bad-news", "name": "Delivering Bad News in Writing", "brief": "Saying no, reporting a delay and apologising well."}
+    ]
+  },
+  {
+    "id": "meetings-calls",
+    "name": "Meetings & Conference Calls",
+    "brief": "Speak up, keep a meeting on track and close it with clear actions.",
+    "category": "Business English",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Business English Foundations"],
+    "subtopics": [
+      {"id": "com-meet-running", "name": "Phrases for Running a Meeting", "brief": "Opening, sticking to the agenda and closing with owners and dates."},
+      {"id": "com-meet-interrupt", "name": "Interrupting, Agreeing & Disagreeing Politely", "brief": "Getting a word in and pushing back without sounding rude."},
+      {"id": "com-meet-remote", "name": "Remote Calls & Video Etiquette", "brief": "Muting, turn-taking and being heard on a video call."}
+    ]
+  },
+  {
+    "id": "small-talk-networking",
+    "name": "Small Talk & Networking",
+    "brief": "Start conversations, keep them going and introduce yourself well.",
+    "category": "Business English",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Business English Foundations"],
+    "subtopics": [
+      {"id": "com-st-openers", "name": "Conversation Openers & Follow-up Questions", "brief": "Safe topics and questions that keep the other person talking."},
+      {"id": "com-st-intro", "name": "Introducing Yourself & Your Work", "brief": "A 30-second introduction that people remember."},
+      {"id": "com-st-culture", "name": "Small Talk Across Cultures", "brief": "Topics that are fine in one country and awkward in another."}
+    ]
+  },
+  {
+    "id": "presenting-in-english",
+    "name": "Presenting in English",
+    "brief": "The language of presentations: signposting, describing data and handling questions.",
+    "category": "Business English",
+    "difficulty": "Medium",
+    "prerequisites": ["Business English Foundations", "Meetings & Conference Calls"],
+    "subtopics": [
+      {"id": "com-pres-signposting", "name": "Signposting Language", "brief": "Phrases that tell the audience where you are in the talk."},
+      {"id": "com-pres-data", "name": "Describing Charts, Trends & Numbers", "brief": "Rose sharply, levelled off, a 12% year-on-year increase."},
+      {"id": "com-pres-qa", "name": "Handling Questions in English", "brief": "Buying time, clarifying and answering when you are unsure."}
+    ]
+  },
+  {
+    "id": "negotiation-language",
+    "name": "Negotiation Language",
+    "brief": "Propose, push back and agree while keeping the relationship.",
+    "category": "Business English",
+    "difficulty": "Medium",
+    "prerequisites": ["Meetings & Conference Calls"],
+    "subtopics": [
+      {"id": "com-neg-proposals", "name": "Making Proposals & Counter-offers", "brief": "Putting a number on the table and responding to one."},
+      {"id": "com-neg-hedging", "name": "Hedging & Softening Language", "brief": "Would, could, might: keeping a position flexible."},
+      {"id": "com-neg-closing", "name": "Summarising & Closing a Deal", "brief": "Confirming what was agreed and what happens next."}
+    ]
+  },
+  {
+    "id": "business-documents",
+    "name": "Reports, Proposals & Status Updates",
+    "brief": "Structure longer documents so busy readers get the point fast.",
+    "category": "Business English",
+    "difficulty": "Medium",
+    "prerequisites": ["Writing Professional Emails"],
+    "subtopics": [
+      {"id": "com-doc-exec-summary", "name": "Writing an Executive Summary", "brief": "The one paragraph a senior reader actually reads."},
+      {"id": "com-doc-status", "name": "Status Updates & Progress Reports", "brief": "Done, next, blocked: updates that are quick to scan."},
+      {"id": "com-doc-proposal", "name": "Structuring a Business Proposal", "brief": "Problem, options, recommendation, cost and next steps."}
+    ]
+  },
+  {
+    "id": "communication-fundamentals",
+    "name": "Communication Fundamentals",
+    "brief": "How a message travels from your head to someone else's, and where it gets lost.",
+    "category": "Effective Communication",
+    "difficulty": "Easy",
+    "prerequisites": [],
+    "subtopics": [
+      {"id": "com-ec-model", "name": "Sender, Message, Channel, Receiver", "brief": "The basic model and the noise at every step."},
+      {"id": "com-ec-clarity", "name": "One Message, One Ask", "brief": "Knowing what you want the other person to know, feel or do."},
+      {"id": "com-ec-channel", "name": "Choosing the Right Channel", "brief": "Chat, email, call or meeting: which one fits the message."}
+    ]
+  },
+  {
+    "id": "active-listening",
+    "name": "Active Listening",
+    "brief": "Listen so the other person feels heard and you actually understand.",
+    "category": "Effective Communication",
+    "difficulty": "Easy",
+    "prerequisites": ["Communication Fundamentals"],
+    "subtopics": [
+      {"id": "com-al-paraphrase", "name": "Paraphrasing & Summarising", "brief": "Playing back what you heard to check understanding."},
+      {"id": "com-al-questions", "name": "Open vs Closed Questions", "brief": "Questions that open a conversation and questions that confirm a fact."},
+      {"id": "com-al-empathy", "name": "Listening for Feelings, Not Just Facts", "brief": "Noticing frustration, worry or excitement behind the words."}
+    ]
+  },
+  {
+    "id": "structured-thinking",
+    "name": "Structured Thinking & the Pyramid Principle",
+    "brief": "Lead with the answer and group your supporting points logically.",
+    "category": "Effective Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Communication Fundamentals"],
+    "subtopics": [
+      {"id": "com-sth-bluf", "name": "Bottom Line Up Front (BLUF)", "brief": "Putting the conclusion or ask in the first sentence."},
+      {"id": "com-sth-pyramid", "name": "The Pyramid Principle & SCQA", "brief": "Situation, Complication, Question, Answer."},
+      {"id": "com-sth-mece", "name": "Grouping Ideas Without Overlap (MECE)", "brief": "Mutually exclusive, collectively exhaustive lists of points."}
+    ]
+  },
+  {
+    "id": "storytelling-at-work",
+    "name": "Storytelling at Work",
+    "brief": "Use stories to make ideas memorable in updates, pitches and interviews.",
+    "category": "Effective Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Structured Thinking & the Pyramid Principle"],
+    "subtopics": [
+      {"id": "com-story-arc", "name": "The Story Arc: Situation, Conflict, Resolution", "brief": "The simple shape behind most good stories."},
+      {"id": "com-story-star", "name": "STAR Stories", "brief": "Situation, Task, Action, Result for interviews and reviews."},
+      {"id": "com-story-data", "name": "Turning Data into a Story", "brief": "Leading with the insight, not the spreadsheet."}
+    ]
+  },
+  {
+    "id": "giving-receiving-feedback",
+    "name": "Giving & Receiving Feedback",
+    "brief": "Share specific, kind and useful feedback, and take it well.",
+    "category": "Effective Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Active Listening"],
+    "subtopics": [
+      {"id": "com-fb-sbi", "name": "The SBI Model (Situation-Behavior-Impact)", "brief": "Feedback about what happened, not about the person."},
+      {"id": "com-fb-receiving", "name": "Receiving Criticism Gracefully", "brief": "Listening, asking questions and not getting defensive."},
+      {"id": "com-fb-upward", "name": "Giving Feedback to Your Manager", "brief": "Raising a concern with someone more senior."}
+    ]
+  },
+  {
+    "id": "persuasion-influence",
+    "name": "Persuasion & Influence",
+    "brief": "Win support for an idea with evidence, framing and trust.",
+    "category": "Effective Communication",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Structured Thinking & the Pyramid Principle", "Storytelling at Work"],
+    "subtopics": [
+      {"id": "com-pers-principles", "name": "Principles of Influence", "brief": "Reciprocity, social proof, authority and consistency at work."},
+      {"id": "com-pers-stakeholders", "name": "Pitching an Idea to Stakeholders", "brief": "Framing the idea around what each person cares about."},
+      {"id": "com-pers-objections", "name": "Handling Objections", "brief": "Acknowledge, explore, respond, confirm."}
+    ]
+  },
+  {
+    "id": "difficult-conversations",
+    "name": "Difficult Conversations & Conflict",
+    "brief": "Have the conversation you are avoiding, calmly and productively.",
+    "category": "Effective Communication",
+    "difficulty": "Hard",
+    "prerequisites": ["Active Listening", "Giving & Receiving Feedback"],
+    "subtopics": [
+      {"id": "com-dc-prepare", "name": "Preparing for a Hard Conversation", "brief": "Separating facts, feelings and what you want to happen."},
+      {"id": "com-dc-deescalate", "name": "De-escalating Tension", "brief": "Lowering the temperature when a conversation gets heated."},
+      {"id": "com-dc-nvc", "name": "Nonviolent Communication", "brief": "Observations, feelings, needs and requests."}
+    ]
+  },
+  {
+    "id": "nonverbal-presence",
+    "name": "Non-verbal Communication & Presence",
+    "brief": "Body language, voice and presence, in the room and on camera.",
+    "category": "Effective Communication",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Communication Fundamentals"],
+    "subtopics": [
+      {"id": "com-nv-body", "name": "Body Language & Eye Contact", "brief": "Posture, gestures and what they signal."},
+      {"id": "com-nv-voice", "name": "Voice: Pace, Pauses & Tone", "brief": "Sounding confident and easy to follow."},
+      {"id": "com-nv-camera", "name": "Presence on Camera", "brief": "Framing, lighting and looking at the lens."}
+    ]
+  },
+  {
+    "id": "public-speaking",
+    "name": "Public Speaking & Presentations",
+    "brief": "Plan, structure and deliver a talk people remember.",
+    "category": "Effective Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Storytelling at Work", "Non-verbal Communication & Presence"],
+    "subtopics": [
+      {"id": "com-ps-structure", "name": "Structuring a Talk", "brief": "Hook, three key points and a clear close."},
+      {"id": "com-ps-nerves", "name": "Managing Nerves", "brief": "Preparation and techniques that calm stage fright."},
+      {"id": "com-ps-slides", "name": "Slides That Support, Not Distract", "brief": "One idea per slide and fewer words."}
+    ]
+  },
+  {
+    "id": "async-written-communication",
+    "name": "Async & Written Communication",
+    "brief": "Chat, docs and notes that work for remote and distributed teams.",
+    "category": "Effective Communication",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Communication Fundamentals"],
+    "subtopics": [
+      {"id": "com-async-chat", "name": "Slack & Teams Etiquette", "brief": "Threads, mentions and messages that do not need a follow-up."},
+      {"id": "com-async-docs", "name": "Writing Docs People Actually Read", "brief": "Headings, summaries and scannable structure."},
+      {"id": "com-async-notes", "name": "Meeting Notes & Decision Records", "brief": "Capturing what was decided, by whom and why."}
+    ]
+  },
+  {
+    "id": "leadership-foundations",
+    "name": "Leadership Foundations",
+    "brief": "What leadership is, with or without a title.",
+    "category": "Leadership",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Communication Fundamentals"],
+    "subtopics": [
+      {"id": "com-lead-styles", "name": "Leadership Styles & Situational Leadership", "brief": "Directing, coaching, supporting and delegating."},
+      {"id": "com-lead-no-authority", "name": "Leading Without Authority", "brief": "Influencing peers and other teams."},
+      {"id": "com-lead-trust", "name": "Building Trust & Credibility", "brief": "Doing what you say, and saying what you will do."}
+    ]
+  },
+  {
+    "id": "one-on-ones-coaching",
+    "name": "One-on-Ones & Coaching",
+    "brief": "Run one-on-ones that help people grow, not just report status.",
+    "category": "Leadership",
+    "difficulty": "Medium",
+    "prerequisites": ["Active Listening", "Leadership Foundations"],
+    "subtopics": [
+      {"id": "com-coach-1on1", "name": "Running Effective One-on-Ones", "brief": "Their agenda first, then yours."},
+      {"id": "com-coach-grow", "name": "The GROW Coaching Model", "brief": "Goal, Reality, Options, Will."},
+      {"id": "com-coach-questions", "name": "Powerful Coaching Questions", "brief": "Questions that help people find their own answers."}
+    ]
+  },
+  {
+    "id": "delegation-accountability",
+    "name": "Delegation & Accountability",
+    "brief": "Hand work over clearly and follow up without micromanaging.",
+    "category": "Leadership",
+    "difficulty": "Medium",
+    "prerequisites": ["Leadership Foundations"],
+    "subtopics": [
+      {"id": "com-del-what", "name": "What to Delegate and to Whom", "brief": "Matching tasks to skill, interest and growth."},
+      {"id": "com-del-briefing", "name": "Briefing a Task Clearly", "brief": "Outcome, constraints, deadline and how much freedom they have."},
+      {"id": "com-del-followup", "name": "Following Up Without Micromanaging", "brief": "Check-ins that support rather than control."}
+    ]
+  },
+  {
+    "id": "motivating-recognising",
+    "name": "Motivating & Recognising People",
+    "brief": "Keep a team engaged and make people feel their work matters.",
+    "category": "Leadership",
+    "difficulty": "Medium",
+    "prerequisites": ["Leadership Foundations"],
+    "subtopics": [
+      {"id": "com-mot-drivers", "name": "What Motivates People", "brief": "Autonomy, mastery and purpose."},
+      {"id": "com-mot-recognition", "name": "Recognition That Lands", "brief": "Specific, timely praise that people remember."},
+      {"id": "com-mot-safety", "name": "Psychological Safety", "brief": "A team where people can speak up and admit mistakes."}
+    ]
+  },
+  {
+    "id": "decision-making",
+    "name": "Making & Communicating Decisions",
+    "brief": "Decide with the right people and explain decisions so they stick.",
+    "category": "Leadership",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Structured Thinking & the Pyramid Principle", "Leadership Foundations"],
+    "subtopics": [
+      {"id": "com-dec-frameworks", "name": "Decision Frameworks (RACI, DACI)", "brief": "Who decides, who is consulted and who is informed."},
+      {"id": "com-dec-commit", "name": "Disagree and Commit", "brief": "Voicing disagreement, then backing the decision."},
+      {"id": "com-dec-announce", "name": "Announcing a Decision", "brief": "What was decided, why, and what changes for people."}
+    ]
+  },
+  {
+    "id": "leading-change",
+    "name": "Leading Through Change",
+    "brief": "Bring people with you through reorganisations, new tools and uncertainty.",
+    "category": "Leadership",
+    "difficulty": "Hard",
+    "prerequisites": ["Persuasion & Influence", "Making & Communicating Decisions"],
+    "subtopics": [
+      {"id": "com-chg-why", "name": "Explaining the Why", "brief": "Connecting the change to a reason people care about."},
+      {"id": "com-chg-resistance", "name": "Handling Resistance", "brief": "Treating pushback as information, not opposition."},
+      {"id": "com-chg-uncertainty", "name": "Communicating Under Uncertainty", "brief": "Saying what you know, what you do not, and when you will know more."}
+    ]
+  },
+  {
+    "id": "executive-communication",
+    "name": "Executive Communication",
+    "brief": "Talk to senior leaders: short, decision-focused and confident.",
+    "category": "Leadership",
+    "difficulty": "Hard",
+    "prerequisites": ["Structured Thinking & the Pyramid Principle", "Reports, Proposals & Status Updates"],
+    "subtopics": [
+      {"id": "com-exec-updates", "name": "Updates for Senior Leaders", "brief": "The headline, the risk and what you need from them."},
+      {"id": "com-exec-escalation", "name": "Escalating a Problem", "brief": "Raising an issue early with options, not just the problem."},
+      {"id": "com-exec-asks", "name": "Asking for Budget or Headcount", "brief": "Making the business case for resources."}
+    ]
+  },
+  {
+    "id": "leadership-interviews",
+    "name": "Leadership & Behavioral Interviews",
+    "brief": "Answer leadership and behavioural interview questions with strong stories.",
+    "category": "Leadership",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Storytelling at Work", "Leadership Foundations"],
+    "subtopics": [
+      {"id": "com-li-questions", "name": "Common Leadership Questions", "brief": "Tell me about a time you led a team, handled conflict or failed."},
+      {"id": "com-li-story-bank", "name": "Building Your Story Bank", "brief": "Eight stories that answer most behavioural questions."},
+      {"id": "com-li-failure", "name": "Talking About Failure & Weaknesses", "brief": "Honest answers that show learning."}
+    ]
+  }
+]

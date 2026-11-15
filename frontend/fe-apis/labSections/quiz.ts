@@ -12,6 +12,66 @@ const DOMAINS: Record<string, string> = {
   dsa: 'Data Structures & Algorithms interview',
   cv: 'Computer Vision interview',
   system_design: 'System Design interview',
+  communication: 'Business Communication & Leadership',
+  finance: 'Finance & AI-in-Finance',
+  python: 'Python programming',
+};
+
+interface QuizProfile {
+  category: string;
+  related: string;
+  /** '{count}' is replaced with the number of questions. */
+  focus: string;
+  closing: string;
+}
+
+// What the quiz asks about: the interview labs share the default (the original DSA-shaped text), the others have
+// their own. Same texts as _DEFAULT_PROFILE / _PROFILES in backend/modules/lab_sections/quiz.py.
+const DEFAULT_PROFILE: QuizProfile = {
+  category: 'Pattern family',
+  related: 'Related problems in the same family',
+  focus:
+    "Write {count} questions that are about this specific topic AND the concepts around it: the problem's key " +
+    'insight and invariant, its time/space complexity, edge cases and common bugs, the underlying pattern and the ' +
+    'prerequisite ideas, and how it differs from or generalises to the related problems listed. Mix the kinds: ' +
+    'conceptual, complexity, bug-spotting / edge case, pattern recognition ("which approach fits this variant?"), ' +
+    'and short predict-the-result questions.',
+  closing: 'Test understanding that matters in an interview, not trivia.',
+};
+const PROFILES: Record<string, QuizProfile> = {
+  communication: {
+    category: 'Skill area',
+    related: 'Related lessons in the same area',
+    focus:
+      'Write {count} questions that are about this specific skill AND the ideas around it: choosing the right ' +
+      'words, tone and structure for a situation, spotting what is wrong with a message or reply, the frameworks ' +
+      'behind the skill, and how it changes with the audience (a manager, a client, a team, another culture). ' +
+      'Mix the kinds: scenario judgement ("which reply works best here?"), spot-the-mistake, business English ' +
+      'word choice and grammar, framework recognition, and short what-happens-next questions.',
+    closing: 'Test judgement that matters in real conversations at work, not trivia.',
+  },
+  finance: {
+    category: 'Area',
+    related: 'Related lessons in the same area',
+    focus:
+      'Write {count} questions that are about this specific topic AND the concepts around it: what the key terms ' +
+      'mean, small calculations with round numbers, how to read a result correctly, common beginner ' +
+      'misconceptions, and, where the topic involves data or AI, what the model or code is doing and where it can ' +
+      'go wrong. Mix the kinds: conceptual, quick calculation (numbers small enough to work out in your head), ' +
+      'interpret-the-result, spot-the-mistake, and which-method-fits-this-case questions.',
+    closing: 'Test understanding a beginner needs to use this in real life or at work, not trivia.',
+  },
+  python: {
+    category: 'Area',
+    related: 'Related lessons in the same area',
+    focus:
+      'Write {count} questions that are about this specific topic AND the concepts around it: what a short ' +
+      'snippet prints or returns (write the 1-3 line snippet inline in the question, statements separated by ' +
+      'semicolons), how the feature works under the hood, common bugs and gotchas, the Pythonic way to write ' +
+      'something, and when to use this feature instead of an alternative. Mix the kinds: predict-the-output, ' +
+      'spot-the-bug, conceptual, and which-version-is-more-Pythonic questions.',
+    closing: 'Test understanding that matters when writing real Python, not trivia.',
+  },
 };
 
 // Only the most recent questions go back into the prompt: enough to steer away from repeats.
@@ -36,13 +96,14 @@ export function buildQuizPrompt(a: {
   projectRules?: string;
 }): string {
   const domain = DOMAINS[a.lab] ?? 'technical interview';
+  const profile = PROFILES[a.lab] ?? DEFAULT_PROFILE;
   const lines = [`Topic: ${a.topicName}`];
   if (a.topicBrief) lines.push(`Brief: ${a.topicBrief}`);
-  if (a.category) lines.push(`Pattern family: ${a.category}`);
+  if (a.category) lines.push(`${profile.category}: ${a.category}`);
   const prereqs = a.prerequisites.filter(Boolean);
   if (prereqs.length) lines.push('Prerequisites: ' + prereqs.join(', '));
   const related = a.relatedTopics.filter(Boolean);
-  if (related.length) lines.push('Related problems in the same family: ' + related.join('; '));
+  if (related.length) lines.push(`${profile.related}: ` + related.join('; '));
   if (a.subtopicName) {
     const focus = a.subtopicBrief ? `${a.subtopicName} — ${a.subtopicBrief}` : a.subtopicName;
     lines.push(`Learner is currently on this sub-topic: ${focus}`);
@@ -74,7 +135,7 @@ export function buildQuizPrompt(a: {
 
 ${context}
 
-Write ${a.count} questions that are about this specific topic AND the concepts around it: the problem's key insight and invariant, its time/space complexity, edge cases and common bugs, the underlying pattern and the prerequisite ideas, and how it differs from or generalises to the related problems listed. Mix the kinds: conceptual, complexity, bug-spotting / edge case, pattern recognition ("which approach fits this variant?"), and short predict-the-result questions.${a.projectRules ?? ''}
+${profile.focus.split('{count}').join(String(a.count))}${a.projectRules ?? ''}
 
 Rules:
 - Exactly 4 options per question, exactly one correct. Distractors must be plausible and reflect real misconceptions, not obvious throwaways. Never use "all of the above" or "none of the above".
@@ -82,7 +143,7 @@ Rules:
 - Every question must stand alone: never refer to code, a snippet, a figure or a table that isn't written out in the question itself. If a question needs a snippet, describe it in a sentence or two.
 - Plain text only in "q", the options and "explanation": no markdown, no code fences. A short inline expression such as nums[i] - k is fine.
 - "explanation" is 1-3 sentences: why the correct option is right and why the most tempting wrong one is not.
-- Test understanding that matters in an interview, not trivia.${avoid}
+- ${profile.closing}${avoid}
 
 Respond with ONLY a JSON array of ${a.count} objects, no text outside it, each shaped exactly:
 {"q": "question text", "options": ["option A", "option B", "option C", "option D"], "answer": <0-3, index of the correct option>, "explanation": "..."}`;

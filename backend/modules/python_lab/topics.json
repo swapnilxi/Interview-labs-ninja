@@ -1,0 +1,368 @@
+[
+  {
+    "id": "python-setup",
+    "name": "Getting Started with Python",
+    "brief": "Install Python, run your first program and pick an editor.",
+    "category": "Python Basics",
+    "difficulty": "Easy",
+    "prerequisites": [],
+    "subtopics": [
+      {"id": "py-install", "name": "Installing Python & Running Scripts", "brief": "python --version, running a .py file and the PATH."},
+      {"id": "py-repl", "name": "The REPL, Notebooks & Editors", "brief": "Trying code interactively, Jupyter and VS Code."},
+      {"id": "py-print-input", "name": "print(), input() & Your First Program", "brief": "Reading input, printing output and comments."}
+    ]
+  },
+  {
+    "id": "variables-types",
+    "name": "Variables & Basic Types",
+    "brief": "Numbers, strings, booleans and None, and how Python names values.",
+    "category": "Python Basics",
+    "difficulty": "Easy",
+    "prerequisites": ["Getting Started with Python"],
+    "subtopics": [
+      {"id": "py-numbers", "name": "Numbers: int, float & Arithmetic", "brief": "Integer division, floats and rounding surprises."},
+      {"id": "py-strings", "name": "Strings & f-strings", "brief": "Indexing, slicing, methods and formatting."},
+      {"id": "py-bool-none", "name": "Booleans, None & Truthiness", "brief": "What counts as true, and checking for None."}
+    ]
+  },
+  {
+    "id": "control-flow",
+    "name": "Control Flow",
+    "brief": "Make decisions and repeat work with if, for and while.",
+    "category": "Python Basics",
+    "difficulty": "Easy",
+    "prerequisites": ["Variables & Basic Types"],
+    "subtopics": [
+      {"id": "py-if", "name": "if / elif / else", "brief": "Branching, comparisons and logical operators."},
+      {"id": "py-loops", "name": "for and while Loops", "brief": "Looping over sequences, range() and enumerate()."},
+      {"id": "py-break-continue", "name": "break, continue & Loop else", "brief": "Leaving a loop early and the little-known else clause."}
+    ]
+  },
+  {
+    "id": "functions-basics",
+    "name": "Functions",
+    "brief": "Package code into reusable functions with clear inputs and outputs.",
+    "category": "Python Basics",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Control Flow"],
+    "subtopics": [
+      {"id": "py-def", "name": "Defining & Calling Functions", "brief": "Parameters, return values and docstrings."},
+      {"id": "py-args", "name": "Default, Keyword, *args & **kwargs", "brief": "Flexible ways to pass arguments."},
+      {"id": "py-scope", "name": "Scope & the LEGB Rule", "brief": "Local, enclosing, global and built-in names."}
+    ]
+  },
+  {
+    "id": "lists-tuples",
+    "name": "Lists & Tuples",
+    "brief": "Ordered collections: changeable lists and fixed tuples.",
+    "category": "Data Structures",
+    "difficulty": "Easy",
+    "prerequisites": ["Control Flow"],
+    "subtopics": [
+      {"id": "py-list-ops", "name": "List Methods & Slicing", "brief": "append, extend, pop, sort and slice tricks."},
+      {"id": "py-tuples", "name": "Tuples & Unpacking", "brief": "Fixed records and a, b = b, a."},
+      {"id": "py-mutability", "name": "Mutability & References", "brief": "Why changing one list can change another."}
+    ]
+  },
+  {
+    "id": "dicts-sets",
+    "name": "Dictionaries & Sets",
+    "brief": "Fast lookups by key, and collections of unique items.",
+    "category": "Data Structures",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Lists & Tuples"],
+    "subtopics": [
+      {"id": "py-dict-ops", "name": "Dictionary Basics & Methods", "brief": "get, items, setdefault and iterating."},
+      {"id": "py-sets", "name": "Sets & Set Operations", "brief": "Union, intersection and removing duplicates."},
+      {"id": "py-hashing", "name": "Hashing: Why Keys Must Be Immutable", "brief": "How dicts and sets find things so quickly."}
+    ]
+  },
+  {
+    "id": "comprehensions",
+    "name": "Comprehensions",
+    "brief": "Build lists, dicts and sets in one readable line.",
+    "category": "Data Structures",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Lists & Tuples", "Dictionaries & Sets"],
+    "subtopics": [
+      {"id": "py-list-comp", "name": "List Comprehensions", "brief": "Mapping and filtering in one expression."},
+      {"id": "py-dict-set-comp", "name": "Dict & Set Comprehensions", "brief": "The same idea for dicts and sets."},
+      {"id": "py-comp-readability", "name": "When Not to Use a Comprehension", "brief": "Keeping code readable."}
+    ]
+  },
+  {
+    "id": "collections-module",
+    "name": "The collections Module",
+    "brief": "Counter, defaultdict, deque and friends for everyday problems.",
+    "category": "Data Structures",
+    "difficulty": "Medium",
+    "prerequisites": ["Dictionaries & Sets"],
+    "subtopics": [
+      {"id": "py-counter", "name": "Counter & defaultdict", "brief": "Counting and grouping without boilerplate."},
+      {"id": "py-deque", "name": "deque & namedtuple", "brief": "Fast queues and lightweight records."},
+      {"id": "py-container-choice", "name": "Choosing the Right Container", "brief": "list, tuple, dict, set or deque: which and why."}
+    ]
+  },
+  {
+    "id": "modules-packages",
+    "name": "Modules, Packages & Environments",
+    "brief": "Split code across files, install packages and keep projects isolated.",
+    "category": "Functions & Modules",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Functions"],
+    "subtopics": [
+      {"id": "py-import", "name": "How import Works", "brief": "Modules, the search path and if __name__ == \"__main__\"."},
+      {"id": "py-packages", "name": "Packages & __init__.py", "brief": "Organising modules into folders."},
+      {"id": "py-venv", "name": "Virtual Environments & pip", "brief": "venv, pip install and requirements files."}
+    ]
+  },
+  {
+    "id": "lambdas-functional",
+    "name": "Lambdas & Functional Tools",
+    "brief": "Small anonymous functions and the tools that take functions as input.",
+    "category": "Functions & Modules",
+    "difficulty": "Medium",
+    "prerequisites": ["Functions", "Comprehensions"],
+    "subtopics": [
+      {"id": "py-lambda", "name": "Lambda Functions", "brief": "One-line functions and when to use them."},
+      {"id": "py-map-filter", "name": "map, filter & sorted with key", "brief": "Sorting by any field and transforming sequences."},
+      {"id": "py-functools", "name": "functools: reduce, partial & lru_cache", "brief": "Combining, pre-filling and caching functions."}
+    ]
+  },
+  {
+    "id": "iterators-generators",
+    "name": "Iterators & Generators",
+    "brief": "Produce values one at a time to save memory and simplify code.",
+    "category": "Functions & Modules",
+    "difficulty": "Medium",
+    "prerequisites": ["Functions", "Lists & Tuples"],
+    "subtopics": [
+      {"id": "py-iter-protocol", "name": "The Iterator Protocol", "brief": "iter(), next() and StopIteration."},
+      {"id": "py-generators", "name": "Generators & yield", "brief": "Lazy sequences and generator expressions."},
+      {"id": "py-itertools", "name": "itertools Recipes", "brief": "chain, groupby, islice and combinations."}
+    ]
+  },
+  {
+    "id": "decorators",
+    "name": "Closures & Decorators",
+    "brief": "Wrap functions to add logging, timing, caching or checks.",
+    "category": "Functions & Modules",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Functions", "Lambdas & Functional Tools"],
+    "subtopics": [
+      {"id": "py-closures", "name": "Closures", "brief": "Functions that remember variables from where they were made."},
+      {"id": "py-decorator-basics", "name": "Writing a Decorator", "brief": "The @ syntax and what it really does."},
+      {"id": "py-decorator-args", "name": "Decorators with Arguments & functools.wraps", "brief": "Configurable decorators that keep the function's name."}
+    ]
+  },
+  {
+    "id": "classes-objects",
+    "name": "Classes & Objects",
+    "brief": "Bundle data and behaviour together with classes.",
+    "category": "Object-Oriented Python",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Functions", "Dictionaries & Sets"],
+    "subtopics": [
+      {"id": "py-class-basics", "name": "Classes, __init__ & self", "brief": "Creating objects and giving them state."},
+      {"id": "py-class-attrs", "name": "Instance vs Class Attributes", "brief": "Shared vs per-object data, and a common bug."},
+      {"id": "py-properties", "name": "Properties & Encapsulation", "brief": "@property and underscore conventions."}
+    ]
+  },
+  {
+    "id": "inheritance-polymorphism",
+    "name": "Inheritance & Polymorphism",
+    "brief": "Reuse and extend classes, and write code that works with many types.",
+    "category": "Object-Oriented Python",
+    "difficulty": "Medium",
+    "prerequisites": ["Classes & Objects"],
+    "subtopics": [
+      {"id": "py-inherit", "name": "Inheritance & super()", "brief": "Overriding methods and calling the parent."},
+      {"id": "py-mro", "name": "Multiple Inheritance & the MRO", "brief": "How Python decides which method runs."},
+      {"id": "py-abc", "name": "Abstract Base Classes & Protocols", "brief": "Defining interfaces and duck typing."}
+    ]
+  },
+  {
+    "id": "dunder-methods",
+    "name": "Dunder (Magic) Methods",
+    "brief": "Make your objects print nicely, compare, add and loop like built-ins.",
+    "category": "Object-Oriented Python",
+    "difficulty": "Medium",
+    "prerequisites": ["Classes & Objects"],
+    "subtopics": [
+      {"id": "py-repr-str", "name": "__repr__ & __str__", "brief": "How objects show up when printed and debugged."},
+      {"id": "py-operators", "name": "Operator Overloading", "brief": "__eq__, __lt__, __add__ and friends."},
+      {"id": "py-container-protocol", "name": "Making Objects Iterable & Sized", "brief": "__len__, __iter__ and __getitem__."}
+    ]
+  },
+  {
+    "id": "dataclasses-typing",
+    "name": "Dataclasses & Type Hints",
+    "brief": "Less boilerplate, clearer code and catching bugs before running.",
+    "category": "Object-Oriented Python",
+    "difficulty": "Medium",
+    "prerequisites": ["Classes & Objects"],
+    "subtopics": [
+      {"id": "py-dataclasses", "name": "Dataclasses", "brief": "@dataclass, defaults, frozen and field()."},
+      {"id": "py-type-hints", "name": "Type Hints & mypy", "brief": "Annotating code and checking it statically."},
+      {"id": "py-pydantic", "name": "Validation with Pydantic", "brief": "Turning untrusted input into typed objects."}
+    ]
+  },
+  {
+    "id": "files-paths",
+    "name": "Files & Paths",
+    "brief": "Read and write files safely with pathlib and context managers.",
+    "category": "Files & Data",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Functions"],
+    "subtopics": [
+      {"id": "py-open", "name": "Reading & Writing Files", "brief": "open(), modes, encodings and reading line by line."},
+      {"id": "py-pathlib", "name": "pathlib", "brief": "Building paths, globbing and checking files."},
+      {"id": "py-context-managers", "name": "with & Context Managers", "brief": "Always closing files, and writing your own."}
+    ]
+  },
+  {
+    "id": "json-csv-apis",
+    "name": "JSON, CSV & Web APIs",
+    "brief": "Work with the data formats and web APIs you meet every day.",
+    "category": "Files & Data",
+    "difficulty": "Medium",
+    "prerequisites": ["Files & Paths", "Dictionaries & Sets"],
+    "subtopics": [
+      {"id": "py-json", "name": "JSON", "brief": "json.load, json.dumps and nested data."},
+      {"id": "py-csv", "name": "CSV Files", "brief": "csv.reader, DictReader and writing rows."},
+      {"id": "py-requests", "name": "Calling APIs with requests", "brief": "GET, POST, status codes and timeouts."}
+    ]
+  },
+  {
+    "id": "errors-exceptions",
+    "name": "Errors & Exceptions",
+    "brief": "Handle what can go wrong, and read tracebacks to fix bugs fast.",
+    "category": "Files & Data",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Functions"],
+    "subtopics": [
+      {"id": "py-try-except", "name": "try / except / else / finally", "brief": "Catching the right exceptions in the right place."},
+      {"id": "py-raise", "name": "Raising & Custom Exceptions", "brief": "Signalling errors clearly from your own code."},
+      {"id": "py-debugging", "name": "Reading Tracebacks & Debugging", "brief": "Tracebacks, print debugging and breakpoint()."}
+    ]
+  },
+  {
+    "id": "testing-pytest",
+    "name": "Testing with pytest",
+    "brief": "Write tests that catch bugs before your users do.",
+    "category": "Testing & Tooling",
+    "difficulty": "Medium",
+    "prerequisites": ["Functions", "Errors & Exceptions"],
+    "subtopics": [
+      {"id": "py-pytest-basics", "name": "Writing Your First Tests", "brief": "assert, test discovery and running pytest."},
+      {"id": "py-fixtures", "name": "Fixtures & Parametrize", "brief": "Reusable setup and many cases in one test."},
+      {"id": "py-mocking", "name": "Mocking", "brief": "Replacing APIs, files and time in tests."}
+    ]
+  },
+  {
+    "id": "code-quality",
+    "name": "Code Quality & Tooling",
+    "brief": "Readable style, automatic formatting and a tidy project layout.",
+    "category": "Testing & Tooling",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Modules, Packages & Environments"],
+    "subtopics": [
+      {"id": "py-pep8", "name": "PEP 8 & Readable Code", "brief": "Naming, line length and the Zen of Python."},
+      {"id": "py-linters", "name": "Linters & Formatters", "brief": "ruff and black: fixing style automatically."},
+      {"id": "py-project-layout", "name": "Project Layout & pyproject.toml", "brief": "src layout, dependencies and scripts."}
+    ]
+  },
+  {
+    "id": "concurrency",
+    "name": "Concurrency: Threads, Processes & asyncio",
+    "brief": "Do several things at once, and pick the right tool for the job.",
+    "category": "Advanced Python",
+    "difficulty": "Hard",
+    "prerequisites": ["Functions", "Iterators & Generators"],
+    "subtopics": [
+      {"id": "py-threading", "name": "Threads & the GIL", "brief": "Why threads help with waiting but not with CPU work."},
+      {"id": "py-multiprocessing", "name": "Multiprocessing", "brief": "Using every CPU core for heavy computation."},
+      {"id": "py-asyncio", "name": "async / await & asyncio", "brief": "Thousands of network calls on one thread."}
+    ]
+  },
+  {
+    "id": "performance-profiling",
+    "name": "Performance & Profiling",
+    "brief": "Find what is slow and make it fast, without guessing.",
+    "category": "Advanced Python",
+    "difficulty": "Hard",
+    "prerequisites": ["The collections Module", "Functions"],
+    "subtopics": [
+      {"id": "py-builtin-costs", "name": "Cost of Built-in Operations", "brief": "Why x in list is slow and x in set is fast."},
+      {"id": "py-profiling", "name": "Profiling with cProfile & timeit", "brief": "Measuring before optimising."},
+      {"id": "py-vectorize", "name": "Vectorising with NumPy", "brief": "Replacing Python loops with array operations."}
+    ]
+  },
+  {
+    "id": "python-internals",
+    "name": "Python Internals & Memory",
+    "brief": "How Python stores objects and when it frees them.",
+    "category": "Advanced Python",
+    "difficulty": "Hard",
+    "prerequisites": ["Lists & Tuples", "Classes & Objects"],
+    "subtopics": [
+      {"id": "py-objects-refs", "name": "Everything Is an Object: Names & References", "brief": "id(), is vs == and small-integer caching."},
+      {"id": "py-gc", "name": "Reference Counting & Garbage Collection", "brief": "How memory is reclaimed, and reference cycles."},
+      {"id": "py-copy", "name": "Shallow vs Deep Copy", "brief": "copy.copy, copy.deepcopy and nested data."}
+    ]
+  },
+  {
+    "id": "numpy-pandas",
+    "name": "NumPy & pandas Essentials",
+    "brief": "The two libraries behind almost all data work in Python.",
+    "category": "Python for Data & AI",
+    "difficulty": "Medium",
+    "prerequisites": ["Lists & Tuples", "Dictionaries & Sets", "Functions"],
+    "subtopics": [
+      {"id": "py-numpy", "name": "NumPy Arrays", "brief": "Shapes, broadcasting and fast maths."},
+      {"id": "py-pandas", "name": "pandas DataFrames", "brief": "Loading, filtering, grouping and joining tables."},
+      {"id": "py-matplotlib", "name": "Plotting with matplotlib", "brief": "Line, bar and scatter charts."}
+    ]
+  },
+  {
+    "id": "python-for-ml",
+    "name": "Python for Machine Learning",
+    "brief": "Train your first models with scikit-learn and meet PyTorch.",
+    "category": "Python for Data & AI",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["NumPy & pandas Essentials"],
+    "subtopics": [
+      {"id": "py-sklearn", "name": "The scikit-learn Workflow", "brief": "fit, predict, train/test split and metrics."},
+      {"id": "py-pytorch-intro", "name": "PyTorch Tensors & a Tiny Network", "brief": "Tensors, autograd and a training loop."},
+      {"id": "py-notebooks", "name": "Notebook Workflows", "brief": "Jupyter and Colab habits that keep experiments reproducible."}
+    ]
+  },
+  {
+    "id": "python-ai-apps",
+    "name": "Building AI Apps with Python",
+    "brief": "Call LLM APIs, get structured output and serve it as a web API.",
+    "category": "Python for Data & AI",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["JSON, CSV & Web APIs", "Dataclasses & Type Hints"],
+    "subtopics": [
+      {"id": "py-llm-api", "name": "Calling an LLM API", "brief": "API keys, messages and handling errors."},
+      {"id": "py-structured-output", "name": "Structured Output & JSON", "brief": "Getting reliable, typed data back from a model."},
+      {"id": "py-fastapi", "name": "Serving It with FastAPI", "brief": "Turning your script into a web API."}
+    ]
+  },
+  {
+    "id": "python-projects",
+    "name": "Projects",
+    "brief": "Small to medium projects that use everything above.",
+    "category": "Projects",
+    "difficulty": "Mixed",
+    "prerequisites": ["Functions", "Files & Paths", "Errors & Exceptions"],
+    "subtopics": [
+      {"id": "py-proj-cli", "name": "Build a To-Do CLI [Easy]", "brief": "argparse, JSON storage and tests."},
+      {"id": "py-proj-scraper", "name": "Build a Web Scraper [Medium]", "brief": "requests, HTML parsing and saving to CSV."},
+      {"id": "py-proj-api", "name": "Build a REST API with FastAPI [Medium]", "brief": "Routes, validation and a SQLite database."},
+      {"id": "py-proj-analysis", "name": "Build a Data Analysis Report [Medium]", "brief": "pandas, charts and a written summary."},
+      {"id": "py-proj-chatbot", "name": "Build a Chatbot with an LLM API [Medium]", "brief": "Conversation history, a system prompt and a simple UI."}
+    ]
+  }
+]

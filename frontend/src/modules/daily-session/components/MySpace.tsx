@@ -8,6 +8,7 @@ import { notify } from '@/lib/ui/notifications';
 import { openLoginModal } from '@/components/auth/LoginModal';
 import { useUrlState } from '@/lib/navigation/urlState';
 import { TOPIC_OPTIONS, cleanTopic } from '../topics';
+import { difficultyTone, toneClass } from './ds';
 
 interface FocusTargets {
   targetRole: string;
@@ -16,11 +17,10 @@ interface FocusTargets {
   focusTopics: string[];
 }
 
-
 export default function MySpace() {
   const { user } = useAuth();
   const isSwapnilxi = user?.email?.toLowerCase() === 'swapnilgupta.xi@gmail.com';
-  const userKey = user ? (user.id || user.email?.toLowerCase() || 'authenticated') : 'guest';
+  const userKey = user ? user.id || user.email?.toLowerCase() || 'authenticated' : 'guest';
 
   // One screen, two addresses: ?tab=swapnilxi-space for the creator, ?tab=myspace for everyone else. A hand-edited or
   // shared link to the other one shows this same screen, so the address (and the page header, which follows it) is
@@ -71,10 +71,10 @@ export default function MySpace() {
     loadStats();
 
     // Load persisted scratchpad scoped to user
-    const notesKey = isSwapnilxi
-      ? 'swapnilxi_private_notes'
-      : `myspace_notes_${userKey}`;
-    const savedNotes = localStorage.getItem(notesKey) || (isSwapnilxi ? localStorage.getItem('myspace_notes_swapnilxi') : null);
+    const notesKey = isSwapnilxi ? 'swapnilxi_private_notes' : `myspace_notes_${userKey}`;
+    const savedNotes =
+      localStorage.getItem(notesKey) ||
+      (isSwapnilxi ? localStorage.getItem('myspace_notes_swapnilxi') : null);
     if (savedNotes) setScratchpad(savedNotes);
 
     // Load persisted focus targets scoped to user
@@ -83,7 +83,7 @@ export default function MySpace() {
     if (savedTargets) {
       try {
         setTargets(JSON.parse(savedTargets));
-      } catch (e) {
+      } catch {
         // use defaults
       }
     } else if (isSwapnilxi) {
@@ -154,12 +154,12 @@ export default function MySpace() {
       setNewQuestionText('');
       const updated = await questionsService.getAll();
       setDbQuestions(updated);
-    } catch (err: any) {
+    } catch (err: unknown) {
       notify({
         source: 'daily-session',
         tone: 'error',
         title: 'Failed to inject question',
-        body: err?.message || 'Check database connectivity.',
+        body: (err as { message?: string } | null)?.message || 'Check database connectivity.',
       });
     } finally {
       setCreating(false);
@@ -170,332 +170,380 @@ export default function MySpace() {
   const displayName = isSwapnilxi
     ? 'swapnilxi space'
     : user?.display_name
-    ? `${user.display_name}'s MySpace`
-    : user?.email
-    ? `${user.email.split('@')[0]}'s MySpace`
-    : 'MySpace';
+      ? `${user.display_name}'s space`
+      : user?.email
+        ? `${user.email.split('@')[0]}'s space`
+        : 'My Space';
 
+  const roleLabel: Record<string, string> = {
+    user: 'Member',
+    editor: 'Editor',
+    admin: 'Admin',
+    superadmin: 'Super admin',
+  };
   const userRole = isSwapnilxi
-    ? 'Verified Creator'
+    ? 'Verified creator'
     : user?.role
-    ? user.role.toUpperCase()
-    : 'Personal Workspace';
+      ? (roleLabel[user.role] ?? user.role.charAt(0).toUpperCase() + user.role.slice(1))
+      : 'Personal workspace';
 
-  const userInitial = isSwapnilxi
-    ? '⚡'
-    : (user?.display_name?.[0] || user?.email?.[0] || 'M').toUpperCase();
+  const userInitial = (user?.display_name?.[0] || user?.email?.[0] || 'M').toUpperCase();
+  const goalShare = `${((targets.dailyGoal - 1) / 19) * 100}%`;
+  const focusChoices = [
+    ...TOPIC_OPTIONS,
+    ...targets.focusTopics.filter(
+      (t) => !TOPIC_OPTIONS.some((o) => o.toLowerCase() === t.toLowerCase())
+    ),
+  ];
 
   return (
-    <div className="space-y-[1.5rem] animate-fade-in">
-      {/* Personalized welcome row: flat on the page background (the page header above already carries the title) */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-4">
-          <div className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl text-xl font-bold ${
-            isSwapnilxi
-              ? 'bg-gradient-to-tr from-violet-600 to-amber-500 text-white shadow-lg shadow-violet-500/30'
-              : 'bg-primary text-primary-foreground'
-          }`}>
-            {userInitial}
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">
-                {displayName}
-              </h2>
-              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize border ${
-                isSwapnilxi
-                  ? 'bg-violet-500/20 border-violet-500/40 text-violet-400'
-                  : 'lab-tint mix-border-primary/30 lab-ink'
-              }`}>
+    <div className="space-y-[1.75rem] sm:space-y-[2rem]">
+      {/* Who this space belongs to, and three numbers */}
+      <section
+        className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+        aria-label="Profile"
+      >
+        <div className="flex min-w-0 items-center gap-4">
+          <span className="bs-avatar ds-tone-indigo" aria-hidden="true">
+            {isSwapnilxi ? <Icon name="BoltIcon" variant="solid" size={26} /> : userInitial}
+          </span>
+          <div className="min-w-0">
+            <h2 className="ds-h2 break-words">{displayName}</h2>
+            {user ? (
+              <p className="mt-0.5 break-all text-sm ds-faint">{user.email}</p>
+            ) : (
+              <p className="mt-0.5 text-sm ds-faint">
+                Guest space.{' '}
+                <button
+                  type="button"
+                  onClick={() => openLoginModal({ feature: 'MySpace' })}
+                  className="ds-link"
+                >
+                  Sign in
+                </button>{' '}
+                to keep it on every device.
+              </p>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="ds-chip ds-tone-indigo">
+                <Icon
+                  name={isSwapnilxi ? 'CheckBadgeIcon' : 'UserIcon'}
+                  variant="solid"
+                  size={13}
+                />
                 {userRole}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full mix-bg-foreground/[0.06] px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                <Icon name="LockClosedIcon" size={12} />
-                Private & Scoped
+              <span className="ds-chip" title="Your notes and targets are scoped to your profile">
+                <Icon name="LockClosedIcon" variant="solid" size={12} />
+                Private
               </span>
             </div>
-            <p className="mt-1 text-xs font-medium text-muted-foreground">
-              {user ? (
-                <>
-                  Authenticated as <span className="font-mono font-semibold lab-ink">{user.email}</span> · Your private command deck & scratchpad
-                </>
-              ) : (
-                <>
-                  Viewing guest space · <button type="button" onClick={() => openLoginModal({ feature: 'MySpace' })} className="todo-focus lab-ink underline font-medium">Sign in</button> to sync across all your devices
-                </>
-              )}
-            </p>
           </div>
         </div>
 
-        <dl className="flex flex-wrap items-end gap-x-[1.5rem] gap-y-3">
+        <dl className="bs-stats lg:w-[25rem] lg:flex-shrink-0">
           <div>
-            <dt className="text-[12px] font-semibold text-muted-foreground">Question Bank</dt>
-            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{dbQuestions.length}</dd>
+            <dt>Question bank</dt>
+            <dd>{loading ? '–' : dbQuestions.length}</dd>
           </div>
           <div>
-            <dt className="text-[12px] font-semibold text-muted-foreground">Daily Target</dt>
-            <dd className="mt-0.5 text-lg font-semibold tabular-nums lab-ink">{targets.dailyGoal} Qs</dd>
+            <dt>Daily goal</dt>
+            <dd>
+              {targets.dailyGoal}
+              <small>a day</small>
+            </dd>
           </div>
           <div>
-            <dt className="text-[12px] font-semibold text-muted-foreground">Status</dt>
-            <dd className="mt-0.5 text-lg font-semibold text-emerald-700 dark:text-emerald-300">{isSwapnilxi ? 'SuperAdmin' : 'Active'}</dd>
+            <dt>Status</dt>
+            <dd className="bs-stat-word ds-tone-jade ds-tone-text">
+              {isSwapnilxi ? 'Super admin' : 'Active'}
+            </dd>
           </div>
         </dl>
-      </div>
+      </section>
 
-      {/* Guest Notice if not authenticated */}
+      {/* Guest notice */}
       {!user && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3">
-            <Icon name="InformationCircleIcon" size={20} className="text-amber-500 shrink-0" />
-            <div>
-              <span className="font-semibold text-foreground">Personalize your MySpace: </span>
-              <span className="text-muted-foreground">Log in to keep your private notes, focus targets, and injected questions securely tied to your unique user profile.</span>
-            </div>
+        <div className="ds-banner ds-banner-center bs-tone-p ds-tone-gold flex-col sm:flex-row">
+          <div className="flex w-full min-w-0 flex-1 items-start gap-2.5 sm:w-auto">
+            <Icon name="InformationCircleIcon" variant="solid" size={18} />
+            <p>
+              <span className="font-semibold">Make this space yours. </span>
+              Sign in to keep your notes, targets and added questions tied to your profile.
+            </p>
           </div>
           <button
             type="button"
             onClick={() => openLoginModal({ feature: 'MySpace' })}
-            className="todo-btn todo-btn-primary shrink-0 px-4 py-2"
+            className="ds-btn ds-btn-primary ds-btn-sm w-full flex-shrink-0 sm:w-auto"
           >
-            Sign In Now
+            Sign in
           </button>
         </div>
       )}
 
-      {/* Career Targets & Focus Planner */}
-      <div className="rounded-xl border border-border bg-card p-[1.25rem] space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Icon name="FlagIcon" size={18} className="text-primary" />
-            <h3 className="font-heading text-base font-semibold text-foreground">
-              Personal Targets & Focus Deck
-            </h3>
-          </div>
-          {targetsSaved && (
-            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 animate-in fade-in-0 duration-200">
-              ✓ Targets saved
-            </span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-              Target Dream Role
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Senior ML Engineer, L5 SWE"
-              value={targets.targetRole}
-              onChange={(e) => handleSaveTargets({ ...targets, targetRole: e.target.value })}
-              className="todo-input px-3 py-2 text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-              Target Companies
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Google, Meta, Anthropic, Stripe"
-              value={targets.targetCompanies}
-              onChange={(e) => handleSaveTargets({ ...targets, targetCompanies: e.target.value })}
-              className="todo-input px-3 py-2 text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-              Daily Question Goal ({targets.dailyGoal} questions / day)
-            </label>
-            <input
-              type="range"
-              min={1}
-              max={20}
-              value={targets.dailyGoal}
-              onChange={(e) => handleSaveTargets({ ...targets, dailyGoal: Number(e.target.value) })}
-              className="w-full accent-primary h-2 mt-2 bg-muted rounded-lg cursor-pointer"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-            Key Focus Areas
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {[...TOPIC_OPTIONS, ...targets.focusTopics.filter((t) => !TOPIC_OPTIONS.some((o) => o.toLowerCase() === t.toLowerCase()))].map((topic) => {
-              const active = targets.focusTopics.includes(topic);
-              return (
-                <button
-                  key={topic}
-                  type="button"
-                  onClick={() => toggleTopic(topic)}
-                  aria-pressed={active}
-                  className={`todo-focus px-3 py-1.5 rounded-lg text-xs font-semibold transition-smooth border ${
-                    active
-                      ? 'lab-tint mix-border-primary/30 lab-ink'
-                      : 'mix-bg-foreground/[0.04] border-border text-muted-foreground hover:text-foreground'
-                  }`}
+      <div className="grid grid-cols-1 items-start gap-[1.75rem] lg:grid-cols-2 lg:gap-[1.5rem]">
+        <div className="min-w-0 space-y-[1.75rem]">
+          {/* Targets */}
+          <section aria-labelledby="ms-targets-title">
+            <div className="ds-section-head">
+              <h2 id="ms-targets-title">Your targets</h2>
+              {targetsSaved ? (
+                <span
+                  key="saved"
+                  className="bs-saved flex items-center gap-1 ds-tone-jade ds-tone-text"
                 >
-                  {active ? '✓ ' : '+ '}
-                  {topic}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-2 flex gap-2">
-            <input
-              type="text"
-              value={customTopicDraft}
-              maxLength={60}
-              onChange={(e) => setCustomTopicDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  addFocusTopic();
-                }
-              }}
-              placeholder="Add your own focus area, e.g. Kafka"
-              aria-label="Add a custom focus area"
-              className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground"
-            />
-            <button
-              type="button"
-              onClick={addFocusTopic}
-              disabled={!cleanTopic(customTopicDraft)}
-              className="todo-focus rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50"
-            >
-              Add
-            </button>
-          </div>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            These are the default topics for a new Daily Session. You can change them for one session on the setup screen.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[1.5rem]">
-        {/* Rapid Question Injector */}
-        <div className="rounded-xl border border-border bg-card p-[1.25rem] space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Icon name="PlusCircleIcon" size={18} className="text-primary" />
-              <h3 className="font-heading text-base font-semibold text-foreground">
-                Rapid Question Injector
-              </h3>
+                  <Icon name="CheckCircleIcon" variant="solid" size={14} />
+                  Saved
+                </span>
+              ) : (
+                <span key="auto">Saves as you type</span>
+              )}
             </div>
-            <span className="text-xs text-muted-foreground">Direct Database Commit</span>
-          </div>
-
-          <form onSubmit={handleCreateQuestion} className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                Question Text
+            <div className="ds-list" data-icons="true">
+              <label className="ds-list-row bs-form-row">
+                <span className="ds-icon-tile ds-icon-tile-sm ds-tone-indigo">
+                  <Icon name="FlagIcon" variant="solid" size={15} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="bs-row-label">Dream role</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. Senior ML Engineer, L5 SWE"
+                    value={targets.targetRole}
+                    onChange={(e) => handleSaveTargets({ ...targets, targetRole: e.target.value })}
+                    className="bs-plain"
+                  />
+                </span>
               </label>
-              <textarea
-                rows={3}
-                required
-                placeholder="Enter technical interview or CV question..."
-                value={newQuestionText}
-                onChange={(e) => setNewQuestionText(e.target.value)}
-                className="todo-input px-3.5 py-2.5 text-xs resize-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                  Category
-                </label>
-                <select
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value as any)}
-                  className="todo-input px-2.5 py-2 text-xs font-semibold"
-                >
-                  <option value="Interview">Interview</option>
-                  <option value="CV Skill">CV Skill</option>
-                </select>
+              <label className="ds-list-row bs-form-row">
+                <span className="ds-icon-tile ds-icon-tile-sm ds-tone-indigo">
+                  <Icon name="BuildingOffice2Icon" variant="solid" size={15} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="bs-row-label">Target companies</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. Google, Meta, Anthropic, Stripe"
+                    value={targets.targetCompanies}
+                    onChange={(e) =>
+                      handleSaveTargets({ ...targets, targetCompanies: e.target.value })
+                    }
+                    className="bs-plain"
+                  />
+                </span>
+              </label>
+              <div className="ds-list-row">
+                <span className="ds-icon-tile ds-icon-tile-sm ds-tone-jade">
+                  <Icon name="ChartBarIcon" variant="solid" size={15} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <label htmlFor="ms-goal" className="bs-row-label">
+                      Daily goal
+                    </label>
+                    <span className="text-sm font-semibold ds-ink ds-num">
+                      {targets.dailyGoal} question{targets.dailyGoal === 1 ? '' : 's'} a day
+                    </span>
+                  </div>
+                  <input
+                    id="ms-goal"
+                    type="range"
+                    min={1}
+                    max={20}
+                    value={targets.dailyGoal}
+                    onChange={(e) =>
+                      handleSaveTargets({ ...targets, dailyGoal: Number(e.target.value) })
+                    }
+                    className="bs-range mt-1"
+                    style={{ '--p': goalShare } as React.CSSProperties}
+                  />
+                </div>
               </div>
+            </div>
+          </section>
 
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                  Sub-Type
-                </label>
+          {/* Focus areas */}
+          <section aria-labelledby="ms-focus-title">
+            <div className="ds-section-head">
+              <h2 id="ms-focus-title">Focus areas</h2>
+              <span className="ds-num">{targets.focusTopics.length} selected</span>
+            </div>
+            <div className="ds-card p-4">
+              <div className="flex flex-wrap gap-2" role="group" aria-labelledby="ms-focus-title">
+                {focusChoices.map((topic) => {
+                  const active = targets.focusTopics.includes(topic);
+                  return (
+                    <button
+                      key={topic}
+                      type="button"
+                      onClick={() => toggleTopic(topic)}
+                      aria-pressed={active}
+                      className="bs-toggle"
+                    >
+                      <Icon name={active ? 'CheckIcon' : 'PlusIcon'} size={15} />
+                      {topic}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex gap-2">
                 <input
                   type="text"
-                  value={newSubType}
-                  onChange={(e) => setNewSubType(e.target.value)}
-                  className="todo-input px-2.5 py-2 text-xs"
+                  value={customTopicDraft}
+                  maxLength={60}
+                  onChange={(e) => setCustomTopicDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addFocusTopic();
+                    }
+                  }}
+                  placeholder="Add your own, e.g. Kafka"
+                  aria-label="Add a custom focus area"
+                  className="ds-field min-w-0 flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={addFocusTopic}
+                  disabled={!cleanTopic(customTopicDraft)}
+                  className="ds-btn ds-btn-secondary flex-shrink-0"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+            <p className="bs-footnote">
+              These are the default topics for a new Daily Session. You can change them for one
+              session on the setup screen.
+            </p>
+          </section>
+        </div>
+
+        <div className="min-w-0 space-y-[1.75rem]">
+          {/* Add a question */}
+          <section aria-labelledby="ms-add-title">
+            <div className="ds-section-head">
+              <h2 id="ms-add-title">Add a question</h2>
+              <span>Straight to your question bank</span>
+            </div>
+            <form onSubmit={handleCreateQuestion} className="ds-card space-y-4 p-4 sm:p-5">
+              <div>
+                <label htmlFor="ms-question" className="bs-label">
+                  Question
+                </label>
+                <textarea
+                  id="ms-question"
+                  rows={3}
+                  required
+                  placeholder="An interview or CV question…"
+                  value={newQuestionText}
+                  onChange={(e) => setNewQuestionText(e.target.value)}
+                  className="ds-field resize-none"
                 />
               </div>
 
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <span id="ms-category" className="bs-label">
+                    Category
+                  </span>
+                  <div className="ds-seg" role="group" aria-labelledby="ms-category">
+                    {(['Interview', 'CV Skill'] as const).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        aria-pressed={newCategory === c}
+                        onClick={() => setNewCategory(c)}
+                      >
+                        {c === 'CV Skill' ? 'CV skill' : c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="ms-topic" className="bs-label">
+                    Topic
+                  </label>
+                  <input
+                    id="ms-topic"
+                    type="text"
+                    value={newSubType}
+                    onChange={(e) => setNewSubType(e.target.value)}
+                    placeholder="e.g. DSA"
+                    className="ds-field"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                <span id="ms-difficulty" className="bs-label">
                   Difficulty
-                </label>
-                <select
-                  value={newDifficulty}
-                  onChange={(e) => setNewDifficulty(e.target.value as any)}
-                  className="todo-input px-2.5 py-2 text-xs font-semibold"
+                </span>
+                <div className="ds-seg" role="group" aria-labelledby="ms-difficulty">
+                  {(['Easy', 'Medium', 'Hard'] as const).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-pressed={newDifficulty === d}
+                      onClick={() => setNewDifficulty(d)}
+                    >
+                      <span
+                        className={`ds-dot ${toneClass(difficultyTone(d))}`}
+                        aria-hidden="true"
+                      />
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button type="submit" disabled={creating} className="ds-btn ds-btn-primary w-full">
+                {creating ? (
+                  <span
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Icon name="PlusIcon" size={17} />
+                )}
+                Add to question bank
+              </button>
+            </form>
+          </section>
+
+          {/* Scratchpad */}
+          <section aria-labelledby="ms-notes-title">
+            <div className="ds-section-head">
+              <h2 id="ms-notes-title">{isSwapnilxi ? 'Scratchpad and roadmap' : 'Scratchpad'}</h2>
+              <span>Saves as you type</span>
+            </div>
+            <div className="ds-card bs-notes-card overflow-hidden">
+              <textarea
+                rows={8}
+                value={scratchpad}
+                onChange={(e) => handleSaveNotes(e.target.value)}
+                placeholder="Your private thoughts, interview tips to remember, tricky edge cases, algorithms to revise, or questions to practise…"
+                aria-labelledby="ms-notes-title"
+                className="bs-notes"
+              />
+              <div className="flex items-center justify-between gap-3 border-t ds-hairline px-4 py-2">
+                <span className="flex min-w-0 items-center gap-1.5 text-xs ds-faint">
+                  <Icon name="LockClosedIcon" size={13} />
+                  <span className="ds-num">{scratchpad.length}</span> characters · only you can see
+                  this
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleSaveNotes('')}
+                  disabled={!scratchpad}
+                  className="ds-btn ds-btn-danger ds-btn-sm flex-shrink-0"
                 >
-                  <option value="Easy">Easy</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Hard">Hard</option>
-                </select>
+                  Clear
+                </button>
               </div>
             </div>
-
-            <button
-              type="submit"
-              disabled={creating}
-              className="todo-btn todo-btn-primary w-full gap-2 py-2.5"
-            >
-              {creating ? (
-                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              ) : (
-                <Icon name="BoltIcon" size={15} />
-              )}
-              Inject into Repository
-            </button>
-          </form>
-        </div>
-
-        {/* Private Personal Notes & Scratchpad */}
-        <div className="rounded-xl border border-border bg-card p-[1.25rem] space-y-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Icon name="DocumentTextIcon" size={18} className="text-primary" />
-                <h3 className="font-heading text-base font-semibold text-foreground">
-                  {isSwapnilxi ? 'Swapnilxi Scratchpad & Roadmap' : 'Private Scratchpad & Notes'}
-                </h3>
-              </div>
-              <span className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">Auto-persisted</span>
-            </div>
-
-            <textarea
-              rows={8}
-              value={scratchpad}
-              onChange={(e) => handleSaveNotes(e.target.value)}
-              placeholder="Your private thoughts, interview tips to remember, tricky edge-cases, algorithms to revise, or questions to practice..."
-              className="todo-input px-3.5 py-2.5 text-xs font-mono resize-none leading-relaxed"
-            />
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
-            <span>{scratchpad.length} characters · Private to your profile</span>
-            <button
-              type="button"
-              onClick={() => handleSaveNotes('')}
-              className="todo-focus text-rose-600 dark:text-rose-400 hover:underline"
-            >
-              Clear notes
-            </button>
-          </div>
+          </section>
         </div>
       </div>
     </div>

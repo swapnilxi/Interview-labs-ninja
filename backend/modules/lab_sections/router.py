@@ -1,4 +1,4 @@
-"""Context-driven generation for the labs' on-demand sections (DSA, CV, System Design).
+"""Context-driven generation for the labs' on-demand sections (DSA, CV, System Design, Communication, Finance, Python).
 
 A section's default body comes from a template baked into the frontend. This router handles the
 AI-written alternatives: `generate` writes a section from the topic alone (for sections that have no
@@ -42,12 +42,30 @@ from .store import (
 
 router = APIRouter(prefix="/lab-sections", tags=["lab-sections"], dependencies=[Depends(get_current_user_id)])
 
-LabName = Literal["dsa", "cv", "system_design"]
+LabName = Literal["dsa", "cv", "system_design", "communication", "finance", "python"]
 
 _DOMAINS: Dict[str, str] = {
     "dsa": "Data Structures & Algorithms",
     "cv": "Computer Vision",
     "system_design": "System Design",
+    "communication": "Business Communication",
+    "finance": "Finance",
+    "python": "Python",
+}
+
+# Who a section (and the copilot) is written for. The three interview labs share the default, so their prompts are
+# unchanged; the twin (fe-apis/labSections/handlers.ts) has the same texts.
+_DEFAULT_AUDIENCE = "someone preparing for technical interviews"
+_AUDIENCE: Dict[str, str] = {
+    "communication": "a professional improving their business English, communication and leadership skills",
+    "finance": "a beginner learning finance step by step, from the basics up to using AI in finance",
+    "python": "a learner going from Python basics to writing professional Python for software, data and AI work",
+}
+_DEFAULT_COPILOT_GOAL = "helping someone prepare for technical interviews"
+_COPILOT_GOAL: Dict[str, str] = {
+    "communication": "helping a professional improve their business English, communication and leadership",
+    "finance": "helping a beginner learn finance and how AI is used in it",
+    "python": "helping someone learn Python, from the basics to professional, data and AI work",
 }
 
 # A section is a long document; the default 2048-token budget would silently truncate it mid-output.
@@ -147,7 +165,7 @@ Output rules:
 - Begin with a bold title line, for example **{p.section_label} — {subject}**.
 - Use bold lines (**Like this**) for sub-headings, '-' bullets, numbered lists, GitHub-style tables where a comparison helps, and `inline code` for identifiers.
 - Put every code snippet and every ASCII/text diagram in a fenced block with a language tag (```python, ```text). Use Python for code unless the learner's context asks for another language.
-- Be concrete and accurate, aimed at someone preparing for technical interviews. Keep it focused: roughly 250-600 words excluding code, unless the section requirements above ask for more."""
+- Be concrete and accurate, aimed at {_AUDIENCE.get(p.lab, _DEFAULT_AUDIENCE)}. Keep it focused: roughly 250-600 words excluding code, unless the section requirements above ask for more."""
 
 
 _WRAPPING_FENCE = re.compile(r"^\s*```(?:markdown|md)?\s*\n(.*)\n```\s*$", re.DOTALL | re.IGNORECASE)
@@ -335,6 +353,79 @@ async def generate_quiz(payload: GenerateQuizPayload, user_id: int = Depends(get
     if not added:
         raise HTTPException(status_code=502, detail="The AI only repeated questions you already have. Try again.")
     return {"questions": added}
+
+
+# ── Copilot (the side panel's chat / hint / deeper / ELI5) ───────────────────────────────
+# Twin: the '/copilot' route in frontend/fe-apis/labSections/handlers.ts -- keep prompts and limits identical.
+
+_COPILOT_MAX_TOKENS = 1500
+
+_COPILOT_TASKS: Dict[str, str] = {
+    "chat": "Answer the learner's question. If it is not about this topic, say so briefly and connect it back.",
+    "hint": (
+        "Give hint level {level} of 3 for working on this topic. Level 1 is a gentle nudge about how to think about it, "
+        "level 2 names the pattern or key insight, level 3 lays out the approach step by step without final code. "
+        "Do not repeat earlier hints. Output only the hint, starting with 'Level {level} — '."
+    ),
+    "deeper": (
+        "Go deeper on this topic: internals, trade-offs, production behaviour and what senior engineers know that "
+        "juniors miss. Use 4-6 numbered points, each starting with a bold lead-in."
+    ),
+    "eli5": (
+        "Explain this topic like the learner is five: one concrete everyday analogy, plain words, no jargon or formulas, "
+        "then one sentence tying the analogy back to the real thing."
+    ),
+}
+
+
+class CopilotTurn(BaseModel):
+    role: Literal["user", "ai"]
+    content: str = Field(default="", max_length=4000)
+
+
+class CopilotPayload(AISettings):
+    lab: LabName
+    context: str = Field(min_length=1, max_length=400)  # the open topic's name
+    topic_brief: str = Field(default="", max_length=2000)
+    mode: Literal["chat", "hint", "deeper", "eli5"] = "chat"
+    question: str = Field(default="", max_length=2000)
+    hint_level: int = Field(default=1, ge=1, le=3)
+    history: List[CopilotTurn] = Field(default_factory=list, max_length=40)
+
+
+def _build_copilot_prompt(p: CopilotPayload) -> str:
+    domain = _DOMAINS[p.lab]
+    turns = "\n".join(
+        f"{'Learner' if t.role == 'user' else 'Copilot'}: {t.content[:800]}" for t in p.history[-8:]
+    )
+    brief = f"\nTopic summary: {p.topic_brief.strip()}" if p.topic_brief.strip() else ""
+    task = _COPILOT_TASKS[p.mode].format(level=p.hint_level)
+    question = f"\nLearner: {p.question.strip()}" if p.mode == "chat" else ""
+    convo = ("Conversation so far:\n" + turns) if turns else ""
+    return f"""You are the study copilot inside a {domain} lab, {_COPILOT_GOAL.get(p.lab, _DEFAULT_COPILOT_GOAL)}. The learner has this topic open: {p.context.strip()}.{brief}
+
+{convo}{question}
+
+{task}
+
+Be accurate and concrete. Keep it short (under 200 words unless the task needs more): short paragraphs or "- " bullets, **bold** for key terms, `inline code` for identifiers, no headings, no preamble."""
+
+
+@router.post("/copilot")
+async def copilot(payload: CopilotPayload) -> dict:
+    if payload.mode == "chat" and not payload.question.strip():
+        raise HTTPException(status_code=422, detail="question is required")
+    try:
+        text = call_ai_text(_build_copilot_prompt(payload), payload, max_tokens=_COPILOT_MAX_TOKENS)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No API key configured or all providers failed. Add a key in Config. Last error: {exc}",
+        )
+    answer = _clean(text)
+    if not answer:
+        raise HTTPException(status_code=502, detail="The model returned an empty answer. Try again.")
+    return {"answer": answer}
 
 
 # ── Progress ("Mark as complete") ─────────────────────────────────────────────

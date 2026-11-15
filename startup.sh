@@ -58,22 +58,46 @@ free_port "3002"
 # Ensure Python output is not buffered, so Uvicorn startup logs are visible immediately
 export PYTHONUNBUFFERED=1
 
-# Find python executable (prefer python3, fallback to python)
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_CMD="python"
+# The backend needs Python >= 3.11 and the packages in backend/pyproject.toml (pinned in uv.lock). `uv` provides
+# both: `uv sync` builds backend/.venv from uv.lock (downloading a matching Python if the machine has none) and keeps
+# it current. Without uv, fall back to python3/python, which only works if that interpreter already has the
+# backend's packages: a bare system python3 does not, and the backend used to die on `import fastapi` while the
+# frontend kept running in offline mode.
+# If the backend can't be set up, the frontend still starts (it shows its offline mode) and the reason is printed.
+cd "$WORKSPACE_DIR/backend"
+BACKEND_CMD=()
+if command -v uv &> /dev/null; then
+    echo "----------------------------------------"
+    echo "Syncing backend dependencies (uv sync)..."
+    echo "----------------------------------------"
+    if uv sync --quiet; then
+        BACKEND_CMD=(uv run --no-sync python main.py)
+    else
+        echo "Warning: 'uv sync' failed (network?), so the backend is skipped. Run this again once it can download." >&2
+    fi
 else
-    echo "Error: Python is not installed or not in PATH." >&2
-    exit 1
+    PYTHON_CMD=""
+    if command -v python3 &> /dev/null; then
+        PYTHON_CMD="python3"
+    elif command -v python &> /dev/null; then
+        PYTHON_CMD="python"
+    fi
+    if [ -n "$PYTHON_CMD" ] && "$PYTHON_CMD" -c "import fastapi, uvicorn" &> /dev/null; then
+        BACKEND_CMD=("$PYTHON_CMD" main.py)
+    else
+        echo "Warning: no Python with fastapi/uvicorn found, so the backend is skipped (the app runs in offline mode)." >&2
+        echo "Fix: install uv (brew install uv) and run this again; it sets up backend/.venv from uv.lock." >&2
+    fi
 fi
 
-echo "----------------------------------------"
-echo "Starting Backend ($PYTHON_CMD main.py)..."
-echo "----------------------------------------"
-cd "$WORKSPACE_DIR/backend"
-PORT="$BACKEND_PORT" $PYTHON_CMD main.py &
-BE_PID=$!
+BE_PID=""
+if [ ${#BACKEND_CMD[@]} -gt 0 ]; then
+    echo "----------------------------------------"
+    echo "Starting Backend (${BACKEND_CMD[*]})..."
+    echo "----------------------------------------"
+    PORT="$BACKEND_PORT" "${BACKEND_CMD[@]}" &
+    BE_PID=$!
+fi
 
 echo "----------------------------------------"
 echo "Starting Frontend (npm run dev)..."

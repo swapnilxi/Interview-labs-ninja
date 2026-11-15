@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Modal from '@/components/ui/Modal';
 import NotificationBell from '@/components/ui/NotificationCenter';
+import { LAB_GROUPS, LABS_HOME, LABS_PROJECT_LINK, isLabsPath, labsInGroup } from '@/modules/common/lab/labCatalog';
 
 /**
  * Bottom tab bar for phones (< md): the four places used daily, within thumb reach, plus "More"
@@ -16,21 +17,18 @@ import NotificationBell from '@/components/ui/NotificationCenter';
 
 export const OPEN_NAV_EVENT = 'labninja:open-nav';
 
-const LABS = [
-  { label: 'CV Lab', path: '/cv-lab', icon: 'EyeIcon', hint: 'Computer vision' },
-  { label: 'DSA Lab', path: '/dsa-lab', icon: 'CpuChipIcon', hint: 'Data structures & algorithms' },
-  {
-    label: 'System Design',
-    path: '/system-design-lab',
-    icon: 'ServerStackIcon',
-    hint: 'Architecture & scale',
-  },
-  {
-    label: 'Labs Project',
-    path: '/labs-project',
-    icon: 'FolderOpenIcon',
-    hint: 'Projects the labs generate for',
-  },
+interface SheetLab {
+  label: string;
+  path: string;
+  icon: string;
+  hint: string;
+}
+
+// The sheet's lists (labCatalog.ts): the Labs home, one list per group of labs, then Labs Project.
+const SHEET_GROUPS: { id: string; title?: string; labs: SheetLab[] }[] = [
+  { id: 'home', labs: [{ ...LABS_HOME, hint: 'Every lab at a glance' }] },
+  ...LAB_GROUPS.map((g) => ({ id: g.id, title: g.label, labs: labsInGroup(g.id) as SheetLab[] })),
+  { id: 'project', labs: [LABS_PROJECT_LINK] },
 ];
 
 // Pages where a tab bar would be noise (auth, and the published resume/portfolio pages a visitor opens from a link) — everything else gets it.
@@ -65,30 +63,41 @@ function LabsSheet({
           Done
         </button>
       </div>
-      <ul className="drawer-group mx-4 mb-4">
-        {LABS.map((lab) => {
-          const active = pathname === lab.path;
-          return (
-            <li key={lab.path}>
-              <Link
-                href={lab.path}
-                onClick={onClose}
-                aria-current={active ? 'page' : undefined}
-                className={`drawer-row drawer-row-tall ${active ? 'drawer-row-active' : ''}`}
-              >
-                <span className="drawer-icon drawer-icon-lg" aria-hidden="true">
-                  <Icon name={lab.icon} size={20} variant={active ? 'solid' : 'outline'} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[16px] font-semibold">{lab.label}</span>
-                  <span className="block text-[13px] font-normal text-muted-foreground">{lab.hint}</span>
-                </span>
-                <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="flex min-h-0 flex-col overflow-y-auto pb-4">
+        {SHEET_GROUPS.map((group) => (
+          <section key={group.id} aria-labelledby={group.title ? `labs-sheet-${group.id}` : undefined} className="mx-4 mb-4">
+            {group.title && (
+              <h3 id={`labs-sheet-${group.id}`} className="mb-1.5 px-3.5 text-[13px] font-medium uppercase tracking-wide text-muted-foreground">
+                {group.title}
+              </h3>
+            )}
+            <ul className="drawer-group">
+              {group.labs.map((lab) => {
+                const active = pathname === lab.path;
+                return (
+                  <li key={lab.path}>
+                    <Link
+                      href={lab.path}
+                      onClick={onClose}
+                      aria-current={active ? 'page' : undefined}
+                      className={`drawer-row drawer-row-tall ${active ? 'drawer-row-active' : ''}`}
+                    >
+                      <span className="drawer-icon drawer-icon-lg" aria-hidden="true">
+                        <Icon name={lab.icon} size={20} variant={active ? 'solid' : 'outline'} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[16px] font-semibold">{lab.label}</span>
+                        <span className="block text-[13px] font-normal text-muted-foreground">{lab.hint}</span>
+                      </span>
+                      <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
     </Modal>
   );
 }
@@ -140,7 +149,7 @@ export default function MobileTabBar() {
 
   if (hidden) return null;
 
-  const onLabs = LABS.some((l) => pathname === l.path);
+  const onLabs = isLabsPath(pathname);
   const tab = (active: boolean) => `mobile-tab ${active ? 'mobile-tab-active' : ''}`;
 
   const daily = pathname === '/daily-session';

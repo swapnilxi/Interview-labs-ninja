@@ -1,10 +1,17 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import Icon from '@/components/ui/AppIcon';
+import FlatIcon from '@/components/ui/FlatIcon';
 import RichText from './RichText';
 import CodeSpace from './CodeSpace';
 import { EvaluationView } from './AnswerCoach';
-import { answerCoachService, type ChatTurn, type Evaluation, type LearnReply } from './answerCoachService';
+import {
+  answerCoachService,
+  type ChatTurn,
+  type Evaluation,
+  type LearnReply,
+} from './answerCoachService';
 import { detectKind, wantsCode } from './questionKind';
 import type { WorkspaceQuestion } from './AnswerWorkspace';
 import { speak, stopSpeaking } from '../companion/voice';
@@ -59,9 +66,11 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
       setMeta(reply);
       setTurns([...next, { role: 'tutor', content: reply.message }]);
       if (voiceOn) speak(reply.message, 'calm', null, 1);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setTurns(next); // keep the learner's message so they can retry
-      setError(e?.message || 'The tutor is unavailable. Try again.');
+      setError(
+        (e as { message?: string } | null)?.message || 'The tutor is unavailable. Try again.'
+      );
     } finally {
       setBusy(false);
     }
@@ -69,7 +78,10 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
 
   const requireLogin = () => {
     if (isLoggedIn()) return false;
-    openLoginModal({ feature: 'AI Learn Chat', redirectTo: `${window.location.pathname}${window.location.search}` });
+    openLoginModal({
+      feature: 'AI Learn Chat',
+      redirectTo: `${window.location.pathname}${window.location.search}`,
+    });
     return true;
   };
 
@@ -102,7 +114,9 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
     setError(null);
     stopSpeaking();
     try {
-      const transcript = turns.map((t) => `${t.role === 'tutor' ? 'Tutor' : 'Learner'}: ${t.content}`).join('\n\n');
+      const transcript = turns
+        .map((t) => `${t.role === 'tutor' ? 'Tutor' : 'Learner'}: ${t.content}`)
+        .join('\n\n');
       const result = await answerCoachService.evaluate({
         questionText: question.questionText,
         answerText: transcript,
@@ -113,8 +127,8 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
       });
       setEv(result);
       onEvaluated?.(result);
-    } catch (e: any) {
-      setError(e?.message || 'Could not review the session.');
+    } catch (e: unknown) {
+      setError((e as { message?: string } | null)?.message || 'Could not review the session.');
     } finally {
       setEvaluating(false);
     }
@@ -136,41 +150,75 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
 
   if (!started) {
     return (
-      <div className="rounded-3xl border-2 border-dashed mix-border-primary/40 lab-tint p-5 text-center">
-        <div className="text-3xl" aria-hidden>🎙️</div>
-        <h4 className="mt-1 font-heading text-base font-extrabold text-foreground">AI Learn Chat</h4>
-        <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-          Learn this topic in depth by talking it through. Your AI tutor starts from what you already know, asks guiding questions, explains when you get stuck, and goes deeper step by step. No grades or pressure. Afterwards you get a review of what you learned and what to revisit.
+      <div className="bs-tutor-intro">
+        <span className="ds-icon-tile ds-icon-tile-lg ds-tone-indigo">
+          <Icon name="ChatBubbleLeftRightIcon" variant="solid" size={22} />
+        </span>
+        <h4 className="ds-h3 mt-3">Learn with an AI tutor</h4>
+        <p className="mx-auto mt-1 max-w-[30rem] text-sm leading-relaxed ds-muted">
+          Talk the topic through. Your tutor starts from what you already know and goes one step
+          deeper at a time.
         </p>
+        <ul className="mx-auto mt-4 grid max-w-[30rem] gap-2.5 text-left text-[13px] leading-snug ds-muted">
+          <li className="flex items-start gap-2.5">
+            <FlatIcon name="chat" size={17} className="mt-px" />
+            <span>Guiding questions first, and an explanation whenever you get stuck.</span>
+          </li>
+          <li className="flex items-start gap-2.5">
+            <FlatIcon name="ok" size={17} className="mt-px" />
+            <span>No grades or pressure while you learn.</span>
+          </li>
+          <li className="flex items-start gap-2.5">
+            <FlatIcon name="chart" size={17} className="mt-px" />
+            <span>Afterwards, a review of what you learned and what to revisit.</span>
+          </li>
+        </ul>
         <button
           type="button"
           onClick={start}
-          className="mt-3 rounded-2xl bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground shadow-[0_4px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] transition active:translate-y-[2px] active:shadow-none"
+          className="ds-btn ds-btn-soft ds-tone-indigo mt-5 w-full sm:w-auto sm:min-w-[12rem]"
         >
           Start learning
         </button>
-        {error && <p className="mt-2 text-xs font-semibold text-rose-600">{error}</p>}
+        {error && (
+          <p className="ds-banner ds-tone-rose mt-3 text-left text-xs" role="alert">
+            <Icon name="ExclamationTriangleIcon" variant="solid" size={15} />
+            <span>{error}</span>
+          </p>
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {/* Header: who, depth, controls */}
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl mix-bg-foreground/[0.05] px-3 py-2">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground" aria-hidden>
+      {/* Header: who, how deep, read-aloud */}
+      <div className="flex items-center gap-3 px-0.5">
+        <span
+          className="ds-icon-tile bs-round ds-tone-indigo text-sm font-semibold"
+          aria-hidden="true"
+        >
           {name.replace('Dr. ', '')[0]}
-        </div>
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-extrabold text-foreground">{name} <span className="font-semibold text-muted-foreground">· {meta?.tutor.role ?? '…'} (AI)</span></div>
-          <div className="mt-1 flex items-center gap-1" aria-label={`Depth ${depth} of 5`}>
+          <p className="text-sm font-semibold ds-ink">
+            {name} <span className="font-normal ds-faint">· {meta?.tutor.role ?? '…'} (AI)</span>
+          </p>
+          <div className="bs-depth mt-1.5" aria-label={`Depth ${depth} of 5`} role="img">
             {DEPTH_LABELS.map((l, i) => (
-              <span key={l} title={l} className={`h-1.5 flex-1 rounded-full transition-colors ${i < depth ? 'bg-primary' : 'bg-border'}`} />
+              <span key={l} title={l} data-on={i < depth} />
             ))}
           </div>
-          <div className="mt-0.5 text-[11px] font-semibold text-muted-foreground">
-            {depth ? `${DEPTH_LABELS[depth - 1]}${meta?.focus ? ` · ${meta.focus}` : ''}` : 'Getting started'} · {candidateCount}/{meta?.max_turns ?? 8} messages
-          </div>
+          <p className="mt-1 text-xs ds-faint">
+            {depth
+              ? `${DEPTH_LABELS[depth - 1]}${meta?.focus ? ` · ${meta.focus}` : ''}`
+              : 'Getting started'}{' '}
+            ·{' '}
+            <span className="ds-num">
+              {candidateCount}/{meta?.max_turns ?? 8}
+            </span>{' '}
+            messages
+          </p>
         </div>
         <button
           type="button"
@@ -179,81 +227,97 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
             stopSpeaking();
           }}
           aria-pressed={voiceOn}
+          aria-label={voiceOn ? 'Reading aloud. Tap to stop' : "Read the tutor's messages aloud"}
           title="Read the tutor's messages aloud"
-          className={`rounded-full border-2 px-2.5 py-1 text-xs font-extrabold ${voiceOn ? 'border-primary lab-tint lab-ink' : 'border-border text-muted-foreground'}`}
+          className={`ds-btn ds-btn-icon bs-round flex-shrink-0 ${voiceOn ? 'ds-btn-soft ds-tone-indigo' : 'ds-btn-ghost'}`}
         >
-          {voiceOn ? '🔊 On' : '🔈 Off'}
+          <Icon name={voiceOn ? 'SpeakerWaveIcon' : 'SpeakerXMarkIcon'} size={19} />
         </button>
       </div>
 
       {/* Conversation */}
-      <div ref={scroller} className="max-h-[26rem] min-h-[12rem] space-y-3 overflow-y-auto rounded-2xl border-2 border-border bg-card p-3" aria-live="polite">
+      <div ref={scroller} className="bs-chat" aria-live="polite">
         {turns.map((t, i) => (
-          <div key={i} className={`flex ${t.role === 'learner' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                t.role === 'learner'
-                  ? 'rounded-br-md bg-primary text-primary-foreground'
-                  : 'rounded-bl-md border-2 mix-border-primary/30 bg-card text-foreground'
-              }`}
-            >
-              {t.role === 'learner' ? <RichText text={t.content} className="text-primary-foreground [&_code]:mix-bg-primary-foreground/20" /> : <span className="whitespace-pre-wrap">{t.content}</span>}
-            </div>
+          <div key={i} className="bs-msg" data-role={t.role === 'learner' ? 'learner' : 'tutor'}>
+            {t.role === 'learner' ? (
+              <RichText text={t.content} />
+            ) : (
+              <span className="whitespace-pre-wrap">{t.content}</span>
+            )}
           </div>
         ))}
         {busy && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border-2 mix-border-primary/30 bg-card px-3.5 py-3" aria-label={`${name} is typing`}>
-              {[0, 1, 2].map((d) => (
-                <span key={d} className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary" style={{ animationDelay: `${d * 0.15}s` }} />
-              ))}
-            </div>
+          <div className="bs-msg bs-typing" data-role="tutor" aria-label={`${name} is typing`}>
+            <span />
+            <span />
+            <span />
           </div>
         )}
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
-          <span>{error}</span>
-          <button type="button" onClick={retry} className="rounded-full border border-rose-300 px-2.5 py-0.5 text-xs font-extrabold">Retry</button>
+        <div className="ds-banner ds-banner-center ds-tone-rose" role="alert">
+          <Icon name="ExclamationTriangleIcon" variant="solid" size={16} />
+          <span className="min-w-0 flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={retry}
+            className="ds-btn ds-btn-secondary ds-btn-sm flex-shrink-0"
+          >
+            <Icon name="ArrowPathIcon" size={14} />
+            Retry
+          </button>
         </div>
       )}
 
       {!ev && (
         <>
           {wantsCode(kind) && showCode && (
-            <CodeSpace kind={kind} value={code} onChange={setCode} language={language} onLanguageChange={setLanguage} />
+            <CodeSpace
+              kind={kind}
+              value={code}
+              onChange={setCode}
+              language={language}
+              onLanguageChange={setLanguage}
+            />
           )}
           {meta?.wrap_up ? (
-            <p className="rounded-xl lab-tint px-3 py-2 text-center text-xs font-semibold lab-ink">Session wrapped up. End it to see your review.</p>
+            <p className="ds-banner ds-banner-center ds-tone-indigo text-[13px]">
+              <Icon name="CheckCircleIcon" variant="solid" size={16} />
+              <span>Session wrapped up. End it to see your review.</span>
+            </p>
           ) : (
             <div className="flex items-end gap-2">
-              <div className="relative flex-1">
-              <textarea
-                data-no-mic
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                    e.preventDefault();
-                    send(input);
-                  }
-                }}
-                rows={2}
-                disabled={busy || turns.length === 0}
-                placeholder="Reply to your tutor… (Enter to send, Shift+Enter for a new line)"
-                aria-label="Your reply"
-                className="block min-h-[3rem] w-full resize-y rounded-2xl border-2 border-border bg-input py-2.5 pl-3.5 pr-[3rem] text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-60"
-              />
-              <VoiceMicButton state={mic.state} onClick={mic.toggle} size="sm" className="absolute bottom-[0.55rem] right-[0.5rem]" />
+              <div className="relative min-w-0 flex-1">
+                <textarea
+                  data-no-mic
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      send(input);
+                    }
+                  }}
+                  rows={2}
+                  disabled={busy || turns.length === 0}
+                  placeholder="Reply to your tutor… (Enter to send, Shift+Enter for a new line)"
+                  aria-label="Your reply"
+                  className="ds-field bs-composer"
+                />
+                <span className="bs-mic">
+                  <VoiceMicButton state={mic.state} onClick={mic.toggle} size="sm" />
+                </span>
               </div>
               <button
                 type="button"
                 onClick={() => send(input)}
                 disabled={busy || !input.trim()}
-                className="h-[3rem] rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-[0_4px_0_0_color-mix(in_srgb,var(--color-primary)_60%,black)] transition active:translate-y-[2px] active:shadow-none disabled:opacity-50"
+                aria-label="Send"
+                className={`ds-btn bs-send flex-shrink-0 ${busy || !input.trim() ? 'ds-btn-secondary' : 'ds-btn-primary'}`}
               >
-                Send
+                <Icon name="ArrowUpIcon" size={18} />
+                <span className="hidden sm:inline">Send</span>
               </button>
             </div>
           )}
@@ -263,26 +327,46 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
                 type="button"
                 onClick={() => send("I'm stuck. Could you explain this part to me?")}
                 disabled={busy || turns.length === 0}
-                className="rounded-full border-2 mix-border-primary/40 lab-tint px-3.5 py-1.5 text-xs font-extrabold lab-ink disabled:opacity-50"
+                className="ds-btn ds-btn-soft ds-btn-sm ds-tone-gold"
               >
-                😵 Explain it to me
+                <Icon name="LightBulbIcon" size={15} />
+                Explain it to me
               </button>
             )}
             {wantsCode(kind) && (
               <button
                 type="button"
                 onClick={() => setShowCode((v) => !v)}
-                className="rounded-full border-2 border-border px-3.5 py-1.5 text-xs font-extrabold text-foreground"
+                aria-pressed={showCode}
+                className="ds-btn ds-btn-secondary ds-btn-sm"
               >
-                {showCode ? 'Hide code space' : kind === 'dsa' ? '⌨️ Write code' : '📐 Sketch design'}
+                <Icon
+                  name={
+                    showCode
+                      ? 'EyeSlashIcon'
+                      : kind === 'dsa'
+                        ? 'CodeBracketIcon'
+                        : 'CubeTransparentIcon'
+                  }
+                  size={15}
+                />
+                {showCode ? 'Hide code space' : kind === 'dsa' ? 'Write code' : 'Sketch design'}
               </button>
             )}
             <button
               type="button"
               onClick={endAndReview}
               disabled={evaluating || busy || candidateCount === 0}
-              className="ml-auto rounded-full bg-emerald-500 px-4 py-1.5 text-xs font-extrabold text-white shadow-[0_3px_0_0_#059669] transition active:translate-y-[2px] active:shadow-none disabled:opacity-50"
+              className="ds-btn ds-btn-soft ds-btn-sm ds-tone-jade ml-auto"
             >
+              {evaluating ? (
+                <span
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Icon name="CheckCircleIcon" size={15} />
+              )}
               {evaluating ? 'Reviewing…' : 'End & review'}
             </button>
           </div>
@@ -292,7 +376,8 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
       {ev && (
         <div className="space-y-3">
           <EvaluationView ev={ev} />
-          <button type="button" onClick={restart} className="rounded-full border-2 border-border px-4 py-1.5 text-xs font-extrabold text-foreground">
+          <button type="button" onClick={restart} className="ds-btn ds-btn-secondary ds-btn-sm">
+            <Icon name="ArrowPathIcon" size={15} />
             Learn again
           </button>
         </div>

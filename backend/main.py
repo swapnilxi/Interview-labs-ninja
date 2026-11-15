@@ -52,6 +52,9 @@ from modules.lab_sections.router import router as lab_sections_router
 from modules.lab_projects.router import router as lab_projects_router
 from modules.cv_lab.router import router as cv_router
 from modules.system_design_lab.router import router as sd_router
+from modules.communication_lab.router import router as communication_router
+from modules.finance_lab.router import router as finance_router
+from modules.python_lab.router import router as python_router
 
 # Daily session module
 from modules.daily_session.daily_session import router as session_router
@@ -82,6 +85,8 @@ from modules.auth.db import promote_admins_from_env, promote_superadmins_from_en
 from modules.swipe_pdf_reader.db import init_pdf_db
 from modules.swipe_pdf_reader.router import router as pdf_router
 from modules.swipe_learn.router import router as swipe_learn_router
+from modules.memory.router import router as memory_router
+from modules.research.router import router as research_router
 
 # AI LMS module
 from modules.ai_lms.db import init_lms_db
@@ -176,6 +181,9 @@ app.include_router(lab_sections_router)
 app.include_router(lab_projects_router)
 app.include_router(cv_router)
 app.include_router(sd_router)
+app.include_router(communication_router)
+app.include_router(finance_router)
+app.include_router(python_router)
 app.include_router(linkedin_templates_router)
 app.include_router(linkedin_generation_router)
 app.include_router(todo_router)
@@ -188,6 +196,8 @@ app.include_router(pareto_router)
 app.include_router(import_router)
 app.include_router(pdf_router)
 app.include_router(swipe_learn_router)
+app.include_router(memory_router)
+app.include_router(research_router)
 app.include_router(lms_router)
 app.include_router(voice_router)
 

@@ -11,7 +11,7 @@ import { ymd } from '@/lib/reminders/smartParse';
 import { canAddToCalendar, downloadIcs, formatDueDate, googleCalendarUrl, isPast } from '@/lib/reminders/reminderTime';
 import VoiceCapture, { PRIORITY_META } from '../capture/VoiceCapture';
 import ReminderPicker from '../reminders/ReminderPicker';
-import ReminderStatusCard, { NotificationNudge } from '../reminders/ReminderStatusCard';
+import { NotificationNudge } from '../reminders/ReminderStatusCard';
 import TaskDetailModal from '../tasks/TaskDetailModal';
 
 /**
@@ -379,10 +379,6 @@ export default function TodayView({ model }: TodayViewProps) {
           )}
         </div>
       </div>
-
-      <aside className="today-aside" aria-label="Reminders on this device">
-        <ReminderStatusCard />
-      </aside>
 
       <TaskDetailModal taskId={detailId} isOpen={detailId !== null} onClose={closeDetail} onUpdate={() => void load()} model={model} />
     </div>

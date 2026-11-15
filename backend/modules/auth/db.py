@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from typing import Optional
@@ -71,6 +72,16 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
         conn.close()
 
 
+def _parse_custom_models(raw: Optional[str]) -> Optional[list]:
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return None
+    return value if isinstance(value, list) else None
+
+
 def get_profile(user_id: int) -> Optional[dict]:
     conn = sqlite3.connect(get_db_path())
     try:
@@ -78,7 +89,7 @@ def get_profile(user_id: int) -> Optional[dict]:
         cursor.execute(
             """
             SELECT user_id, text_generation_model, answer_model, ai_provider,
-                   ollama_url, ollama_model, updated_at
+                   ollama_url, ollama_model, updated_at, custom_models
             FROM user_profile WHERE user_id = ?
             """,
             (user_id,),
@@ -94,15 +105,20 @@ def get_profile(user_id: int) -> Optional[dict]:
             "ollama_url": row[4],
             "ollama_model": row[5],
             "updated_at": row[6],
+            "custom_models": _parse_custom_models(row[7]),
         }
     finally:
         conn.close()
 
 
 def upsert_profile(user_id: int, **fields) -> dict:
-    """Update whichever of text_generation_model/answer_model/ai_provider/ollama_url/ollama_model are provided."""
-    allowed = {"text_generation_model", "answer_model", "ai_provider", "ollama_url", "ollama_model"}
+    """Update whichever of text_generation_model/answer_model/ai_provider/ollama_url/ollama_model/custom_models are
+    provided. custom_models (already validated by the router) is stored as compact JSON, the same text
+    fe-apis/account writes with JSON.stringify."""
+    allowed = {"text_generation_model", "answer_model", "ai_provider", "ollama_url", "ollama_model", "custom_models"}
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
+    if "custom_models" in updates:
+        updates["custom_models"] = json.dumps(updates["custom_models"], separators=(",", ":"), ensure_ascii=False)
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()

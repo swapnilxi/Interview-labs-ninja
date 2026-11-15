@@ -17,6 +17,9 @@ export const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', '
  */
 export function providerOrder(model: string): string[] {
   if (model.includes('/') || model.startsWith('openrouter')) {
+    // OpenRouter's DeepSeek ids ("deepseek/deepseek-chat"): without an OpenRouter key, DeepSeek's own API comes
+    // next, before Gemini (twin of the same rule in Python's _provider_order).
+    if (model.startsWith('deepseek/')) return ['openrouter', 'deepseek', 'gemini', 'groq', 'openai', 'anthropic', 'custom'];
     return ['openrouter', 'gemini', 'deepseek', 'groq', 'openai', 'anthropic', 'custom'];
   }
   if (model.startsWith('gemini') || model.startsWith('gemma')) {
@@ -54,7 +57,9 @@ export async function callOpenAiCompatible(
   baseUrl: string,
   model: string,
   timeoutMs: number,
-  maxTokens: number
+  maxTokens: number,
+  /** Provider-specific body fields (e.g. DeepSeek's reasoning_effort). */
+  extra: Record<string, unknown> = {}
 ): Promise<string> {
   const res = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
@@ -73,6 +78,7 @@ export async function callOpenAiCompatible(
       // (OpenAI, DeepSeek, Groq, OpenRouter, custom) shares this one function, so
       // they all need an explicit budget, not just Gemini/Anthropic.
       max_tokens: maxTokens,
+      ...extra,
     }),
     signal: AbortSignal.timeout(timeoutMs),
   });

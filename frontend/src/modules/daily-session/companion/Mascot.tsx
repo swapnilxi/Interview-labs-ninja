@@ -113,7 +113,12 @@ export default function Mascot({ mood = 'happy', speaking = false, size = 96, cl
         {/* feet */}
         <path d="M40 92 l-3 5 M40 92 l1 5 M40 92 l4 4 M60 92 l3 5 M60 92 l-1 5 M60 92 l-4 4" stroke="#fb923c" strokeWidth="2" strokeLinecap="round" />
         {think && <text x="78" y="22" fontSize="14" fill="#a78bfa">?</text>}
-        {comfort && <text x="76" y="24" fontSize="12">💛</text>}
+        {comfort && (
+          <path
+            d="M82 30c-1.6-1.5-6.5-4.9-6.5-8.4 0-2 1.5-3.4 3.3-3.4 1.3 0 2.4.8 3.2 1.9.8-1.1 1.9-1.9 3.2-1.9 1.8 0 3.3 1.4 3.3 3.4 0 3.5-4.9 6.9-6.5 8.4Z"
+            fill="#f5a53c"
+          />
+        )}
       </svg>
     </div>
   );

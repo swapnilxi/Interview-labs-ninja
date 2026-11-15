@@ -681,9 +681,9 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
                   { k: 'Time', v: fmt(elapsedSeconds), tone: 'ds-tone-indigo' },
                   { k: 'Nailed', v: `${nailed}/${activeSet.length}`, tone: 'ds-tone-jade' },
                 ].map((s) => (
-                  <div key={s.k} className={`ds-inset min-w-[5.5rem] px-3 py-3 ${s.tone}`}>
-                    <dt className="ds-eyebrow">{s.k}</dt>
-                    <dd className="mt-1 text-lg font-bold ds-tone-text ds-num">{s.v}</dd>
+                  <div key={s.k} className={`ds-stat-tile min-w-[5.5rem] ${s.tone}`}>
+                    <dt>{s.k}</dt>
+                    <dd className="ds-tone-text">{s.v}</dd>
                   </div>
                 ))}
               </dl>
@@ -799,12 +799,11 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
           </div>
         </div>
 
-        <div className={`mt-4 flex items-end gap-3 ${settings.mascotOn ? '' : 'justify-end'}`}>
+        <div className={`mt-4 flex items-center gap-2 ${settings.mascotOn ? '' : 'justify-end'}`}>
           <CompanionBubble
             text={msg}
             mood={msgMood}
             speaking={speaking}
-            size={48}
             onSpeak={() => say(msg, msgMood)}
             className="min-w-0 flex-1"
           />
@@ -831,7 +830,9 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
                 ).map(([m, icon, label]) => (
                   <button key={m} type="button" role="tab" aria-selected={answerMode === m} onClick={() => setAnswerMode(m)}>
                     <Icon name={icon} size={16} />
-                    {label}
+                    {/* Phones: the short label, so the two tabs never wrap */}
+                    <span className="sm:hidden">{m === 'chat' ? 'AI tutor' : label}</span>
+                    <span className="hidden sm:inline">{label}</span>
                   </button>
                 ))}
               </div>
@@ -983,52 +984,6 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
 
   return (
     <div className="grid gap-5 pb-[8rem] lg:grid-cols-[minmax(0,1fr)_21rem] lg:grid-rows-[auto_1fr] lg:gap-x-[1.75rem] lg:pb-8">
-      {/* Deepu + mood (first on a phone, top right on a wide screen) */}
-      <section className="ds-hero ds-enter lg:col-start-2 lg:row-start-1" aria-labelledby="pm-mood-title">
-        <div className="relative p-5">
-          <div className="flex items-start justify-between gap-3">
-            <CompanionBubble
-              text={msg || hello}
-              mood={msgMood}
-              speaking={speaking}
-              size={52}
-              onSpeak={() => say(msg || hello, msgMood)}
-              className="min-w-0 flex-1"
-            />
-            {!settings.mascotOn && <span className="flex-1" />}
-          </div>
-          <div className="mt-5">
-            <p id="pm-mood-title" className="text-sm font-semibold ds-ink">
-              How are you feeling?
-            </p>
-            <p className="text-xs ds-faint">Deepu sizes the drill to match.</p>
-          </div>
-          <div className="mt-3 grid grid-cols-4 gap-2" role="group" aria-labelledby="pm-mood-title">
-            {MOODS.map((m) => {
-              const look = MOOD_LOOK[m.id];
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => pickMood(m.id)}
-                  aria-pressed={mood === m.id}
-                  className={`ds-option ds-option-stack ds-option-center ds-option-compact ${toneClass(look.tone)}`}
-                >
-                  <span className="ds-icon-tile ds-icon-tile-sm">
-                    <Icon name={look.icon} size={16} variant={mood === m.id ? 'solid' : 'outline'} />
-                  </span>
-                  <span className="text-xs font-semibold ds-ink">{m.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-4 flex items-center justify-between gap-3 border-t ds-hairline pt-4">
-            <p className="text-xs font-semibold ds-faint">Focus sound and Deepu</p>
-            {SoundButton}
-          </div>
-        </div>
-      </section>
-
       {/* The drill builder */}
       <div className="min-w-0 space-y-5 lg:col-start-1 lg:row-span-2 lg:row-start-1">
         {pendingRun && (
@@ -1116,9 +1071,7 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
                     type="button"
                     aria-pressed={selectedDifficulty === d.value}
                     onClick={() => setSelectedDifficulty(d.value)}
-                    className={toneClass(difficultyTone(d.value))}
                   >
-                    <span className="ds-dot" aria-hidden="true" />
                     {d.label}
                   </button>
                 ))}
@@ -1168,6 +1121,48 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
           </div>
         </section>
       </div>
+
+      {/* Deepu + mood (after the builder on a phone, top right on a wide screen) */}
+      <section className="ds-card ds-enter-2 lg:col-start-2 lg:row-start-1" aria-labelledby="pm-mood-title">
+        <div className="relative p-5">
+          <div className="flex items-center gap-2">
+            <CompanionBubble
+              text={msg || hello}
+              mood={msgMood}
+              speaking={speaking}
+              onSpeak={() => say(msg || hello, msgMood)}
+              className="min-w-0 flex-1"
+            />
+            {!settings.mascotOn && <span className="flex-1" />}
+            {SoundButton}
+          </div>
+          <div className="mt-5">
+            <p id="pm-mood-title" className="text-sm font-semibold ds-ink">
+              How are you feeling?
+            </p>
+            <p className="text-xs ds-faint">Deepu sizes the drill to match.</p>
+          </div>
+          <div className="mt-3 grid grid-cols-4 gap-2" role="group" aria-labelledby="pm-mood-title">
+            {MOODS.map((m) => {
+              const look = MOOD_LOOK[m.id];
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => pickMood(m.id)}
+                  aria-pressed={mood === m.id}
+                  className={`ds-option ds-option-stack ds-option-center ds-option-compact ${toneClass(look.tone)}`}
+                >
+                  <span className="ds-icon-tile ds-icon-tile-sm">
+                    <Icon name={look.icon} size={16} variant={mood === m.id ? 'solid' : 'outline'} />
+                  </span>
+                  <span className="text-xs font-semibold ds-ink">{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       {/* Summary, thought, history */}
       <aside className="space-y-5 lg:sticky lg:top-[5.5rem] lg:col-start-2 lg:row-start-2 lg:self-start">
@@ -1225,24 +1220,22 @@ export default function PracticeMode({ onSwitchTab }: PracticeModeProps) {
         )}
 
         {history.length > 0 && (
-          <section className="ds-card p-5 ds-enter-3" aria-labelledby="pm-history-title">
-            <div className="mb-1 flex items-baseline justify-between">
-              <h3 id="pm-history-title" className="ds-h3">
-                Recent drills
-              </h3>
-              <span className="text-xs font-semibold ds-faint">Last {history.length}</span>
+          <section className="ds-enter-3" aria-labelledby="pm-history-title">
+            <div className="ds-section-head">
+              <h3 id="pm-history-title">Recent drills</h3>
+              <span>Last {history.length}</span>
             </div>
-            <ul>
+            <ul className="ds-list" data-icons="true">
               {history.map((h) => (
-                <li key={h.at} className="flex items-center gap-3 py-2.5">
+                <li key={h.at} className="ds-list-row">
                   <Ring
                     value={h.accuracy / 100}
-                    size={38}
-                    stroke={4}
+                    size={34}
+                    stroke={3.5}
                     tone={h.accuracy >= 70 ? 'jade' : h.accuracy >= 40 ? 'gold' : 'rose'}
                     label={`${h.accuracy}% accuracy`}
                   >
-                    <span className="text-[11px] font-bold ds-muted ds-num">{h.accuracy}</span>
+                    <span className="text-[10px] font-bold ds-muted ds-num">{h.accuracy}</span>
                   </Ring>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold ds-ink">

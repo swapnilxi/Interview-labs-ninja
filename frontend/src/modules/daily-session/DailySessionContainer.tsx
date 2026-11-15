@@ -15,6 +15,8 @@ import QuestionBankInteractive from '@/modules/question-bank/QuestionBankModule'
 import SwapnilxiSpace from './components/SwapnilxiSpace';
 import { useCompanionStats } from './companion/useCompanion';
 import './daily-session.css';
+import './styles/insights.css';
+import './styles/blitz-space.css';
 
 const TAB_HEADER: Record<DailySessionTab, { title: string; subtitle: string }> = {
   session: {
@@ -113,44 +115,57 @@ function DailySessionContent() {
 
   const meta = TAB_HEADER[activeTab] || TAB_HEADER.session;
 
+  // Focus mode on a phone also hides the app's floating tab bar (daily-session.css, html.ds-focus), so the run's
+  // own action bar sits on the bottom edge. Leaving the run, or the page, brings it back.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('ds-focus', focused);
+    return () => root.classList.remove('ds-focus');
+  }, [focused]);
+
   return (
     <div className="lab-page ds-skin min-h-screen pt-[60px]" data-accent-exempt="">
       {!focused && (
         <header className="ds-header">
-          <div className="mx-auto max-w-[1200px] px-4 pt-[1.1rem] sm:px-[2rem] sm:pt-[2.25rem]">
-            <div className="flex items-end justify-between gap-3 pb-2 sm:gap-5 sm:pb-4">
-              <div className="min-w-0 flex-1 ds-enter">
-                <p className="ds-eyebrow min-h-[1rem] truncate">{greeting}</p>
-                <h1 className="ds-display mt-2">{meta.title}</h1>
-                <p className="ds-body mt-1.5 hidden max-w-[56ch] sm:block">{meta.subtitle}</p>
+          <div className="mx-auto max-w-[1200px] px-4 pt-[1rem] sm:px-[2rem] sm:pt-[2rem]">
+            <div className="flex items-end justify-between gap-3 sm:gap-5">
+              <div className="min-w-0 flex-1">
+                <p className="ds-eyebrow hidden min-h-[1rem] truncate sm:block">{greeting}</p>
+                <h1 className="ds-display sm:mt-1.5">{meta.title}</h1>
+                <p className="ds-body mt-1 hidden max-w-[72ch] md:block">{meta.subtitle}</p>
               </div>
-              <div className="ds-stats flex flex-shrink-0 items-center gap-1.5 sm:gap-2 ds-enter-2">
+              <div className="ds-stats flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
                 <span className="ds-stat ds-tone-gold" title="Days in a row with a finished drill">
-                  <Icon name="FireIcon" variant="solid" size={18} />
+                  <Icon name="FireIcon" variant="solid" size={17} />
                   {stats.streak}
                   <small>day streak</small>
                 </span>
                 <span className="ds-stat ds-tone-indigo" title="Experience points from practice">
-                  <Icon name="SparklesIcon" variant="solid" size={17} />
+                  <Icon name="SparklesIcon" variant="solid" size={16} />
                   {stats.xp.toLocaleString()}
                   <small>XP</small>
                 </span>
               </div>
             </div>
-            <DailySessionTabSwitcher activeTab={activeTab} />
+            <div className="mt-4 sm:mt-[1.5rem]">
+              <DailySessionTabSwitcher activeTab={activeTab} />
+            </div>
           </div>
         </header>
       )}
 
       <main
-        className={`mx-auto max-w-[1200px] px-4 sm:px-[2rem] ${focused ? 'pb-[2rem]' : 'py-[1.5rem] sm:py-[2rem]'}`}
+        className={`mx-auto max-w-[1200px] px-4 sm:px-[2rem] ${focused ? 'pb-[2rem]' : 'pb-[2rem] pt-[1.25rem] sm:pb-[3rem] sm:pt-[1.75rem]'}`}
       >
-        {activeTab === 'session' && <DailySessionInteractive />}
-        {activeTab === 'practice' && <PracticeMode onSwitchTab={handleTabChange} />}
-        {activeTab === 'quick-practice' && <QuickPractice />}
-        {activeTab === 'progress' && <ProgressDashboardInteractive embedded />}
-        {activeTab === 'question-bank' && <QuestionBankInteractive embedded />}
-        {(activeTab === 'swapnilxi-space' || activeTab === 'myspace') && <SwapnilxiSpace />}
+        {/* Keyed by section, so switching sections fades the new one in instead of swapping it abruptly. */}
+        <div key={activeTab} className={focused ? undefined : 'ds-fade'}>
+          {activeTab === 'session' && <DailySessionInteractive />}
+          {activeTab === 'practice' && <PracticeMode onSwitchTab={handleTabChange} />}
+          {activeTab === 'quick-practice' && <QuickPractice />}
+          {activeTab === 'progress' && <ProgressDashboardInteractive embedded />}
+          {activeTab === 'question-bank' && <QuestionBankInteractive embedded />}
+          {(activeTab === 'swapnilxi-space' || activeTab === 'myspace') && <SwapnilxiSpace />}
+        </div>
       </main>
     </div>
   );

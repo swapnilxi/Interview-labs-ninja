@@ -4,6 +4,7 @@ import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Modal from '@/components/ui/Modal';
+import VoiceCapture from '@/modules/ai-todo/capture/VoiceCapture';
 import { isNativeApp, sendNativeTestNotification } from '@/lib/reminders/nativeReminders';
 import {
   browserPermission,
@@ -397,6 +398,10 @@ function Panel({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <>
+          {/* Set an alert by typing or speaking: "remind me to call Priya tomorrow at 5". Becomes a task with a reminder. */}
+          <div className="shrink-0 px-4 pb-3 sm:px-5">
+            <VoiceCapture model="gemini" compact />
+          </div>
           <div
             role="tablist"
             aria-label="Filter notifications"

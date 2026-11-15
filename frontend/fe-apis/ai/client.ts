@@ -55,6 +55,41 @@ function preferredEnvProvider(model: string): string | null {
   return model === envDefaultModel() ? provider : null;
 }
 
+/**
+ * The id to send to DeepSeek's own API. OpenRouter's ids ("deepseek/deepseek-chat", "deepseek/deepseek-r1") become
+ * DeepSeek's names: its API rejects them with a 400. Twin: _deepseek_model() in backend/modules/common/ai/client.py.
+ */
+function deepseekModel(model: string, exact: boolean): string {
+  if (model.startsWith('deepseek/')) {
+    const name = model.split('/').slice(1).join('/').toLowerCase();
+    return name.includes('r1') || name.includes('reason') ? 'deepseek-reasoner' : 'deepseek-flash';
+  }
+  return exact || model.startsWith('deepseek') ? model : 'deepseek-flash';
+}
+
+// DeepSeek's reasoning models think before answering, and the thinking counts against max_tokens (live-tested
+// 2026-11-15: deepseek-v4-pro spent all 8192 tokens thinking on a 2-card prompt and returned nothing). They get low
+// reasoning effort, room for the thinking on top of the caller's budget, and a longer timeout.
+// Twin: _deepseek_call_options() in backend/modules/common/ai/client.py.
+const DEEPSEEK_REASONING_PREFIXES = ['deepseek-v4-pro'];
+const DEEPSEEK_REASONING_HEADROOM = 8192;
+const DEEPSEEK_REASONING_TIMEOUT_MS = 240_000;
+
+function deepseekCallOptions(
+  model: string,
+  maxTokens: number,
+  timeoutMs: number
+): { maxTokens: number; timeoutMs: number; extra: Record<string, unknown> } {
+  if (DEEPSEEK_REASONING_PREFIXES.some((p) => model.startsWith(p))) {
+    return {
+      maxTokens: maxTokens + DEEPSEEK_REASONING_HEADROOM,
+      timeoutMs: Math.max(timeoutMs, DEEPSEEK_REASONING_TIMEOUT_MS),
+      extra: { reasoning_effort: 'low' },
+    };
+  }
+  return { maxTokens, timeoutMs, extra: {} };
+}
+
 function effectiveOrder(model: string): string[] {
   const order = providerOrder(model);
   const preferred = preferredEnvProvider(model);
@@ -109,8 +144,9 @@ export async function callAIText(
       } else if (provider === 'deepseek') {
         const key = settings.deepseekKey || process.env.DEEPSEEK_API_KEY || '';
         if (key) {
-          const deepseekModel = exact || model.startsWith('deepseek') ? model : 'deepseek-chat';
-          return await callOpenAiCompatible(prompt, key, 'https://api.deepseek.com', deepseekModel, timeoutMs, maxTokens);
+          const dsModel = deepseekModel(model, exact);
+          const opts = deepseekCallOptions(dsModel, maxTokens, timeoutMs);
+          return await callOpenAiCompatible(prompt, key, 'https://api.deepseek.com', dsModel, opts.timeoutMs, opts.maxTokens, opts.extra);
         }
       } else if (provider === 'groq') {
         const key = settings.groqKey || process.env.GROQ_API_KEY || '';

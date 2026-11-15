@@ -19,7 +19,7 @@ import RichText from './coach/RichText';
 import { Bar, DifficultyChip, Ring, WeekStrip, dayKey, difficultyTone, isTypingTarget, readPracticeDays, relativeDay, toneClass, uniqueByText } from './components/ds';
 import { useCompanionStats } from './companion/useCompanion';
 import TopicPicker from './components/TopicPicker';
-import { readFocusTopics } from './topics';
+import { readFocusTopics, DEFAULT_TOPICS } from './topics';
 import { useAuth } from '@/contexts/AuthContext';
 import { defaultAIRequestFields, isMissingKeyError } from '@/lib/services/settingsService';
 import { AI_TIMEOUT_MS, backendFetch, isBackendKnownDown, isNetworkFailure, checkBackendHealth } from '@/lib/http/backendAvailability';
@@ -182,13 +182,16 @@ export default function DailySessionInteractive() {
 
   // Setup form fields
   const [difficulty, setDifficulty] = useState('Mixed');
-  // Topics to focus this session on (empty = balanced mix). Seeded once from the My Space focus areas.
+  // Topics to focus this session on. All presets selected by default; seeds from My Space focus areas when available.
   const { user } = useAuth();
   const topicUserKey = user ? user.id || user.email?.toLowerCase() || 'authenticated' : 'guest';
-  const [topics, setTopics] = useState<string[]>([]);
+  const [topics, setTopics] = useState<string[]>(DEFAULT_TOPICS);
   useEffect(() => {
-    setTopics(readFocusTopics(String(topicUserKey)));
+    const saved = readFocusTopics(String(topicUserKey));
+    setTopics(saved.length ? saved : DEFAULT_TOPICS);
   }, [topicUserKey]);
+  // Companies to target for this session (empty = no company filter).
+  const [companies, setCompanies] = useState<string[]>([]);
   const [cvText, setCvText] = useState('');
   const [jdText, setJdText] = useState('');
   const [uploadingResume, setUploadingResume] = useState(false);
@@ -497,6 +500,7 @@ export default function DailySessionInteractive() {
             cv_text: cvText || undefined,
             jd_text: jdText || undefined,
             topics: topics.length ? topics : undefined,
+            companies: companies.length ? companies : undefined,
             ...defaultAIRequestFields(),
           }),
         });
@@ -840,6 +844,8 @@ export default function DailySessionInteractive() {
   const todayKey = dayKey();
   const todaySession = recentSessions.find((r) => r.date === todayKey);
   const [practiceDays, setPracticeDays] = useState<string[]>([]);
+  // Recent sessions: the latest four, the rest one tap away.
+  const [showAllRecent, setShowAllRecent] = useState(false);
   useEffect(() => {
     if (onSetup) setPracticeDays(readPracticeDays());
   }, [onSetup]);
@@ -880,11 +886,14 @@ export default function DailySessionInteractive() {
   // Spinner while a session is being created or fetched (the setup form never shows with one pending)
   if (screen === 'loading' || (screen === 'setup' && (loading || navigating))) {
     return (
-      <div className="flex h-[26rem] flex-col items-center justify-center gap-4">
-        <div className="animate-spin" role="status" aria-label="Loading">
-          <Ring value={0.28} size={48} stroke={5} />
+      <div className="flex h-[26rem] flex-col items-center justify-center gap-[1.75rem]">
+        <div className="ds-loader" role="status" aria-label="Loading">
+          <span className="ds-loader-track" />
+          <span className="ds-loader-arc" />
+          <span className="ds-loader-arc-inner" />
+          <span className="ds-loader-core" />
         </div>
-        <p className="text-sm font-semibold ds-muted">
+        <p className="ds-loader-text">
           {loading ? 'Picking ten questions for you…' : 'Opening your session…'}
         </p>
       </div>
@@ -897,9 +906,56 @@ export default function DailySessionInteractive() {
     const interviewCount = dbQuestions.filter((q) => q.category === 'Interview').length;
     const cvCount = dbQuestions.filter((q) => q.category === 'CV Skill').length;
 
+    const recentShown = showAllRecent ? recentSessions : recentSessions.slice(0, 4);
+
+    const weekCard = (
+      <section className="ds-card p-5" aria-labelledby="ds-week-title">
+        <div className="mb-4 flex items-baseline justify-between gap-3">
+          <h3 id="ds-week-title" className="ds-h3">
+            This week
+          </h3>
+          <span className="text-xs font-medium ds-faint ds-num">{weekDaysPractised} of 7 days</span>
+        </div>
+        <WeekStrip activeDays={activeDays} />
+        <p className="mt-4 text-xs leading-relaxed ds-faint">
+          {weekDaysPractised === 0
+            ? 'Answer a question or finish a drill to light up today.'
+            : companionStats.streak > 1
+              ? `${companionStats.streak}-day streak. Keep the flame going.`
+              : 'Keep the flame going: a little every day adds up.'}
+        </p>
+      </section>
+    );
+
+    const moreWays = (
+      <nav aria-labelledby="ds-more-title">
+        <div className="ds-section-head">
+          <h3 id="ds-more-title">More ways to practise</h3>
+        </div>
+        <div className="ds-list" data-icons="true">
+          {[
+            { href: '/daily-session?tab=practice', icon: 'AcademicCapIcon', tone: 'indigo' as const, title: 'Practice drill', sub: 'Pick a topic, level and length' },
+            { href: '/daily-session?tab=quick-practice', icon: 'BoltIcon', tone: 'gold' as const, title: 'Quick blitz', sub: 'Flashcards for a short gap' },
+            { href: '/daily-session?tab=progress', icon: 'ChartBarIcon', tone: 'jade' as const, title: 'Your progress', sub: 'Readiness and skill trends' },
+          ].map((l) => (
+            <Link key={l.href} href={l.href} scroll={false} prefetch={false} className="ds-list-row">
+              <span className={`ds-icon-tile ds-icon-tile-sm ${toneClass(l.tone)}`}>
+                <Icon name={l.icon} size={17} variant="solid" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold ds-ink">{l.title}</span>
+                <span className="block text-xs ds-faint">{l.sub}</span>
+              </span>
+              <Icon name="ChevronRightIcon" size={16} className="ds-chevron" />
+            </Link>
+          ))}
+        </div>
+      </nav>
+    );
+
     return (
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-[1.75rem]">
-        <div className="min-w-0 space-y-5">
+      <div className="grid gap-[1.75rem] lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-[2rem]">
+        <div className="min-w-0 space-y-[1.75rem]">
           {backendOffline && (
             <div className="ds-banner ds-tone-gold" role="status">
               <Icon name="SignalSlashIcon" size={18} />
@@ -910,100 +966,90 @@ export default function DailySessionInteractive() {
             </div>
           )}
 
-          {/* Hero: today's session */}
+          {/* Today's session already exists: continuing it is the main action, so it comes first. */}
+          {todaySession && (
+            <section className="ds-card flex flex-wrap items-center gap-4 p-4 sm:p-5 ds-enter" aria-label="Today's session">
+              <Ring
+                value={todaySession.total ? todaySession.answered / todaySession.total : 0}
+                size={52}
+                stroke={5}
+                tone={todaySession.answered >= todaySession.total ? 'jade' : 'indigo'}
+                label={`${todaySession.answered} of ${todaySession.total} answered`}
+              >
+                <span className="text-[11px] font-bold ds-ink ds-num">
+                  {todaySession.answered}/{todaySession.total}
+                </span>
+              </Ring>
+              {/* min width: below it the button wraps to its own full-width row instead of squeezing this text
+                  into a one-word column. */}
+              <div className="min-w-[9.5rem] flex-1">
+                <p className="ds-h3">
+                  {todaySession.answered >= todaySession.total ? "Today's session is done" : "Today's session is waiting"}
+                </p>
+                <p className="text-sm ds-muted">
+                  {todaySession.answered >= todaySession.total
+                    ? 'Every question answered. Revisit it, or start a fresh set below.'
+                    : `${todaySession.answered} of ${todaySession.total} answered. Pick up where you left off.`}
+                </p>
+              </div>
+              <Link
+                href={recentHref(todaySession)}
+                prefetch={false}
+                scroll={false}
+                className="ds-btn ds-btn-primary w-full justify-center sm:w-auto"
+              >
+                {todaySession.answered >= todaySession.total ? 'Review' : 'Continue'}
+                <Icon name="ArrowRightIcon" size={16} />
+              </Link>
+            </section>
+          )}
+
+          {/* Hero: set up today's session */}
           <section className="ds-hero ds-enter" aria-labelledby="ds-today-title">
             <div className="relative p-5 sm:p-[1.75rem]">
-              <CompanionStrip c={companion} size={56} />
+              <CompanionStrip c={companion} />
 
-              {todaySession && (
-                <div className="ds-card-raised mt-5 flex flex-wrap items-center gap-4 p-4">
-                  <Ring
-                    value={todaySession.total ? todaySession.answered / todaySession.total : 0}
-                    size={52}
-                    tone={todaySession.answered >= todaySession.total ? 'jade' : 'indigo'}
-                    label={`${todaySession.answered} of ${todaySession.total} answered`}
-                  >
-                    <span className="text-xs font-bold ds-ink ds-num">
-                      {todaySession.answered}/{todaySession.total}
-                    </span>
-                  </Ring>
-                  {/* min width: below it the button wraps to its own full-width row instead of squeezing this text
-                      into a one-word column. */}
-                  <div className="min-w-[9.5rem] flex-1">
-                    <p className="ds-h3">
-                      {todaySession.answered >= todaySession.total ? "Today's session is done" : "Today's session is waiting"}
-                    </p>
-                    <p className="text-sm ds-muted">
-                      {todaySession.answered >= todaySession.total
-                        ? 'Every question answered. Revisit it, or start a fresh one below.'
-                        : `${todaySession.answered} of ${todaySession.total} answered. Pick up where you left off.`}
-                    </p>
-                  </div>
-                  <Link
-                    href={recentHref(todaySession)}
-                    prefetch={false}
-                    scroll={false}
-                    className="ds-btn ds-btn-primary w-full justify-center sm:w-auto"
-                  >
-                    {todaySession.answered >= todaySession.total ? 'Review' : 'Continue'}
-                    <Icon name="ArrowRightIcon" size={16} />
-                  </Link>
-                </div>
-              )}
-
-              <div className="mt-[1.5rem]">
-                <span className="ds-chip ds-tone-gold">
-                  <Icon name="SunIcon" size={14} variant="solid" />
-                  Daily session
-                </span>
-                <h2 id="ds-today-title" className="ds-h2 mt-3">
+              <div className="mt-5">
+                <h2 id="ds-today-title" className="ds-h2">
                   {todaySession ? 'Or start a fresh set' : 'Ten fresh questions, tuned to you'}
                 </h2>
-                <p className="ds-body mt-1 max-w-[60ch]">
-                  A mix of interview and computer-vision questions. Answer in your own words; the AI coach and hints are one tap
-                  away.
+                <p className="ds-body mt-1 max-w-[58ch]">
+                  Interview and computer-vision questions. Answer in your own words; hints and the AI coach are one tap away.
                 </p>
               </div>
 
-              <form onSubmit={handleStartSession} className="mt-5 space-y-5">
+              <form onSubmit={handleStartSession} className="mt-[1.5rem] space-y-[1.5rem]">
                 <div>
                   <p id="ds-level" className="mb-2 text-sm font-semibold ds-ink">
                     Level
                   </p>
                   <div className="ds-seg" role="group" aria-labelledby="ds-level">
                     {['Easy', 'Medium', 'Hard', 'Mixed'].map((label) => (
-                      <button
-                        key={label}
-                        type="button"
-                        aria-pressed={difficulty === label}
-                        onClick={() => setDifficulty(label)}
-                        className={toneClass(difficultyTone(label))}
-                      >
-                        <span className="ds-dot" aria-hidden="true" />
+                      <button key={label} type="button" aria-pressed={difficulty === label} onClick={() => setDifficulty(label)}>
                         {label}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <TopicPicker value={topics} onChange={setTopics} />
+                <TopicPicker value={topics} onChange={setTopics} companies={companies} onCompaniesChange={setCompanies} />
 
-                <details className="ds-disclosure ds-inset">
-                  <summary className="flex items-center gap-3 px-4 py-3">
-                    <span className="ds-icon-tile ds-icon-tile-sm ds-tone-indigo">
+                <details className="ds-disclosure ds-list" open>
+                  <summary className="ds-list-row">
+                    <span className="ds-icon-tile ds-icon-tile-sm ds-tone-neutral">
                       <Icon name="BriefcaseIcon" size={16} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold ds-ink">Tailor to your resume and target role</span>
-                      <span className="block text-xs ds-faint">Optional. Questions lean towards your experience and the job.</span>
+                      <span className="block text-sm font-semibold ds-ink">Tailor to your resume and role</span>
+                      <span className="block text-xs ds-faint">
+                        {tailored
+                          ? [cvText.trim() && 'Resume added', jdText.trim() && 'Job added'].filter(Boolean).join(' · ')
+                          : 'Optional'}
+                      </span>
                     </span>
-                    <span className="hidden gap-1.5 sm:flex">
-                      {cvText.trim() && <span className="ds-chip ds-tone-jade">Resume</span>}
-                      {jdText.trim() && <span className="ds-chip ds-tone-jade">Job</span>}
-                    </span>
-                    <Icon name="ChevronDownIcon" size={16} className="ds-caret ds-faint" />
+                    <Icon name="ChevronDownIcon" size={16} className="ds-caret ds-faint flex-shrink-0" />
                   </summary>
-                  <div className="space-y-4 px-4 pb-4">
+                  <div className="space-y-4 px-4 pb-4 pt-1">
                     <div>
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                         <label htmlFor="cv-text" className="text-sm font-semibold ds-ink">
@@ -1052,17 +1098,17 @@ export default function DailySessionInteractive() {
                   </div>
                 </details>
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-4">
                   <button
                     type="submit"
                     disabled={loading}
-                    className={`ds-btn ds-btn-lg ${todaySession ? 'ds-btn-secondary' : 'ds-btn-primary'} sm:min-w-[16rem]`}
+                    className={`ds-btn ds-btn-lg ${todaySession ? 'ds-btn-secondary' : 'ds-btn-primary'} w-full sm:w-auto sm:min-w-[15rem]`}
                   >
                     <Icon name={todaySession ? 'ArrowPathIcon' : 'PlayIcon'} size={18} variant={todaySession ? 'outline' : 'solid'} />
                     {todaySession ? 'Generate a new session' : "Start today's session"}
                   </button>
-                  <span className="text-sm ds-faint">
-                    10 questions · about 25 min{topics.length ? ` · ${topics.length} topic${topics.length === 1 ? '' : 's'}` : ''}{tailored ? ' · tailored to you' : ''}
+                  <span className="text-center text-[13px] ds-faint sm:text-left">
+                    10 questions · about 25 min{topics.length ? ` · ${topics.length} topic${topics.length === 1 ? '' : 's'}` : ''}{tailored ? ' · tailored' : ''}
                   </span>
                 </div>
               </form>
@@ -1093,33 +1139,34 @@ export default function DailySessionInteractive() {
             </div>
           )}
 
+          {/* Phones and tablets: the week sits right under the hero (the sidebar holds it on desktop). */}
+          <div className="lg:hidden">{weekCard}</div>
+
           {/* Recent sessions */}
           {recentSessions.length > 0 && (
-            <section className="ds-card p-5 ds-enter-2" aria-labelledby="ds-recent-title">
-              <div className="mb-2 flex items-baseline justify-between gap-3">
-                <h3 id="ds-recent-title" className="ds-h3">
-                  Recent sessions
-                </h3>
-                <span className="text-xs font-semibold ds-faint">Last {recentSessions.length}</span>
+            <section aria-labelledby="ds-recent-title" className="ds-enter-2">
+              <div className="ds-section-head">
+                <h3 id="ds-recent-title">Recent sessions</h3>
+                {recentSessions.length > 4 && (
+                  <button type="button" onClick={() => setShowAllRecent((v) => !v)} className="ds-link text-xs">
+                    {showAllRecent ? 'Show fewer' : `Show all ${recentSessions.length}`}
+                  </button>
+                )}
               </div>
-              <ul>
-                {recentSessions.map((r) => {
+              <ul className="ds-list" data-icons="true">
+                {recentShown.map((r) => {
                   const done = r.total > 0 && r.answered >= r.total;
                   return (
                     <li key={r.key}>
                       {/* a real link: the session has its own address, so it can also be opened in a new tab */}
-                      <Link href={recentHref(r)} prefetch={false} scroll={false} className="ds-row">
-                        <Ring value={r.total ? r.answered / r.total : 0} size={40} stroke={4} tone={done ? 'jade' : 'indigo'}>
-                          {done ? (
-                            <Icon name="CheckIcon" size={16} className="ds-tone-jade ds-tone-text" />
-                          ) : (
-                            <span className="text-[11px] font-bold ds-muted ds-num">{r.answered}</span>
-                          )}
+                      <Link href={recentHref(r)} prefetch={false} scroll={false} className="ds-list-row">
+                        <Ring value={r.total ? r.answered / r.total : 0} size={32} stroke={3.5} tone={done ? 'jade' : 'indigo'}>
+                          {done && <Icon name="CheckIcon" size={14} className="ds-tone-jade ds-tone-text" />}
                         </Ring>
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-semibold ds-ink">{relativeDay(r.date)}</span>
-                          <span className="block text-xs ds-faint">
-                            {r.answered} of {r.total} answered
+                          <span className="block text-xs ds-faint ds-num">
+                            {done ? 'Completed' : `${r.answered} of ${r.total} answered`}
                             {r.offline ? ' · this browser only' : ''}
                           </span>
                         </span>
@@ -1134,38 +1181,35 @@ export default function DailySessionInteractive() {
 
           {/* From the question bank */}
           <section aria-labelledby="ds-bank-title" className="ds-enter-3">
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h3 id="ds-bank-title" className="ds-h3">
-                  From your question bank
-                </h3>
-                <p className="mt-0.5 text-sm ds-muted">
-                  A random handful{dbQuestions.length > 0 ? ` of ${dbQuestions.length}` : ''}. Open one for a full AI review.
-                </p>
-              </div>
-              <div className="flex gap-2">
+            <div className="ds-section-head ds-section-head-center">
+              <h3 id="ds-bank-title">From your question bank</h3>
+              <span className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={handleRegenerateFromDb}
                   disabled={isLoadingDbQuestions || dbQuestions.length === 0}
-                  className="ds-btn ds-btn-secondary ds-btn-sm"
+                  className="ds-btn ds-btn-ghost ds-btn-sm"
+                  title="Show another random handful"
                 >
-                  <Icon name="ArrowsRightLeftIcon" size={15} />
-                  Shuffle
+                  <Icon name="ArrowPathIcon" size={15} />
+                  <span className="hidden sm:inline">Shuffle</span>
+                  <span className="sr-only sm:hidden">Shuffle</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleExportCSV}
                   disabled={displayedDbQuestions.length === 0}
                   className="ds-btn ds-btn-ghost ds-btn-sm"
+                  title="Download these questions as CSV"
                 >
                   <Icon name="ArrowDownTrayIcon" size={15} />
-                  CSV
+                  <span className="hidden sm:inline">CSV</span>
+                  <span className="sr-only sm:hidden">Download CSV</span>
                 </button>
-              </div>
+              </span>
             </div>
 
-            <div className="ds-seg ds-seg-inline mb-4 w-full sm:w-auto" role="group" aria-label="Category">
+            <div className="ds-seg ds-seg-inline mb-3 w-full sm:w-auto" role="group" aria-label="Category">
               {(['All', 'Interview', 'CV Skill'] as CategoryFilter[]).map((cat) => (
                 <button key={cat} type="button" aria-pressed={categoryFilter === cat} onClick={() => handleCategoryFilterChange(cat)}>
                   {cat}
@@ -1179,9 +1223,11 @@ export default function DailySessionInteractive() {
             </div>
 
             {isLoadingDbQuestions ? (
-              <div className="grid gap-3 md:grid-cols-2" aria-busy="true">
+              <div className="ds-list" aria-busy="true">
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="ds-qcard h-[7.5rem] animate-pulse" />
+                  <div key={i} className="ds-list-row">
+                    <span className="h-[2.4rem] w-full animate-pulse rounded-lg ds-inset" />
+                  </div>
                 ))}
               </div>
             ) : displayedDbQuestions.length === 0 ? (
@@ -1193,68 +1239,44 @@ export default function DailySessionInteractive() {
                 <p className="mt-1 text-sm ds-faint">Start your first session and its questions will appear here.</p>
               </div>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
+              <ul className="ds-list">
                 {displayedDbQuestions.map((q) => (
-                  <Link key={q.id} href={`/question-review?id=${q.id}`} prefetch={false} className="ds-qcard group">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className={`ds-chip ${q.category === 'Interview' ? 'ds-tone-indigo' : 'ds-tone-jade'}`}>{q.category}</span>
-                      <DifficultyChip difficulty={q.difficulty} />
-                    </span>
-                    <span className="text-[0.92rem] font-semibold leading-snug ds-ink">{q.questionText}</span>
-                    <span className="mt-auto flex items-center justify-between gap-2 text-xs ds-faint">
-                      <span className="break-words">{q.subType}</span>
-                      <span className="flex flex-shrink-0 items-center gap-1 font-semibold ds-tone-indigo ds-tone-text opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                        Review
-                        <Icon name="ArrowRightIcon" size={13} />
+                  <li key={q.id}>
+                    <Link href={`/question-review?id=${q.id}`} prefetch={false} className="ds-list-row ds-list-row-top" title="Open for a full AI review">
+                      <span className="min-w-0 flex-1">
+                        <span className="ds-clamp-2 text-[0.9rem] font-semibold leading-snug ds-ink">{q.questionText}</span>
+                        <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ds-faint">
+                          <span className={`inline-flex items-center gap-1.5 font-semibold ${toneClass(difficultyTone(q.difficulty))} ds-tone-text`}>
+                            <span className="ds-dot" aria-hidden="true" />
+                            {q.difficulty}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>{q.category}</span>
+                          {q.subType && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="break-words">{q.subType}</span>
+                            </>
+                          )}
+                        </span>
                       </span>
-                    </span>
-                  </Link>
+                      <Icon name="ChevronRightIcon" size={16} className="ds-chevron mt-0.5" />
+                    </Link>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </section>
         </div>
 
-        {/* Sidebar */}
-        <aside className="space-y-5 lg:sticky lg:top-[5.5rem] lg:self-start">
-          <section className="ds-card p-5 ds-enter-2" aria-labelledby="ds-week-title">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 id="ds-week-title" className="ds-h3">
-                This week
-              </h3>
-              <span className="ds-chip ds-tone-gold ds-num">
-                <Icon name="FireIcon" size={13} variant="solid" />
-                {companionStats.streak} day streak
-              </span>
-            </div>
-            <WeekStrip activeDays={activeDays} />
-            <p className="mt-4 text-xs leading-relaxed ds-faint">
-              {weekDaysPractised === 0
-                ? 'Answer a question or finish a drill to light up today.'
-                : `${weekDaysPractised} of 7 days practised this week. Keep the flame going.`}
-            </p>
-          </section>
-
-          <nav className="ds-card p-2 ds-enter-3" aria-label="More ways to practise">
-            <p className="ds-eyebrow px-3 pb-1 pt-2">More ways to practise</p>
-            {[
-              { href: '/daily-session?tab=practice', icon: 'AcademicCapIcon', tone: 'indigo' as const, title: 'Practice drill', sub: 'Pick a topic, level and length' },
-              { href: '/daily-session?tab=quick-practice', icon: 'BoltIcon', tone: 'gold' as const, title: 'Quick blitz', sub: 'Flashcards for a short gap' },
-              { href: '/daily-session?tab=progress', icon: 'ChartBarIcon', tone: 'jade' as const, title: 'Your progress', sub: 'Readiness and skill trends' },
-            ].map((l) => (
-              <Link key={l.href} href={l.href} scroll={false} prefetch={false} className="ds-row ds-row-flush">
-                <span className={`ds-icon-tile ${toneClass(l.tone)}`}>
-                  <Icon name={l.icon} size={19} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold ds-ink">{l.title}</span>
-                  <span className="block text-xs ds-faint">{l.sub}</span>
-                </span>
-                <Icon name="ChevronRightIcon" size={16} className="ds-chevron" />
-              </Link>
-            ))}
-          </nav>
+        {/* Sidebar (desktop) */}
+        <aside className="hidden space-y-[1.75rem] lg:sticky lg:top-[5.5rem] lg:block lg:self-start">
+          {weekCard}
+          {moreWays}
         </aside>
+
+        {/* Phones and tablets: the other ways to practise close the page. */}
+        <div className="lg:hidden">{moreWays}</div>
       </div>
     );
   }
@@ -1273,7 +1295,7 @@ export default function DailySessionInteractive() {
         <BackButton href={setupUrl} label="Back" />
         <section className="ds-hero ds-enter">
           <div className="relative p-5 sm:p-[2rem]">
-            <CompanionStrip c={companion} size={56} />
+            <CompanionStrip c={companion} />
             <div className="mt-[1.5rem]">
               <p className="ds-eyebrow">Session {sessionCodeFor(sessionDate)} · {relativeDay(sessionDate)}</p>
               <h2 className="ds-display mt-2">
@@ -1291,12 +1313,12 @@ export default function DailySessionInteractive() {
             <dl className="mt-[1.5rem] grid grid-cols-3 gap-2 sm:gap-3">
               {[
                 { k: 'Questions', v: String(questions.length) },
-                { k: 'About', v: `${Math.max(5, Math.round(questions.length * 2.5))} min` },
+                { k: 'Minutes', v: `~${Math.max(5, Math.round(questions.length * 2.5))}` },
                 { k: 'Answered', v: `${answeredCount}/${questions.length}` },
               ].map((s) => (
-                <div key={s.k} className="ds-inset px-3 py-3 sm:px-4">
-                  <dt className="ds-eyebrow">{s.k}</dt>
-                  <dd className="mt-1 text-xl font-bold ds-ink ds-num">{s.v}</dd>
+                <div key={s.k} className="ds-stat-tile">
+                  <dt>{s.k}</dt>
+                  <dd>{s.v}</dd>
                 </div>
               ))}
             </dl>
@@ -1313,16 +1335,21 @@ export default function DailySessionInteractive() {
                       {l.n} {l.d.toLowerCase()}
                     </span>
                   ))}
-                  {topics.map((t) => (
+                  {topics.slice(0, 5).map((t) => (
                     <span key={t} className="ds-chip ds-tone-neutral">
                       {t}
                     </span>
                   ))}
+                  {topics.length > 5 && (
+                    <span className="ds-chip ds-tone-neutral ds-num" title={topics.slice(5).join(', ')}>
+                      +{topics.length - 5} more
+                    </span>
+                  )}
                 </div>
               </div>
             )}
 
-            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+            <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3">
               <button type="button" onClick={() => goBack(setupUrl)} className="ds-btn ds-btn-ghost ds-btn-lg">
                 Not now
               </button>
@@ -1485,7 +1512,7 @@ export default function DailySessionInteractive() {
         <div className="mt-5 grid grid-cols-1 gap-5 pb-[8rem] lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0 space-y-4">
             {/* Question navigator */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="Questions">
+            <div className="ds-qnav" role="group" aria-label="Questions">
               {questions.map((q, idx) => {
                 const done = isAnswered(q);
                 const current = idx === currentIndex;
@@ -1505,14 +1532,9 @@ export default function DailySessionInteractive() {
               })}
             </div>
 
-            <CompanionStrip c={companion} size={48} />
-
             {/* The question */}
             <section key={activeQuestion?.id ?? currentIndex} className="ds-card-raised p-5 sm:p-[1.75rem] ds-enter" aria-labelledby="ds-q-text">
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="ds-chip ds-tone-indigo ds-num">
-                  {currentIndex + 1} / {questions.length}
-                </span>
                 {activeQuestion?.subType && <span className="ds-chip ds-tone-neutral">{activeQuestion.subType}</span>}
                 {activeQuestion?.difficulty && <DifficultyChip difficulty={activeQuestion.difficulty} />}
                 <Link
@@ -1549,6 +1571,8 @@ export default function DailySessionInteractive() {
 
           {/* Hint + session tools */}
           <aside className="space-y-4 self-start lg:sticky lg:top-[9rem]">
+            <CompanionStrip c={companion} className="px-1" />
+
             <section className="ds-card overflow-hidden" data-semantic="hint" aria-labelledby="ds-hint-title">
               <div className="ds-tone-gold p-5">
                 <div className="flex items-center gap-3">
@@ -1591,26 +1615,28 @@ export default function DailySessionInteractive() {
               </div>
             </section>
 
-            <section className="ds-card p-2" aria-label="Session tools">
-              <button type="button" onClick={handleExport} className="ds-row ds-row-flush w-full text-left">
+            <section className="ds-list" data-icons="true" aria-label="Session tools">
+              <button type="button" onClick={handleExport} className="ds-list-row">
                 <span className="ds-icon-tile ds-icon-tile-sm ds-tone-neutral">
                   <Icon name="ArrowDownTrayIcon" size={16} />
                 </span>
                 <span className="flex-1 text-sm font-semibold ds-ink">Export as Markdown</span>
               </button>
-              <button type="button" onClick={handleClearSession} className="ds-row ds-row-flush w-full text-left">
-                <span className="ds-icon-tile ds-icon-tile-sm ds-tone-rose">
-                  <Icon name="ArrowPathIcon" size={16} />
+              <button type="button" onClick={handleClearSession} className="ds-list-row">
+                <span className="ds-icon-tile ds-icon-tile-sm ds-tone-neutral">
+                  <Icon name="XMarkIcon" size={16} />
                 </span>
                 <span className="flex-1">
                   <span className="block text-sm font-semibold ds-ink">Close this session</span>
                   <span className="block text-xs ds-faint">Saved answers stay in Recent sessions</span>
                 </span>
               </button>
-              <p className="hidden px-3 pb-2 pt-1 text-xs ds-faint lg:block">
-                <span className="ds-kbd">←</span> <span className="ds-kbd">→</span> move between questions
-              </p>
             </section>
+            <p className="hidden items-center gap-1.5 px-1 text-xs ds-faint lg:flex">
+              <span className="ds-kbd">←</span>
+              <span className="ds-kbd">→</span>
+              move between questions
+            </p>
           </aside>
 
           {/* Bottom action bar */}

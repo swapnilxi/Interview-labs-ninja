@@ -1,83 +1,68 @@
-import Icon from '@/components/ui/AppIcon';
-
 interface WeeklyStat {
   label: string;
   value: string;
-  icon: string;
-  change: number;
+  /** Small text after the value ("/ 7"). */
+  unit?: string;
+  /** Only for a change that is actually measured against last week; nothing passes one today. */
+  change?: number;
 }
 
 interface WeeklySummaryCardProps {
   weekRange: string;
   stats: WeeklyStat[];
-  focusAreas: string[];
+  /** Only real, computed suggestions; the card shows nothing when there are none. */
+  focusAreas?: string[];
 }
 
+/** This week at a glance: four small stat tiles under the week's dates. */
 export default function WeeklySummaryCard({
   weekRange,
   stats,
-  focusAreas,
+  focusAreas = [],
 }: WeeklySummaryCardProps) {
   return (
-    <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-24">
-      <div className="flex items-center justify-between mb-24">
-        <div>
-          <h3 className="font-heading text-lg font-medium text-foreground">
-            Weekly Summary
-          </h3>
-          <p className="text-sm text-muted-foreground font-caption mt-4">
-            {weekRange}
-          </p>
-        </div>
-        <Icon name="CalendarIcon" size={20} variant="outline" />
+    <section className="ds-card p-4" aria-labelledby="ins-week-title">
+      <div className="ins-card-head">
+        <h3 id="ins-week-title">This week</h3>
+        <span className="pt-0.5 text-[0.8rem] font-medium ds-faint ds-num whitespace-nowrap">
+          {weekRange}
+        </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-18 mb-24">
+      <dl className="mt-3 grid grid-cols-2 gap-2">
         {stats.map((stat) => (
-          <div key={stat.label} className="space-y-6">
-            <div className="flex items-center gap-6">
-              <Icon
-                name={stat.icon as any}
-                size={16}
-                variant="outline"
-                className="text-muted-foreground"
-              />
-              <p className="text-xs text-muted-foreground font-caption">
-                {stat.label}
-              </p>
-            </div>
-            <div className="flex items-baseline gap-6">
-              <p className="text-xl font-heading font-semibold text-foreground">
-                {stat.value}
-              </p>
-              <span
-                className={`text-xs font-medium ${
-                  stat.change >= 0 ? 'text-success' : 'text-error'
-                }`}
-              >
-                {stat.change >= 0 ? '+' : ''}
-                {stat.change}%
-              </span>
-            </div>
+          <div key={stat.label} className="ds-stat-tile">
+            <dt>{stat.label}</dt>
+            <dd>
+              {stat.value}
+              {stat.unit && (
+                <span className="ml-1 text-[0.8rem] font-semibold ds-faint">{stat.unit}</span>
+              )}
+              {stat.change !== undefined && (
+                <span
+                  className={`ml-1.5 text-[0.75rem] font-semibold ds-tone-text ${stat.change >= 0 ? 'ds-tone-jade' : 'ds-tone-rose'}`}
+                >
+                  {stat.change >= 0 ? '+' : ''}
+                  {stat.change}%
+                </span>
+              )}
+            </dd>
           </div>
         ))}
-      </div>
+      </dl>
 
-      <div className="pt-18 border-t border-border">
-        <p className="text-sm font-medium text-foreground mb-12">
-          Suggested Focus Areas
-        </p>
-        <div className="flex flex-wrap gap-6">
-          {focusAreas.map((area) => (
-            <span
-              key={area}
-              className="px-12 py-6 rounded-md bg-accent/20 text-accent text-xs font-medium"
-            >
-              {area}
-            </span>
-          ))}
+      {focusAreas.length > 0 && (
+        <div className="mt-4 border-t ds-hairline pt-3">
+          <p className="mb-2 text-[0.8rem] font-semibold ds-muted">Suggested focus</p>
+          <div className="flex flex-wrap gap-1.5">
+            {focusAreas.map((area) => (
+              <span key={area} className="ds-chip ds-tone-indigo">
+                {area}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </section>
   );
 }

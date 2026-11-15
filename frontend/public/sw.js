@@ -12,9 +12,27 @@
  * `utils/offlineAssets.ts`) so the very first visit is cached too.
  */
 
-const CACHE_NAME = 'swipe-reader-v1';
+// v2: v1 also cached `next dev`'s unhashed chunks cache-first (see isImmutableAsset); bumping the name makes the
+// activate handler below delete those stale copies.
+const CACHE_NAME = 'swipe-reader-v2';
 const SHELL_PATHS = ['/swipe-pdf-reader', '/swipepdfreader'];
 const STATIC_PREFIXES = ['/_next/static/', '/pdfjs/', '/assets/', '/icons/'];
+
+/**
+ * Whether a static file can be served from the cache without asking the network first.
+ *
+ * `next build` names every chunk after its content (page-1a2b3c4d5e6f7a8b.js, css/0f1e2d3c4b5a6978.css,
+ * media/a34f9d1faa5f3315-s.p.woff2): such a file never changes, so cache-first is safe. `next dev` serves fixed
+ * names (webpack.js, main-app.js, app/<route>/page.js) whose content changes with every edit. Served from the cache,
+ * those run old code against the server's new module list, which crashes the page with "Cannot read properties of
+ * undefined (reading 'call')". So an unhashed /_next/static file goes network-first (the cache is only its offline
+ * fallback), and dev's hot-update files are never cached. /pdfjs, /assets and /icons keep cache-first.
+ */
+function isImmutableAsset(url) {
+  if (!url.pathname.startsWith('/_next/static/')) return true;
+  const file = url.pathname.slice(url.pathname.lastIndexOf('/') + 1);
+  return /(?:^|[-.])[0-9a-f]{8,}(?=[-.])/i.test(file);
+}
 
 function isShellNavigation(url) {
   return SHELL_PATHS.some(
@@ -58,6 +76,7 @@ async function networkFirst(request, cacheKey) {
     const response = await fetch(request);
     if (response && response.ok) {
       cache.put(cacheKey, response.clone()).catch(() => {});
+      pruneCache(cache);
     }
     return response;
   } catch (err) {
@@ -142,8 +161,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Dev's hot-module-update files: one-off URLs, never worth caching.
+  if (url.pathname.startsWith('/_next/static/webpack/')) return;
+
   if (STATIC_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
-    event.respondWith(cacheFirst(request));
+    event.respondWith(isImmutableAsset(url) ? cacheFirst(request) : networkFirst(request, request));
   }
 });
 

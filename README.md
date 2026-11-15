@@ -188,6 +188,19 @@ You can then wire the frontend to call the FastAPI endpoints under
   router, use `apiFetch` from `frontend/src/lib/http/apiClient.ts` — plain `fetch()` to
   these will 401.**
 
+### Settings: model choice, added models and endpoints
+- `GET/PUT /auth/profile` (`backend/modules/auth/router.py` ↔ `frontend/fe-apis/account/index.ts`) syncs the
+  Settings page's model choice for logged-in users, plus `custom_models`: the models a user added to a
+  provider's list and their own OpenAI-compatible endpoints (`user_profile.custom_models`, a JSON array;
+  `NULL` = never saved, so a guest's list isn't wiped on first login). Same limits, same 422s and
+  byte-identical stored JSON in both twins; `backend/tests/profile_custom_models_test.py` covers it.
+- **No keys in the database.** An endpoint's key lives in the browser (`endpointKeys` in
+  `settingsService.ts`); unknown fields such as `key` are dropped on save.
+- Routing stays in the browser (`aiRequestFields`): an added model whose name its provider recognises
+  (`gemini-*`, `claude-*`, `gpt-*`, a `/` id for OpenRouter…) is sent as-is; any other is stored as
+  `<provider>::<model>` and sent as the generic `custom` request to that provider's OpenAI-compatible URL
+  with the browser's key; an endpoint is `endpoint::<id>`. No backend AI-layer change was needed.
+
 ### Known follow-ups (not done — pick up here)
 - `linkedin_post_generator` module is **not** scoped to `user_id` and its page is **not**
   gated behind login — it still works exactly as it did before (global/shared), which is
@@ -445,6 +458,41 @@ per user and login-required (the lab itself needs a login). A week holds at most
   (and its swap hint), and the week view's sticky toolbar. The queue panel, the week columns and the wizard panel are plain
   `border bg-card` surfaces. Colours, borders and spacing follow the "Lab visual system" below.
 
+## Labs home and the Learning Labs (Communication, Finance, Python)
+
+**Labs home (`/labs`, public).** A card per lab, in two groups, then Labs Project. The groups come from one list,
+`frontend/src/modules/common/lab/labCatalog.ts`, which also drives the sidebar's Labs menu (All labs, *Interview Labs*: DSA, System
+Design, CV; *Learning Labs*: Communication, Finance, Python; Labs Project), the phone Labs sheet (`MobileTabBar.tsx`) and the Labs
+Project empty state. The header bar has one **Labs** link (active on any lab page) instead of one link per lab. Sidebar menu groups
+start closed; the group of the page you are on opens itself. Add a new lab to `labCatalog.ts`, not to each menu.
+
+**The three Learning Labs** (`/communication-lab`, `/finance-lab`, `/python-lab`) are one component, not three copies:
+
+- **Frontend:** `modules/common/lab/TopicLab.tsx` renders the CV Lab's layout (topic tree, wiki index, on-demand sections, copilot)
+  from a `TopicLabConfig` (`topicLabTypes.ts`). Each lab is a config file, `modules/<lab>-lab/labConfig.ts`: its section list with
+  each section's guidance (the AI prompt the lab settings show), the Prerequisites template groups per category, nouns and texts. Every
+  section except Prerequisites (an instant template) is AI-written (`aiGenerated: true`), and the Quiz is the AI quiz
+  (`useLabQuiz`, like DSA). Topics come from the server only (loading and error states, no built-in fallback list); sidebar categories
+  start collapsed and the open lesson's category expands itself. Emoji prompt add-ons and the lab metadata live in
+  `labSectionDefaults.ts` (`LABS_CONFIG`); guide content in `labGuideData.ts`.
+- **Backend:** `backend/modules/common/topic_lab.py` holds the shared table schema (CV's `cv_topics` columns), seeding, reads/writes and
+  a router factory; `communication_lab/`, `finance_lab/`, `python_lab/` are thin wrappers (`/communication`, `/finance`, `/python`
+  + `/topics`, `/sections`, login required). **Seed topics live in `backend/modules/<lab>_lab/topics.json`** (ASCII only), read by
+  `init_db()` on every start (INSERT OR IGNORE by id, so a topic added to the file later appears and edited rows are kept) and by the
+  Next.js twin. Saving a topic is an upsert, not CV's INSERT OR REPLACE, so a lesson that gets a subtopic keeps its place in the path.
+- **Next.js twin:** `fe-apis/labs/index.ts` serves the same routes and seeds the same `topics.json` files once per process
+  (`seedTopicLabs`), so nextjs-api mode works on a database FastAPI never started on; each route's `outputFileTracingIncludes` ships
+  its JSON file. Rewrites: `/communication/:path+`, `/finance/:path+`, `/python/:path+`.
+- **Prompts:** `lab_sections` accepts `communication`, `finance`, `python`. They get their own audience line (section + copilot) and
+  quiz profile (`_AUDIENCE`, `_COPILOT_GOAL` in `lab_sections/router.py`; `_PROFILES` in `quiz.py`; same texts in
+  `fe-apis/labSections/handlers.ts` and `quiz.ts`); DSA/CV/System Design prompts are byte-identical to before. The Generate Questions
+  panel's prompt (`daily_session.py`, FastAPI-only) has its own interviewer/question types for Communication and Finance.
+- **Identity hues** (hero glow + icon tile only): `--lab-communication`, `--lab-finance`, `--lab-python` in `tailwind.css`,
+  `.lab-shell[data-lab=...]`.
+- **Checks:** `backend/tests/topic_labs_test.py` (seeding, routes, per-user sections, ordering, prompts; runs on a DB copy). Twin
+  parity was verified the CLAUDE.md way (mock provider, same requests to both backends, statuses, bodies, stored rows and prompts
+  diffed).
+
 ## Lab visual system (DSA, CV, System Design, Daily Session, Labs Project, Config)
 
 The three practice labs and the pages around them (Daily Session, Labs Project, Config) share one visual language: calm surfaces, one
@@ -596,6 +644,22 @@ owns its shape and runs everything the AI returns through the normalizers in `pr
 
 AI results are saved the moment they arrive; typing is saved ~1 s after you stop. The planner is login-only, like every AI feature: guests keep their projects and Explorer but see a sign-in prompt in the planner. It is mirrored in `fe-apis/todo/projects/plan*.ts` (prompts, limits and error texts are copied verbatim, so change both).
 
+### Lab plan and "From lab"
+
+**Lab plan** (`/ai-todo?tab=plan&view=labs&lab=<lab>`, the fourth Plan view) turns lab content into a project: pick
+topics from any lab (a selection can mix labs), open a topic to choose its lessons, then **Add to project** (a new
+project, or an existing one). Inside a project, the Explorer's **From lab** button opens the same picker for that
+project. Both live in `frontend/src/modules/ai-todo/labs/` and are frontend-only: they read `GET /<lab>/topics`
+(login required; the `fe-apis/labs` twin serves the same rows) and create nodes with the existing project-node
+endpoints, so neither backend changed.
+
+- A topic becomes a node (`topic` when lessons come with it, else `action`); each picked lesson becomes an `action`
+  child. DSA "subtopics" are page sections (Python, Real-World, Edge), so a DSA problem is always one task.
+- Each node's context ends with `From <Lab name>: /<lab>-lab?topic=<id>[&sub=<id>]`. `labLinkFromContext` reads that
+  line back: it drives the row's "Open in lab" chip and tells the pickers what a project already has
+  (`linkedLabNodes`), so a topic is never added twice and new lessons go under the existing topic node. Editing that
+  line away in Details just makes the node an ordinary one.
+
 Frontend service clients live in `frontend/src/lib/services/{todoService,quickTaskService,projectService,projectPlannerService,paretoService}.ts`,
 and components in `frontend/src/modules/ai-todo/`.
 
@@ -732,6 +796,34 @@ below, which has a twin in both modes.
   `feedState.seenIds` (cards already swiped, any topic). A deck is "this topic's cards not in seenIds", so new cards
   can be inserted anywhere without shifting anyone's place. Generated cards lead their deck, newest batch first.
 - Styles: the module's own `swipe-learn.css` (plain CSS on the theme tokens); `check:tailwind` covers the folder.
+
+## AI memory and web research
+
+Two small shared services any module can use. Both need a login and both exist in FastAPI mode
+(`backend/modules/{memory,research}/`) and nextjs-api mode (`frontend/fe-apis/{memory,research}/`, routes under
+`src/app/api/{memory,research}`).
+
+- **AI memory** (`/memory`): short facts about how a person learns, stored per user in `ai_memory` (`module`, `topic`,
+  `kind` = interest / struggle / mastered / preference, `fact`, `weight`, `hits`). Seeing a fact again strengthens it;
+  weights fade with a 30-day half-life and the weakest are dropped past 200 per module. `POST /memory/events` records,
+  `GET /memory[?module=]` lists, `GET /memory/lines` gives prompt-ready lines (for AI calls the browser makes itself),
+  `DELETE /memory/{id}` and `DELETE /memory[?module=]` forget. Rows belong to one user; another user gets 404/empty.
+  Viewable and deletable in **Config → AI memory**. Never holds API keys.
+  - *Writes*: SwipeLearn (card saved = interest, quiz answered wrong = struggle, "Quiz me" = interest) via
+    `memoryService.remember()`; Daily Session (a 1-2 star rating = struggle, 4-5 = mastered) on the server in
+    `PATCH /questions/{id}/performance`.
+  - *Reads*: the SwipeLearn generate endpoint and the Daily Session question generator add a "What you know about this
+    learner" block. The browser's direct-to-Gemini SwipeLearn path fetches the lines with `GET /memory/lines`.
+- **Web research** (`POST /research/search {query, fetch?}`): read-only. Searches DuckDuckGo's HTML endpoint (no key;
+  retried once and cached for 15 minutes because it throttles bursts), fetches the top pages and returns
+  `{title, url, snippet, text}`. It never logs in, submits forms or runs scripts. Because it fetches URLs for users,
+  every request is SSRF-guarded: http(s) only, no credentials, the host must resolve to public addresses only (IPv4
+  private/loopback/link-local/CGNAT, IPv6 non-global, mapped, 6to4 and Teredo are refused), each redirect re-checked,
+  8 s and 400 KB caps. A page that fails keeps its search snippet.
+  - *Used by*: SwipeLearn "What's new" batches. The server researches the deck's topic, puts the pages in the prompt as
+    untrusted sources, and each card's `source` must be a URL it actually fetched (shown as "Source: host" on the card).
+- Known limits: the search endpoint is an unofficial HTML page and can change or block; DNS is resolved once for the
+  check and again by the fetch (a rebinding window, mitigated by the read-only, login-only, capped design).
 
 ## Vercel Deployment & Backend Modes
 
@@ -943,6 +1035,15 @@ single source of truth. See `app/README.md` for the day-to-day commands.
   finds the phone over adb, compares a fingerprint of the app files + site URL with the last install and only rebuilds when
   something changed, then installs, grants the notification and exact-alarm permissions and launches it. Flags: `--local`
   (app loads the Mac's dev server), `--url`, `--check` (report only), `--force`, `--clean`, `--yes`, `--no-launch`.
+- **Install app (Settings → Install app, `?section=install`; also a row in the phone menu):** `src/modules/config/InstallSection.tsx`
+  + `src/lib/pwa/installApp.ts`. It reads the device: Android gets the APK first, a computer gets the web app first (plus the
+  APK with a copy-link button), an iPhone only gets Add to Home Screen, and inside the Android app it just says so (a WebView
+  can't download, so updates go through Chrome). The APK is served from `frontend/public/downloads/labninja.apk`, written by
+  `./app/install_app.sh --publish` (builds for the production URL without a phone, with `labninja-apk.json` beside it); a
+  missing JSON shows "not published yet". `NEXT_PUBLIC_ANDROID_APK_URL` points the button elsewhere (a release page or
+  bucket) if the 6 MB binary should stay out of git. The web-app Install button uses the browser's `beforeinstallprompt`,
+  which the root layout's inline script keeps (`window.__labninjaInstallPrompt`) in case it fires before React loads; the
+  event is not cancelled, so the browser's own install UI is unchanged.
 - **The web half stays in `frontend/src/lib/reminders/`** (`nativeReminders.ts`, `nativePush.ts`, `reminderEngine.ts`) because
   Next/Vercel bundle it; it imports `@capacitor/core` + the two plugins, which therefore remain `frontend/` dependencies.
   Do not move it into `app/`: the Vercel root is `frontend/`.

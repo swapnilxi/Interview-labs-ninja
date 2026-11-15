@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ContentCard, QuizDisplayMode, TopicMeta } from '../types';
+import { remember } from '@/lib/services/memoryService';
 import Icon from '@/components/ui/AppIcon';
 import { topicHue } from '../utils/topicHue';
 
@@ -23,6 +24,27 @@ interface SwipeCardItemProps {
   quizMeBusy?: boolean;
   /** Another generation is running (the button waits for it). */
   generateBusy?: boolean;
+}
+
+/** Where a researched card came from: the page's host, opening in a new tab. */
+function SourceLink({ url }: { url: string }) {
+  let host = url;
+  try {
+    host = new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    /* show the raw url */
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="mt-3 inline-flex max-w-full items-center gap-1 text-xs font-semibold text-foreground underline-offset-2 hover:underline"
+    >
+      <Icon name="GlobeAltIcon" size={13} />
+      <span className="truncate">Source: {host}</span>
+    </a>
+  );
 }
 
 const TYPE_META: Record<string, { label: string; icon: string }> = {
@@ -231,6 +253,15 @@ export default function SwipeCardItem({
                     onClick={() => {
                       setSelectedOption(idx);
                       setRevealed(true);
+                      // A missed question is something the AI should remember to revisit (shared AI memory).
+                      if (idx !== quiz.correctAnswer) {
+                        remember({
+                          module: 'swipe-learn',
+                          topic: String(card.topic),
+                          kind: 'struggle',
+                          fact: `Got a quiz wrong: "${card.title.slice(0, 90)}"`,
+                        });
+                      }
                     }}
                     data-state={state}
                     className="swipe-option"
@@ -340,6 +371,8 @@ export default function SwipeCardItem({
             <span>{quizMeBusy ? 'Writing your quiz…' : 'Quiz me on this'}</span>
           </button>
         )}
+
+        {card.sourceUrl && <SourceLink url={card.sourceUrl} />}
 
         {/* Tags + read time */}
         {(!!card.tags?.length || !!card.estimatedReadTime) && (

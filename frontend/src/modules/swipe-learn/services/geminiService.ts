@@ -20,6 +20,7 @@
  */
 
 import { isLoggedIn } from '@/lib/auth/tokenStore';
+import { fetchMemoryLines } from '@/lib/services/memoryService';
 import { apiFetch, parseApiError } from '@/lib/http/apiClient';
 import {
   USE_ENV_DEFAULT_MODEL,
@@ -380,8 +381,14 @@ function pickAngles(n: number): string[] {
 }
 
 /** The wire/prompt request for one round. */
-function promptRequest(req: GenerateCardsRequest, count: number, avoid: string[]): CardPromptRequest {
+function promptRequest(
+  req: GenerateCardsRequest,
+  count: number,
+  avoid: string[],
+  memory: string[] = []
+): CardPromptRequest {
   return normalizeCardRequest({
+    memory,
     topic: req.topic,
     mixedTopics: req.mixedTopics,
     subCategories: req.subCategories,
@@ -538,7 +545,8 @@ function normalizeCard(
   index: number,
   batchId: string,
   createdAt: string,
-  model: string
+  model: string,
+  sourceUrls: string[] = []
 ): ContentCard | null {
   if (!raw || typeof raw !== 'object') return null;
   const title = clip(raw.title, 80);
@@ -614,12 +622,14 @@ function normalizeCard(
     generatedAt: createdAt,
     model,
     generateFormat: req.aboutCard ? 'quiz' : req.format,
+    // Only a page the research tool actually fetched counts as a source (the model can't invent one).
+    sourceUrl: typeof raw.source === 'string' && sourceUrls.includes(raw.source.trim()) ? raw.source.trim() : undefined,
     createdAt,
   };
 }
 
 /** Every usable card in the model's answer (ids are assigned once the batch is complete). */
-function parseCards(text: string, req: GenerateCardsRequest, model: string): ContentCard[] {
+function parseCards(text: string, req: GenerateCardsRequest, model: string, sourceUrls: string[] = []): ContentCard[] {
   const parsed = extractJson(text) as any;
   const list: unknown[] = Array.isArray(parsed)
     ? parsed
@@ -631,7 +641,7 @@ function parseCards(text: string, req: GenerateCardsRequest, model: string): Con
   const createdAt = new Date().toISOString();
   const cards: ContentCard[] = [];
   list.forEach((raw) => {
-    const card = normalizeCard(raw, req, cards.length, 'tmp', createdAt, model);
+    const card = normalizeCard(raw, req, cards.length, 'tmp', createdAt, model, sourceUrls);
     if (card) cards.push(card);
   });
   return cards;
@@ -652,7 +662,7 @@ function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal |
 async function callServer(
   promptReq: CardPromptRequest,
   signal?: AbortSignal
-): Promise<{ text: string; model: string }> {
+): Promise<{ text: string; model: string; sources: string[] }> {
   let res: Response;
   try {
     res = await apiFetch('/swipe-learn/generate', {
@@ -685,7 +695,10 @@ async function callServer(
   const data = await res.json().catch(() => null);
   const text = typeof data?.text === 'string' ? data.text : '';
   if (!text.trim()) throw new SwipeGenerateError('The AI returned an empty answer. Try again.', 'bad-output');
-  return { text, model: typeof data?.model === 'string' && data.model ? data.model : 'config-model' };
+  const sources: string[] = Array.isArray(data?.sources)
+    ? data.sources.map((s: { url?: unknown }) => (typeof s?.url === 'string' ? s.url : '')).filter(Boolean)
+    : [];
+  return { text, model: typeof data?.model === 'string' && data.model ? data.model : 'config-model', sources };
 }
 
 // ── Public entry point ─────────────────────────────────────────────────────
@@ -711,22 +724,25 @@ export async function generateCards(
   const cards: ContentCard[] = [];
   const repeats: string[] = [];
   let lastError: unknown = null;
+  // The server path adds the shared AI memory itself; a direct-to-Gemini call has to bring it along.
+  const memory = ai.source === 'server' ? [] : await fetchMemoryLines('swipe-learn', req.topic.id);
 
   for (let round = 0; round <= MAX_EXTRA_ROUNDS && cards.length < count; round += 1) {
     const want = count - cards.length;
     // Newest first: this batch, then the repeats we just dropped, then the deck.
     const avoid = [...cards.map((c) => c.title), ...repeats, ...req.avoidTitles];
-    const promptReq = promptRequest(req, want, avoid);
+    const promptReq = promptRequest(req, want, avoid, memory);
     try {
       let text: string;
       let model: string;
+      let sourceUrls: string[] = [];
       if (ai.source === 'server') {
-        ({ text, model } = await callServer(promptReq, signal));
+        ({ text, model, sources: sourceUrls } = await callServer(promptReq, signal));
       } else {
         text = await callGemini(ai.apiKey, ai.model, buildCardPrompt(promptReq), signal);
         model = ai.model;
       }
-      const parsed = parseCards(text, req, model);
+      const parsed = parseCards(text, req, model, sourceUrls);
       if (!parsed.length) {
         lastError = new SwipeGenerateError("The AI's answer had no usable cards. Try again.", 'bad-output');
         continue;

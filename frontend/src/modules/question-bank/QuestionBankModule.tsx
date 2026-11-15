@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import QuestionFilterToolbar from '@/components/common/QuestionFilterToolbar';
-import QuestionTableRow from './QuestionTableRow';
 import QuestionTableMobile from './QuestionTableMobile';
 import QuestionGrid from './QuestionGrid';
 import QuestionStatsPanel from './QuestionStatsPanel';
@@ -20,20 +18,40 @@ interface FilterOptions {
   searchQuery: string;
 }
 
+const DEFAULT_FILTERS: FilterOptions = {
+  category: 'All Categories',
+  difficulty: 'All Levels',
+  dateRange: 'All Time',
+  searchQuery: '',
+};
+
+// Values are what the filter compares against (unchanged); labels are what the menus show.
+const CATEGORY_OPTIONS = [
+  { value: 'All Categories', label: 'All categories' },
+  { value: 'Interview', label: 'Interview' },
+  { value: 'CV Skill', label: 'CV skill' },
+];
+const DIFFICULTY_OPTIONS = [
+  { value: 'All Levels', label: 'All levels' },
+  { value: 'Easy', label: 'Easy' },
+  { value: 'Medium', label: 'Medium' },
+  { value: 'Hard', label: 'Hard' },
+];
+const DATE_OPTIONS = [
+  { value: 'All Time', label: 'Any date' },
+  { value: 'Last 7 Days', label: 'Last 7 days' },
+  { value: 'Last 30 Days', label: 'Last 30 days' },
+  { value: 'Last 90 Days', label: 'Last 90 days' },
+  { value: 'This Year', label: 'This year' },
+];
 
 export default function QuestionBankInteractive({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const [isHydrated, setIsHydrated] = useState(false);
-  const [filters, setFilters] = useState<FilterOptions>({
-    category: 'All Categories',
-    difficulty: 'All Levels',
-    dateRange: 'All Time',
-    searchQuery: '',
-  });
+  const [filters, setFilters] = useState<FilterOptions>(DEFAULT_FILTERS);
   const [sortBy, setSortBy] = useState('dateEncountered');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
-  const [selectAll, setSelectAll] = useState(false);
   const [viewMode, setViewModeState] = useState<'list' | 'grid'>('list');
   const setViewMode = (m: 'list' | 'grid') => {
     setViewModeState(m);
@@ -47,7 +65,10 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [clearingDuplicates, setClearingDuplicates] = useState(false);
-  const [clearStatus, setClearStatus] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [clearStatus, setClearStatus] = useState<{
+    message: string;
+    type: 'success' | 'info' | 'error';
+  } | null>(null);
 
   const reloadQuestions = async () => {
     try {
@@ -65,7 +86,11 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
       const res = await questionsService.clearDuplicates();
       const count = res.cleared_count ?? 0;
       setClearStatus({
-        message: res.message || (count > 0 ? `Successfully cleared ${count} duplicate question(s)!` : 'No duplicate questions found.'),
+        message:
+          res.message ||
+          (count > 0
+            ? `Successfully cleared ${count} duplicate question(s)!`
+            : 'No duplicate questions found.'),
         type: count > 0 ? 'success' : 'info',
       });
       await reloadQuestions();
@@ -119,8 +144,7 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
       const query = filters.searchQuery.toLowerCase();
       filtered = filtered.filter(
         (q) =>
-          q.questionText.toLowerCase().includes(query) ||
-          q.subType.toLowerCase().includes(query)
+          q.questionText.toLowerCase().includes(query) || q.subType.toLowerCase().includes(query)
       );
     }
 
@@ -143,9 +167,7 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
           break;
       }
 
-      filtered = filtered.filter(
-        (q) => new Date(q.dateEncountered) >= cutoffDate
-      );
+      filtered = filtered.filter((q) => new Date(q.dateEncountered) >= cutoffDate);
     }
 
     filtered.sort((a, b) => {
@@ -208,7 +230,6 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
   const handleFilterChange = (newFilters: FilterOptions) => {
     setFilters(newFilters);
     setSelectedQuestions([]);
-    setSelectAll(false);
   };
 
   const handleSortChange = (newSortBy: string) => {
@@ -221,19 +242,20 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
 
   const handleSelectQuestion = (questionId: string) => {
     setSelectedQuestions((prev) =>
-      prev.includes(questionId)
-        ? prev.filter((id) => id !== questionId)
-        : [...prev, questionId]
+      prev.includes(questionId) ? prev.filter((id) => id !== questionId) : [...prev, questionId]
     );
   };
 
   const handleSelectAll = () => {
-    if (selectAll) {
+    // Read the selection itself, so the box also clears after picking every row by hand.
+    const everySelected =
+      filteredQuestions.length > 0 &&
+      filteredQuestions.every((q) => selectedQuestions.includes(q.id));
+    if (everySelected) {
       setSelectedQuestions([]);
     } else {
       setSelectedQuestions(filteredQuestions.map((q) => q.id));
     }
-    setSelectAll(!selectAll);
   };
 
   const handleReview = (questionId: string) => {
@@ -246,15 +268,16 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
   };
 
   const handleExport = () => {
-    const selectedQuestionsData = questions.filter((q) =>
-      selectedQuestions.includes(q.id)
-    );
+    const selectedQuestionsData = questions.filter((q) => selectedQuestions.includes(q.id));
 
-    const markdown = `# Question Bank Export\n\nExported on: ${new Date().toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    })}\n\nTotal Questions: ${selectedQuestionsData.length}\n\n---\n\n${selectedQuestionsData
+    const markdown = `# Question Bank Export\n\nExported on: ${new Date().toLocaleDateString(
+      'en-US',
+      {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }
+    )}\n\nTotal Questions: ${selectedQuestionsData.length}\n\n---\n\n${selectedQuestionsData
       .map(
         (q, index) =>
           `## Question ${index + 1}\n\n**Category:** ${q.category}\n**Sub-Type:** ${q.subType}\n**Difficulty:** ${q.difficulty}\n**Date Encountered:** ${q.dateEncountered}\n\n${q.questionText}\n\n---\n`
@@ -275,21 +298,18 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
   const handleMarkForReview = () => {
     console.log('Marking questions for review:', selectedQuestions);
     setSelectedQuestions([]);
-    setSelectAll(false);
   };
 
   const handleClearSelection = () => {
     setSelectedQuestions([]);
-    setSelectAll(false);
+  };
+
+  const updateFilter = (key: keyof FilterOptions, value: string) => {
+    handleFilterChange({ ...filters, [key]: value });
   };
 
   const handleClearFilters = () => {
-    setFilters({
-      category: 'All Categories',
-      difficulty: 'All Levels',
-      dateRange: 'All Time',
-      searchQuery: '',
-    });
+    handleFilterChange(DEFAULT_FILTERS);
   };
 
   const hasActiveFilters =
@@ -299,245 +319,251 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
     filters.searchQuery !== '';
 
   if (!isHydrated || loading) {
-    if (embedded) {
-      return (
-        <div className="flex h-72 items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
-        </div>
-      );
-    }
+    const skeleton = (
+      <div className="space-y-4 pb-10 pt-1" aria-busy="true" aria-label="Loading questions">
+        <div className="ins-skel h-[9rem]" />
+        <div className="ins-skel h-[2.75rem] rounded-[12px]" />
+        <div className="ins-skel h-[24rem]" />
+      </div>
+    );
+    if (embedded) return skeleton;
     return (
-      <div className="min-h-screen bg-background pt-[60px]">
-        <div className="max-w-[1400px] mx-auto px-24 py-36">
-          <div className="animate-pulse space-y-24">
-            <div className="h-48 bg-muted rounded-lg w-1/3" />
-            <div className="h-96 bg-muted rounded-lg" />
-            <div className="h-[600px] bg-muted rounded-lg" />
-          </div>
-        </div>
+      <div className="lab-page ds-skin min-h-screen pt-[60px]">
+        <div className="mx-auto max-w-[1200px] px-4 py-[2rem] sm:px-[2rem]">{skeleton}</div>
       </div>
     );
   }
 
+  const filterMenus: {
+    key: 'category' | 'difficulty' | 'dateRange';
+    label: string;
+    options: { value: string; label: string }[];
+  }[] = [
+    {
+      key: 'category',
+      label: 'Category',
+      options: CATEGORY_OPTIONS,
+    },
+    {
+      key: 'difficulty',
+      label: 'Difficulty',
+      options: DIFFICULTY_OPTIONS,
+    },
+    {
+      key: 'dateRange',
+      label: 'Date added',
+      options: DATE_OPTIONS,
+    },
+  ];
+
+  const allSelected =
+    filteredQuestions.length > 0 &&
+    filteredQuestions.every((q) => selectedQuestions.includes(q.id));
+
   const content = (
-    <div className={embedded ? "space-y-6 pt-1 pb-10" : "max-w-[1400px] mx-auto px-24 py-36"}>
+    <div
+      className={
+        embedded
+          ? 'space-y-4 pb-10 pt-1'
+          : 'mx-auto max-w-[1200px] space-y-4 px-4 py-[2rem] sm:px-[2rem]'
+      }
+    >
       {!embedded && (
-        <div className="mb-36 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-18">
-          <div>
-            <h1 className="font-heading text-4xl font-semibold text-foreground mb-12">
-              Question Bank
-            </h1>
-            <p className="text-muted-foreground font-body">
-              Review and practice previously encountered questions to reinforce your skills
-            </p>
-          </div>
+        <div className="mb-2">
+          <h1 className="ds-display">Question bank</h1>
+          <p className="ds-body mt-1">
+            Every question you&apos;ve seen, searchable and filterable.
+          </p>
+        </div>
+      )}
+
+      <QuestionStatsPanel stats={stats} activeFilters={filters} />
+
+      {/* Toolbar: search and the list / grid switch, then the filter and sort menus (one sideways-scrolling line
+          on a phone, all on one row from the laptop up). */}
+      <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
+        <div className="ins-search order-1 min-w-0 flex-1 lg:max-w-[22rem]">
+          <Icon name="MagnifyingGlassIcon" size={17} variant="outline" />
+          <input
+            type="search"
+            value={filters.searchQuery}
+            onChange={(e) => updateFilter('searchQuery', e.target.value)}
+            placeholder="Search questions"
+            aria-label="Search questions"
+            enterKeyHint="search"
+          />
+          {filters.searchQuery && (
+            <button
+              type="button"
+              onClick={() => updateFilter('searchQuery', '')}
+              aria-label="Clear search"
+            >
+              <Icon name="XCircleIcon" size={18} variant="solid" />
+            </button>
+          )}
+        </div>
+
+        <div role="group" aria-label="View" className="ds-seg ins-seg order-2 lg:order-3">
+          {(
+            [
+              ['list', 'ListBulletIcon', 'List'],
+              ['grid', 'Squares2X2Icon', 'Grid'],
+            ] as const
+          ).map(([m, icon, label]) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setViewMode(m)}
+              aria-pressed={viewMode === m}
+              aria-label={`${label} view`}
+              title={`${label} view`}
+            >
+              <Icon name={icon} size={16} variant="outline" />
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="ins-pills order-3 w-full lg:order-2 lg:w-auto lg:flex-1">
+          {filterMenus.map((menu) => {
+            const active = filters[menu.key] !== menu.options[0].value;
+            return (
+              <label key={menu.key} className="ins-select" data-active={active || undefined}>
+                <span className="sr-only">{menu.label}</span>
+                <select
+                  value={filters[menu.key]}
+                  onChange={(e) => updateFilter(menu.key, e.target.value)}
+                >
+                  {menu.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <Icon name="ChevronDownIcon" size={14} variant="outline" />
+              </label>
+            );
+          })}
+          <span className="ins-vrule" aria-hidden="true" />
+          <SortControls
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSortChange={handleSortChange}
+            onOrderChange={handleOrderChange}
+          />
+        </div>
+      </div>
+
+      {clearStatus && (
+        <div
+          role="status"
+          className={`ds-banner ds-banner-center ${
+            clearStatus.type === 'success'
+              ? 'ds-tone-jade'
+              : clearStatus.type === 'error'
+                ? 'ds-tone-rose'
+                : 'ds-tone-indigo'
+          }`}
+        >
+          <Icon
+            name={clearStatus.type === 'error' ? 'ExclamationCircleIcon' : 'CheckCircleIcon'}
+            size={18}
+            variant="solid"
+          />
+          <span className="min-w-0 flex-1">{clearStatus.message}</span>
           <button
             type="button"
-            onClick={handleClearDuplicates}
-            disabled={clearingDuplicates}
-            title="Scan and remove duplicate questions using SQL"
-            className="inline-flex items-center gap-8 px-18 py-10 rounded-lg border border-border bg-card hover:bg-muted text-foreground font-medium text-sm transition-smooth shadow-sm self-start sm:self-auto disabled:opacity-50"
+            onClick={() => setClearStatus(null)}
+            className="ins-icon-btn -my-2 -mr-2"
+            aria-label="Dismiss"
           >
-            <Icon
-              name="SparklesIcon"
-              size={18}
-              variant="outline"
-              className={clearingDuplicates ? "animate-spin text-primary" : "text-amber-500"}
-            />
-            <span>{clearingDuplicates ? "Clearing..." : "Clear Duplicates"}</span>
+            <Icon name="XMarkIcon" size={16} variant="outline" />
           </button>
         </div>
       )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-24">
-          <div className="lg:col-span-3 space-y-24">
-            <QuestionFilterToolbar
-              onFilterChange={handleFilterChange}
-              categories={['All Categories', 'Interview', 'CV Skill']}
-              difficulties={['All Levels', 'Easy', 'Medium', 'Hard']}
+      <div className="ins-resultbar">
+        {filteredQuestions.length > 0 && (
+          <label className="ins-check-hit" title={allSelected ? 'Deselect all' : 'Select all'}>
+            <input
+              type="checkbox"
+              className="ins-check"
+              checked={allSelected}
+              onChange={handleSelectAll}
+              aria-label={
+                allSelected
+                  ? 'Deselect all questions'
+                  : `Select all ${filteredQuestions.length} questions`
+              }
             />
-
-            {filteredQuestions.length > 0 ? (
-              <>
-                <div className="overflow-hidden rounded-[20px] border mix-border-foreground/[0.07] bg-card shadow-card">
-                  <div className="border-b border-border p-4 sm:p-24">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-18">
-                      <div className="flex items-center gap-12 flex-wrap">
-                        <h2 className="font-heading text-lg font-medium text-foreground">
-                          Questions
-                        </h2>
-                        <span className="lab-ink rounded-full px-2.5 py-0.5 text-sm font-semibold tabular-nums mix-bg-primary/10">
-                          {filteredQuestions.length}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleClearDuplicates}
-                          disabled={clearingDuplicates}
-                          title="Scan and remove duplicate questions from question bank using SQL"
-                          className="todo-btn todo-btn-quiet"
-                        >
-                          <Icon
-                            name="SparklesIcon"
-                            size={14}
-                            variant="outline"
-                            className={clearingDuplicates ? "animate-spin text-primary" : "text-amber-500"}
-                          />
-                          <span>{clearingDuplicates ? "Clearing..." : "Clear Duplicates"}</span>
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div role="group" aria-label="View mode" className="ios-segmented">
-                          {([['list', 'ListBulletIcon', 'List'], ['grid', 'Squares2X2Icon', 'Grid']] as const).map(([m, icon, label]) => (
-                            <button
-                              key={m}
-                              type="button"
-                              onClick={() => setViewMode(m)}
-                              aria-pressed={viewMode === m}
-                              title={`${label} view`}
-                              className={`ios-segment gap-1.5 ${viewMode === m ? 'ios-segment-active' : ''}`}
-                            >
-                              <Icon name={icon} size={15} variant="outline" />
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                        <SortControls
-                          sortBy={sortBy}
-                          sortOrder={sortOrder}
-                          onSortChange={handleSortChange}
-                          onOrderChange={handleOrderChange}
-                        />
-                      </div>
-                    </div>
-                    {clearStatus && (
-                      <div className={`mt-12 px-14 py-8 rounded-md text-xs font-medium flex items-center gap-8 border transition-smooth ${
-                        clearStatus.type === 'success'
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                          : clearStatus.type === 'error'
-                          ? 'mix-bg-destructive/10 text-destructive mix-border-destructive/20'
-                          : 'mix-bg-primary/10 lab-ink mix-border-primary/20'
-                      }`}>
-                        <Icon name="CheckCircleIcon" size={16} variant="solid" className={clearStatus.type === 'error' ? 'text-destructive' : 'text-emerald-500'} />
-                        <span>{clearStatus.message}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {viewMode === 'list' && (
-                  <div className="hidden lg:block overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-muted/50 border-b border-border">
-                        <tr>
-                          <th className="px-18 py-12 text-left">
-                            <input
-                              type="checkbox"
-                              checked={selectAll}
-                              onChange={handleSelectAll}
-                              className="w-18 h-18 rounded border-2 border-border bg-input checked:bg-primary checked:border-primary transition-smooth cursor-pointer focus-ring"
-                              aria-label="Select all questions"
-                            />
-                          </th>
-                          <th className="px-18 py-12 text-left text-sm font-medium text-muted-foreground font-heading">
-                            Question
-                          </th>
-                          <th className="px-18 py-12 text-left text-sm font-medium text-muted-foreground font-heading">
-                            Category
-                          </th>
-                          <th className="px-18 py-12 text-left text-sm font-medium text-muted-foreground font-heading">
-                            Sub-Type
-                          </th>
-                          <th className="px-18 py-12 text-left text-sm font-medium text-muted-foreground font-heading">
-                            Difficulty
-                          </th>
-                          <th className="px-18 py-12 text-left text-sm font-medium text-muted-foreground font-heading">
-                            Date
-                          </th>
-                          <th className="px-18 py-12 text-left text-sm font-medium text-muted-foreground font-heading">
-                            Last Reviewed
-                          </th>
-                          <th className="px-18 py-12 text-left text-sm font-medium text-muted-foreground font-heading">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredQuestions.map((question) => (
-                          <QuestionTableRow
-                            key={question.id}
-                            question={question}
-                            onReview={handleReview}
-                            onPractice={handlePractice}
-                            isSelected={selectedQuestions.includes(question.id)}
-                            onSelect={handleSelectQuestion}
-                          />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  )}
-
-                  {viewMode === 'list' && (
-                  <div className="lg:hidden p-18">
-                    <QuestionTableMobile
-                      questions={filteredQuestions}
-                      onReview={handleReview}
-                      onPractice={handlePractice}
-                      selectedQuestions={selectedQuestions}
-                      onSelect={handleSelectQuestion}
-                    />
-                  </div>
-                  )}
-
-                  {viewMode === 'grid' && (
-                    <div className="p-[1.1rem]">
-                      <label className="mb-[0.9rem] inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          checked={selectAll}
-                          onChange={handleSelectAll}
-                          className="h-[1.1rem] w-[1.1rem] cursor-pointer rounded border-2 border-border bg-input checked:border-primary checked:bg-primary"
-                        />
-                        Select all {filteredQuestions.length}
-                      </label>
-                      <QuestionGrid
-                        questions={filteredQuestions}
-                        onReview={handleReview}
-                        onPractice={handlePractice}
-                        selectedQuestions={selectedQuestions}
-                        onSelect={handleSelectQuestion}
-                      />
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <EmptyState
-                hasFilters={hasActiveFilters}
-                onClearFilters={handleClearFilters}
-              />
-            )}
-          </div>
-
-          <div className="lg:col-span-1">
-            <QuestionStatsPanel stats={stats} activeFilters={filters} />
-          </div>
-        </div>
-
-        <BulkActionsBar
-          selectedCount={selectedQuestions.length}
-          onExport={handleExport}
-          onMarkForReview={handleMarkForReview}
-          onClearSelection={handleClearSelection}
-        />
+          </label>
+        )}
+        <p className="ins-count min-w-0 truncate">
+          {hasActiveFilters ? (
+            <>
+              {filteredQuestions.length} of {questions.length}
+              <span className="hidden sm:inline">
+                {questions.length === 1 ? ' question' : ' questions'}
+              </span>
+            </>
+          ) : (
+            `${filteredQuestions.length} ${filteredQuestions.length === 1 ? 'question' : 'questions'}`
+          )}
+        </p>
+        {hasActiveFilters && (
+          <button type="button" onClick={handleClearFilters} className="ds-link text-[0.86rem]">
+            Clear filters
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={handleClearDuplicates}
+          disabled={clearingDuplicates}
+          title="Find and remove duplicate questions in your bank"
+          className="ds-btn ds-btn-ghost ds-btn-sm ml-auto"
+        >
+          <Icon
+            name={clearingDuplicates ? 'ArrowPathIcon' : 'SparklesIcon'}
+            size={16}
+            variant="outline"
+            className={clearingDuplicates ? 'animate-spin' : ''}
+          />
+          {clearingDuplicates ? 'Clearing…' : 'Clear duplicates'}
+        </button>
       </div>
+
+      {filteredQuestions.length > 0 ? (
+        viewMode === 'list' ? (
+          <QuestionTableMobile
+            questions={filteredQuestions}
+            onReview={handleReview}
+            onPractice={handlePractice}
+            selectedQuestions={selectedQuestions}
+            onSelect={handleSelectQuestion}
+          />
+        ) : (
+          <QuestionGrid
+            questions={filteredQuestions}
+            onReview={handleReview}
+            onPractice={handlePractice}
+            selectedQuestions={selectedQuestions}
+            onSelect={handleSelectQuestion}
+          />
+        )
+      ) : (
+        <EmptyState hasFilters={hasActiveFilters} onClearFilters={handleClearFilters} />
+      )}
+
+      <BulkActionsBar
+        selectedCount={selectedQuestions.length}
+        onExport={handleExport}
+        onMarkForReview={handleMarkForReview}
+        onClearSelection={handleClearSelection}
+      />
+    </div>
   );
 
   if (embedded) return content;
 
-  return (
-    <div className="min-h-screen bg-background pt-[60px]">
-      {content}
-    </div>
-  );
+  return <div className="lab-page ds-skin min-h-screen pt-[60px]">{content}</div>;
 }

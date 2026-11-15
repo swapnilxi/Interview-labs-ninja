@@ -9,6 +9,8 @@ import { SaveIndicator, useSaveStatus } from '../shared/useSaveStatus';
 import { fieldsServerKept } from '../shared/patchSemantics';
 import { ProjectNode, projectService } from '@/lib/services/projectService';
 import { todoService } from '@/lib/services/todoService';
+import Link from 'next/link';
+import { labLinkFromContext } from '../labs/labContent';
 
 interface ProjectNodeDetailModalProps {
   node: ProjectNode | null;
@@ -251,10 +253,17 @@ export default function ProjectNodeDetailModal({
 
         {/* Context & Description */}
         <div className="space-y-1.5">
-          <label htmlFor="node-detail-context" className="text-xs font-bold text-foreground flex items-center gap-1.5">
-            <Icon name="DocumentTextIcon" size={14} className="text-primary" />
-            Context & Description
-          </label>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="node-detail-context" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <Icon name="DocumentTextIcon" size={14} className="text-primary" />
+              Context & Description
+            </label>
+            {labLinkFromContext(context) && (
+              <Link href={labLinkFromContext(context)!.href} className="pe-chip pe-chip-link">
+                Open in {labLinkFromContext(context)!.label} <Icon name="ArrowUpRightIcon" size={10} />
+              </Link>
+            )}
+          </div>
           <textarea
             id="node-detail-context"
             value={context}

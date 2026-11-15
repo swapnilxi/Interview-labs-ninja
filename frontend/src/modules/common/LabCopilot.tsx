@@ -2,92 +2,35 @@
 
 import { useState, useRef, useEffect, useId, type ReactNode } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import { askLabCopilot, type LabName } from '@/lib/services/labSectionsService';
 
 interface Message {
   id: string;
   role: 'user' | 'ai';
   content: string;
+  /** The reply is a failure notice, not an answer (left out of the history sent back). */
+  error?: boolean;
 }
 
 interface LabCopilotProps {
   context: string;
-  labType?: 'dsa' | 'cv' | 'system-design';
+  labType?: 'dsa' | 'cv' | 'system-design' | 'communication' | 'finance' | 'python';
   onCollapse?: () => void;
   /** Accessible name and tooltip of the collapse button: "Collapse" in the side column, "Close" when the copilot is a phone sheet. */
   collapseLabel?: string;
 }
 
-const HINT_LEVELS: Record<string, string[]> = {
-  default: [
-    'Level 1 — Think about what data structure gives you O(1) lookups. What property of the problem can you exploit to avoid brute force?',
-    "Level 2 — The key insight is reducing the problem to a complement search. For every element you see, ask: 'Have I seen what I need to pair with this before?'",
-    'Level 3 — Use a hash map to store {value: index} as you iterate. For each element, check if (target - element) is already in the map. Return the pair if found.',
-  ],
-  dsa: [
-    'Level 1 — Read the problem constraints carefully. The input size and value range usually tell you the expected time complexity (e.g., n ≤ 10⁵ → O(n log n) max).',
-    'Level 2 — Identify the pattern family: Is this a search problem? A range query? A graph traversal? Matching the problem to a known pattern is the skill.',
-    'Level 3 — Look for the invariant: what property holds true as you move through the array/tree/graph? Most optimal solutions maintain a small invariant over a larger state space.',
-  ],
-  cv: [
-    'Level 1 — Start from first principles: what is the mathematical objective this algorithm is optimizing? Understanding the loss function unlocks the architecture.',
-    'Level 2 — Think about what inductive biases the model has. CNNs assume local correlation and translation invariance — is that assumption valid for your data?',
-    'Level 3 — The practical bottleneck is almost never the model architecture. Look at your data pipeline, augmentation strategy, and learning rate schedule first.',
-  ],
-  'system-design': [
-    'Level 1 — Start with clarifying requirements. Ambiguity is intentional — interviewers want to see if you ask the right questions before designing.',
-    "Level 2 — Do back-of-envelope math first. If you need 100k QPS, a single MySQL instance won't work — that shapes every decision downstream.",
-    'Level 3 — Think in failure modes: what happens if this service goes down? What if the database is slow? Your design is only as strong as its weakest link.',
-  ],
+const LAB_KEY: Record<NonNullable<LabCopilotProps['labType']>, LabName> = {
+  dsa: 'dsa',
+  cv: 'cv',
+  'system-design': 'system_design',
+  communication: 'communication',
+  finance: 'finance',
+  python: 'python',
 };
 
-const DIVE_DEEPER: Record<string, string> = {
-  default: `**What senior engineers know that juniors miss:**
-
-1. **The hidden constant factor** — Big-O hides constant factors. A O(n log n) algorithm with large constants can lose to O(n²) for small n. Always benchmark.
-
-2. **Cache behaviour matters** — Array iteration is ~10x faster than linked list traversal on modern hardware due to cache lines. The algorithm analysis doesn't capture this.
-
-3. **Memory allocation is not free** — Creating millions of small objects (Python dicts, lists) triggers GC pressure. In production, pre-allocate or reuse buffers.
-
-4. **The interviewer's real question** — They're not testing if you know the algorithm. They're testing how you reason under uncertainty, handle ambiguity, and communicate trade-offs.
-
-5. **Edge cases that break systems in production** — Integer overflow (use Python's arbitrary-precision ints), empty input, single-element input, all-same elements, already-sorted input.`,
-  'system-design': `**What happens at production scale that interviews miss:**
-
-1. **Network partitions are more common than you think** — Between services, ~0.1% of requests will have network issues. Your retry logic and circuit breakers matter enormously.
-
-2. **Database hotspots kill systems** — A "popular tweet" accessed 1M times/sec will destroy your DB if you don't cache aggressively. Celebrity problem is real.
-
-3. **Consistency is a spectrum, not binary** — You're not choosing between "consistent" and "not consistent". You're choosing which invariants to relax under which conditions.
-
-4. **Operational complexity is a real cost** — Every microservice you add is another thing that can fail, needs monitoring, deployment pipelines, and on-call coverage.
-
-5. **Read your SLA carefully** — 99.9% uptime = 8.7 hours/year downtime. 99.99% = 52 minutes/year. The engineering cost to go from 3 nines to 4 nines is enormous.`,
-};
-
-const ELI5_RESPONSES: Record<string, string> = {
-  default: `**Explain Like I'm 5:**
-
-Imagine you have a big box of LEGO pieces. You want to find two pieces that fit together perfectly.
-
-The slow way: pick up every piece, try it with every other piece. That takes FOREVER if you have 1,000 pieces!
-
-The smart way: when you pick up a piece, put a sticky note on it saying what kind of piece it is. Now when you pick up a new piece, just check your sticky notes — if the matching piece is already noted, you found your pair immediately!
-
-That's what the hash map does — it's your sticky note collection. Instead of checking everything again, you just look it up.`,
-  'system-design': `**Explain Like I'm 5:**
-
-Imagine you have a very popular lemonade stand. At first, you serve everyone yourself — easy!
-
-But then 10,000 people show up. You can't serve everyone! So you:
-
-1. **Get more helpers** (horizontal scaling)
-2. **Put up a sign** saying which line to join based on your first letter (load balancing + sharding)
-3. **Pre-pour popular drinks** so you don't make them fresh every time (caching)
-4. **Have a backup stand** in case yours breaks (replication + failover)
-
-That's distributed systems! Big lemonade stand problems, solved with big lemonade stand solutions.`,
-};
+/** How many progressive hints there are. */
+const HINT_COUNT = 3;
 
 type CopilotTab = 'hint' | 'deeper' | 'eli5' | 'chat';
 
@@ -194,11 +137,15 @@ export default function LabCopilot({
   collapseLabel = 'Collapse',
 }: LabCopilotProps) {
   const [activeTab, setActiveTab] = useState<CopilotTab>('chat');
-  const [hintLevel, setHintLevel] = useState(0);
-  const [deeperShown, setDeeperShown] = useState(false);
-  const [eli5Shown, setEli5Shown] = useState(false);
-  // The tab whose canned answer is being "generated"; only one can run at a time (every CTA is disabled meanwhile).
+  // Hints, Deeper and ELI5 are written by the model for the open topic; they reset when the topic changes.
+  const [hints, setHints] = useState<string[]>([]);
+  const [deeperText, setDeeperText] = useState('');
+  const [eli5Text, setEli5Text] = useState('');
+  const [panelError, setPanelError] = useState<string | null>(null);
+  // The tab whose answer is being generated; only one can run at a time (every CTA is disabled meanwhile).
   const [generating, setGenerating] = useState<CopilotTab | null>(null);
+  // Bumped on a topic change so an answer that arrives late for the previous topic is dropped.
+  const epochRef = useRef(0);
 
   // Chat state. The welcome line is not a stored message: it is rendered from the current `context`, so it never goes stale.
   const [messages, setMessages] = useState<Message[]>([]);
@@ -261,36 +208,70 @@ export default function LabCopilot({
     return () => ro.disconnect();
   }, []);
 
-  const triggerGenerate = (tab: CopilotTab, cb: () => void) => {
+  useEffect(() => {
+    epochRef.current += 1;
+    setHints([]);
+    setDeeperText('');
+    setEli5Text('');
+    setPanelError(null);
+    setGenerating(null);
+  }, [context, labType]);
+
+  const lab = LAB_KEY[labType];
+  const historyOf = (list: Message[]) => list.map((m) => ({ role: m.role, content: m.content }));
+
+  const generatePanel = async (tab: 'hint' | 'deeper' | 'eli5') => {
     if (busy) return;
+    const epoch = epochRef.current;
+    setPanelError(null);
     setGenerating(tab);
-    setTimeout(() => {
-      setGenerating(null);
-      cb();
-    }, 1400);
+    try {
+      const answer = await askLabCopilot({
+        lab,
+        context,
+        mode: tab,
+        hintLevel: tab === 'hint' ? hints.length + 1 : undefined,
+        history: tab === 'hint' ? hints.map((h) => ({ role: 'ai' as const, content: h })) : undefined,
+      });
+      if (epoch !== epochRef.current) return;
+      if (tab === 'hint') setHints((h) => [...h, answer]);
+      else if (tab === 'deeper') setDeeperText(answer);
+      else setEli5Text(answer);
+    } catch (e) {
+      if (epoch === epochRef.current) setPanelError(e instanceof Error ? e.message : 'Something went wrong.');
+    } finally {
+      if (epoch === epochRef.current) setGenerating(null);
+    }
   };
 
-  const hints = HINT_LEVELS[labType] ?? HINT_LEVELS.default;
+  const hintLevel = hints.length;
   const getNextHint = () => {
-    if (hintLevel < hints.length) triggerGenerate('hint', () => setHintLevel((l) => l + 1));
+    if (hintLevel < HINT_COUNT) void generatePanel('hint');
   };
 
-  const sendChat = (text: string) => {
-    if (!text.trim() || chatGenerating) return;
-    setMessages((p) => [...p, { id: `u${Date.now()}`, role: 'user', content: text.trim() }]);
+  const sendChat = async (text: string) => {
+    const question = text.trim();
+    if (!question || chatGenerating) return;
+    const history = historyOf(messages.filter((m) => !m.error));
+    setMessages((p) => [...p, { id: `u${Date.now()}`, role: 'user', content: question }]);
     setInput('');
     setChatGenerating(true);
-    setTimeout(() => {
+    try {
+      const answer = await askLabCopilot({ lab, context, mode: 'chat', question, history });
+      setMessages((p) => [...p, { id: `a${Date.now()}`, role: 'ai', content: answer }]);
+    } catch (e) {
       setMessages((p) => [
         ...p,
         {
-          id: `a${Date.now()}`,
+          id: `e${Date.now()}`,
           role: 'ai',
-          content: `Great question about **${context}**! Here's how I'd approach this: The key insight is to think about the problem constraints first — what's the input range? What's the expected time complexity? Once you know those, the algorithmic pattern often becomes clear. Want me to walk through the reasoning step by step?`,
+          error: true,
+          content: `Couldn’t answer that: ${e instanceof Error ? e.message : 'the server did not respond.'}`,
         },
       ]);
+    } finally {
       setChatGenerating(false);
-    }, 1400);
+    }
   };
 
   const footer = 'flex-shrink-0 px-4 pb-4 pt-2';
@@ -377,9 +358,9 @@ export default function LabCopilot({
               ) : (
                 <div
                   key={msg.id}
-                  className="copilot-msg-ai-quiet animate-fade-in pl-3 text-xs leading-relaxed text-foreground"
+                  className="copilot-msg-ai-quiet animate-fade-in space-y-2 pl-3 text-xs leading-relaxed text-foreground"
                 >
-                  {renderInline(msg.content)}
+                  {renderLines(msg.content)}
                 </div>
               )
             )}
@@ -467,7 +448,7 @@ export default function LabCopilot({
               Hints get more specific with each level. Try to solve it before going deeper.
             </PanelIntro>
             <ol className="space-y-3">
-              {hints.slice(0, hintLevel).map((hint, i) => (
+              {hints.map((hint, i) => (
                 <li
                   key={i}
                   data-semantic="hint"
@@ -478,12 +459,13 @@ export default function LabCopilot({
               ))}
             </ol>
             {generating === 'hint' && <Thinking label="Generating the next hint" />}
+            {panelError && <p role="alert" className="text-xs leading-relaxed text-error">{panelError}</p>}
             <div
               role="img"
-              aria-label={`${hintLevel} of ${hints.length} hints revealed`}
+              aria-label={`${hintLevel} of ${HINT_COUNT} hints revealed`}
               className="flex gap-1.5"
             >
-              {hints.map((_, i) => (
+              {Array.from({ length: HINT_COUNT }, (_, i) => (
                 <span
                   key={i}
                   className={`h-1 w-4 rounded-full ${i < hintLevel ? 'bg-primary' : 'mix-bg-foreground/15'}`}
@@ -491,7 +473,7 @@ export default function LabCopilot({
               ))}
             </div>
           </div>
-          {hintLevel < hints.length ? (
+          {hintLevel < HINT_COUNT ? (
             <div className={footer}>
               <button
                 type="button"
@@ -524,17 +506,18 @@ export default function LabCopilot({
               miss.
             </PanelIntro>
             {generating === 'deeper' && <Thinking label="Generating deep insights" />}
-            {deeperShown && (
+            {panelError && <p role="alert" className="text-xs leading-relaxed text-error">{panelError}</p>}
+            {deeperText && (
               <div className="copilot-msg-ai-quiet animate-fade-in space-y-3 pl-3 text-xs leading-relaxed text-foreground">
-                {renderLines(DIVE_DEEPER[labType] ?? DIVE_DEEPER.default)}
+                {renderLines(deeperText)}
               </div>
             )}
           </div>
-          {!deeperShown && (
+          {!deeperText && (
             <div className={footer}>
               <button
                 type="button"
-                onClick={() => triggerGenerate('deeper', () => setDeeperShown(true))}
+                onClick={() => generatePanel('deeper')}
                 disabled={busy}
                 className="todo-btn todo-btn-primary w-full py-2"
               >
@@ -554,17 +537,18 @@ export default function LabCopilot({
               A simple, intuitive explanation — no jargon, no formulas.
             </PanelIntro>
             {generating === 'eli5' && <Thinking label="Writing the explanation" />}
-            {eli5Shown && (
+            {panelError && <p role="alert" className="text-xs leading-relaxed text-error">{panelError}</p>}
+            {eli5Text && (
               <div className="copilot-msg-ai-quiet animate-fade-in space-y-3 pl-3 text-xs leading-relaxed text-foreground">
-                {renderLines(ELI5_RESPONSES[labType] ?? ELI5_RESPONSES.default)}
+                {renderLines(eli5Text)}
               </div>
             )}
           </div>
-          {!eli5Shown && (
+          {!eli5Text && (
             <div className={footer}>
               <button
                 type="button"
-                onClick={() => triggerGenerate('eli5', () => setEli5Shown(true))}
+                onClick={() => generatePanel('eli5')}
                 disabled={busy}
                 className="todo-btn todo-btn-primary w-full py-2"
               >

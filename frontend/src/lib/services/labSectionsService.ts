@@ -2,7 +2,7 @@ import { apiFetch } from '@/lib/http/apiClient';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
 
 /** Lab keys as stored server-side (match `lab_sections.lab_name`). */
-export type LabName = 'dsa' | 'cv' | 'system_design';
+export type LabName = 'dsa' | 'cv' | 'system_design' | 'communication' | 'finance' | 'python';
 export type ContextMode = 'update' | 'regenerate';
 /** `generate` writes a section from the topic alone (no learner context). */
 export type SectionMode = 'generate' | ContextMode;
@@ -252,4 +252,32 @@ export async function resetLabSettings(
   );
   if (!res.ok) throw new Error(await errorMessage(res));
   return res.json();
+}
+
+export type CopilotMode = 'chat' | 'hint' | 'deeper' | 'eli5';
+
+/** Asks the lab copilot (an LLM call with the open topic and the conversation as context). Throws with a readable message. */
+export async function askLabCopilot(args: {
+  lab: LabName;
+  /** The open topic's name. */
+  context: string;
+  mode: CopilotMode;
+  question?: string;
+  hintLevel?: number;
+  history?: { role: 'user' | 'ai'; content: string }[];
+}): Promise<string> {
+  const res = await apiFetch('/lab-sections/copilot', {
+    method: 'POST',
+    body: JSON.stringify({
+      lab: args.lab,
+      context: args.context.slice(0, 400),
+      mode: args.mode,
+      question: args.question ?? '',
+      hint_level: args.hintLevel ?? 1,
+      history: (args.history ?? []).slice(-8).map((t) => ({ role: t.role, content: t.content.slice(0, 4000) })),
+      ...defaultAIRequestFields(),
+    }),
+  });
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return String((await res.json()).answer ?? '');
 }

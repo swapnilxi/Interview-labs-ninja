@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import AutoSaveStatus from '@/components/ui/AutoSaveStatus';
-import { useAutoSave } from '@/lib/ui/useAutoSave';
+import { useAutoSave, type AutoSaveState } from '@/lib/ui/useAutoSave';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
 import {
   fetchLabSettings,
@@ -30,6 +30,18 @@ interface LabSettingsManagerProps {
   onSectionUpdated?: (sectionId: string) => void;
   /** Optional callback to close modal if opened inside a popup */
   onClose?: () => void;
+  /**
+   * Set by a page with its own save control (Settings): the lab-wide fields report their save state there, and its
+   * Save button can flush them, instead of this component showing its own status line.
+   */
+  onSaveStateChange?: (report: LabSaveReport) => void;
+}
+
+export interface LabSaveReport {
+  state: AutoSaveState;
+  error: string | null;
+  flush: () => Promise<boolean>;
+  retry: () => void;
 }
 
 export default function LabSettingsManager({
@@ -38,6 +50,7 @@ export default function LabSettingsManager({
   currentTopic,
   onSectionUpdated,
   onClose,
+  onSaveStateChange,
 }: LabSettingsManagerProps) {
   const [selectedLab, setSelectedLab] = useState<LabName>(fixedLab || initialLab);
   const [settings, setSettings] = useState<Record<string, SectionSettings>>({});
@@ -78,6 +91,17 @@ export default function LabSettingsManager({
     if (onSectionUpdated) onSectionUpdated(LAB_WIDE_SECTION);
   }, 900);
   const flushLabWide = labWideSave.flush;
+
+  useEffect(() => {
+    onSaveStateChange?.({
+      state: labWideSave.state,
+      error: labWideSave.error,
+      flush: labWideSave.flush,
+      retry: labWideSave.retry,
+    });
+    // The callbacks are stable; only a new state needs reporting.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labWideSave.state, labWideSave.error]);
 
   const editLabWide = (patch: { addon?: string; context?: string }) => {
     const addon = patch.addon ?? labWideAddon;
@@ -190,8 +214,8 @@ export default function LabSettingsManager({
 
       {/* ── Lab Selector (if not fixed to one lab) ── */}
       {!fixedLab && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {(['dsa', 'system_design', 'cv'] as LabName[]).map((labKey) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {(['dsa', 'system_design', 'cv', 'communication', 'finance', 'python'] as LabName[]).map((labKey) => {
             const meta = LABS_CONFIG[labKey];
             const isSelected = selectedLab === labKey;
             return (
@@ -333,13 +357,15 @@ export default function LabSettingsManager({
           </div>
         </div>
 
-        <div className="flex justify-end pt-2">
-          <AutoSaveStatus
-            state={labWideSave.state}
-            error={labWideSave.error}
-            onRetry={labWideSave.retry}
-          />
-        </div>
+        {!onSaveStateChange && (
+          <div className="flex justify-end pt-2">
+            <AutoSaveStatus
+              state={labWideSave.state}
+              error={labWideSave.error}
+              onRetry={labWideSave.retry}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Section-by-Section Customization ── */}

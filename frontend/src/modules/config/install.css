@@ -1,0 +1,76 @@
+/*
+ * Settings > Install app (InstallSection.tsx). Plain CSS on the app's tokens, next to the cfg-* classes in tailwind.css
+ * ("Settings page (modules/config)"): the app card reuses .cfg-readout, these add the icon, its name and the steps.
+ */
+
+.cfg-app-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+  /* The PNG has its own rounded corners; the shadow lifts it off the card like a home-screen icon. */
+  filter: drop-shadow(0 2px 6px rgba(15, 23, 42, 0.18));
+}
+
+/* With Tailwind's `font-heading` on the element (there is no CSS variable for the heading face). */
+.cfg-app-name {
+  font-size: 1.1875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--color-foreground);
+}
+
+@media (min-width: 640px) {
+  .cfg-app-name {
+    font-size: 1.3125rem;
+  }
+}
+
+/* A real sequence (download, open, install), so the steps are numbered. */
+.cfg-steps {
+  counter-reset: cfg-step;
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cfg-steps > li {
+  counter-increment: cfg-step;
+  position: relative;
+  padding-left: 2.25rem;
+  min-height: 1.5rem;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-foreground);
+}
+
+.cfg-steps > li::before {
+  content: counter(cfg-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-fill);
+  color: var(--lab-accent-ink, var(--color-primary));
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cfg-steps b {
+  font-weight: 600;
+}
+
+/* An inline picture of the button the step names (Share, the browser menu). */
+.cfg-step-glyph {
+  display: inline-block;
+  vertical-align: -0.2em;
+  color: var(--lab-accent-ink, var(--color-primary));
+}

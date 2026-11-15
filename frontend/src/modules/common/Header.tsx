@@ -11,6 +11,7 @@ import BrandMark from '@/modules/common/BrandMark';
 import { initialsFor } from '@/lib/ui/initials';
 import NotificationBell from '@/components/ui/NotificationCenter';
 import { OPEN_NAV_EVENT } from '@/components/ui/MobileTabBar';
+import { isLabsPath } from '@/modules/common/lab/labCatalog';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, API_BASE_URL } from '@/lib/http/apiClient';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
@@ -34,20 +35,11 @@ const navigationItems: NavigationItem[] = [
     path: '/daily-session',
     icon: 'AcademicCapIcon',
   },
+  // Every lab is one click from the Labs home (/labs) and the sidebar's Labs menu.
   {
-    label: 'CV Lab',
-    path: '/cv-lab',
-    icon: 'EyeIcon',
-  },
-  {
-    label: 'DSA Lab',
-    path: '/dsa-lab',
-    icon: 'CpuChipIcon',
-  },
-  {
-    label: 'System Design',
-    path: '/system-design-lab',
-    icon: 'ServerStackIcon',
+    label: 'Labs',
+    path: '/labs',
+    icon: 'BeakerIcon',
   },
   {
     label: 'Labs Project',
@@ -269,6 +261,7 @@ export default function Header() {
   const resolvedTheme: 'light' | 'dark' = theme ?? 'light';
 
   const isActivePath = (path: string) => {
+    if (path === '/labs') return pathname !== '/labs-project' && isLabsPath(pathname);
     if (path === '/swipe-learn') {
       return pathname === '/swipe-learn' || pathname === '/swipelearn';
     }

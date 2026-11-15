@@ -10,6 +10,8 @@
 #   ./app/install_app.sh --clean         uninstall the app first (wipes its data, you sign in again)
 #   ./app/install_app.sh --yes           install missing tools with Homebrew without asking
 #   ./app/install_app.sh --no-launch     do not open the app afterwards
+#   ./app/install_app.sh --publish       also put the APK on the site (frontend/public/downloads/), where Settings ->
+#                                        Install app offers it for download. No phone needed; production URL only.
 #
 # What it does, in order:
 #   1. Checks the Mac: Homebrew, Node, a JDK (17+), adb, the Android SDK (platform + build-tools). Installs what is missing.
@@ -19,6 +21,8 @@
 #   4. npm install (app/), cap sync, Gradle assembleDebug.
 #   5. adb install -r (on user 0, so Samsung "Secure Folder" does not get in the way), grants the notification, microphone and
 #      exact-alarm permissions, launches the app.
+#   With --publish: always builds, copies the APK to frontend/public/downloads/labninja.apk with labninja-apk.json (version,
+#   size, build time), then installs only if a phone is connected. Deploy the site to make the new download live.
 #
 # The web side of the app (reminders, notification centre) lives in frontend/src and is served by the site, so a
 # web-only change needs a deploy (or --local), not a reinstall. See app/README.md.
@@ -31,7 +35,7 @@ STATE_FILE="$APP_DIR/.install-state"
 PROD_URL="https://labs-ninja.vercel.app"
 DEV_PORT=4028
 
-MODE_CHECK=0; FORCE=0; CLEAN=0; YES=0; LAUNCH=1; URL=""; LOCAL=0
+MODE_CHECK=0; FORCE=0; CLEAN=0; YES=0; LAUNCH=1; URL=""; LOCAL=0; PUBLISH=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -41,9 +45,10 @@ while [ $# -gt 0 ]; do
     --yes|-y) YES=1 ;;
     --no-launch) LAUNCH=0 ;;
     --local) LOCAL=1 ;;
+    --publish) PUBLISH=1 ;;
     --url) shift; URL="${1:-}" ;;
     --url=*) URL="${1#--url=}" ;;
-    -h|--help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown option: $1 (try --help)"; exit 2 ;;
   esac
   shift
@@ -211,6 +216,9 @@ fi
 URL="${URL:-$PROD_URL}"
 case "$URL" in http://*|https://*) ;; *) die "The site URL must start with http:// or https:// (got: $URL)";; esac
 ok "App will load: $URL"
+if [ "$PUBLISH" = 1 ] && [ "$URL" != "$PROD_URL" ]; then
+  die "--publish only builds the production app (it is what people download). Drop --local / --url."
+fi
 if [ "$LOCAL" = 1 ] || [ "${URL#http://}" != "$URL" ]; then
   if curl -s -o /dev/null --max-time 4 "$URL/"; then ok "That server answers"; else warn "Nothing answers at $URL yet. Start it: cd frontend && npm run dev   (phone and Mac must share Wi-Fi)"; fi
 fi
@@ -236,7 +244,9 @@ else REASON="current"; fi
 if [ "$REASON" = "current" ]; then
   ok "The phone already has this exact build. Nothing to do (use --force to reinstall)."
 else
-  if [ "$REASON" = "no phone" ]; then bad "Cannot install without a phone."; else warn "Update needed: $REASON"; fi
+  if [ "$REASON" = "no phone" ]; then
+    if [ "$PUBLISH" = 1 ]; then info "No phone: building and publishing the download only."; else bad "Cannot install without a phone."; fi
+  else warn "Update needed: $REASON"; fi
 fi
 
 if [ ! -f "$APP_DIR/android/app/google-services.json" ]; then
@@ -247,8 +257,10 @@ else ok "google-services.json present: Firebase push enabled"; fi
 if [ "$MODE_CHECK" = 1 ]; then
   step "Check only"; echo "  Nothing was changed."; [ "$REASON" = "current" ] && exit 0 || exit 0
 fi
-[ "$PHONE_OK" = 1 ] || die "Connect the phone and run again."
-if [ "$REASON" = "current" ]; then exit 0; fi
+if [ "$PUBLISH" = 0 ]; then
+  [ "$PHONE_OK" = 1 ] || die "Connect the phone and run again."
+  if [ "$REASON" = "current" ]; then exit 0; fi
+fi
 
 # ---------- 4. Build ----------
 step "4/5  Building the app"
@@ -283,6 +295,26 @@ fi
 APK="$APP_DIR/android/app/build/outputs/apk/debug/app-debug.apk"
 [ -f "$APK" ] || die "Build finished but $APK is missing."
 ok "Built $(du -h "$APK" | awk '{print $1}') APK"
+
+if [ "$PUBLISH" = 1 ]; then
+  # What Settings -> Install app offers. Node is already required above, so it writes the metadata JSON.
+  PUB_DIR="$REPO_DIR/frontend/public/downloads"
+  mkdir -p "$PUB_DIR"
+  cp "$APK" "$PUB_DIR/labninja.apk.tmp" && mv "$PUB_DIR/labninja.apk.tmp" "$PUB_DIR/labninja.apk"
+  APK_META="$APP_DIR/android/app/build/outputs/apk/debug/output-metadata.json" SRC_APK="$APK" PUB_DIR="$PUB_DIR" URL="$URL" node -e '
+    const fs = require("fs"), path = require("path");
+    const el = (JSON.parse(fs.readFileSync(process.env.APK_META, "utf8")).elements || [])[0] || {};
+    const apk = path.join(process.env.PUB_DIR, "labninja.apk");
+    const meta = { file: "labninja.apk", version: String(el.versionName || ""), versionCode: Number(el.versionCode || 0),
+      bytes: fs.statSync(apk).size, builtAt: fs.statSync(process.env.SRC_APK).mtime.toISOString(), site: process.env.URL };
+    fs.writeFileSync(path.join(process.env.PUB_DIR, "labninja-apk.json"), JSON.stringify(meta, null, 2) + "\n");
+  ' || die "Could not write labninja-apk.json."
+  ok "Published frontend/public/downloads/labninja.apk (deploy the site to make it downloadable)"
+  if [ "$PHONE_OK" = 0 ] || [ "$REASON" = "current" ]; then
+    printf '\n%sDone.%s The APK is ready to download from Settings -> Install app once the site is deployed.\n' "$B" "$N"
+    exit 0
+  fi
+fi
 
 # ---------- 5. Install ----------
 step "5/5  Installing on $MODEL"

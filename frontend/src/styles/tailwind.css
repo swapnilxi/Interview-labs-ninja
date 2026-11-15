@@ -83,6 +83,10 @@
        aliases follow the accent, so a class string that is missed cannot leak teal or amber into a button, row or link. */
     --lab-cv: #0f8c80;
     --lab-system: #b45f0e;
+    /* Communication / Finance / Python: identity hues too (hero glow + icon tile only), never on controls. */
+    --lab-communication: #b03a7a;
+    --lab-finance: #2563a8;
+    --lab-python: #6d4fc2;
     --lab-cv-soft: var(--lab-accent-soft);
     --lab-system-soft: var(--lab-accent-soft);
     --wiki-cv-hover: var(--lab-accent-ink);
@@ -177,6 +181,9 @@
     --lab-accent-ink: color-mix(in srgb, var(--color-primary) 60%, var(--color-foreground));
     --lab-cv: #5cc8bd;
     --lab-system: #f6b654;
+    --lab-communication: #f08cc0;
+    --lab-finance: #86b7f5;
+    --lab-python: #b9a2f2;
     --card-bar-idle: 0.45;
     --card-bar-hover: 0.9;
     --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
@@ -533,6 +540,18 @@
 
   .lab-shell[data-lab='system-design'] {
     --lab-identity: var(--lab-system);
+  }
+
+  .lab-shell[data-lab='communication'] {
+    --lab-identity: var(--lab-communication);
+  }
+
+  .lab-shell[data-lab='finance'] {
+    --lab-identity: var(--lab-finance);
+  }
+
+  .lab-shell[data-lab='python'] {
+    --lab-identity: var(--lab-python);
   }
 
   .lab-workspace {
@@ -2803,7 +2822,7 @@
   }
   @media (min-width: 1280px) {
     .today-layout {
-      grid-template-columns: minmax(0, 1fr) 19.5rem;
+      grid-template-columns: minmax(0, 1fr);
       gap: 2.5rem;
       align-items: start;
     }
@@ -3946,6 +3965,526 @@
 
 
 /*
+ * ── Settings page (modules/config) ─────────────────────────────────────────────────────────────────────────────────
+ * A section rail on tablet/desktop and a segmented band on phones; every choice is a row in a grouped list; one
+ * "Now using" readout is the page's focal point; the save control is always in reach (rail / capsule above the tab bar).
+ */
+@layer components {
+  /* minmax(0, 1fr): a wide child (the section switcher once it has more sections than fit) scrolls inside itself
+     instead of stretching the page sideways. */
+  .cfg-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+  }
+
+  @media (min-width: 768px) {
+    .cfg-layout {
+      grid-template-columns: 13.5rem minmax(0, 1fr);
+      align-items: start;
+      gap: 2.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .cfg-layout {
+      grid-template-columns: 15rem minmax(0, 46rem);
+      gap: 3.5rem;
+    }
+  }
+
+  .cfg-rail {
+    position: sticky;
+    top: calc(var(--chrome-top) + 1.5rem);
+  }
+
+  .cfg-rail-group {
+    padding: 0.25rem 0;
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-card);
+  }
+
+  .cfg-rail-group .drawer-row {
+    min-height: 2.75rem;
+  }
+
+  /* Rows here carry a 26px icon: start the hairline after it. */
+  .cfg-rail-group .drawer-row + .drawer-row::before {
+    left: 3.25rem;
+  }
+
+  /* `focus-ring` keys off :focus, so a click would leave a ring (clipped by the group's corners); keep it for the
+     keyboard and draw it inside. */
+  .cfg-rail-group .drawer-row:focus,
+  .cfg-band .ios-segment:focus {
+    box-shadow: none;
+  }
+
+  .cfg-rail-group .drawer-row:focus-visible,
+  .cfg-band .ios-segment:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--color-ring);
+  }
+
+  .cfg-band .ios-segment-active:focus:not(:focus-visible) {
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1), 0 2px 8px -2px rgba(16, 24, 40, 0.08);
+  }
+
+  .cfg-rail-save {
+    margin-top: 0.75rem;
+    padding: 0.875rem;
+    border-radius: 16px;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+  }
+
+  /* Phones: the section switcher sticks under the header on the translucent bar material. */
+  .cfg-band {
+    position: sticky;
+    top: var(--chrome-top);
+    z-index: 20;
+    margin: 0 -1rem;
+    padding: 0.5rem 1rem;
+    background: var(--material);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  /* Phones: the save control, a capsule floating just above the tab bar (or the screen edge without one). */
+  .cfg-savebar {
+    position: sticky;
+    bottom: max(var(--mobile-tab-h, 0px), calc(var(--safe-bottom) + 0.75rem));
+    z-index: 20;
+    margin-top: 2rem;
+    padding: 0.375rem 0.375rem 0.375rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid var(--color-separator);
+    background: var(--material);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: var(--shadow-float);
+  }
+
+  /* Phones: anything scrolled to or focused (a field, the + row) stops clear of the sticky section band above and
+     the floating save capsule below, instead of landing underneath them. */
+  @media (max-width: 767px) {
+    html:has(.cfg-savebar) {
+      scroll-padding-top: calc(var(--chrome-top) + 3.75rem);
+      scroll-padding-bottom: calc(var(--mobile-tab-h, 0px) + 4.5rem);
+    }
+  }
+
+  /* ── Grouped lists ── */
+  .cfg-group {
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .cfg-panel {
+    border-radius: 16px;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    padding: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .cfg-panel {
+      padding: 1.25rem;
+    }
+  }
+
+  .cfg-row {
+    position: relative;
+    display: flex;
+    width: 100%;
+    min-height: 3rem;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  /* Inset hairline between rows, starting where the text starts (after a radio or an icon). */
+  .cfg-row + .cfg-row::before,
+  .cfg-item + .cfg-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: var(--cfg-inset, 1rem);
+    height: 1px;
+    background: var(--color-separator);
+  }
+
+  .cfg-row-radio {
+    --cfg-inset: 3rem;
+  }
+
+  .cfg-item {
+    position: relative;
+    --cfg-inset: 3.6rem;
+  }
+
+  button.cfg-row:not(:disabled):hover {
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  }
+
+  button.cfg-row:not(:disabled):active {
+    background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  }
+
+  button.cfg-row:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: -2px;
+  }
+
+  /* A row with a second control (remove): the row is a frame, its main area is the radio button. */
+  .cfg-row-split {
+    padding: 0;
+    gap: 0;
+  }
+
+  .cfg-row-main {
+    display: flex;
+    min-width: 0;
+    min-height: 3rem;
+    flex: 1;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .cfg-row-split:has(.cfg-row-remove) .cfg-row-main {
+    padding-right: 0.5rem;
+  }
+
+  .cfg-row-main:hover {
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  }
+
+  .cfg-row-main:active {
+    background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  }
+
+  .cfg-row-main:focus-visible,
+  .cfg-row-remove:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: -2px;
+  }
+
+  .cfg-row-remove {
+    @apply mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground;
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .cfg-row-remove:hover {
+    color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  }
+
+  /* "Add a model" as the list's last row, in the accent ink (iOS-style). */
+  .cfg-row-add {
+    --cfg-inset: 3rem;
+    @apply text-[15px] font-semibold;
+    color: var(--lab-accent-ink);
+  }
+
+  .dark .cfg-row-add {
+    color: var(--color-primary);
+  }
+
+  button.cfg-row-add:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: -2px;
+  }
+
+  /* The + row opened into a field, in place. */
+  .cfg-add-form {
+    --cfg-inset: 1rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.5rem 0.625rem 0.625rem 1rem;
+  }
+
+  .cfg-add-icon {
+    color: var(--lab-accent-ink);
+  }
+
+  .dark .cfg-add-icon {
+    color: var(--color-primary);
+  }
+
+  .cfg-add-input {
+    @apply h-10 w-full rounded-[10px] px-3 text-[15px] text-foreground placeholder:text-muted-foreground sm:text-sm;
+    border: 1px solid transparent;
+    background: var(--color-fill);
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+
+  .cfg-add-input:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 18%, transparent);
+  }
+
+  /* Models the user added: one quiet tag in the accent, where built-in models show their price tier. */
+  .cfg-tag-custom {
+    color: var(--lab-accent-ink);
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  }
+
+  .dark .cfg-tag-custom {
+    color: var(--color-primary);
+  }
+
+  .cfg-item-body {
+    padding: 0.25rem 1rem 1rem 3.6rem;
+  }
+
+  @media (max-width: 479px) {
+    .cfg-item-body {
+      padding-left: 1rem;
+    }
+  }
+
+  .cfg-radio {
+    position: relative;
+    height: 1.25rem;
+    width: 1.25rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-muted-foreground) 55%, transparent);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+
+  [aria-checked='true'] > .cfg-radio {
+    background: var(--color-primary);
+    box-shadow: none;
+  }
+
+  [aria-checked='true'] > .cfg-radio::after {
+    content: '';
+    position: absolute;
+    inset: 0.375rem;
+    border-radius: 9999px;
+    background: var(--color-primary-foreground);
+  }
+
+  /* ── Provider chips: the first step of the model picker ── */
+  .cfg-chip {
+    @apply inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[13px] font-semibold;
+    color: var(--color-muted-foreground);
+    background: var(--color-fill);
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+
+  .cfg-chip:hover {
+    color: var(--color-foreground);
+    background: var(--color-fill-strong);
+  }
+
+  .cfg-chip:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  .cfg-chip[aria-pressed='true'] {
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+  }
+
+  .cfg-chip-current {
+    color: var(--lab-accent-ink);
+  }
+
+  .dark .cfg-chip-current {
+    color: var(--color-primary);
+  }
+
+  .cfg-chip[aria-pressed='true'] .cfg-chip-current {
+    color: inherit;
+  }
+
+  @media (pointer: coarse) {
+    .cfg-chip {
+      height: 2.25rem;
+    }
+  }
+
+  .cfg-tier {
+    @apply inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold leading-4;
+  }
+
+  /* ── Switch (whole row is the control; this is its picture) ── */
+  .cfg-switch {
+    position: relative;
+    height: 1.75rem;
+    width: 2.875rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--color-fill-strong);
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .cfg-switch::after {
+    content: '';
+    position: absolute;
+    top: 0.1875rem;
+    left: 0.1875rem;
+    height: 1.375rem;
+    width: 1.375rem;
+    border-radius: 9999px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: transform var(--dur-base) var(--ease-ios);
+  }
+
+  .cfg-switch[data-on] {
+    background: var(--color-primary);
+  }
+
+  .cfg-switch[data-on]::after {
+    transform: translateX(1.125rem);
+  }
+
+  /* ── "Now using": the page's one focal element ── */
+  .cfg-readout {
+    position: relative;
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    padding: 1.25rem 1.25rem 0;
+    box-shadow: var(--shadow-card);
+  }
+
+  .cfg-readout-icon {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px];
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+  }
+
+  .cfg-readout-name {
+    @apply mt-0.5 break-words font-heading font-bold text-foreground;
+    font-size: 1.5rem;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+  }
+
+  @media (min-width: 640px) {
+    .cfg-readout-name {
+      font-size: 1.875rem;
+    }
+  }
+
+  .cfg-readout-status {
+    @apply flex items-center gap-2.5 text-[13px] leading-snug text-foreground;
+    margin: 1.25rem -1.25rem 0;
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--color-separator);
+  }
+
+  .cfg-readout-status-more {
+    margin-top: 0;
+  }
+
+  .cfg-readout-status[data-tone='ok'] {
+    background: color-mix(in srgb, var(--color-success) 9%, transparent);
+  }
+
+  .cfg-readout-status[data-tone='warn'] {
+    background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  }
+
+  .cfg-readout-status[data-tone='info'] {
+    background: color-mix(in srgb, var(--color-foreground) 3%, transparent);
+  }
+
+  .cfg-readout-status[data-tone='ok'] .cfg-readout-status-icon {
+    color: var(--color-success);
+  }
+
+  .cfg-readout-status[data-tone='warn'] .cfg-readout-status-icon {
+    color: var(--color-warning);
+  }
+
+  .cfg-readout-status[data-tone='info'] .cfg-readout-status-icon {
+    color: var(--color-muted-foreground);
+  }
+
+  .cfg-readout-status-icon {
+    flex-shrink: 0;
+  }
+
+  /* ── Notices and disclosures ── */
+  .cfg-notice {
+    @apply flex items-start gap-2.5 rounded-[14px] px-3.5 py-3;
+    background: var(--color-fill);
+  }
+
+  .cfg-notice-ok {
+    background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  }
+
+  .cfg-notice-warn {
+    background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  }
+
+  .cfg-notice-error {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  }
+
+  .cfg-details > summary {
+    @apply inline-flex cursor-pointer list-none items-center gap-1.5 rounded-sm px-1 text-[13px] font-semibold;
+    color: var(--lab-accent-ink);
+  }
+
+  .cfg-details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .cfg-details > summary::before {
+    content: '';
+    height: 0.4rem;
+    width: 0.4rem;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform var(--dur-fast) var(--ease-out);
+  }
+
+  .cfg-details[open] > summary::before {
+    transform: rotate(45deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cfg-switch::after,
+    .cfg-radio,
+    .cfg-chip {
+      transition: none;
+    }
+  }
+}
+
+
+/*
  * ── Touch platforms (Android + iOS) ─────────────────────────────────────────────────────────────────────────────────
  */
 @layer components {
@@ -4014,6 +4553,352 @@
 
     .drawer-row-sub {
       min-height: 46px;
+    }
+  }
+}
+
+/*
+ * ── AI To-Do: Lab plan and the project Explorer (iOS pass) ──────────────────────────────────────────────────────────
+ *
+ * Lab plan (`?tab=plan&view=labs`) and "Add from lab" share one picker: capsule lab chips (a grouped lab list beside
+ * the topics on wide screens), an iOS search field, inset grouped topic lists with round checkmarks, and a floating
+ * selection toolbar. The Explorer rows use one quiet action style instead of a colour per button.
+ * Tints are color-mix()ed: theme colours are bare var()s, so Tailwind opacity modifiers would compile to nothing.
+ */
+@layer components {
+  /* Lab filter chip (phones, the sheet): a capsule; the selected lab is filled with the accent. */
+  .lp-chip {
+    @apply todo-focus inline-flex h-8 flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[13px] font-semibold text-foreground;
+    background: var(--color-fill);
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+
+  .lp-chip:hover {
+    background: var(--color-fill-strong);
+  }
+
+  .lp-chip[aria-pressed='true'] {
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+  }
+
+  .lp-chip-count {
+    @apply rounded-full px-1.5 text-xs font-bold leading-[1.125rem];
+    background: color-mix(in srgb, currentColor 16%, transparent);
+  }
+
+  /* iOS search field. */
+  .lp-search {
+    @apply flex h-9 items-center gap-2 rounded-[10px] px-2.5 text-muted-foreground;
+    background: var(--color-fill);
+  }
+
+  .lp-search:focus-within {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 20%, transparent);
+  }
+
+  .lp-search input {
+    @apply h-full min-w-0 flex-1 bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none;
+  }
+
+  /* Section header of an inset grouped list: sentence case, quiet, with an optional text action on the right. */
+  .lp-group-head {
+    @apply flex items-center justify-between gap-3 px-4 pb-1.5 pt-1 text-[13px] font-semibold text-muted-foreground;
+  }
+
+  .lp-text-btn {
+    @apply todo-focus rounded-md text-[13px] font-semibold;
+    color: var(--lab-accent-ink);
+  }
+
+  .dark .lp-text-btn {
+    color: var(--color-primary);
+  }
+
+  .lp-text-btn:disabled {
+    @apply cursor-default opacity-40;
+  }
+
+  /* One topic: a row on the inset grouped cell, an inset hairline above every row but the first. */
+  .lp-row {
+    @apply relative flex w-full items-start gap-3 px-3.5 py-3 text-left;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .lp-row + .lp-row::before,
+  .lp-row + .lp-subs::before,
+  .lp-subs + .lp-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 3.1rem;
+    height: 1px;
+    background: var(--color-separator);
+  }
+
+  /* The tappable part of a row (a <label> around a visually hidden checkbox); a disclosure button may sit beside it. */
+  .lp-pick {
+    @apply flex min-w-0 flex-1 items-start gap-3;
+  }
+
+  .lp-row:not([data-disabled='true']) .lp-pick {
+    cursor: pointer;
+  }
+
+  @media (hover: hover) {
+    .lp-row:not([data-disabled='true']):has(.lp-pick:hover) {
+      background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+    }
+  }
+
+  .lp-row:not([data-disabled='true']):has(.lp-pick:active) {
+    background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  }
+
+  .lp-row:has(input[type='checkbox']:focus-visible) {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-ring) 70%, transparent);
+  }
+
+  /* The subtopics of an expanded topic: the same cell, indented under the topic's text. */
+  .lp-subs {
+    @apply relative pb-1;
+  }
+
+  .lp-subs .lp-row {
+    @apply py-2 pl-[3.1rem];
+  }
+
+  .lp-subs .lp-row + .lp-row::before {
+    left: 5.6rem;
+  }
+
+  /* Round checkmark (iOS edit mode). `data-checked` = picked, `data-partial` = some of its subtopics. */
+  .lp-check {
+    @apply mt-px flex h-[1.375rem] w-[1.375rem] flex-shrink-0 items-center justify-center rounded-full;
+    color: transparent;
+    border: 1.5px solid color-mix(in srgb, var(--color-muted-foreground) 55%, transparent);
+    transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  }
+
+  .lp-check-sm {
+    @apply h-5 w-5;
+  }
+
+  .lp-check[data-checked='true'],
+  .lp-check[data-partial='true'] {
+    color: var(--color-primary-foreground);
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+  }
+
+  .lp-check[data-disabled='true'] {
+    color: var(--color-muted-foreground);
+    border-color: transparent;
+    background: var(--color-fill-strong);
+  }
+
+  /* Small status tags on a row ("Done", "In project", the difficulty). */
+  .lp-tag {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-px text-xs font-semibold;
+    color: var(--color-muted-foreground);
+    background: var(--color-fill);
+  }
+
+  .lp-tag-done {
+    color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 13%, transparent);
+  }
+
+  .lp-tag-added {
+    color: var(--lab-accent-ink);
+    background: color-mix(in srgb, var(--color-primary) 13%, transparent);
+  }
+
+  .dark .lp-tag-added {
+    color: var(--color-primary);
+  }
+
+  /* Subtopic disclosure on a topic row ("4 lessons ›"). */
+  .lp-disclose {
+    @apply todo-focus -mr-1 inline-flex h-7 flex-shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-semibold text-muted-foreground;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+
+  .lp-disclose:hover {
+    @apply text-foreground;
+    background: var(--color-fill);
+  }
+
+  .lp-disclose svg {
+    transition: transform var(--dur-fast) var(--ease-out);
+  }
+
+  .lp-disclose[aria-expanded='true'] svg {
+    transform: rotate(90deg);
+  }
+
+  /* Wide screens: the labs as an inset grouped list beside the topics. */
+  .lp-lab-row {
+    @apply todo-focus relative flex min-h-[44px] w-full items-center gap-3 px-3 text-left text-[14px] font-medium text-foreground;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .lp-lab-row + .lp-lab-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 3.1rem;
+    height: 1px;
+    background: var(--color-separator);
+  }
+
+  @media (hover: hover) {
+    .lp-lab-row:hover {
+      background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+    }
+  }
+
+  .lp-lab-row:active {
+    background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  }
+
+  .lp-lab-row[aria-pressed='true'] {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  }
+
+  .lp-lab-row[aria-pressed='true'] .drawer-icon {
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+  }
+
+  /* Floating selection toolbar: a material capsule that sticks to the bottom of the scrolling page. */
+  .lp-bar {
+    @apply sticky z-30 mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[18px] border p-2 pl-4;
+    bottom: 0.75rem;
+    border-color: var(--color-separator);
+    background: var(--material-strong, var(--color-card));
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: var(--shadow-float);
+    animation: lp-bar-in 260ms var(--ease-ios) both;
+  }
+
+  @keyframes lp-bar-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* While the selection toolbar is up it owns the bottom edge: the floating mic steps aside. */
+  body:has(.lp-bar) .vc-fab {
+    opacity: 0;
+    transform: scale(0.85);
+    pointer-events: none;
+  }
+
+  /* ── Project Explorer ─────────────────────────────────────────── */
+
+  /* The composer: an iOS capture capsule (input, item type, Add). */
+  .pe-type {
+    @apply todo-focus h-8 cursor-pointer appearance-none rounded-full border-0 py-0 pl-3 pr-7 text-[13px] font-semibold text-foreground;
+    background-color: var(--color-fill);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%238a93a6'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+  }
+
+  .pe-type:hover {
+    background-color: var(--color-fill-strong);
+  }
+
+  /* One quiet style for every row action (no colour per button). */
+  .pe-act {
+    @apply todo-focus inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-[12px] font-medium text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+
+  .pe-act:not(:disabled):hover {
+    @apply text-foreground;
+    background: var(--color-fill);
+  }
+
+  .pe-act-danger:not(:disabled):hover {
+    color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  }
+
+  .pe-act[aria-expanded='true'] {
+    color: var(--lab-accent-ink);
+    background: var(--color-fill);
+  }
+
+  .pe-chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-px text-xs font-semibold capitalize text-muted-foreground;
+    background: var(--color-fill);
+  }
+
+  .pe-chip-done {
+    color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 13%, transparent);
+  }
+
+  .pe-chip-link {
+    @apply todo-focus normal-case;
+    color: var(--lab-accent-ink);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  }
+
+  .dark .pe-chip-link {
+    color: var(--color-primary);
+  }
+
+  .pe-chip-link:hover {
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+
+  /* Phone row menu (the "···" button), in a todo-popover. */
+  .pe-menu-item {
+    @apply flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[15px] text-foreground focus:outline-none disabled:opacity-50;
+  }
+
+  .pe-menu-item:not(:disabled):hover,
+  .pe-menu-item:focus-visible {
+    background: var(--color-fill);
+  }
+
+  .pe-menu-item svg {
+    @apply text-muted-foreground;
+  }
+
+  .pe-menu-danger,
+  .pe-menu-danger svg {
+    color: var(--color-error);
+  }
+
+  .pe-menu-sep {
+    @apply mx-3 my-1 h-px;
+    background: var(--color-separator);
+  }
+
+  /* The thin guide down beside a parent's children. */
+  .pe-guide {
+    @apply pointer-events-none absolute bottom-0 top-0 w-px;
+    background: var(--color-separator);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lp-bar {
+      animation: none;
     }
   }
 }

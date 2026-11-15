@@ -87,6 +87,8 @@ export interface ContentCard {
   generatedAt?: string;
   model?: string;
   generateFormat?: GenerateFormat;
+  /** The web page a "What's new" card was written from (read-only research, shown as a link). */
+  sourceUrl?: string;
 
   // Feed metadata
   createdAt: string;

@@ -16,7 +16,7 @@ GROQ_MODELS = ("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"
 PROVIDER_DEFAULT_MODELS = {
     "gemini": "gemini-flash-latest",
     "vertex": "vertex_gemini_gemini-2.5-flash",
-    "deepseek": "deepseek-chat",
+    "deepseek": "deepseek-flash",
     "groq": "llama-3.3-70b-versatile",
     "openai": "gpt-4o-mini",
     "anthropic": "claude-sonnet-5",
@@ -25,7 +25,7 @@ PROVIDER_DEFAULT_MODELS = {
     "custom": "custom",
 }
 AI_PROVIDERS = tuple(PROVIDER_DEFAULT_MODELS)
-FALLBACK_MODEL = "deepseek-chat"
+FALLBACK_MODEL = "deepseek-flash"
 
 
 def _env_provider() -> Optional[str]:

@@ -18,6 +18,7 @@ import {
   LoadingBlock,
   quietButton,
 } from '@/modules/labs-project/ui';
+import { LAB_CATALOG } from '@/modules/common/lab/labCatalog';
 
 /**
  * Project Sections: everything saved to the project from the labs, newest first, with the lab each one
@@ -91,13 +92,9 @@ export default function ProjectSections({ project }: { project: LabProject }) {
           on it.
         </p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {[
-            ['DSA Lab', '/dsa-lab'],
-            ['CV Lab', '/cv-lab'],
-            ['System Design', '/system-design-lab'],
-          ].map(([label, href]) => (
-            <Link key={href} href={href} className={quietButton}>
-              {label}
+          {LAB_CATALOG.map((lab) => (
+            <Link key={lab.path} href={lab.path} className={quietButton}>
+              {lab.label}
             </Link>
           ))}
         </div>

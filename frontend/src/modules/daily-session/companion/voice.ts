@@ -5,15 +5,16 @@ export type VoicePresetId = 'pip' | 'robo' | 'calm';
 export interface VoicePreset {
   id: VoicePresetId;
   label: string;
-  emoji: string;
+  /** A FlatIcon name (components/ui/FlatIcon). */
+  icon: 'smile' | 'brain' | 'cloud';
   pitch: number;
   rate: number;
 }
 
 export const VOICE_PRESETS: VoicePreset[] = [
-  { id: 'pip', label: 'Tiny & cute', emoji: '🐥', pitch: 1.9, rate: 1.12 },
-  { id: 'robo', label: 'Cute robot', emoji: '🤖', pitch: 1.35, rate: 0.92 },
-  { id: 'calm', label: 'Calm guide', emoji: '🧘', pitch: 1.0, rate: 0.9 },
+  { id: 'pip', label: 'Tiny & cute', icon: 'smile', pitch: 1.9, rate: 1.12 },
+  { id: 'robo', label: 'Cute robot', icon: 'brain', pitch: 1.35, rate: 0.92 },
+  { id: 'calm', label: 'Calm guide', icon: 'cloud', pitch: 1.0, rate: 0.9 },
 ];
 
 export function voicesAvailable(): SpeechSynthesisVoice[] {

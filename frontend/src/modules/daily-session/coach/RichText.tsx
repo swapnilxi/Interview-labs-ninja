@@ -8,7 +8,7 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
     }
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
       return (
-        <code key={`${keyBase}${i}`} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+        <code key={`${keyBase}${i}`} className="bs-inline-code">
           {part.slice(1, -1)}
         </code>
       );
@@ -27,10 +27,10 @@ export default function RichText({ text, className = '' }: { text: string; class
       const lang = nl > -1 ? seg.slice(0, nl).trim() : '';
       const code = (nl > -1 ? seg.slice(nl + 1) : seg).replace(/\n$/, '');
       blocks.push(
-        <div key={`c${si}`} className="overflow-hidden rounded-xl border border-border bg-[#0f1020] text-[#e6e6f5]">
-          {lang && <div className="border-b border-white/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-white/50">{lang}</div>}
-          <pre className="overflow-x-auto p-3 font-mono text-[12.5px] leading-relaxed">{code}</pre>
-        </div>,
+        <div key={`c${si}`} className="bs-codeblock">
+          {lang && <div className="bs-codeblock-lang">{lang}</div>}
+          <pre>{code}</pre>
+        </div>
       );
       return;
     }
@@ -44,7 +44,7 @@ export default function RichText({ text, className = '' }: { text: string; class
           {list.items.map((it, i) => (
             <li key={i}>{inline(it, `${k}-${i}-`)}</li>
           ))}
-        </Tag>,
+        </Tag>
       );
       list = null;
     };
@@ -61,7 +61,12 @@ export default function RichText({ text, className = '' }: { text: string; class
         return;
       }
       flush(`l${k}`);
-      if (head) blocks.push(<h4 key={k} className="pt-1 font-extrabold text-foreground">{inline(head[1], k)}</h4>);
+      if (head)
+        blocks.push(
+          <h4 key={k} className="pt-1 font-semibold">
+            {inline(head[1], k)}
+          </h4>
+        );
       else if (line.trim()) blocks.push(<p key={k}>{inline(line, k)}</p>);
     });
     flush(`lend${si}`);

@@ -46,6 +46,13 @@ def register(cursor) -> None:
         )
     """)
 
+    # Migration: the models and OpenAI-compatible endpoints a user added on the Settings page, as a JSON array
+    # (see router.CustomModelEntry). NULL = never saved, so a browser's own list isn't wiped on first login.
+    # Still no keys: an endpoint's key stays in the browser like every other key.
+    cursor.execute("PRAGMA table_info(user_profile);")
+    if "custom_models" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE user_profile ADD COLUMN custom_models TEXT DEFAULT NULL;")
+
     # Per-user overrides on top of the role ladder's default permission set (see
     # modules/auth/dependencies.py: DEFAULT_PERMISSIONS/has_permission). allowed=1 grants a
     # permission a role wouldn't otherwise imply; allowed=0 revokes one it would. No row means

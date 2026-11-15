@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Modal from '@/components/ui/Modal';
+import FlatIcon from '@/components/ui/FlatIcon';
+import Icon from '@/components/ui/AppIcon';
 import { SOUNDSCAPES, playSoundscape, setSoundscapeVolume, stopSoundscape } from './soundscape';
 import { VOICE_PRESETS, speak, stopSpeaking, voicesAvailable } from './voice';
 import type { CompanionSettings as Settings } from './useCompanion';
@@ -12,7 +15,36 @@ interface Props {
   update: (p: Partial<Settings>) => void;
 }
 
-/** Bottom sheet on phones, centred card on larger screens. */
+/** A row with a label and an iOS switch. */
+function SwitchRow({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="ds-list-row cursor-pointer">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-medium ds-ink">{label}</span>
+        {hint && <span className="block text-xs ds-faint">{hint}</span>}
+      </span>
+      <input
+        type="checkbox"
+        role="switch"
+        className="ds-switch"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+    </label>
+  );
+}
+
+/** Sound & companion settings. A bottom sheet on phones (Modal does that), a centred card above. */
 export default function CompanionSettings({ open, onClose, settings, update }: Props) {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   useEffect(() => {
@@ -23,7 +55,6 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
     return () => window.speechSynthesis.removeEventListener('voiceschanged', load);
   }, [open]);
 
-  if (!open) return null;
   const chosen = SOUNDSCAPES.find((s) => s.id === settings.sound);
 
   const pickSound = (id: Settings['sound']) => {
@@ -33,109 +64,171 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Companion settings">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative max-h-[88vh] w-full overflow-y-auto rounded-t-3xl bg-card p-5 pb-[calc(1.25rem+var(--safe-bottom))] shadow-2xl sm:max-w-lg sm:rounded-3xl">
-        <div className="mx-auto mb-4 h-1.5 w-[3rem] rounded-full bg-border sm:hidden" />
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-heading text-lg font-extrabold text-foreground">Sound & Companion</h2>
-          <button type="button" onClick={onClose} className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Done</button>
-        </div>
-
-        <label className="mb-4 flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
-          Show Deepu (off hides him and his voice)
-          <input type="checkbox" checked={settings.mascotOn} onChange={(e) => { update({ mascotOn: e.target.checked }); if (!e.target.checked) stopSpeaking(); }} className="h-5 w-5 accent-primary" />
-        </label>
-        <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">Focus sound</h3>
-        <div className="grid grid-cols-2 gap-2">
-          {SOUNDSCAPES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => pickSound(s.id)}
-              className={`rounded-2xl border-2 px-3 py-3 text-left text-sm font-bold transition ${
-                settings.sound === s.id
-                  ? 'border-primary lab-tint lab-ink'
-                  : 'border-border bg-card text-foreground'
-              }`}
-            >
-              <span className="mr-1.5">{s.emoji}</span>
-              {s.label}
-              {s.headphones && <span className="ml-1 text-[10px] font-semibold text-muted-foreground">🎧</span>}
-            </button>
-          ))}
-        </div>
-        {chosen && <p className="mt-2 text-xs text-muted-foreground">{chosen.hint}</p>}
-        <label className="mt-3 flex items-center gap-3 text-xs font-semibold text-muted-foreground">
-          Volume
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={settings.volume}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              update({ volume: v });
-              setSoundscapeVolume(v);
-            }}
-            className="flex-1 accent-primary"
-          />
-        </label>
-        <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-          Honest note: research on binaural beats is mixed. Think of these as calming focus aids, not a guaranteed brain boost. 🎧 presets work best with stereo headphones.
-        </p>
-
-        <h3 className="mb-2 mt-5 text-[13px] font-semibold text-muted-foreground">Companion voice</h3>
-        <label className="mb-2 flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
-          Deepu talks
-          <input type="checkbox" checked={settings.voiceOn} onChange={(e) => update({ voiceOn: e.target.checked })} className="h-5 w-5 accent-primary" />
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          {VOICE_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => {
-                update({ voicePreset: p.id });
-                speak("Hi! I'm Deepu. Ready to learn together?", p.id, settings.voiceURI);
-              }}
-              className={`rounded-2xl border-2 px-2 py-3 text-center text-xs font-bold transition ${
-                settings.voicePreset === p.id
-                  ? 'border-primary lab-tint lab-ink'
-                  : 'border-border text-foreground'
-              }`}
-            >
-              <div className="text-xl">{p.emoji}</div>
-              {p.label}
-            </button>
-          ))}
-        </div>
-        {voices.length > 0 && (
-          <select
-            value={settings.voiceURI ?? ''}
-            onChange={(e) => update({ voiceURI: e.target.value || null })}
-            className="mt-2 w-full rounded-xl border-2 border-border bg-input px-3 py-2.5 text-sm text-foreground"
-            aria-label="Voice"
-          >
-            <option value="">Auto voice</option>
-            {voices.map((v) => (
-              <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
-            ))}
-          </select>
-        )}
-        <p className="mt-2 text-[11px] text-muted-foreground">The cute pitch comes from your device&apos;s own voices; some phones ignore pitch, so try a different voice if it sounds too normal.</p>
-
-        <h3 className="mb-2 mt-5 text-[13px] font-semibold text-muted-foreground">Extras</h3>
-        <label className="mb-2 flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
-          Spiritual touches (mantras & Gita verses)
-          <input type="checkbox" checked={settings.spiritual} onChange={(e) => update({ spiritual: e.target.checked })} className="h-5 w-5 accent-primary" />
-        </label>
-        <label className="flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
-          Little chimes
-          <input type="checkbox" checked={settings.chimes} onChange={(e) => update({ chimes: e.target.checked })} className="h-5 w-5 accent-primary" />
-        </label>
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      labelledBy="ds-companion-title"
+      className="lab-page ds-skin ios-sheet flex max-h-[88vh] w-full flex-col overflow-hidden rounded-[22px] sm:max-w-lg"
+    >
+      <div className="ios-sheet-grabber sm:hidden" data-sheet-grabber="" aria-hidden="true">
+        <span />
       </div>
-    </div>
+      <div className="ios-sheet-head sm:pt-4">
+        <h2 id="ds-companion-title" className="ios-sheet-title">
+          Sound & companion
+        </h2>
+        <button type="button" onClick={onClose} className="sheet-done ds-tone-indigo ds-tone-text">
+          Done
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-[calc(1.25rem+var(--safe-bottom))]">
+        <div className="ds-list">
+          <SwitchRow
+            label="Show Deepu"
+            hint="Off hides him and his voice"
+            checked={settings.mascotOn}
+            onChange={(v) => {
+              update({ mascotOn: v });
+              if (!v) stopSpeaking();
+            }}
+          />
+          <SwitchRow
+            label="Deepu talks"
+            checked={settings.voiceOn}
+            onChange={(v) => update({ voiceOn: v })}
+          />
+        </div>
+
+        <section aria-labelledby="ds-sound-title">
+          <h3 id="ds-sound-title" className="mb-1.5 px-1 text-[13px] font-medium ds-faint">
+            Focus sound
+          </h3>
+          <div
+            className="ds-list"
+            data-icons="true"
+            role="radiogroup"
+            aria-labelledby="ds-sound-title"
+          >
+            {SOUNDSCAPES.map((s) => {
+              const on = settings.sound === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => pickSound(s.id)}
+                  className="ds-list-row"
+                >
+                  <span className="ds-icon-tile ds-icon-tile-sm ds-tone-neutral">
+                    <FlatIcon name={s.icon} size={17} />
+                  </span>
+                  <span className="min-w-0 flex-1 text-[15px] font-medium ds-ink">{s.label}</span>
+                  {s.headphones && (
+                    <span className="flex items-center" title="Best with stereo headphones">
+                      <FlatIcon name="headphones" size={15} label="Best with headphones" />
+                    </span>
+                  )}
+                  <Icon
+                    name="CheckIcon"
+                    size={18}
+                    className={`flex-shrink-0 ds-tone-indigo ds-tone-text ${on ? '' : 'invisible'}`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+          {chosen && <p className="mt-2 px-1 text-xs ds-faint">{chosen.hint}</p>}
+          <label className="mt-3 flex items-center gap-3 px-1 text-xs font-medium ds-faint">
+            <Icon name="SpeakerXMarkIcon" size={16} />
+            <span className="sr-only">Volume</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={settings.volume}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                update({ volume: v });
+                setSoundscapeVolume(v);
+              }}
+              className="flex-1 accent-primary"
+            />
+            <Icon name="SpeakerWaveIcon" size={16} />
+          </label>
+          <p className="mt-3 flex items-start gap-2 px-1 text-[11.5px] leading-relaxed ds-faint">
+            <FlatIcon name="headphones" size={14} className="mt-0.5" />
+            <span>
+              Research on binaural beats is mixed: treat them as calming focus aids, not a
+              guaranteed boost. The headphone presets need stereo headphones.
+            </span>
+          </p>
+        </section>
+
+        <section aria-labelledby="ds-voice-title">
+          <h3 id="ds-voice-title" className="mb-1.5 px-1 text-[13px] font-medium ds-faint">
+            Companion voice
+          </h3>
+          <div className="ds-seg" role="radiogroup" aria-labelledby="ds-voice-title">
+            {VOICE_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="radio"
+                aria-checked={settings.voicePreset === p.id}
+                aria-pressed={settings.voicePreset === p.id}
+                onClick={() => {
+                  update({ voicePreset: p.id });
+                  speak("Hi! I'm Deepu. Ready to learn together?", p.id, settings.voiceURI);
+                }}
+              >
+                <FlatIcon name={p.icon} size={15} />
+                <span className="truncate">{p.label}</span>
+              </button>
+            ))}
+          </div>
+          {voices.length > 0 && (
+            <select
+              value={settings.voiceURI ?? ''}
+              onChange={(e) => update({ voiceURI: e.target.value || null })}
+              className="ds-field mt-2 py-2.5 text-sm"
+              aria-label="Voice"
+            >
+              <option value="">Auto voice</option>
+              {voices.map((v) => (
+                <option key={v.voiceURI} value={v.voiceURI}>
+                  {v.name} ({v.lang})
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="mt-2 px-1 text-[11.5px] ds-faint">
+            The voice comes from your device; some phones ignore pitch, so try another voice if it
+            sounds too plain.
+          </p>
+        </section>
+
+        <section aria-labelledby="ds-extras-title">
+          <h3 id="ds-extras-title" className="mb-1.5 px-1 text-[13px] font-medium ds-faint">
+            Extras
+          </h3>
+          <div className="ds-list">
+            <SwitchRow
+              label="Spiritual touches"
+              hint="Mantras and Gita verses"
+              checked={settings.spiritual}
+              onChange={(v) => update({ spiritual: v })}
+            />
+            <SwitchRow
+              label="Little chimes"
+              checked={settings.chimes}
+              onChange={(v) => update({ chimes: v })}
+            />
+          </div>
+        </section>
+      </div>
+    </Modal>
   );
 }

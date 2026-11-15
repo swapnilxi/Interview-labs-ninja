@@ -9,7 +9,35 @@ import WeeklySummaryCard from './WeeklySummaryCard';
 import { sessionService } from '@/lib/services/sessionService';
 import { questionsService, Question } from '@/lib/services/questionsService';
 
-export default function ProgressDashboardInteractive({ embedded = false }: { embedded?: boolean } = {}) {
+/** A YYYY-MM-DD date at local midnight (`new Date('2026-11-14')` is UTC midnight, the day before west of Greenwich). */
+function parseDay(s: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00`) : new Date(s);
+}
+
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+/** Mean of the 1-5 self-ratings as a 0-100 score, or null when nothing is rated. */
+function scoreOf(qs: Question[]): number | null {
+  const rated = qs.filter((q) => q.userPerformance !== undefined);
+  if (!rated.length) return null;
+  return Math.round((rated.reduce((sum, q) => sum + q.userPerformance!, 0) / rated.length) * 20);
+}
+
+/** Monday 00:00 to next Monday 00:00 of the current week. */
+function currentWeek() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  return { start, end };
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
+
+export default function ProgressDashboardInteractive({
+  embedded = false,
+}: { embedded?: boolean } = {}) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -18,6 +46,7 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
     totalAnswered: 0,
     completedAnswers: 0,
     recentDates: [] as string[],
+    recentSessions: [] as { date: string; answered: number; completed: number }[],
   });
 
   useEffect(() => {
@@ -28,7 +57,7 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
         setQuestions(qData);
 
         const sData = await sessionService.getProgressStats();
-        setStats(sData);
+        setStats({ ...sData, recentSessions: sData.recentSessions ?? [] });
       } catch (err) {
         console.error('Failed to load progress dashboard data:', err);
       } finally {
@@ -38,70 +67,39 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
     loadData();
   }, []);
 
-  // 1. Calculate Average Performance
+  // 1. Average self-rating (1-5), null until something is rated.
   const averagePerformance = useMemo(() => {
     const scores = questions
       .filter((q) => q.userPerformance !== undefined)
       .map((q) => q.userPerformance!);
-    if (scores.length === 0) return 4.2; // premium baseline default
+    if (scores.length === 0) return null;
     return parseFloat((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1));
   }, [questions]);
 
-  // 2. Generate Chart Data Points dynamically
+  // 2. Score per day, from rated questions only (a day with no ratings has no point, a category without ratings
+  //    that day has a gap).
   const chartData = useMemo(() => {
-    // Group questions by date
     const dateGroups: Record<string, Question[]> = {};
     questions.forEach((q) => {
-      if (!dateGroups[q.dateEncountered]) {
-        dateGroups[q.dateEncountered] = [];
-      }
+      if (!dateGroups[q.dateEncountered]) dateGroups[q.dateEncountered] = [];
       dateGroups[q.dateEncountered].push(q);
     });
 
-    const dates = Object.keys(dateGroups).sort();
-    const points = dates.map((dateStr) => {
-      const qs = dateGroups[dateStr];
-      const ratedQs = qs.filter((q) => q.userPerformance !== undefined);
-      
-      const overall = ratedQs.length 
-        ? (ratedQs.reduce((sum, q) => sum + q.userPerformance!, 0) / ratedQs.length) * 20 
-        : 80;
-
-      const interviewQs = ratedQs.filter((q) => q.category === 'Interview');
-      const interview = interviewQs.length
-        ? (interviewQs.reduce((sum, q) => sum + q.userPerformance!, 0) / interviewQs.length) * 20
-        : 80;
-
-      const cvQs = ratedQs.filter((q) => q.category === 'CV Skill');
-      const cvSkill = cvQs.length
-        ? (cvQs.reduce((sum, q) => sum + q.userPerformance!, 0) / cvQs.length) * 20
-        : 75;
-
-      // format date label to Short form: Jun 15
-      const dateObj = new Date(dateStr);
-      const label = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-      return {
-        date: label,
-        interview: Math.round(interview),
-        cvSkill: Math.round(cvSkill),
-        overall: Math.round(overall),
-      };
-    });
-
-    if (points.length > 0) return points;
-
-    // Fallback seed data points for presentation if DB is fresh
-    return [
-      { date: 'Jun 15', interview: 70, cvSkill: 65, overall: 68 },
-      { date: 'Jun 18', interview: 80, cvSkill: 72, overall: 76 },
-      { date: 'Jun 20', interview: 85, cvSkill: 80, overall: 82 },
-      { date: 'Jun 22', interview: 82, cvSkill: 85, overall: 84 },
-      { date: 'Jun 24', interview: 90, cvSkill: 88, overall: 89 },
-    ];
+    return Object.keys(dateGroups)
+      .sort()
+      .map((dateStr) => {
+        const qs = dateGroups[dateStr];
+        return {
+          date: parseDay(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          interview: scoreOf(qs.filter((q) => q.category === 'Interview')),
+          cvSkill: scoreOf(qs.filter((q) => q.category === 'CV Skill')),
+          overall: scoreOf(qs),
+        };
+      })
+      .filter((p) => p.overall !== null);
   }, [questions]);
 
-  // 3. Difficulty progression levels
+  // 3. By difficulty: questions in the bank at each level, and how many you rated 4 or 5.
   const difficultiesData = useMemo(() => {
     const counts = {
       Easy: { attempted: 0, correct: 0 },
@@ -120,88 +118,79 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
       }
     });
 
-    return [
-      {
-        level: 'Easy',
-        attempted: counts.Easy.attempted || 4,
-        correct: counts.Easy.correct || 4,
-        accuracy: counts.Easy.attempted ? Math.round((counts.Easy.correct / counts.Easy.attempted) * 100) : 100,
-        color: '#10B981', // emerald success
-      },
-      {
-        level: 'Medium',
-        attempted: counts.Medium.attempted || 6,
-        correct: counts.Medium.correct || 5,
-        accuracy: counts.Medium.attempted ? Math.round((counts.Medium.correct / counts.Medium.attempted) * 100) : 83,
-        color: '#F59E0B', // amber warning
-      },
-      {
-        level: 'Hard',
-        attempted: counts.Hard.attempted || 5,
-        correct: counts.Hard.correct || 3,
-        accuracy: counts.Hard.attempted ? Math.round((counts.Hard.correct / counts.Hard.attempted) * 100) : 60,
-        color: '#EF4444', // red error
-      },
-    ];
+    return (['Easy', 'Medium', 'Hard'] as const).map((level) => ({
+      level,
+      attempted: counts[level].attempted,
+      correct: counts[level].correct,
+      accuracy: counts[level].attempted
+        ? Math.round((counts[level].correct / counts[level].attempted) * 100)
+        : 0,
+    }));
   }, [questions]);
 
-  // 4. Skills breakdown data
+  // 4. Skills: questions per skill group, and how many of them you have rated.
   const skillsData = useMemo(() => {
-    // Standard sub-categories
     const skillList = [
-      { category: 'Data Structures & Algorithms', subTypes: ['Data Structures', 'Algorithms'], icon: 'CubeIcon', total: 4, completed: 3 },
-      { category: 'System Design', subTypes: ['System Design (Mid-Scale)', 'Large-Scale System Design', 'System Design'], icon: 'ServerIcon', total: 3, completed: 2 },
-      { category: 'Classical CV', subTypes: ['Classical CV'], icon: 'EyeIcon', total: 2, completed: 1 },
-      { category: 'Deep Learning Vision', subTypes: ['Deep Learning Vision'], icon: 'CpuChipIcon', total: 3, completed: 2 },
-      { category: 'Leadership & Culture', subTypes: ['Leadership'], icon: 'ChatBubbleLeftRightIcon', total: 2, completed: 2 },
+      {
+        category: 'Data Structures & Algorithms',
+        subTypes: ['Data Structures', 'Algorithms'],
+        icon: 'CubeIcon',
+      },
+      {
+        category: 'System Design',
+        subTypes: ['System Design (Mid-Scale)', 'Large-Scale System Design', 'System Design'],
+        icon: 'ServerIcon',
+      },
+      { category: 'Classical CV', subTypes: ['Classical CV'], icon: 'EyeIcon' },
+      { category: 'Deep Learning Vision', subTypes: ['Deep Learning Vision'], icon: 'CpuChipIcon' },
+      {
+        category: 'Leadership & Culture',
+        subTypes: ['Leadership'],
+        icon: 'ChatBubbleLeftRightIcon',
+      },
     ];
 
     return skillList.map((skill) => {
-      // Calculate from DB dynamically
       const matchedQs = questions.filter((q) => skill.subTypes.includes(q.subType));
-      const total = matchedQs.length || skill.total;
-      const completed = matchedQs.filter((q) => q.userPerformance !== undefined).length || skill.completed;
-      const accuracy = total > 0 ? Math.round((completed / total) * 100) : 80;
-
+      const total = matchedQs.length;
+      const completed = matchedQs.filter((q) => q.userPerformance !== undefined).length;
       return {
         category: skill.category,
         completed,
         total,
-        accuracy,
+        accuracy: total > 0 ? Math.round((completed / total) * 100) : 0,
         icon: skill.icon,
       };
     });
   }, [questions]);
 
-  // 5. Calculate Current Streak
+  // 5. Session streak: consecutive days, ending today or yesterday, with questions in the bank.
   const currentStreak = useMemo(() => {
     if (questions.length === 0) return 0;
-    
-    // Get unique sorted dates in descending order
-    const dates = Array.from(new Set(questions.map(q => q.dateEncountered))).sort().reverse();
-    
+
+    const dates = Array.from(new Set(questions.map((q) => q.dateEncountered)))
+      .sort()
+      .reverse();
+
     let streak = 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     if (dates.length > 0) {
-      const latestDate = new Date(dates[0]);
+      const latestDate = parseDay(dates[0]);
       latestDate.setHours(0, 0, 0, 0);
-      const diffTime = Math.abs(today.getTime() - latestDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
+      const diffDays = Math.round(Math.abs(today.getTime() - latestDate.getTime()) / DAY_MS);
+
       // If the latest activity was today or yesterday, streak is active
       if (diffDays <= 1) {
         streak = 1;
         let currentDate = latestDate;
-        
+
         for (let i = 1; i < dates.length; i++) {
-          const prevDate = new Date(dates[i]);
+          const prevDate = parseDay(dates[i]);
           prevDate.setHours(0, 0, 0, 0);
-          
-          const gapTime = Math.abs(currentDate.getTime() - prevDate.getTime());
-          const gapDays = Math.ceil(gapTime / (1000 * 60 * 60 * 24));
-          
+          const gapDays = Math.round(Math.abs(currentDate.getTime() - prevDate.getTime()) / DAY_MS);
+
           if (gapDays === 1) {
             streak++;
             currentDate = prevDate;
@@ -211,101 +200,117 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
         }
       }
     }
-    // Fallback to a mock streak for the production demo if DB is sparse
-    return streak > 0 ? streak : 3; 
+    return streak;
   }, [questions]);
 
+  // 6. This week (Monday to Sunday), from the same data.
+  const week = useMemo(() => {
+    const { start, end } = currentWeek();
+    const inWeek = (s: string | null | undefined) => {
+      if (!s) return false;
+      const d = parseDay(s);
+      return d >= start && d < end;
+    };
+    const sessions = stats.recentSessions.filter((s) => inWeek(s.date));
+    const last = new Date(end);
+    last.setDate(end.getDate() - 1);
+    // "Nov 9 – 15" / "9–15 Nov", in the reader's own order.
+    const dayMonth = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
+    const range =
+      typeof dayMonth.formatRange === 'function'
+        ? dayMonth.formatRange(start, last)
+        : `${dayMonth.format(start)} – ${dayMonth.format(last)}`;
+    return {
+      range,
+      added: questions.filter((q) => inWeek(q.dateEncountered)).length,
+      answered: sessions.reduce((sum, s) => sum + s.answered, 0),
+      days: sessions.length,
+      rated: questions.filter((q) => q.userPerformance !== undefined && inWeek(q.lastReviewed))
+        .length,
+    };
+  }, [questions, stats.recentSessions]);
+
   if (!isHydrated || loading) {
-    return (
-      <div className="min-h-screen bg-background pt-[60px]">
-        <div className="max-w-[1400px] mx-auto px-24 py-36">
-          <div className="animate-pulse space-y-24">
-            <div className="h-48 bg-muted rounded-lg w-1/3" />
-            <div className="grid grid-cols-2 gap-3 sm:gap-24 md:grid-cols-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-120 bg-muted rounded-lg" />
-              ))}
-            </div>
-            <div className="h-[400px] bg-muted rounded-lg" />
-          </div>
+    const skeleton = (
+      <div className="space-y-4 pb-10 pt-1" aria-busy="true" aria-label="Loading your progress">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="ins-skel h-[8.5rem]" />
+          ))}
         </div>
+        <div className="ins-skel h-[22rem]" />
+      </div>
+    );
+    if (embedded) return skeleton;
+    return (
+      <div className="lab-page ds-skin min-h-screen pt-[60px]">
+        <div className="mx-auto max-w-[1200px] px-4 py-[2rem] sm:px-[2rem]">{skeleton}</div>
       </div>
     );
   }
 
-  // Calculate dynamic weekly changes
-  const attemptedCount = questions.length || 15;
-  const answeredCount = stats.totalAnswered || 6;
-  const completedRate = attemptedCount > 0 ? Math.round((answeredCount / attemptedCount) * 100) : 84;
+  const hasRatings = averagePerformance !== null;
 
   const weeklyStatsList = [
-    { label: 'Weekly Qs Attempted', value: `${attemptedCount} Qs`, icon: 'BookOpenIcon', change: 15 },
-    { label: 'Completion Success', value: `${completedRate}%`, icon: 'CheckCircleIcon', change: 8 },
-    { label: 'Rating Performance', value: `${averagePerformance} ★`, icon: 'StarIcon', change: 4 },
-    { label: 'Unique Session Days', value: `${stats.totalSessions || 4} Days`, icon: 'CalendarIcon', change: 25 },
+    { label: 'Questions added', value: String(week.added) },
+    { label: 'Answers saved', value: String(week.answered) },
+    { label: 'Practice days', value: `${week.days}`, unit: '/ 7' },
+    { label: 'Answers rated', value: String(week.rated) },
   ];
 
   const content = (
-    <div className={embedded ? "space-y-6 pt-1 pb-10" : "max-w-[1400px] mx-auto px-24 py-36 space-y-24"}>
-      {/* Metric Cards Grid */}
-        <div className="grid grid-cols-2 gap-3 animate-fade-in sm:gap-24 lg:grid-cols-4">
-          <MetricCard
-            title="Total Sessions Started"
-            value={stats.totalSessions || 4}
-            subtitle="Completed daily interview sessions"
-            icon="AcademicCapIcon"
-            color="primary"
-            trend={{ value: 20, isPositive: true }}
-          />
-          <MetricCard
-            title="Total Questions Answered"
-            value={stats.totalAnswered || 6}
-            subtitle="Across all your sessions"
-            icon="CheckCircleIcon"
-            color="success"
-            trend={{ value: 12, isPositive: true }}
-          />
-          <MetricCard
-            title="Average Interview Rating"
-            value={`${averagePerformance} / 5`}
-            subtitle="Overall rating across topics"
-            icon="StarIcon"
-            color="accent"
-            trend={{ value: 4, isPositive: true }}
-          />
-          <MetricCard
-            title="Current Learning Streak"
-            value={`${currentStreak} Days`}
-            subtitle="Consecutive days of practice"
-            icon="FireIcon"
-            color="secondary"
-            trend={{ value: 1, isPositive: true }}
-          />
-        </div>
+    <div
+      className={
+        embedded
+          ? 'space-y-4 pb-10 pt-1 sm:space-y-5'
+          : 'mx-auto max-w-[1200px] space-y-5 px-4 py-[2rem] sm:px-[2rem]'
+      }
+    >
+      <section aria-label="Overview" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <MetricCard
+          title="Sessions"
+          value={stats.totalSessions}
+          subtitle={`${plural(stats.totalSessions, 'Day')} with an answer saved`}
+          icon="AcademicCapIcon"
+          color="primary"
+        />
+        <MetricCard
+          title="Answered"
+          value={stats.totalAnswered}
+          subtitle="Across all your sessions"
+          icon="CheckCircleIcon"
+          color="success"
+        />
+        <MetricCard
+          title="Average rating"
+          value={hasRatings ? averagePerformance : '–'}
+          unit={hasRatings ? '/ 5' : undefined}
+          empty={!hasRatings}
+          subtitle={hasRatings ? 'Your own rating of your answers' : 'Rate answers in Review'}
+          icon="StarIcon"
+          color="accent"
+        />
+        <MetricCard
+          title="Session streak"
+          value={currentStreak}
+          unit={plural(currentStreak, 'day')}
+          subtitle="Days in a row with a session"
+          icon="FireIcon"
+          color="secondary"
+        />
+      </section>
 
-        {/* Chart Section */}
-        <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-24 space-y-18">
-          <div>
-            <h3 className="font-heading text-lg font-medium text-foreground">Performance Score Trends</h3>
-            <p className="text-sm text-muted-foreground font-caption mt-6">
-              Track skill accuracy progression (%) over chronological daily sessions
-            </p>
-          </div>
-          <ProgressChart data={chartData} chartType="area" />
-        </div>
+      <section className="ds-card p-4 sm:p-[1.4rem]" aria-labelledby="ins-trend-title">
+        <ProgressChart data={chartData} chartType="line" titleId="ins-trend-title" />
+      </section>
 
-        {/* Skill Breakdown Grid */}
-        <div className="grid grid-cols-1 gap-3 sm:gap-24 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <SkillBreakdownCard skills={skillsData} />
-          </div>
-          <div className="space-y-24">
-            <DifficultyProgressCard difficulties={difficultiesData} />
-            <WeeklySummaryCard
-              weekRange="June 15, 2026 - June 25, 2026"
-              stats={weeklyStatsList}
-              focusAreas={['Edge Quantization', 'Stereo Geometry', 'Dijkstra Optimizations', 'Adversarial Validation']}
-            />
+      <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-5">
+        <div className="lg:col-span-3">
+          <SkillBreakdownCard skills={skillsData} />
+        </div>
+        <div className="grid grid-cols-1 content-start gap-4 sm:gap-5 md:grid-cols-2 lg:col-span-2 lg:grid-cols-1">
+          <DifficultyProgressCard difficulties={difficultiesData} />
+          <WeeklySummaryCard weekRange={week.range} stats={weeklyStatsList} />
         </div>
       </div>
     </div>
@@ -313,9 +318,5 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
 
   if (embedded) return content;
 
-  return (
-    <div className="min-h-screen bg-background pt-[60px]">
-      {content}
-    </div>
-  );
+  return <div className="lab-page ds-skin min-h-screen pt-[60px]">{content}</div>;
 }

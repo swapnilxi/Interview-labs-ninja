@@ -6,10 +6,13 @@ import CompanionSettings from './CompanionSettings';
 import CompanionControls from './CompanionControls';
 import type { useCompanionVoice } from './useCompanionVoice';
 
-/** Mascot bubble + sound/settings controls, driven by useCompanionVoice. `controls={false}` hides the buttons. */
+/**
+ * Deepu on one line: mascot + speech bubble, and two quiet icon buttons (sound, settings) at the end of the row.
+ * Driven by useCompanionVoice. `controls={false}` hides the buttons.
+ */
 export default function CompanionStrip({
   c,
-  size,
+  size = 40,
   controls = true,
   className = '',
 }: {
@@ -20,8 +23,8 @@ export default function CompanionStrip({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`flex flex-wrap items-end justify-between gap-x-3 gap-y-2 sm:flex-nowrap ${className}`}>
-      <div className="min-w-0 flex-1 basis-full sm:basis-0">
+    <div className={`flex items-center gap-2 ${className}`}>
+      <div className="min-w-0 flex-1">
         <CompanionBubble
           text={c.msg}
           mood={c.mood}

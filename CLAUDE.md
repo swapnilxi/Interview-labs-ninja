@@ -122,6 +122,10 @@ further down in `README.md` — check there before assuming a module's shape.
   (prompts byte-identical), and rule validation `frontend/src/lib/schedules/scheduleRules.ts` (`normalizeRule`) ↔
   `schedules/rules.py` (same error texts, same stored JSON). Runs happen on the device (web engine + the native Android
   plugin in `app/android/.../scheduler/`), never on a server cron. Details: README.md ("Scheduler").
+- **Learning Labs (Communication, Finance, Python) are config, not copies.** One page (`modules/common/lab/TopicLab.tsx`) + a
+  `modules/<lab>-lab/labConfig.ts` each; backend `modules/common/topic_lab.py` + thin `<lab>_lab/` wrappers; seed topics in
+  `<lab>_lab/topics.json` (ASCII only). Every lab (old and new) is listed once in `modules/common/lab/labCatalog.ts`, which drives
+  `/labs`, the sidebar's Labs menu and the phone Labs sheet: add a new lab there. README: "Labs home and the Learning Labs".
 - **AI LMS hierarchy:** Class > Subject (-> Lessons) or Project (-> Module/Step -> Sub-step,
   each generating one Lesson). A Project is an `lms_subjects` row with `kind='project'`; its
   outline lives in `project_plan` JSON. Both levels of outline items carry `{title, focus,
@@ -222,7 +226,8 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   section queries by user *and* project. `backend/tests/lab_projects_test.py` covers it.
 - **Data twins for the rest of the labs and Daily Session** (so nextjs-api mode shows the SQLite data):
   `fe-apis/labs` = topics + sections of DSA/CV/System Design (`/dsa/topics|sections` share the
-  `api/dsa/[...path]` route with the week plan; `/cv/*`, `/system-design/*`); `fe-apis/dailySession` = sessions,
+  `api/dsa/[...path]` route with the week plan; `/cv/*`, `/system-design/*`) and of the Learning Labs (`/communication/*`,
+  `/finance/*`, `/python/*`, which seed from the same `backend/modules/<lab>_lab/topics.json` FastAPI reads); `fe-apis/dailySession` = sessions,
   questions, session progress and stats (not its AI routes, deck import, export, or the unauthenticated
   `POST /questions/clear-duplicates`); `fe-apis/account` = `GET/PUT /auth/profile` and `/access-requests`. Each has a
   `next.config.mjs` rewrite and an `outputFileTracingIncludes` entry — every `/api/**` route that opens the database
@@ -232,6 +237,16 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   `backend/modules/swipe_learn/` ↔ `frontend/fe-apis/swipeLearn/`; its prompt `prompt.py` ↔
   `src/modules/swipe-learn/services/cardPrompt.ts` (byte-identical, also used by the browser's direct-Gemini path).
   README ("SwipeLearn Module").
+- **Shared AI memory and web research** (both login-required, both have a twin): `backend/modules/memory/` ↔
+  `frontend/fe-apis/memory/` (+ `src/lib/services/memoryService.ts`) and `backend/modules/research/` ↔
+  `frontend/fe-apis/research/`. Memory = short per-user facts in the `ai_memory` table (module, topic, kind, fact,
+  weight that fades with a 30-day half-life, capped per module); modules `remember()` events and the server puts the
+  strongest few into that module's prompt (SwipeLearn, Daily Session so far). To give another module memory: record
+  facts where the signal happens, and add `memory_lines(user_id, module, topic)` to its prompt on both sides.
+  Research = read-only DuckDuckGo search + page fetch; **it fetches URLs for users, so every request goes through the
+  SSRF guard (`check_public_url` / `checkPublicUrl`, public IPs only, redirects re-checked) — keep both twins' guards
+  identical and never add a code path that fetches without it.** Constants, cleaning and parsing in each pair must
+  match; verify twins by sending the same requests to both. README ("AI memory and web research").
 - Still FastAPI-only: `career_studio`, `linkedin_post_generator`, the admin user-management routes (`/admin/*` except
   db push/pull), Daily Session's AI routes, and the local-Ollama helpers. Don't assume feature parity between modes
   without checking whether a module has a `frontend/src/app/api/**` + `frontend/fe-apis/**` counterpart.

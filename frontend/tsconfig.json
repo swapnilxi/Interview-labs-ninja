@@ -38,9 +38,11 @@
     ".next-lint-scratch/types/**/*.ts",
     ".next-polish-a/types/**/*.ts",
     ".next-polish-b/types/**/*.ts",
+    ".next-polish-b3/types/**/*.ts",
+    ".next-scratch/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-polish-b3/types/**/*.ts"
+    ".next-labplan/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

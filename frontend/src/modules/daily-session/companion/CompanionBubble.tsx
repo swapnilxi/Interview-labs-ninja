@@ -19,19 +19,19 @@ export default function CompanionBubble({
   text,
   mood = 'happy',
   speaking,
-  size = 64,
+  size = 40,
   onSpeak,
   className = '',
 }: Props) {
   const [settings] = useCompanionSettings();
   if (!settings.mascotOn) return null;
   return (
-    <div className={`flex items-end gap-3 ${className}`}>
+    <div className={`flex items-end gap-2.5 ${className}`}>
       <Mascot mood={mood} speaking={speaking} size={size} className="flex-shrink-0" />
       <button
         type="button"
         onClick={onSpeak}
-        className="ds-bubble min-w-0 flex-1"
+        className="ds-bubble min-w-0"
         aria-label={`Deepu says: ${text}. Tap to hear it.`}
       >
         {text}

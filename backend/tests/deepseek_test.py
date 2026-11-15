@@ -1,14 +1,14 @@
 """DeepSeek connectivity check (OpenAI-compatible chat/completions API).
 
 Reads DEEPSEEK_API_KEY from backend/.env (or the environment) and:
-  1. Calls /chat/completions on a model (default deepseek-chat).
+  1. Calls /chat/completions on a model (default deepseek-flash).
   2. On failure, prints DeepSeek's OWN error message, not the bare HTTP code
      (a 402 "Insufficient Balance" is a billing issue, not a bad key).
   3. Lists the models this key can access via /models.
 
 Usage:
     python tests/deepseek_test.py                    # default model
-    python tests/deepseek_test.py deepseek-reasoner  # test a specific model
+    python tests/deepseek_test.py deepseek-v4-pro    # test a specific model
 """
 import json
 import os
@@ -25,7 +25,7 @@ except ImportError:
     SSL_CTX = None
 
 BASE = "https://api.deepseek.com"
-DEFAULT_MODEL = "deepseek-chat"
+DEFAULT_MODEL = "deepseek-flash"
 
 
 def load_key() -> str:

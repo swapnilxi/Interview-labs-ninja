@@ -5,8 +5,10 @@ from __future__ import annotations
 import re
 import sqlite3
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from modules.auth.db import create_user, get_permission_overrides, get_profile, get_user_by_email, upsert_profile
 from modules.auth.dependencies import effective_permissions, get_current_active_user, get_current_user
@@ -28,12 +30,56 @@ class LoginRequest(BaseModel):
     password: str
 
 
+MAX_CUSTOM_MODELS = 100
+_URL_RE = re.compile(r"^https?://\S+$")
+
+
+class CustomModelEntry(BaseModel):
+    """A model the user added to a provider's list, or (provider "custom") their own OpenAI-compatible endpoint.
+
+    Never a key: unknown fields are dropped, so a key sent by mistake is not stored. Twin (same limits, same stored
+    JSON): normalizeCustomModels() in frontend/fe-apis/account/index.ts; the client shape is UserModel in
+    frontend/src/lib/services/settingsService.ts.
+    """
+
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    provider: Literal["gemini", "vertex", "deepseek", "groq", "openai", "anthropic", "openrouter", "ollama", "custom"]
+    model: str = Field(min_length=1, max_length=200)
+    name: str | None = Field(default=None, max_length=80)
+    base_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("name", "base_url")
+    @classmethod
+    def _blank_is_none(cls, value: str | None) -> str | None:
+        return value or None
+
+    @model_validator(mode="after")
+    def _endpoint_needs_url(self) -> "CustomModelEntry":
+        if self.provider != "custom":
+            self.base_url = None
+        elif not self.base_url or not _URL_RE.match(self.base_url):
+            raise ValueError("an endpoint needs a base_url starting with http:// or https://")
+        return self
+
+
 class ProfileUpdateRequest(BaseModel):
     text_generation_model: str | None = None
     answer_model: str | None = None
     ai_provider: str | None = None
     ollama_url: str | None = None
     ollama_model: str | None = None
+    custom_models: list[CustomModelEntry] | None = Field(default=None, max_length=MAX_CUSTOM_MODELS)
+
+    @field_validator("custom_models")
+    @classmethod
+    def _unique_ids(cls, value: list[CustomModelEntry] | None) -> list[CustomModelEntry] | None:
+        if value is not None:
+            ids = [entry.id for entry in value]
+            if len(ids) != len(set(ids)):
+                raise ValueError("custom model ids must be unique")
+        return value
 
 
 def _public_user(user: dict) -> dict:

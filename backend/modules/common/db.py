@@ -233,15 +233,22 @@ def init_db() -> None:
         # ── lab modules: create tables + seed ─────────────────────────────────
         from modules.system_design_lab.schema import register as sd_register
         from modules.cv_lab.schema import register as cv_register
+        from modules.communication_lab.schema import register as communication_register
+        from modules.finance_lab.schema import register as finance_register
+        from modules.python_lab.schema import register as python_register
         from modules.dsa_lab.schema import register as dsa_register
         from modules.lab_sections.schema import register as lab_sections_register
         from modules.lab_projects.schema import register as lab_projects_register
         from modules.linkedin_post_generator.templates.schema import register as linkedin_register
         from modules.ai_todo.shared.schema import register as todo_register
         from modules.common.rag.storage import register as rag_register
+        from modules.memory.schema import register as memory_register
 
         sd_register(cursor)
         cv_register(cursor)
+        communication_register(cursor)
+        finance_register(cursor)
+        python_register(cursor)
         dsa_register(cursor)
         lab_sections_register(cursor)
         lab_projects_register(cursor)
@@ -251,6 +258,7 @@ def init_db() -> None:
         # every other module's schema, regardless of which module ends up using it
         # first (currently ai_lms; see modules/ai_lms/router.py's thin wrapper).
         rag_register(cursor)
+        memory_register(cursor)
 
         from modules.ai_lms.db import init_lms_db
         init_lms_db(conn)
@@ -266,6 +274,9 @@ def init_db() -> None:
             ("system_design", "system_design_topics"),
             ("cv", "cv_topics"),
             ("dsa", "dsa_topics"),
+            ("communication", "communication_topics"),
+            ("finance", "finance_topics"),
+            ("python", "python_topics"),
         ]:
             cursor.execute(f"""
                 INSERT INTO lab_sections (lab_name, name, is_custom, user_id)

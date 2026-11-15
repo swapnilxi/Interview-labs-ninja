@@ -4,6 +4,7 @@
  * Next.js twin (nextjs-api mode) of the per-account routes the Config page and the "request access" flow use:
  *
  *   GET/PUT /auth/profile        backend/modules/auth/router.py (read_profile / update_profile) + auth/db.py
+ *                                (incl. custom_models: router.CustomModelEntry ↔ normalizeCustomModels below)
  *   GET  /access-requests/me     backend/modules/auth/access_requests_router.py + auth/db.py
  *   POST /access-requests        (201; 409 when the same request is already pending)
  *
@@ -29,6 +30,11 @@ function ensureAccountSchema(db: TodoDb) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`);
+  // Same migration as backend/modules/auth/schema.py.
+  const profileCols = db.all<{ name: string }>('PRAGMA table_info(user_profile)').map((c) => c.name);
+  if (!profileCols.includes('custom_models')) {
+    db.exec('ALTER TABLE user_profile ADD COLUMN custom_models TEXT DEFAULT NULL');
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS access_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,9 +85,81 @@ async function readJson(req: Request): Promise<unknown> {
 
 const PROFILE_FIELDS = ['text_generation_model', 'answer_model', 'ai_provider', 'ollama_url', 'ollama_model'] as const;
 
+// ── Added models / endpoints (router.CustomModelEntry) ───────────────────────────────────────────────────────
+
+const MAX_CUSTOM_MODELS = 100;
+const CUSTOM_MODEL_PROVIDERS = new Set([
+  'gemini',
+  'vertex',
+  'deepseek',
+  'groq',
+  'openai',
+  'anthropic',
+  'openrouter',
+  'ollama',
+  'custom',
+]);
+const ID_RE = /^[A-Za-z0-9_-]+$/;
+const URL_RE = /^https?:\/\/\S+$/;
+
+function optionalText(entry: Row, field: string, index: number, max: number): string | null {
+  const v = entry[field];
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'string') throw new HttpError(422, `custom_models.${index}.${field}: Input should be a valid string`);
+  const t = v.trim();
+  if (t.length > max) throw new HttpError(422, `custom_models.${index}.${field}: String should have at most ${max} characters`);
+  return t || null;
+}
+
+/**
+ * Validates and normalizes custom_models exactly like the Pydantic models do: trimmed strings, unknown fields
+ * dropped (so a key is never stored), base_url only (and required) on endpoints. Returns the stored JSON text.
+ */
+function normalizeCustomModels(value: unknown): string {
+  if (!Array.isArray(value)) throw new HttpError(422, 'custom_models: Input should be a valid list');
+  if (value.length > MAX_CUSTOM_MODELS) {
+    throw new HttpError(422, `custom_models: List should have at most ${MAX_CUSTOM_MODELS} items after validation`);
+  }
+  const out = value.map((raw, i) => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      throw new HttpError(422, `custom_models.${i}: Input should be a valid dictionary`);
+    }
+    const entry = raw as Row;
+    const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+    if (!id || id.length > 64 || !ID_RE.test(id)) throw new HttpError(422, `custom_models.${i}.id: invalid id`);
+    const provider = typeof entry.provider === 'string' ? entry.provider.trim() : '';
+    if (!CUSTOM_MODEL_PROVIDERS.has(provider)) throw new HttpError(422, `custom_models.${i}.provider: unknown provider`);
+    const model = optionalText(entry, 'model', i, 200);
+    if (!model) throw new HttpError(422, `custom_models.${i}.model: String should have at least 1 character`);
+    const name = optionalText(entry, 'name', i, 80);
+    let baseUrl = optionalText(entry, 'base_url', i, 500);
+    if (provider !== 'custom') baseUrl = null;
+    else if (!baseUrl || !URL_RE.test(baseUrl)) {
+      throw new HttpError(422, `custom_models.${i}: Value error, an endpoint needs a base_url starting with http:// or https://`);
+    }
+    return { id, provider, model, name, base_url: baseUrl };
+  });
+  if (new Set(out.map((m) => m.id)).size !== out.length) {
+    throw new HttpError(422, 'custom_models: Value error, custom model ids must be unique');
+  }
+  // Same text as auth/db.py's json.dumps(..., separators=(",", ":"), ensure_ascii=False).
+  return JSON.stringify(out);
+}
+
+function parseCustomModels(raw: unknown): unknown[] | null {
+  if (typeof raw !== 'string' || !raw) return null;
+  try {
+    const value = JSON.parse(raw);
+    return Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 function getProfile(db: TodoDb, userId: number): Row | null {
   const row = db.get(
-    `SELECT user_id, text_generation_model, answer_model, ai_provider, ollama_url, ollama_model, updated_at
+    `SELECT user_id, text_generation_model, answer_model, ai_provider, ollama_url, ollama_model, updated_at,
+            custom_models
      FROM user_profile WHERE user_id = ?`,
     userId
   );
@@ -94,6 +172,7 @@ function getProfile(db: TodoDb, userId: number): Row | null {
     ollama_url: row.ollama_url,
     ollama_model: row.ollama_model,
     updated_at: row.updated_at,
+    custom_models: parseCustomModels(row.custom_models),
   };
 }
 
@@ -124,6 +203,9 @@ async function profilePut(req: Request): Promise<Response> {
       if (v === undefined || v === null) continue;
       if (typeof v !== 'string') throw new HttpError(422, `${field}: Input should be a valid string`);
       updates.push([field, v]);
+    }
+    if (src.custom_models !== undefined && src.custom_models !== null) {
+      updates.push(['custom_models', normalizeCustomModels(src.custom_models)]);
     }
     const profile = withAccountDb((db) => {
       db.run('INSERT OR IGNORE INTO user_profile (user_id) VALUES (?)', userId);

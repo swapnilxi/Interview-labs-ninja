@@ -39,17 +39,16 @@ export const SHLOKAS: Shloka[] = [
 
 export interface Mantra {
   deity: 'Saraswati' | 'Lakshmi' | 'Durga' | 'Shiva' | 'Ganesha';
-  emoji: string;
   mantra: string;
   for: string;
 }
 
 export const MANTRAS: Record<Mantra['deity'], Mantra> = {
-  Saraswati: { deity: 'Saraswati', emoji: '🪕', mantra: 'Oṃ Aiṃ Sarasvatyai Namaḥ', for: 'clear thinking and learning' },
-  Lakshmi: { deity: 'Lakshmi', emoji: '🪷', mantra: 'Oṃ Śrīṃ Mahālakṣmyai Namaḥ', for: 'prosperity from honest work' },
-  Durga: { deity: 'Durga', emoji: '🦁', mantra: 'Oṃ Dūṃ Durgāyai Namaḥ', for: 'courage on the hard ones' },
-  Shiva: { deity: 'Shiva', emoji: '🔱', mantra: 'Oṃ Namaḥ Śivāya', for: 'a calm, steady mind' },
-  Ganesha: { deity: 'Ganesha', emoji: '🐘', mantra: 'Oṃ Gaṃ Gaṇapataye Namaḥ', for: 'removing obstacles at the start' },
+  Saraswati: { deity: 'Saraswati', mantra: 'Oṃ Aiṃ Sarasvatyai Namaḥ', for: 'clear thinking and learning' },
+  Lakshmi: { deity: 'Lakshmi', mantra: 'Oṃ Śrīṃ Mahālakṣmyai Namaḥ', for: 'prosperity from honest work' },
+  Durga: { deity: 'Durga', mantra: 'Oṃ Dūṃ Durgāyai Namaḥ', for: 'courage on the hard ones' },
+  Shiva: { deity: 'Shiva', mantra: 'Oṃ Namaḥ Śivāya', for: 'a calm, steady mind' },
+  Ganesha: { deity: 'Ganesha', mantra: 'Oṃ Gaṃ Gaṇapataye Namaḥ', for: 'removing obstacles at the start' },
 };
 
 export const SARASWATI_VANDANA =
@@ -111,10 +110,10 @@ export const line = (k: keyof typeof LINES) => pick(LINES[k]);
 export const randomShloka = () => pick(SHLOKAS);
 
 export const MOODS = [
-  { id: 'energised', emoji: '🔥', label: 'Energised', count: 15, tip: 'Love that energy! Let us take on something challenging.' },
-  { id: 'calm', emoji: '😌', label: 'Calm', count: 10, tip: 'Calm mind, clear answers. A steady 10 it is.' },
-  { id: 'tired', emoji: '😴', label: 'Tired', count: 5, tip: 'Tired is okay. Five gentle ones still count, and I will keep it light.' },
-  { id: 'anxious', emoji: '😟', label: 'Anxious', count: 5, tip: 'Take one slow breath with me. We only need five, and we start easy.' },
+  { id: 'energised', label: 'Energised', count: 15, tip: 'Love that energy! Let us take on something challenging.' },
+  { id: 'calm', label: 'Calm', count: 10, tip: 'Calm mind, clear answers. A steady 10 it is.' },
+  { id: 'tired', label: 'Tired', count: 5, tip: 'Tired is okay. Five gentle ones still count, and I will keep it light.' },
+  { id: 'anxious', label: 'Anxious', count: 5, tip: 'Take one slow breath with me. We only need five, and we start easy.' },
 ] as const;
 export type MoodId = (typeof MOODS)[number]['id'];
 

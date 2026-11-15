@@ -3,8 +3,13 @@ import Icon from '@/components/ui/AppIcon';
 interface MetricCardProps {
   title: string;
   value: string | number;
+  /** Small text after the number ("/ 5", "days"). */
+  unit?: string;
+  /** The value is a placeholder (nothing measured yet): drawn in the faint ink. */
+  empty?: boolean;
   subtitle: string;
   icon: string;
+  /** Only for a change that is actually measured; nothing passes one today. */
   trend?: {
     value: number;
     isPositive: boolean;
@@ -12,32 +17,35 @@ interface MetricCardProps {
   color: 'primary' | 'secondary' | 'success' | 'accent';
 }
 
-// `mix-*` (tailwind/mix-colors.js): theme colours are bare var()s, so `bg-primary/20` would compile to nothing.
-const colorClasses = {
-  primary: 'mix-bg-primary/15 lab-ink',
-  secondary: 'mix-bg-secondary/15 text-secondary',
-  success: 'mix-bg-success/15 text-success',
-  accent: 'mix-bg-accent/15 text-accent',
+// Each colour is a Daily Session tone (daily-session.css): action, reward and growth hues, no glow.
+const toneOf = {
+  primary: 'ds-tone-indigo',
+  secondary: 'ds-tone-gold',
+  success: 'ds-tone-jade',
+  accent: 'ds-tone-gold',
 };
 
-/** A compact metric tile: icon and trend on top, the number large, the label under it (two to a row on phones). */
+/** One overview number: a small tinted symbol and label, the number large, a short note under it. */
 export default function MetricCard({
   title,
   value,
+  unit,
+  empty = false,
   subtitle,
   icon,
   trend,
   color,
 }: MetricCardProps) {
   return (
-    <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-[1.25rem]">
-      <div className="flex items-center justify-between gap-2">
-        <span className={`flex h-9 w-9 items-center justify-center rounded-[11px] ${colorClasses[color]}`}>
-          <Icon name={icon as any} size={19} variant="outline" />
+    <div className="ds-card ins-metric">
+      <div className="ins-metric-label">
+        <span className={`ds-icon-tile ${toneOf[color]}`} aria-hidden="true">
+          <Icon name={icon} size={15} variant="solid" />
         </span>
+        <span className="min-w-0">{title}</span>
         {trend && (
           <span
-            className={`inline-flex items-center gap-1 text-[12px] font-semibold tabular-nums ${trend.isPositive ? 'text-success' : 'text-error'}`}
+            className={`ml-auto inline-flex items-center gap-1 ds-num ds-tone-text ${trend.isPositive ? 'ds-tone-jade' : 'ds-tone-rose'}`}
           >
             <Icon
               name={trend.isPositive ? 'ArrowTrendingUpIcon' : 'ArrowTrendingDownIcon'}
@@ -48,11 +56,11 @@ export default function MetricCard({
           </span>
         )}
       </div>
-      <p className="mt-4 font-heading text-[1.75rem] font-semibold leading-none tracking-[-0.025em] tabular-nums text-foreground sm:text-3xl">
+      <p className="ins-metric-value" data-empty={empty || undefined}>
         {value}
+        {unit && <small>{unit}</small>}
       </p>
-      <p className="mt-2 text-[13px] font-semibold leading-snug text-foreground">{title}</p>
-      <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">{subtitle}</p>
+      <p className="ins-metric-note">{subtitle}</p>
     </div>
   );
 }

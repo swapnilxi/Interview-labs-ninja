@@ -1,5 +1,8 @@
 import type { CSSProperties } from 'react';
 import type { LabName } from '@/lib/services/labSectionsService';
+import { COMMUNICATION_SECTION_DEFS } from '@/modules/communication-lab/labConfig';
+import { FINANCE_SECTION_DEFS } from '@/modules/finance-lab/labConfig';
+import { PYTHON_SECTION_DEFS } from '@/modules/python-lab/labConfig';
 
 export interface SectionDef {
   id: string;
@@ -18,7 +21,7 @@ export interface LabMeta {
   description: string;
   /**
    * The lab's identity colour, as a CSS value for `--lab-identity` (read by `.lab-tile`): DSA is the Settings accent,
-   * CV and System Design keep their own hue. Never use it for a button, row, link or progress bar.
+   * CV, System Design, Communication, Finance and Python keep their own hue. Never use it for a button, row, link or progress bar.
    */
   identity: string;
   defaultPromptAddons: { label: string; text: string }[];
@@ -171,6 +174,58 @@ export const LABS_CONFIG: Record<LabName, LabMeta> = {
       { label: '🐛 Visual Artifacts & Pitfalls', text: 'Highlight common real-world failures: lighting changes, sensor noise, aspect ratio distortion, and blur.' },
     ],
   },
+  communication: {
+    key: 'communication',
+    name: 'Communication Lab',
+    shortName: 'Communication',
+    icon: 'ChatBubbleOvalLeftEllipsisIcon',
+    description: 'Business English, effective communication and leadership: phrases, frameworks, role-plays and drills.',
+    identity: 'var(--lab-communication)',
+    sampleTopic: { name: 'Giving & Receiving Feedback', brief: 'Share specific, kind and useful feedback, and take it well.', subtopic: 'The SBI Model (Situation-Behavior-Impact)' },
+    defaultPromptAddons: [
+      { label: '🌍 Simple English', text: 'Use simple, clear English (CEFR B1-B2), explain every idiom, and point out mistakes non-native speakers commonly make.' },
+      { label: '💼 Corporate & Formal', text: 'Set every example in a formal corporate setting: a large company, senior stakeholders and client-facing work.' },
+      { label: '🚀 Startup & Tech Team', text: 'Set examples in a fast-moving tech team: Slack threads, stand-ups, product reviews, engineers and product managers.' },
+      { label: '🎤 Interview Ready', text: 'Tie every section back to how this skill is tested in interviews, with STAR-format sample answers.' },
+      { label: '🌏 Cross-Cultural Teams', text: 'Highlight how this works with colleagues from India, the US, Europe and East Asia, and how to adapt between them.' },
+      { label: '🧑‍💼 New Manager', text: 'Assume I have just become the manager of a small team and need practical, word-for-word scripts.' },
+    ],
+  },
+  finance: {
+    key: 'finance',
+    name: 'Finance Lab',
+    shortName: 'Finance',
+    icon: 'BanknotesIcon',
+    description: 'Finance for beginners, from money basics and markets to Python, machine learning and LLMs in finance.',
+    identity: 'var(--lab-finance)',
+    sampleTopic: { name: 'Time Value of Money', brief: 'Why money today is worth more than the same money next year.', subtopic: 'Present Value & Future Value' },
+    defaultPromptAddons: [
+      { label: '🔰 Absolute Beginner', text: 'Assume no finance background: define every term, avoid jargon, and use everyday analogies.' },
+      { label: '🇮🇳 Indian Context (₹)', text: 'Use Indian examples and rupees: SIPs, PPF, EPF, the Nifty 50, the RBI repo rate and Indian banks.' },
+      { label: '🇺🇸 US Context ($)', text: 'Use US examples and dollars: 401(k), IRAs, the S&P 500, the Federal Reserve and US banks.' },
+      { label: '🐍 More Python', text: 'Include a short runnable pandas example wherever numbers are involved.' },
+      { label: '📊 Spreadsheet First', text: 'Prefer Excel / Google Sheets formulas over code, with the exact formula for each cell.' },
+      { label: '🤖 AI Angle Everywhere', text: 'In every section, add one short note on how AI or machine learning applies to this topic.' },
+      { label: '💼 Finance Interview Prep', text: 'Tie the content to entry-level finance and fintech interview questions.' },
+    ],
+  },
+  python: {
+    key: 'python',
+    name: 'Python Lab',
+    shortName: 'Python',
+    icon: 'CommandLineIcon',
+    description: 'Python from the first program to OOP, testing, concurrency and building data and AI apps.',
+    identity: 'var(--lab-python)',
+    sampleTopic: { name: 'Iterators & Generators', brief: 'Produce values one at a time to save memory and simplify code.', subtopic: 'Generators & yield' },
+    defaultPromptAddons: [
+      { label: '🔰 Total Beginner', text: 'Assume I have never programmed before: explain every line and avoid jargon.' },
+      { label: '🧪 Test-Driven', text: 'Show a pytest test for every example and exercise.' },
+      { label: '🏷️ Type Hints Everywhere', text: 'Use modern type hints (Python 3.11+) in all code.' },
+      { label: '📊 Data & AI Examples', text: 'Set examples in data analysis and AI work: pandas DataFrames, model inputs and LLM API responses.' },
+      { label: '⚡ Performance Notes', text: 'Mention the time and memory cost of each approach and the faster alternative.' },
+      { label: '🎯 Interview Focus', text: 'Emphasise what Python interviews ask about this topic, including output-prediction questions.' },
+    ],
+  },
 };
 
 export function getSectionDefsForLab(lab: LabName): readonly SectionDef[] {
@@ -178,6 +233,9 @@ export function getSectionDefsForLab(lab: LabName): readonly SectionDef[] {
     case 'dsa': return DSA_SECTION_DEFS;
     case 'cv': return CV_SECTION_DEFS;
     case 'system_design': return SYSTEM_DESIGN_SECTION_DEFS;
+    case 'communication': return COMMUNICATION_SECTION_DEFS;
+    case 'finance': return FINANCE_SECTION_DEFS;
+    case 'python': return PYTHON_SECTION_DEFS;
   }
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
-import Icon from '@/components/ui/AppIcon';
+import { toneClass, type Tone } from '@/modules/daily-session/components/ds';
+import { RatingStars } from './QuestionTableRow';
 
 interface QuestionStats {
   totalQuestions: number;
@@ -23,10 +24,8 @@ interface QuestionStatsPanelProps {
   };
 }
 
-export default function QuestionStatsPanel({
-  stats,
-  activeFilters,
-}: QuestionStatsPanelProps) {
+/** The bank at a glance: four counts, the difficulty mix as one split bar, and the average self-rating. */
+export default function QuestionStatsPanel({ stats, activeFilters }: QuestionStatsPanelProps) {
   const hasActiveFilters =
     activeFilters.category !== 'All Categories' ||
     activeFilters.difficulty !== 'All Levels' ||
@@ -34,168 +33,81 @@ export default function QuestionStatsPanel({
     activeFilters.searchQuery !== '';
 
   const statCards = [
-    {
-      label: 'Total Questions',
-      value: stats.totalQuestions,
-      icon: 'BookOpenIcon' as const,
-      color: 'text-primary',
-      bgColor: 'bg-primary/10',
-    },
-    {
-      label: 'Interview',
-      value: stats.interviewQuestions,
-      icon: 'BriefcaseIcon' as const,
-      color: 'text-primary',
-      bgColor: 'bg-primary/10',
-    },
-    {
-      label: 'CV Skill',
-      value: stats.cvSkillQuestions,
-      icon: 'CpuChipIcon' as const,
-      color: 'text-secondary',
-      bgColor: 'bg-secondary/10',
-    },
-    {
-      label: 'Reviewed This Week',
-      value: stats.reviewedThisWeek,
-      icon: 'CheckCircleIcon' as const,
-      color: 'text-success',
-      bgColor: 'bg-success/10',
-    },
+    { label: 'Questions', value: stats.totalQuestions },
+    { label: 'Interview', value: stats.interviewQuestions },
+    { label: 'CV skill', value: stats.cvSkillQuestions },
+    { label: 'Reviewed this week', value: stats.reviewedThisWeek },
   ];
 
-  const difficultyStats = [
-    {
-      label: 'Easy',
-      value: stats.easyQuestions,
-      color: 'bg-success',
-      percentage: (stats.easyQuestions / stats.totalQuestions) * 100,
-    },
-    {
-      label: 'Medium',
-      value: stats.mediumQuestions,
-      color: 'bg-warning',
-      percentage: (stats.mediumQuestions / stats.totalQuestions) * 100,
-    },
-    {
-      label: 'Hard',
-      value: stats.hardQuestions,
-      color: 'bg-error',
-      percentage: (stats.hardQuestions / stats.totalQuestions) * 100,
-    },
+  const pct = (n: number) =>
+    stats.totalQuestions > 0 ? Math.round((n / stats.totalQuestions) * 100) : 0;
+  const difficultyStats: { label: string; value: number; tone: Tone }[] = [
+    { label: 'Easy', value: stats.easyQuestions, tone: 'jade' },
+    { label: 'Medium', value: stats.mediumQuestions, tone: 'gold' },
+    { label: 'Hard', value: stats.hardQuestions, tone: 'rose' },
   ];
+  const rated = stats.averagePerformance > 0;
 
   return (
-    <div className="space-y-18">
-      {hasActiveFilters && (
-        <div className="bg-primary/10 border border-primary/20 rounded-lg p-18">
-          <div className="flex items-center gap-12">
-            <Icon
-              name="FunnelIcon"
-              size={18}
-              variant="outline"
-              className="text-primary"
-            />
-            <div>
-              <p className="text-sm font-medium text-primary">
-                Filters Active
-              </p>
-              <p className="text-xs text-primary/80 font-caption mt-3">
-                Showing filtered results
-              </p>
-            </div>
+    <section className="ds-card p-3 sm:p-4" aria-labelledby="ins-bank-stats">
+      <h2 id="ins-bank-stats" className="sr-only">
+        Question statistics
+      </h2>
+      <dl className="ins-tiles grid grid-cols-2 gap-2 md:grid-cols-4">
+        {statCards.map((stat) => (
+          <div key={stat.label} className="ds-stat-tile">
+            <dt className="truncate">{stat.label}</dt>
+            <dd>{stat.value}</dd>
           </div>
-        </div>
-      )}
+        ))}
+      </dl>
 
-      <div className="bg-card rounded-lg p-24 shadow-md border border-border">
-        <h3 className="font-heading text-lg font-medium text-foreground mb-18">
-          Question Statistics
-        </h3>
-
-        <div className="grid grid-cols-2 gap-12 mb-24">
-          {statCards.map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-background rounded-lg p-18 border border-border"
-            >
-              <div className="flex items-center gap-12 mb-12">
-                <div
-                  className={`w-36 h-36 rounded-md ${stat.bgColor} flex items-center justify-center`}
-                >
-                  <Icon
-                    name={stat.icon}
-                    size={18}
-                    variant="outline"
-                    className={stat.color}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground font-caption">
-                    {stat.label}
-                  </p>
-                  <p className="text-2xl font-semibold text-foreground font-heading">
-                    {stat.value}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="pt-18 border-t border-border">
-          <h4 className="text-sm font-medium text-foreground mb-12 font-heading">
-            Difficulty Distribution
-          </h4>
-          <div className="space-y-12">
-            {difficultyStats.map((stat) => (
-              <div key={stat.label}>
-                <div className="flex items-center justify-between mb-6">
-                  <span className="text-sm text-muted-foreground font-caption">
-                    {stat.label}
-                  </span>
-                  <span className="text-sm font-medium text-foreground tabular-nums">
-                    {stat.value} ({Math.round(stat.percentage)}%)
-                  </span>
-                </div>
-                <div className="h-6 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${stat.color} transition-smooth`}
-                    style={{ width: `${stat.percentage}%` }}
-                  />
-                </div>
-              </div>
+      <div className="mt-3 flex flex-col gap-3 px-1 sm:mt-4 md:flex-row md:items-center md:gap-[1.5rem]">
+        <div className="min-w-0 flex-1">
+          <div
+            className="ins-mix"
+            role="img"
+            aria-label={`Difficulty mix: ${difficultyStats.map((d) => `${d.label} ${d.value}`).join(', ')}`}
+          >
+            {stats.totalQuestions > 0 &&
+              difficultyStats
+                .filter((d) => d.value > 0)
+                .map((d) => (
+                  <span key={d.label} className={toneClass(d.tone)} style={{ flexGrow: d.value }} />
+                ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            {difficultyStats.map((d) => (
+              <span key={d.label} className={`ins-key ${toneClass(d.tone)}`}>
+                <i aria-hidden="true" />
+                {d.label}
+                <span className="font-semibold ds-ink ds-num">{d.value}</span>
+                <span className="ds-faint ds-num">{pct(d.value)}%</span>
+              </span>
             ))}
           </div>
         </div>
 
-        <div className="mt-18 pt-18 border-t border-border">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground font-caption">
-              Average Performance
-            </span>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Icon
-                    key={star}
-                    name="StarIcon"
-                    size={16}
-                    variant={star <= stats.averagePerformance ? 'solid' : 'outline'}
-                    className={
-                      star <= stats.averagePerformance
-                        ? 'text-warning' :'text-muted-foreground'
-                    }
-                  />
-                ))}
-              </div>
-              <span className="text-sm font-medium text-foreground tabular-nums">
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t ds-hairline pt-3 md:border-0 md:pt-0">
+          <span className="text-[0.8rem] font-medium ds-faint">Average rating</span>
+          {rated ? (
+            <span className="inline-flex items-center gap-2">
+              <RatingStars value={Math.floor(stats.averagePerformance)} size={14} />
+              <span className="text-[0.88rem] font-semibold ds-ink ds-num">
                 {stats.averagePerformance.toFixed(1)}
               </span>
-            </div>
-          </div>
+            </span>
+          ) : (
+            <span className="text-[0.8rem] font-semibold ds-muted">Not rated yet</span>
+          )}
         </div>
       </div>
-    </div>
+
+      {hasActiveFilters && (
+        <p className="mt-3 px-1 text-[0.76rem] ds-faint">
+          Totals for your whole bank, not just the filtered list.
+        </p>
+      )}
+    </section>
   );
 }

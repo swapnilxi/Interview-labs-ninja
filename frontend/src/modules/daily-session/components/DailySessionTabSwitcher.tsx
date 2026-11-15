@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
@@ -62,10 +62,22 @@ interface DailySessionTabSwitcherProps {
   activeTab: DailySessionTab;
 }
 
+// useLayoutEffect warns during SSR; the thumb is measured in the browser only.
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
+/**
+ * The section switcher: an iOS segmented control whose raised thumb glides to the active section. On a phone the
+ * track scrolls sideways (the active section is kept in view); icons show from the small-tablet width up.
+ */
 export default function DailySessionTabSwitcher({ activeTab }: DailySessionTabSwitcherProps) {
   const { user } = useAuth();
   const isSwapnilxi = user?.email?.toLowerCase() === 'swapnilgupta.xi@gmail.com';
-  const navRef = useRef<HTMLElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLElement>(null);
+  const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
+  // The first placement jumps into position; only later moves glide.
+  const [glide, setGlide] = useState(false);
+  const [fits, setFits] = useState(true);
 
   const mySpaceTab: TabConfig = {
     id: isSwapnilxi ? 'swapnilxi-space' : 'myspace',
@@ -78,41 +90,76 @@ export default function DailySessionTabSwitcher({ activeTab }: DailySessionTabSw
 
   const visibleTabs = [...DAILY_SESSION_TABS, mySpaceTab];
 
-  // On a phone the bar scrolls sideways: keep the active tab in view (the bar only, never the page).
+  useIsoLayoutEffect(() => {
+    const track = trackRef.current;
+    const wrap = wrapRef.current;
+    if (!track || !wrap) return;
+    const measure = () => {
+      const el = track.querySelector<HTMLElement>('[aria-current="page"]');
+      setThumb(el ? { x: el.offsetLeft, w: el.offsetWidth } : null);
+      setFits(wrap.scrollWidth <= wrap.clientWidth + 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(track);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [activeTab, mySpaceTab.label]);
+
   useEffect(() => {
-    const nav = navRef.current;
-    const el = nav?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!nav || !el || nav.scrollWidth <= nav.clientWidth) return;
-    nav.scrollTo({ left: el.offsetLeft - (nav.clientWidth - el.offsetWidth) / 2 });
+    const id = requestAnimationFrame(() => setGlide(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // On a phone the track scrolls sideways: keep the active section in view (the track only, never the page).
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const el = trackRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!wrap || !el || wrap.scrollWidth <= wrap.clientWidth) return;
+    const left = el.offsetLeft - (wrap.clientWidth - el.offsetWidth) / 2;
+    wrap.scrollTo({ left, behavior: glide ? 'smooth' : 'auto' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   return (
-    <nav ref={navRef} aria-label="Daily Session sections" className="ds-tabs">
-      {visibleTabs.map((tab) => {
-        const isMySpaceTab = tab.id === 'myspace' || tab.id === 'swapnilxi-space';
-        const isActive =
-          activeTab === tab.id ||
-          (isMySpaceTab && (activeTab === 'myspace' || activeTab === 'swapnilxi-space'));
-        return (
-          <Link
-            key={tab.id}
-            href={tabHref(tab.id)}
-            scroll={false}
-            prefetch={false}
-            aria-current={isActive ? 'page' : undefined}
-            title={tab.description}
-            className="ds-tab"
-          >
-            <Icon
-              name={tab.icon}
-              size={18}
-              variant={isActive ? 'solid' : 'outline'}
-              className="flex-shrink-0"
-            />
-            {tab.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <div ref={wrapRef} className="ds-tabs-wrap" data-fits={fits}>
+      <nav ref={trackRef} aria-label="Daily Session sections" className="ds-tabs">
+        <span
+          className="ds-tabs-thumb"
+          aria-hidden="true"
+          data-ready={glide}
+          style={{
+            transform: `translateX(${thumb?.x ?? 0}px)`,
+            width: thumb?.w ?? 0,
+            opacity: thumb ? 1 : 0,
+          }}
+        />
+        {visibleTabs.map((tab) => {
+          const isMySpaceTab = tab.id === 'myspace' || tab.id === 'swapnilxi-space';
+          const isActive =
+            activeTab === tab.id ||
+            (isMySpaceTab && (activeTab === 'myspace' || activeTab === 'swapnilxi-space'));
+          return (
+            <Link
+              key={tab.id}
+              href={tabHref(tab.id)}
+              scroll={false}
+              prefetch={false}
+              aria-current={isActive ? 'page' : undefined}
+              title={tab.description}
+              className="ds-tab"
+            >
+              <Icon
+                name={tab.icon}
+                size={17}
+                variant={isActive ? 'solid' : 'outline'}
+                className="hidden flex-shrink-0 sm:block"
+              />
+              {tab.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
   );
 }

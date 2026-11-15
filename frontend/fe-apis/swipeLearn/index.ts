@@ -14,6 +14,8 @@
 import { NextResponse } from 'next/server';
 import { callAIText, resolveModel } from '../ai';
 import { HttpError, aiSettings, requireTodoUserId, type Row } from '../todo/_shared';
+import { memoryLines } from '../memory/db';
+import { research } from '../research/web';
 import { CardRequestError, buildCardPrompt, normalizeCardRequest } from '@/modules/swipe-learn/services/cardPrompt';
 
 // Ten cards with their depth sections run to ~5k tokens; leave room so the JSON is never cut off mid-card.
@@ -21,6 +23,14 @@ const MAX_TOKENS = 8192;
 // A slow model writing ten cards can take a while; the route's maxDuration (300s) leaves room for this.
 const AI_TIMEOUT_MS = 240_000;
 const NO_KEY_MARKER = 'No API key configured';
+const MEMORY_MODULE = 'swipe-learn';
+const BROAD_TOPICS = ['mixed', 'quiz'];
+
+/** What to look up for a "What's new" batch: the deck's topic (or the focus) plus 'latest releases'. */
+function researchQuery(req: { topic: { id: string; label: string }; focus: string }): string {
+  const label = BROAD_TOPICS.includes(req.topic.id) ? 'programming and AI' : req.topic.label;
+  return `${label} ${req.focus} latest releases news ${new Date().getFullYear()}`.replace('  ', ' ').trim();
+}
 
 function json(data: unknown, status = 200): NextResponse {
   return NextResponse.json(data, { status });
@@ -28,7 +38,7 @@ function json(data: unknown, status = 200): NextResponse {
 
 export async function handleSwipeLearnGenerate(req: Request): Promise<Response> {
   try {
-    requireTodoUserId(req);
+    const userId = requireTodoUserId(req);
     const text = await req.text();
     let body: unknown;
     try {
@@ -48,6 +58,13 @@ export async function handleSwipeLearnGenerate(req: Request): Promise<Response> 
       throw err;
     }
 
+    // Personalise from the shared AI memory (fe-apis/memory), then ground "What's new" cards in real pages.
+    cardReq.memory = memoryLines(userId, MEMORY_MODULE, cardReq.topic.id);
+    if (cardReq.format === 'recent-dev' && !cardReq.aboutCard) {
+      const found = (await research(researchQuery(cardReq), 3, 5)).results.filter((r) => r.text || r.snippet).slice(0, 3);
+      cardReq.sources = found.map((r) => ({ title: r.title || r.url, url: r.url, text: r.text || r.snippet }));
+    }
+
     const settings = aiSettings(body as Row);
     let answer: string;
     try {
@@ -60,7 +77,12 @@ export async function handleSwipeLearnGenerate(req: Request): Promise<Response> 
 
     if (!(answer || '').trim()) throw new HttpError(502, 'The AI returned an empty answer. Try again.');
     // `model` is the id the request resolved to (an empty choice means the server's .env default).
-    return json({ text: answer, model: resolveModel(settings.model) });
+    return json({
+      text: answer,
+      model: resolveModel(settings.model),
+      sources: cardReq.sources.map((s) => ({ title: s.title, url: s.url })),
+      memoryUsed: cardReq.memory.length,
+    });
   } catch (err) {
     if (err instanceof HttpError) return json({ detail: err.detail }, err.status);
     console.error('[swipe-learn fe-api] POST /swipe-learn/generate failed:', err);

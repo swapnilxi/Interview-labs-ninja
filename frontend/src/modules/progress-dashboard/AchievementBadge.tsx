@@ -8,6 +8,7 @@ interface AchievementBadgeProps {
   unlockedDate?: string;
 }
 
+/** An achievement as a row: a toned symbol tile (jade once unlocked), title, one-line description. Not rendered today. */
 export default function AchievementBadge({
   title,
   description,
@@ -16,39 +17,21 @@ export default function AchievementBadge({
   unlockedDate,
 }: AchievementBadgeProps) {
   return (
-    <div
-      className={`
-        bg-card rounded-lg p-18 border transition-smooth
-        ${isUnlocked ? 'border-success shadow-md' : 'border-border opacity-60'}
-      `}
-    >
-      <div className="flex items-start gap-12">
-        <div
-          className={`
-            w-48 h-48 rounded-md flex items-center justify-center flex-shrink-0
-            ${isUnlocked ? 'bg-success/20' : 'bg-muted'}
-          `}
-        >
-          <Icon
-            name={icon as any}
-            size={24}
-            variant={isUnlocked ? 'solid' : 'outline'}
-            className={isUnlocked ? 'text-success' : 'text-muted-foreground'}
-          />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-medium text-foreground mb-4 truncate">
-            {title}
-          </h4>
-          <p className="text-xs text-muted-foreground font-caption line-clamp-2">
-            {description}
+    <div className={`ds-card flex items-start gap-3 p-4 ${isUnlocked ? '' : 'opacity-60'}`}>
+      <span
+        className={`ds-icon-tile ${isUnlocked ? 'ds-tone-jade' : 'ds-tone-neutral'}`}
+        aria-hidden="true"
+      >
+        <Icon name={icon} size={20} variant={isUnlocked ? 'solid' : 'outline'} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h4 className="ds-h3">{title}</h4>
+        <p className="mt-0.5 line-clamp-2 text-[0.8rem] leading-snug ds-faint">{description}</p>
+        {isUnlocked && unlockedDate && (
+          <p className="mt-1.5 text-[0.75rem] font-semibold ds-tone-jade ds-tone-text">
+            Unlocked {unlockedDate}
           </p>
-          {isUnlocked && unlockedDate && (
-            <p className="text-xs text-success font-caption mt-6">
-              Unlocked {unlockedDate}
-            </p>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

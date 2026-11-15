@@ -125,7 +125,10 @@ export function Bar({
   );
 }
 
-/** A numbered step label: "1  Topic". */
+/**
+ * A step's label: "Topic", with an optional hint on the right. `n` is the step's place in the flow; it is announced
+ * to screen readers but not drawn (numbered circles read as clutter next to the cards' own structure).
+ */
 export function StepLabel({
   n,
   children,
@@ -137,13 +140,11 @@ export function StepLabel({
 }) {
   return (
     <div className="mb-3 flex items-baseline justify-between gap-3">
-      <h3 className="ds-h3 flex items-center gap-2.5">
-        <span className="ds-stepnum" aria-hidden="true">
-          {n}
-        </span>
+      <h3 className="ds-h3">
+        <span className="sr-only">Step {n}: </span>
         {children}
       </h3>
-      {hint && <span className="text-xs font-semibold ds-faint">{hint}</span>}
+      {hint && <span className="text-xs font-medium ds-faint">{hint}</span>}
     </div>
   );
 }
@@ -212,7 +213,7 @@ export function WeekStrip({ activeDays }: { activeDays: Set<string> }) {
             aria-label={`${new Date(`${d.key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long' })}${done ? ', practised' : ''}${d.isToday ? ', today' : ''}`}
           >
             <i aria-hidden="true">
-              {done ? (
+              {done && (
                 <svg
                   width="14"
                   height="14"
@@ -222,8 +223,6 @@ export function WeekStrip({ activeDays }: { activeDays: Set<string> }) {
                 >
                   <path d="M12.96 2.1a.75.75 0 0 0-1.17.1C9.6 5.4 8.66 7.56 8.5 9.2c-.62-.6-1.05-1.36-1.28-2.28a.75.75 0 0 0-1.3-.3C4.7 8.22 4 10.1 4 12.1 4 16.55 7.58 20 12 20s8-3.45 8-7.9c0-4.5-3.04-7.78-7.04-10Z" />
                 </svg>
-              ) : (
-                <span className="text-[11px]">·</span>
               )}
             </i>
             <span aria-hidden="true">{d.label}</span>

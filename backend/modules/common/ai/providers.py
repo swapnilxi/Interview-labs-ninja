@@ -148,12 +148,22 @@ def _call_vertex(
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def _call_openai_compatible(prompt: str, api_key: str, base_url: str, model: str, max_tokens: int = 2048) -> str:
+def _call_openai_compatible(
+    prompt: str,
+    api_key: str,
+    base_url: str,
+    model: str,
+    max_tokens: int = 2048,
+    extra: Optional[dict] = None,
+    timeout: int = 45,
+) -> str:
+    """`extra` adds provider-specific body fields (e.g. DeepSeek's reasoning_effort); `timeout` is in seconds."""
     body = json.dumps({
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
         "max_tokens": max_tokens,
+        **(extra or {}),
     }).encode()
     req = urllib.request.Request(
         f"{base_url.rstrip('/')}/chat/completions",
@@ -161,7 +171,7 @@ def _call_openai_compatible(prompt: str, api_key: str, base_url: str, model: str
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
         method="POST",
     )
-    with _urlopen_surfacing_errors(req, timeout=45) as resp:
+    with _urlopen_surfacing_errors(req, timeout=timeout) as resp:
         data = json.loads(resp.read())
     return data["choices"][0]["message"]["content"]
 

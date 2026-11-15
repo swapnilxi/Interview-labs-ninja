@@ -27,6 +27,7 @@ import { compileRoutes, dispatch, type TodoRoute } from '../todo/router';
 import { HttpError, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
 import { hashesFor } from './dedup';
 import { generateSessionQuestions } from './generate';
+import { memoryLines, record as recordMemory } from '../memory/db';
 
 // ── Schema (copies of common/db.py; the git-tracked database already has these) ──────────────────────────────
 
@@ -249,7 +250,26 @@ function updatePerformance(userId: number, id: number, body: unknown): Row {
         .changes
   );
   if (changes === 0) throw new HttpError(404, 'Question not found');
+  rememberPerformance(userId, id, perf);
   return { status: 'success' };
+}
+
+/**
+ * Low (1-2) and high (4-5) star ratings become memory facts about the question's topic. Best effort.
+ * Twin: _remember_performance() in backend/modules/daily_session/daily_session.py.
+ */
+function rememberPerformance(userId: number, questionId: number, rating: number): void {
+  if (rating === 3 || rating < 1 || rating > 5) return;
+  try {
+    const row = withSessionDb((db) =>
+      db.get<{ sub_type: string; question_text: string }>('SELECT sub_type, question_text FROM questions WHERE id = ? AND user_id = ?', questionId, userId)
+    );
+    if (!row) return;
+    const verb = rating <= 2 ? 'Rated itself low on' : 'Rated itself high on';
+    recordMemory(userId, 'daily-session', row.sub_type || '', rating <= 2 ? 'struggle' : 'mastered', `${verb}: "${Array.from(row.question_text).slice(0, 90).join('')}"`);
+  } catch (err) {
+    console.warn('[memory] could not record performance:', err instanceof Error ? err.message : err);
+  }
 }
 
 function persistQuestions(userId: number, body: unknown): Row {
@@ -492,7 +512,7 @@ const PRIVATE: TodoRoute[] = [
       const bank = withSessionDb((db) =>
         db.all<{ question_text: string }>('SELECT question_text FROM questions ORDER BY id').map((r) => r.question_text)
       );
-      return generateSessionQuestions(body, bank);
+      return generateSessionQuestions(body, bank, memoryLines(ctx.userId, 'daily-session', ''));
     },
   },
 ];

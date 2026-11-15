@@ -42,6 +42,10 @@ const nextConfig = {
     '/api/dsa/[...path]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/cv/[...path]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/system-design/[...path]': ['../backend/data/lab_ninja.sqlite3'],
+    // The topic labs also read their seed topics (fe-apis/labs seedTopicLabs).
+    '/api/communication/[...path]': ['../backend/data/lab_ninja.sqlite3', '../backend/modules/communication_lab/topics.json'],
+    '/api/finance/[...path]': ['../backend/data/lab_ninja.sqlite3', '../backend/modules/finance_lab/topics.json'],
+    '/api/python/[...path]': ['../backend/data/lab_ninja.sqlite3', '../backend/modules/python_lab/topics.json'],
     '/api/lab-sections/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/lab-projects/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/sessions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
@@ -49,6 +53,9 @@ const nextConfig = {
     '/api/session-progress/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     // Auth only (the account-status check reads the users table); the cards themselves live in the browser.
     '/api/swipe-learn/generate': ['../backend/data/lab_ninja.sqlite3'],
+    // Per-user AI memory table, and the research tool (auth only).
+    '/api/memory/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/research/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/subscribe': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/test': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/fcm-token': ['../backend/data/lab_ninja.sqlite3'],
@@ -105,6 +112,7 @@ const nextConfig = {
       { source: '/admin/:path*', destination: '/api/admin/:path*' },
       // Exact path only: '/config/:path*' would also match '/config' and hijack the Config page.
       { source: '/config/ai-default', destination: '/api/config/ai-default' },
+      { source: '/config/test-key', destination: '/api/config/test-key' },
       // To-Do API (fe-apis/todo). ':path+' needs at least one segment, so the bare /todo
       // URL still reaches the redirect to the /ai-todo page above.
       { source: '/todo/:path+', destination: '/api/todo/:path+' },
@@ -122,9 +130,15 @@ const nextConfig = {
       { source: '/dsa/sections', destination: '/api/dsa/sections' },
       { source: '/cv/:path+', destination: '/api/cv/:path+' },
       { source: '/system-design/:path+', destination: '/api/system-design/:path+' },
+      { source: '/communication/:path+', destination: '/api/communication/:path+' },
+      { source: '/finance/:path+', destination: '/api/finance/:path+' },
+      { source: '/python/:path+', destination: '/api/python/:path+' },
       { source: '/sessions/:path*', destination: '/api/sessions/:path*' },
       { source: '/questions/:path*', destination: '/api/questions/:path*' },
       { source: '/session-progress/:path*', destination: '/api/session-progress/:path*' },
+      { source: '/memory/:path*', destination: '/api/memory/:path*' },
+      { source: '/memory', destination: '/api/memory' },
+      { source: '/research/:path*', destination: '/api/research/:path*' },
       // Exact path: /swipe-learn itself is a page.
       { source: '/swipe-learn/generate', destination: '/api/swipe-learn/generate' },
       { source: '/access-requests/:path*', destination: '/api/access-requests/:path*' },
