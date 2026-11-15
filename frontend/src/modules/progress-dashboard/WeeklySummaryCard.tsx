@@ -19,7 +19,7 @@ export default function WeeklySummaryCard({
   focusAreas,
 }: WeeklySummaryCardProps) {
   return (
-    <div className="bg-card rounded-lg p-24 shadow-md border border-border">
+    <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-24">
       <div className="flex items-center justify-between mb-24">
         <div>
           <h3 className="font-heading text-lg font-medium text-foreground">

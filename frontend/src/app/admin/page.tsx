@@ -12,9 +12,12 @@ export default function AdminPage() {
   return (
     <>
       <Header />
-      <RequireAdmin>
-        <AdminModule />
-      </RequireAdmin>
+      {/* Clear the fixed 60px nav bar (the module and the access gate both start at the top of the page). */}
+      <div className="pt-[60px]">
+        <RequireAdmin>
+          <AdminModule />
+        </RequireAdmin>
+      </div>
     </>
   );
 }

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromAuthHeader } from '../_shared/db';
+import { getUserFromAuthHeader, publicUser } from '../_shared/db';
 
 export function handleMe(req: NextRequest): NextResponse {
   const authHeader = req.headers.get('authorization');
@@ -19,10 +19,6 @@ export function handleMe(req: NextRequest): NextResponse {
     );
   }
 
-  return NextResponse.json({
-    id: user.id,
-    email: user.email,
-    display_name: user.display_name,
-    role: user.role,
-  });
+  // Same shape as Python's _public_user (status + effective permissions included).
+  return NextResponse.json(publicUser(user));
 }

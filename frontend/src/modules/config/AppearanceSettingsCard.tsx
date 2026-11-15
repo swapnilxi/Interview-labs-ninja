@@ -2,7 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import { ACCENT_PRESETS, applyAccent, getStoredAccent, isValidHex, setStoredAccent } from '@/lib/services/appearanceService';
+import {
+  ACCENT_PRESETS,
+  applyAccent,
+  getStoredAccent,
+  isValidHex,
+  setStoredAccent,
+  withColorTransition,
+} from '@/lib/services/appearanceService';
 import {
   SidebarMode,
   getStoredSidebarMode,
@@ -11,26 +18,59 @@ import {
 } from '@/lib/services/sidebarService';
 import { SETTINGS_CARD, SettingsCardHeader } from './SettingsCard';
 
-const DEFAULT_SWATCH = '#5b5bd6';
+/** Readable mark colour on a swatch: ink on light swatches, white on dark ones. */
+function markColor(hex: string): string {
+  const c = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6 ? '#0b1020' : '#ffffff';
+}
+
+/**
+ * The accent actually in use (per theme the shade is adjusted for contrast, see appearanceService.deriveAccentTokens),
+ * re-read when the accent or the theme changes (both land on <html>: an inline style, the `dark` class).
+ */
+function useAppliedAccent(): { applied: string; fallbackDefault: string } {
+  const [state, setState] = useState({ applied: '', fallbackDefault: '' });
+  useEffect(() => {
+    const root = document.documentElement;
+    const read = () => {
+      const cs = getComputedStyle(root);
+      setState({
+        applied: cs.getPropertyValue('--color-primary').trim(),
+        fallbackDefault: cs.getPropertyValue('--accent-default').trim(),
+      });
+    };
+    read();
+    const observer = new MutationObserver(read);
+    observer.observe(root, { attributes: true, attributeFilter: ['class', 'style'] });
+    return () => observer.disconnect();
+  }, []);
+  return state;
+}
 
 export default function AppearanceSettingsCard() {
   const [accentHex, setAccentHex] = useState<string | null>(null);
   const [customHex, setCustomHex] = useState('#7131CC');
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('icon-only');
   const [hydrated, setHydrated] = useState(false);
+  const { applied, fallbackDefault } = useAppliedAccent();
 
   useEffect(() => {
-    setAccentHex(getStoredAccent());
+    const stored = getStoredAccent();
+    setAccentHex(stored);
+    if (stored && !ACCENT_PRESETS.some((p) => p.hex?.toLowerCase() === stored.toLowerCase())) setCustomHex(stored);
     setSidebarMode(getStoredSidebarMode());
     setHydrated(true);
     const unsub = subscribeSidebarMode((m) => setSidebarMode(m));
     return () => unsub();
   }, []);
 
+  // Same store, same apply as before: the whole interface re-tints at once (CSS variables on <html>), with a short
+  // cross-fade instead of a snap.
   const choose = (hex: string | null) => {
     setAccentHex(hex);
     setStoredAccent(hex);
-    applyAccent(hex);
+    withColorTransition(() => applyAccent(hex));
   };
 
   const handleSidebarModeChange = (mode: SidebarMode) => {
@@ -38,81 +78,117 @@ export default function AppearanceSettingsCard() {
     setStoredSidebarMode(mode);
   };
 
-  const isCustomActive = hydrated && !!accentHex && !ACCENT_PRESETS.some((p) => p.hex?.toLowerCase() === accentHex.toLowerCase());
+  const activePreset = hydrated ? ACCENT_PRESETS.find((p) => (p.hex?.toLowerCase() ?? null) === (accentHex?.toLowerCase() ?? null)) : undefined;
+  const isCustomActive = hydrated && !!accentHex && !activePreset;
+  const selectedName = !hydrated ? '' : isCustomActive ? 'Custom' : activePreset?.label ?? 'Default';
+  const shownHex = (applied || fallbackDefault).toUpperCase();
+  const adjusted = !!accentHex && !!applied && applied.toLowerCase() !== accentHex.toLowerCase();
 
   return (
-    <div className={SETTINGS_CARD}>
+    <div id="appearance" className={`${SETTINGS_CARD} scroll-mt-[calc(var(--chrome-top)+1rem)]`}>
       <SettingsCardHeader
         icon="SwatchIcon"
         title="Appearance"
         description="Pick an accent color for buttons, highlights, focus rings, and glow effects across the whole app"
       />
 
-      <div className="flex flex-wrap gap-3">
-        {ACCENT_PRESETS.map((preset) => {
-          const isActive = hydrated && accentHex === preset.hex;
-          const swatch = preset.hex || DEFAULT_SWATCH;
-          return (
-            <button
-              key={preset.key}
-              type="button"
-              onClick={() => choose(preset.hex)}
-              title={preset.label}
-              aria-pressed={isActive}
-              className={`todo-focus flex flex-col items-center gap-1.5 w-20 rounded-lg border p-2 transition-smooth ${
-                isActive ? 'mix-border-primary/60 mix-bg-primary/[0.08]' : 'border-border hover:mix-border-primary/30'
-              }`}
-            >
-              <span
-                className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{
-                  backgroundColor: swatch,
-                  boxShadow: isActive ? `0 0 14px ${swatch}66` : undefined,
-                  border: preset.hex ? undefined : '2px dashed rgba(127,127,127,0.4)',
-                }}
-              >
-                {isActive && (
-                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </span>
-              <span className="w-full break-words text-center text-xs font-medium leading-tight text-muted-foreground">
-                {preset.label}
-              </span>
-            </button>
-          );
-        })}
-
-        <label
-          className={`flex flex-col items-center gap-1.5 w-20 rounded-lg border p-2 cursor-pointer transition-smooth focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background ${
-            isCustomActive ? 'mix-border-primary/60 mix-bg-primary/[0.08]' : 'border-border hover:mix-border-primary/30'
-          }`}
-        >
-          <span
-            className="relative h-8 w-8 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground text-xs font-semibold overflow-hidden flex-shrink-0"
-            style={isCustomActive ? { backgroundColor: accentHex as string, color: 'transparent', borderStyle: 'solid' } : undefined}
-          >
-            +
-            <input
-              type="color"
-              value={isValidHex(customHex) ? customHex : '#7131CC'}
-              onChange={(e) => {
-                setCustomHex(e.target.value);
-                choose(e.target.value);
-              }}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              aria-label="Custom accent color"
-            />
-          </span>
-          <span className="text-xs font-medium leading-tight text-muted-foreground">Custom</span>
-        </label>
+      {/* Live preview: real controls drawn with the accent tokens, so the choice is visible right here as well as
+          everywhere else (the whole app re-tints at the same moment). */}
+      <div className="accent-preview" aria-hidden="true">
+        <span className="accent-preview-button">Continue</span>
+        <span className="accent-preview-switch">
+          <span />
+        </span>
+        <span className="accent-preview-check">
+          <Icon name="CheckIcon" size={14} variant="solid" />
+        </span>
+        <span className="accent-preview-segment">
+          <span className="ios-segment ios-segment-active h-7 px-2.5">Day</span>
+          <span className="ios-segment h-7 px-2.5">Week</span>
+        </span>
+        <span className="accent-preview-progress">
+          <span />
+        </span>
       </div>
 
-      {/* Sidebar Navigation Layout Mode */}
-      <div className="pt-[1.25rem] border-t border-border space-y-3">
+      <div>
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h4 className="text-[15px] font-semibold text-foreground">Accent colour</h4>
+          {hydrated && (
+            <span className="flex items-center gap-2 text-[13px] text-muted-foreground" aria-live="polite">
+              <span className="font-semibold text-foreground">{selectedName}</span>
+              <span className="font-code text-[12px] tabular-nums">{shownHex}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="accent-swatches" role="radiogroup" aria-label="Accent colour">
+          {ACCENT_PRESETS.map((preset) => {
+            const isActive = hydrated && (accentHex?.toLowerCase() ?? null) === (preset.hex?.toLowerCase() ?? null);
+            const swatch = preset.hex ?? (fallbackDefault || 'var(--accent-default)');
+            return (
+              <button
+                key={preset.key}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                onClick={() => choose(preset.hex)}
+                title={preset.hex ? `${preset.label} ${preset.hex}` : 'Default (lime on dark, fern on light)'}
+                className="accent-swatch"
+                data-active={isActive || undefined}
+              >
+                <span className="accent-swatch-dot" style={{ ['--swatch' as string]: swatch }}>
+                  {isActive && (
+                    <Icon
+                      name="CheckIcon"
+                      size={20}
+                      variant="solid"
+                      className="accent-swatch-check"
+                      style={{ color: preset.hex ? markColor(preset.hex) : 'var(--color-primary-foreground)' }}
+                    />
+                  )}
+                </span>
+                <span className="accent-swatch-label">{preset.label}</span>
+              </button>
+            );
+          })}
+
+          <label className="accent-swatch cursor-pointer" data-active={isCustomActive || undefined} title="Custom colour">
+            <span
+              className={`accent-swatch-dot ${isCustomActive ? '' : 'accent-swatch-dot-custom'}`}
+              style={isCustomActive ? { ['--swatch' as string]: accentHex as string } : undefined}
+            >
+              {isCustomActive ? (
+                <Icon name="CheckIcon" size={20} variant="solid" className="accent-swatch-check" style={{ color: markColor(accentHex as string) }} />
+              ) : (
+                <Icon name="PlusIcon" size={20} className="text-white drop-shadow" />
+              )}
+              <input
+                type="color"
+                value={isValidHex(customHex) ? customHex : '#7131CC'}
+                onChange={(e) => {
+                  setCustomHex(e.target.value);
+                  choose(e.target.value);
+                }}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                aria-label="Custom accent colour"
+              />
+            </span>
+            <span className="accent-swatch-label">Custom</span>
+          </label>
+        </div>
+
+        {adjusted && (
+          <p className="mt-3 text-[12px] leading-snug text-muted-foreground">
+            The shade is adjusted for this theme so text and buttons stay readable.
+          </p>
+        )}
+      </div>
+
+      {/* Sidebar Navigation Layout Mode — tablet and desktop only: phones have no left-hand menu (the tab bar replaces it). */}
+      <div className="hidden space-y-3 border-t border-border pt-[1.25rem] md:block">
         <div className="flex items-center gap-2.5">
-          <Icon name="Bars3BottomLeftIcon" size={20} className="text-primary shrink-0" />
+          <Icon name="Bars3BottomLeftIcon" size={20} className="lab-ink shrink-0" />
           <div>
             <h4 className="font-heading text-sm font-semibold text-foreground">Left-Hand Menu Layout</h4>
             <p className="text-xs text-muted-foreground">
@@ -146,7 +222,7 @@ export default function AppearanceSettingsCard() {
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-semibold text-foreground">Icon-Only Sidebar</span>
                 {sidebarMode === 'icon-only' && (
-                  <span className="text-[11px] font-semibold uppercase tracking-wider lab-ink lab-tint px-1.5 py-0.5 rounded">
+                  <span className="lab-ink lab-tint rounded-full px-2 py-0.5 text-xs font-semibold">
                     Active
                   </span>
                 )}
@@ -181,7 +257,7 @@ export default function AppearanceSettingsCard() {
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-semibold text-foreground">Completely Hidden</span>
                 {sidebarMode === 'hidden' && (
-                  <span className="text-[11px] font-semibold uppercase tracking-wider lab-ink lab-tint px-1.5 py-0.5 rounded">
+                  <span className="lab-ink lab-tint rounded-full px-2 py-0.5 text-xs font-semibold">
                     Active
                   </span>
                 )}

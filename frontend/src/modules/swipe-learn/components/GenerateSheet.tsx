@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Modal from '@/components/ui/Modal';
 import Icon from '@/components/ui/AppIcon';
 import type { DifficultyLevel, GenerateFormat, GenerateOptions } from '../types';
-import type { GeminiKeySource } from '../services/geminiService';
+import NoAiKeyActions from './NoAiKeyActions';
 
 interface GenerateSheetProps {
   isOpen: boolean;
@@ -17,8 +17,10 @@ interface GenerateSheetProps {
   focusIdeas: string[];
   focusPlaceholder: string;
   onGenerate: (options: GenerateOptions) => void;
-  keySource: GeminiKeySource;
-  model: string;
+  /** False when there is no AI to use (the footer then shows how to add a key). */
+  hasKey: boolean;
+  /** Which AI writes the cards, e.g. "gpt-4o-mini · from Config" or "Gemini · gemini-flash-latest". */
+  modelLabel: string;
   onOpenSettings: () => void;
   busy: boolean;
 }
@@ -55,8 +57,8 @@ export default function GenerateSheet({
   focusIdeas,
   focusPlaceholder,
   onGenerate,
-  keySource,
-  model,
+  hasKey,
+  modelLabel,
   onOpenSettings,
   busy,
 }: GenerateSheetProps) {
@@ -75,7 +77,6 @@ export default function GenerateSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const hasKey = keySource !== 'none';
   const levelLocked = format === 'advanced-concept';
 
   const submit = (e?: React.FormEvent) => {
@@ -236,10 +237,7 @@ export default function GenerateSheet({
                   : `Generate ${count} ${count === 1 ? 'card' : 'cards'}`}
               </button>
               <p className="mt-2 flex items-center justify-center gap-1 text-center text-xs text-muted-foreground">
-                <span className="truncate">
-                  Gemini · {model}
-                  {keySource === 'config' ? ' · key from Config' : ''}
-                </span>
+                <span className="truncate">{modelLabel}</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -253,24 +251,7 @@ export default function GenerateSheet({
               </p>
             </>
           ) : (
-            <div className="space-y-2.5">
-              <div className="swipe-note swipe-note-warn">
-                <Icon name="KeyIcon" size={18} className="mt-px shrink-0" />
-                <span>
-                  Cards are written by Google Gemini. Add your own (free) API key to generate.
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenSettings();
-                }}
-                className="swipe-primary-btn w-full"
-              >
-                Add a Gemini key
-              </button>
-            </div>
+            <NoAiKeyActions onOpenSettings={onOpenSettings} onBeforeAction={onClose} />
           )}
         </div>
       </form>

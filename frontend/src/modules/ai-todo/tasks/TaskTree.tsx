@@ -906,7 +906,7 @@ function hasNarrowingFilterBesidesTop20(f: TaskFilters): boolean {
 function DepthLegend() {
   return (
     <div role="group" aria-label="Task depth" className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-muted-foreground">
-      <span className="text-[11px] font-semibold uppercase tracking-wider">Depth</span>
+      <span className="text-[12px] font-semibold">Depth</span>
       {DEPTH_COLORS.map((color, i) => (
         <span
           key={i}
@@ -1288,12 +1288,12 @@ function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
             <div className="p-3 rounded-lg mix-bg-muted/40 border border-border flex items-center justify-around text-center">
               <div>
                 <span className="block text-xl font-bold text-primary">{completedTasks.length}</span>
-                <span className="text-[11px] text-muted-foreground font-medium uppercase">Completed</span>
+                <span className="text-[12px] font-medium text-muted-foreground">Completed</span>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
                 <span className="block text-xl font-bold text-amber-500">{incompleteTasks.length}</span>
-                <span className="text-[11px] text-muted-foreground font-medium uppercase">Incomplete</span>
+                <span className="text-[12px] font-medium text-muted-foreground">Incomplete</span>
               </div>
             </div>
 
@@ -1427,7 +1427,7 @@ function ResumePanel({ task, model, onClose, onStartWorking }: ResumePanelProps)
   }, [task.id, model]);
 
   return (
-    <div role="complementary" aria-label="Task briefing" className="fixed top-[60px] right-0 bottom-0 w-full sm:w-[450px] bg-card border-l border-border shadow-2xl z-50 flex flex-col transition-all duration-300 animate-slide-in">
+    <div role="complementary" aria-label="Task briefing" className="fixed top-[var(--chrome-top)] right-0 bottom-[var(--mobile-tab-h,0px)] w-full sm:w-[450px] bg-card border-l border-border shadow-2xl z-50 flex flex-col transition-all duration-300 animate-slide-in">
       {/* Panel Header */}
       <div className="p-4 border-b border-border flex items-center justify-between mix-bg-muted/30">
         <div className="flex items-center gap-2">

@@ -4,10 +4,12 @@ import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Modal from '@/components/ui/Modal';
+import { isNativeApp, sendNativeTestNotification } from '@/lib/reminders/nativeReminders';
 import {
   browserPermission,
   clearNotifications,
   enableBrowserNotifications,
+  sendBrowserTestNotification,
   sendTestNotification,
   getNotifications,
   getPrefs,
@@ -275,47 +277,58 @@ function Panel({ onClose }: { onClose: () => void }) {
   const prefs = useSyncExternalStore(subscribeNotifications, getPrefs, getServerPrefs);
   const [filter, setFilter] = useState<Filter>('all');
   const [view, setView] = useState<'list' | 'settings'>('list');
-  const [testing, setTesting] = useState(false);
+  const [testing, setTesting] = useState<null | 'app' | 'browser'>(null);
 
-  const handleTestNotification = async () => {
+  /** App notification: the in-app card, plus a real system notification when running inside the Android app. */
+  const handleTestApp = async () => {
     if (testing) return;
-    setTesting(true);
+    setTesting('app');
     try {
-      const permBefore = browserPermission();
-      if (permBefore === 'unsupported') {
-        toast.error('Device notifications are not supported in this browser. On iOS, add to Home Screen first.');
-        notify({
-          source: 'system',
-          title: 'Test Notification (In-App) 🔔',
-          body: 'In-app notification working! Browser push is not supported in this browser view.',
-          tone: 'info',
-          href: '/ai-todo?tab=today',
-          toast: true,
-        });
-        return;
-      }
-      if (permBefore === 'denied') {
-        toast.error('Notifications are blocked. Please allow notifications in site settings.');
-        return;
-      }
-      const shown = await sendTestNotification();
       notify({
-        source: 'daily-session',
-        title: 'Test Notification Received 🔔',
-        body: shown
-          ? 'Mobile device notification dispatched! Tap to test opening the app.'
-          : 'In-app test recorded. Allow browser permissions to receive system alerts.',
-        tone: shown ? 'success' : 'info',
+        source: 'system',
+        title: 'Test app notification',
+        body: 'The in-app notification is working. Tap to open To-Do.',
+        tone: 'success',
         href: '/ai-todo?tab=today',
         toast: true,
       });
-      if (shown) {
-        toast.success('Test alert sent! Check your notification shade.');
+      if (isNativeApp()) {
+        const scheduled = await sendNativeTestNotification(5);
+        if (scheduled) toast.success('A phone notification arrives in 5 seconds. Close the app to see it fire closed.');
+        else toast.error('The phone blocked notifications. Allow them for LabNinja in the phone’s app settings.');
       }
     } catch {
-      toast.error('Could not send test notification.');
+      toast.error('Could not send the app test notification.');
     } finally {
-      setTesting(false);
+      setTesting(null);
+    }
+  };
+
+  /** Browser alert: only the web paths (Web Push, service worker, Notification API). Not available inside the app. */
+  const handleTestBrowser = async () => {
+    if (testing) return;
+    setTesting('browser');
+    try {
+      if (isNativeApp()) {
+        toast.info('Browser alerts do not exist inside the app. Use “Test app” here, or open the site in a browser.');
+        return;
+      }
+      const perm = browserPermission();
+      if (perm === 'unsupported') {
+        toast.error('This browser can’t show notifications. On iPhone, add the site to the Home Screen first.');
+        return;
+      }
+      if (perm === 'denied') {
+        toast.error('Notifications are blocked. Allow them in the browser’s site settings.');
+        return;
+      }
+      const shown = await sendBrowserTestNotification();
+      if (shown) toast.success('Browser alert sent. Check your notification shade.');
+      else toast.error('The browser did not show it. Check the permission and the setup guide.');
+    } catch {
+      toast.error('Could not send the browser test alert.');
+    } finally {
+      setTesting(null);
     }
   };
 
@@ -331,12 +344,12 @@ function Panel({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      {/* Drag-handle affordance, phones only */}
-      <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden="true">
-        <span className="h-1.5 w-10 rounded-full mix-bg-muted-foreground/30" />
+      {/* Drag handle, phones only: drag it down to dismiss (Modal wires [data-sheet-grabber]). */}
+      <div className="ios-sheet-grabber sm:hidden" data-sheet-grabber="" aria-hidden="true">
+        <span />
       </div>
 
-      <div className="flex items-center gap-2 px-4 pb-2 pt-2 sm:px-5 sm:pt-4">
+      <div className="flex items-center gap-2 px-4 pb-2 pt-1 sm:px-5 sm:pt-4">
         {view === 'settings' ? (
           <button
             type="button"
@@ -347,7 +360,7 @@ function Panel({ onClose }: { onClose: () => void }) {
             <Icon name="ChevronLeftIcon" size={18} />
           </button>
         ) : null}
-        <h2 id="notif-title" className="font-heading flex-1 text-lg font-semibold text-foreground">
+        <h2 id="notif-title" className="ios-sheet-title flex-1">
           {view === 'settings' ? 'Notification settings' : 'Notifications'}
           {view === 'list' && unread > 0 && (
             <span className="ml-2 rounded-full bg-primary px-2 py-0.5 align-middle text-xs font-bold text-primary-foreground">
@@ -355,18 +368,6 @@ function Panel({ onClose }: { onClose: () => void }) {
             </span>
           )}
         </h2>
-        {view === 'list' && (
-          <button
-            type="button"
-            onClick={handleTestNotification}
-            disabled={testing}
-            title="Send test notification to mobile/device"
-            className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-semibold text-primary transition-all hover:bg-primary/20 active:scale-95 disabled:opacity-50"
-          >
-            <Icon name="BellAlertIcon" size={14} />
-            <span>{testing ? 'Sending…' : 'Test alert'}</span>
-          </button>
-        )}
         {view === 'list' && (
           <button
             type="button"
@@ -384,6 +385,9 @@ function Panel({ onClose }: { onClose: () => void }) {
           className="hidden h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground sm:flex"
         >
           <Icon name="XMarkIcon" size={18} />
+        </button>
+        <button type="button" onClick={onClose} className="sheet-done sm:hidden">
+          Done
         </button>
       </div>
 
@@ -436,17 +440,28 @@ function Panel({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-2 sm:px-5">
-            <button
-              type="button"
-              onClick={handleTestNotification}
-              disabled={testing}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary/10 px-3 text-xs font-semibold text-primary transition-all hover:bg-primary/20 active:scale-95 disabled:opacity-50"
-            >
-              <Icon name="BellAlertIcon" size={14} />
-              <span>{testing ? 'Sending…' : 'Test notification'}</span>
-            </button>
-            <div className="flex items-center gap-1">
+          <div className="flex flex-col gap-2 border-t border-border px-4 py-2 sm:px-5">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void handleTestApp()}
+                disabled={testing !== null}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg mix-bg-primary/10 px-3 text-xs font-semibold text-primary transition-all hover:mix-bg-primary/20 active:scale-95 disabled:opacity-50"
+              >
+                <Icon name="DevicePhoneMobileIcon" size={14} />
+                <span>{testing === 'app' ? 'Sending…' : 'Test app notification'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleTestBrowser()}
+                disabled={testing !== null}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg mix-bg-primary/10 px-3 text-xs font-semibold text-primary transition-all hover:mix-bg-primary/20 active:scale-95 disabled:opacity-50"
+              >
+                <Icon name="BellAlertIcon" size={14} />
+                <span>{testing === 'browser' ? 'Sending…' : 'Test alert (browser)'}</span>
+              </button>
+            </div>
+            <div className="flex items-center justify-end gap-1">
               {items.length > 0 && (
                 <>
                   <button
@@ -480,9 +495,9 @@ export function NotificationSheet({ isOpen, onClose }: { isOpen: boolean; onClos
       isOpen={isOpen}
       onClose={onClose}
       labelledBy="notif-title"
-      backdropClassName="bg-black/40 backdrop-blur-[2px]"
+      backdropClassName="ios-sheet-backdrop"
       overlayClassName="flex items-end justify-center sm:items-start sm:justify-end sm:p-3 sm:pt-[68px]"
-      className="notif-sheet flex w-full flex-col overflow-hidden border border-border bg-card shadow-2xl sm:w-[400px]"
+      className="notif-sheet ios-sheet flex w-full flex-col overflow-hidden sm:w-[400px]"
     >
       <Panel onClose={onClose} />
     </Modal>
@@ -506,7 +521,7 @@ export default function NotificationBell({ variant = 'icon' }: { variant?: 'icon
           className="mobile-tab"
         >
           <span className="relative">
-            <Icon name="BellIcon" size={22} variant="outline" />
+            <Icon name="BellIcon" size={24} variant="outline" />
             {unread > 0 && <span className="notif-badge">{badge}</span>}
           </span>
           <span>Alerts</span>

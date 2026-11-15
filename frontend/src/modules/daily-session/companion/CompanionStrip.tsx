@@ -20,8 +20,8 @@ export default function CompanionStrip({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`flex items-end justify-between gap-3 ${className}`}>
-      <div className="min-w-0 flex-1">
+    <div className={`flex flex-wrap items-end justify-between gap-x-3 gap-y-2 sm:flex-nowrap ${className}`}>
+      <div className="min-w-0 flex-1 basis-full sm:basis-0">
         <CompanionBubble
           text={c.msg}
           mood={c.mood}

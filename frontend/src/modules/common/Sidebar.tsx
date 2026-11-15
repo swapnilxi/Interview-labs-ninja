@@ -7,6 +7,8 @@ import { usePathname } from 'next/navigation';
 import { useLocationSearch } from '@/lib/navigation/useLocationSearch';
 import Icon from '@/components/ui/AppIcon';
 import ThemeToggleIcon from '@/modules/common/ThemeToggleIcon';
+import BrandMark from '@/modules/common/BrandMark';
+import { initialsFor } from '@/lib/ui/initials';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   SidebarMode,
@@ -217,8 +219,8 @@ export default function Sidebar({
       ? pathname === '/swipe-learn' || pathname === '/swipelearn'
       : pathname === path;
 
-  const navLinkClass = (path: string) =>
-    `app-nav-link w-full ${isActivePath(path) ? 'app-nav-link-active' : ''}`;
+  const drawerRowClass = (active: boolean) => `drawer-row ${active ? 'drawer-row-active' : ''}`;
+  const drawerHeadClass = (active: boolean) => `drawer-row drawer-row-head ${active ? 'drawer-row-active' : ''}`;
 
   const railItemClass = (active: boolean) =>
     `relative group flex items-center justify-center w-9 h-9 rounded-lg transition-smooth ${
@@ -292,7 +294,7 @@ export default function Sidebar({
       {mode === 'icon-only' && (
         <aside
           aria-label="Icon Sidebar"
-          className="fixed top-0 left-0 bottom-0 z-[110] w-[60px] border-r border-border backdrop-blur-md hidden md:flex flex-col justify-between items-center shadow-sm transition-transform duration-200"
+          className="app-rail fixed top-0 bottom-0 z-[110] w-[60px] border-r border-border backdrop-blur-md hidden md:flex flex-col justify-between items-center shadow-sm transition-transform duration-200"
         >
           {/* Top header: 60px height to perfectly match app-header height end-to-end */}
           <div className="flex items-center justify-center w-full h-[60px] border-b border-border flex-shrink-0">
@@ -447,278 +449,373 @@ export default function Sidebar({
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          2. FULL SLIDE-OUT DRAWER OVERLAY (TRIGGERED WHEN isOpen === true)
+          2. MENU (isOpen === true). md and up: a drawer from the left. Phones: a bottom sheet opened from the tab bar's
+          More tab (or the header avatar), laid out like an iOS grouped list. Same links and groups at every size.
           ───────────────────────────────────────────────────────────── */}
       <div
-        className={`fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm transition-opacity duration-250 ${
-          isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
+        className={`app-drawer-backdrop ${isOpen ? 'is-open' : ''}`}
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <aside
-        className={`fixed top-0 left-0 z-[210] flex h-full w-[290px] max-w-[85vw] flex-col border-r border-border bg-card shadow-2xl transition-transform duration-250 ease-smooth ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-        aria-hidden={!isOpen}
-      >
+      <aside className="app-drawer" data-open={isOpen ? 'true' : 'false'} aria-hidden={!isOpen} aria-label="Menu">
+        <div className="app-drawer-grabber md:hidden" aria-hidden="true">
+          <span />
+        </div>
+
         {/* Top Header */}
-        <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-border px-4">
+        <div className="app-drawer-head">
           <div className="flex items-center gap-2.5">
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 40 40"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="transition-smooth flex-shrink-0"
-            >
-              <rect width="40" height="40" rx="8" fill="url(#drawer-logo-grad)" />
-              <polygon
-                points="20,6.4 23.39,16.61 33.6,20 23.39,23.39 20,33.6 16.61,23.39 6.4,20 16.61,16.61"
-                fill="white"
-              />
-              <circle cx="20" cy="20" r="1.8" fill="#2563EB" />
-              <defs>
-                <linearGradient id="drawer-logo-grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#2563EB" />
-                  <stop offset="1" stopColor="#7C3AED" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <span className="font-heading text-base font-semibold text-foreground">Lab-Ninja</span>
+            <BrandMark size={26} />
+            <span className="font-heading text-[17px] font-semibold tracking-[-0.02em] text-foreground">Lab-Ninja</span>
           </div>
           <div className="flex items-center gap-1.5">
-            {/* Collapse to icon rail icon */}
+            {/* The icon rail exists from md up only, so its controls do too. */}
             <button
               type="button"
               onClick={() => {
                 setMode('icon-only');
                 onClose();
               }}
-              className="theme-toggle"
+              className="theme-toggle hidden md:inline-flex"
               aria-label="Collapse to icon rail"
               title="Collapse to icon rail"
             >
               <Icon name="ChevronLeftIcon" size={18} variant="outline" />
             </button>
-            {/* Close & Hide sidebar menu button */}
             <button
               type="button"
               onClick={() => {
                 setMode('hidden');
                 onClose();
               }}
-              className="theme-toggle hover:bg-rose-500/15 hover:text-rose-600 dark:hover:text-rose-400"
+              className="theme-toggle hidden md:inline-flex hover:bg-rose-500/15 hover:text-rose-600 dark:hover:text-rose-400"
               aria-label="Hide sidebar"
               title="Hide sidebar completely"
             >
               <Icon name="XMarkIcon" size={18} variant="outline" />
             </button>
+            <button type="button" onClick={onClose} className="sheet-done md:hidden">
+              Done
+            </button>
           </div>
         </div>
 
         {/* Drawer Links Navigation */}
-        <nav className="flex-1 overflow-y-auto scrollbar-clean px-3 py-3">
-          <div className="flex flex-col gap-1">
+        <nav className="app-drawer-nav scrollbar-clean">
+          {/* Phones: the account card leads, as in iOS Settings (the md+ footer below holds the same actions). */}
+          <section className="drawer-group md:hidden" aria-label="Account">
+            {isGuest ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  openLoginModal();
+                }}
+                className="drawer-row drawer-row-tall"
+              >
+                <span className="drawer-avatar" aria-hidden="true">
+                  <Icon name="UserIcon" size={20} variant="solid" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px] font-semibold text-foreground">Log in</span>
+                  <span className="block text-[13px] text-muted-foreground">You&rsquo;re browsing as a guest</span>
+                </span>
+                <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
+              </button>
+            ) : (
+              <div className="drawer-row drawer-row-tall">
+                <span className="drawer-avatar" aria-hidden="true">
+                  {initialsFor(user?.display_name || user?.email)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[16px] font-semibold text-foreground">
+                    {user?.display_name || 'Your account'}
+                  </span>
+                  {user?.email && (
+                    <span className="block truncate text-[13px] text-muted-foreground">{user.email}</span>
+                  )}
+                </span>
+              </div>
+            )}
+            <Link href="/config" onClick={onClose} className={drawerRowClass(pathname === '/config')}>
+              <span className="drawer-icon" aria-hidden="true">
+                <Icon name="Cog6ToothIcon" size={18} variant="outline" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">Settings</span>
+              <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
+            </Link>
+            <div className="drawer-row">
+              <span className="drawer-icon" aria-hidden="true">
+                <ThemeToggleIcon theme={theme} size={18} variant="outline" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">Appearance</span>
+              <div className="ios-segmented" role="radiogroup" aria-label="Appearance">
+                {(['light', 'dark'] as const).map((option) => {
+                  const selected = (theme ?? 'light') === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => {
+                        if (!selected) onToggleTheme();
+                      }}
+                      className={`ios-segment ${selected ? 'ios-segment-active' : ''}`}
+                    >
+                      {option === 'light' ? 'Light' : 'Dark'}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {/* A shortcut to the one accent selector (Settings ▸ Appearance), with the current colour: not a second picker. */}
+            <Link href="/config#appearance" onClick={onClose} className="drawer-row">
+              <span className="drawer-icon" aria-hidden="true">
+                <Icon name="SwatchIcon" size={18} variant="outline" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">Accent colour</span>
+              <span aria-hidden="true" className="h-[1.375rem] w-[1.375rem] flex-shrink-0 rounded-full bg-primary shadow-[inset_0_0_0_1px_rgba(0,0,0,0.12)]" />
+              <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
+            </Link>
+          </section>
+
+          <section className="drawer-group" aria-label="Daily Session">
             <button
               type="button"
               onClick={() => setDailySessionOpen((prev) => !prev)}
-              className={`app-nav-link w-full justify-between ${isDailySessionRoute ? 'app-nav-link-active' : ''}`}
+              className={drawerHeadClass(isDailySessionRoute)}
               aria-expanded={dailySessionOpen}
             >
-              <span className="flex items-center gap-1.5">
+              <span className="drawer-icon" aria-hidden="true">
                 <Icon name="AcademicCapIcon" size={18} variant="outline" />
-                <span>Daily Session</span>
               </span>
+              <span className="min-w-0 flex-1 truncate">Daily Session</span>
               <Icon
                 name="ChevronDownIcon"
                 size={16}
                 variant="outline"
-                className={`transition-smooth ${dailySessionOpen ? 'rotate-180' : ''}`}
+                className={`drawer-chevron transition-transform duration-200 ${dailySessionOpen ? 'rotate-180' : ''}`}
               />
             </button>
 
-            {dailySessionOpen && (
-              <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
-                {dailySessionLinks.map((link) => (
-                  <Link
-                    key={link.path}
-                    href={link.path}
-                    onClick={onClose}
-                    className={`app-nav-link w-full justify-between ${
-                      isDailySessionTabActive(link.path) ? 'app-nav-link-active' : ''
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Icon name={link.icon as any} size={17} variant="outline" />
-                      <span>{link.label}</span>
+            {dailySessionOpen &&
+              dailySessionLinks.map((link) => (
+                <Link
+                  key={link.path}
+                  href={link.path}
+                  onClick={onClose}
+                  aria-current={isDailySessionTabActive(link.path) ? 'page' : undefined}
+                  className={`${drawerRowClass(isDailySessionTabActive(link.path))} drawer-row-sub`}
+                >
+                  <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
+                    <Icon name={link.icon as any} size={16} variant="outline" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{link.label}</span>
+                  {(link.label === 'swapnilxi space' || link.label === 'MySpace') && (
+                    <span className={`drawer-badge ${link.label === 'swapnilxi space' ? 'drawer-badge-warm' : ''}`}>
+                      {link.label === 'swapnilxi space' ? 'VIP' : 'Private'}
                     </span>
-                    {(link.label === 'swapnilxi space' || link.label === 'MySpace') && (
-                      <span className={`text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                        link.label === 'swapnilxi space'
-                          ? 'bg-amber-500/20 text-amber-500'
-                          : 'mix-bg-primary/15 lab-ink'
-                      }`}>
-                        {link.label === 'swapnilxi space' ? 'VIP' : 'Private'}
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            )}
+                  )}
+                </Link>
+              ))}
+          </section>
 
-            <Link href="/swipe-learn" onClick={onClose} className={navLinkClass('/swipe-learn')}>
-              <Icon name="Square3Stack3DIcon" size={18} variant="outline" />
-              <div className="flex items-center justify-between flex-1">
-                <span>SwipeLearn</span>
-                <span className="text-[11px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full mix-bg-primary/15 lab-ink">
-                  Feed
-                </span>
-              </div>
+          <section className="drawer-group" aria-label="Learn">
+            <Link
+              href="/swipe-learn"
+              onClick={onClose}
+              aria-current={isActivePath('/swipe-learn') ? 'page' : undefined}
+              className={drawerRowClass(isActivePath('/swipe-learn'))}
+            >
+              <span className="drawer-icon" aria-hidden="true">
+                <Icon name="Square3Stack3DIcon" size={18} variant="outline" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">SwipeLearn</span>
+              <span className="drawer-badge">Feed</span>
             </Link>
-
-            <Link href="/swipe-pdf-reader" onClick={onClose} className={navLinkClass('/swipe-pdf-reader')}>
-              <Icon name="DocumentTextIcon" size={18} variant="outline" />
-              <div className="flex items-center justify-between flex-1">
-                <span>Swipe PDF Reader</span>
-                <span className="text-[11px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                  New
-                </span>
-              </div>
+            <Link
+              href="/swipe-pdf-reader"
+              onClick={onClose}
+              aria-current={isActivePath('/swipe-pdf-reader') ? 'page' : undefined}
+              className={drawerRowClass(isActivePath('/swipe-pdf-reader'))}
+            >
+              <span className="drawer-icon" aria-hidden="true">
+                <Icon name="DocumentTextIcon" size={18} variant="outline" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">Swipe PDF Reader</span>
+              <span className="drawer-badge drawer-badge-new">New</span>
             </Link>
+            <Link
+              href="/ai-lms"
+              onClick={onClose}
+              aria-current={isActivePath('/ai-lms') ? 'page' : undefined}
+              className={drawerRowClass(isActivePath('/ai-lms'))}
+            >
+              <span className="drawer-icon" aria-hidden="true">
+                <Icon name="SparklesIcon" size={18} variant="outline" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">AI LMS</span>
+            </Link>
+          </section>
 
+          <section className="drawer-group" aria-label="Labs">
             <button
               type="button"
               onClick={() => setLabsOpen((prev) => !prev)}
-              className={`app-nav-link w-full justify-between ${isLabRoute ? 'app-nav-link-active' : ''}`}
+              className={drawerHeadClass(isLabRoute)}
               aria-expanded={labsOpen}
             >
-              <span className="flex items-center gap-1.5">
+              <span className="drawer-icon" aria-hidden="true">
                 <Icon name="RectangleGroupIcon" size={18} variant="outline" />
-                <span>Labs</span>
               </span>
+              <span className="min-w-0 flex-1 truncate">Labs</span>
               <Icon
                 name="ChevronDownIcon"
                 size={16}
                 variant="outline"
-                className={`transition-smooth ${labsOpen ? 'rotate-180' : ''}`}
+                className={`drawer-chevron transition-transform duration-200 ${labsOpen ? 'rotate-180' : ''}`}
               />
             </button>
 
-            {labsOpen && (
-              <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
-                {LAB_LINKS.map((link) => (
-                  <Link
-                    key={link.path}
-                    href={link.path}
-                    onClick={onClose}
-                    className={navLinkClass(link.path)}
-                  >
-                    <Icon name={link.icon as any} size={17} variant="outline" />
-                    <span>{link.label}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
+            {labsOpen &&
+              LAB_LINKS.map((link) => (
+                <Link
+                  key={link.path}
+                  href={link.path}
+                  onClick={onClose}
+                  aria-current={isActivePath(link.path) ? 'page' : undefined}
+                  className={`${drawerRowClass(isActivePath(link.path))} drawer-row-sub`}
+                >
+                  <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
+                    <Icon name={link.icon as any} size={16} variant="outline" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{link.label}</span>
+                </Link>
+              ))}
+          </section>
 
-            <div className="my-2 border-t border-border" role="separator" />
-
-            {/* Personalised To-do Accordion with Subtabs */}
+          {/* Personalised To-do Accordion with Subtabs */}
+          <section className="drawer-group" aria-label="Personalised To-do">
             <button
               type="button"
               onClick={() => setTodoOpen((prev) => !prev)}
-              className={`app-nav-link w-full justify-between ${isAiTodoRoute ? 'app-nav-link-active' : ''}`}
+              className={drawerHeadClass(isAiTodoRoute)}
               aria-expanded={todoOpen}
             >
-              <span className="flex items-center gap-1.5">
+              <span className="drawer-icon" aria-hidden="true">
                 <Icon name="ClipboardDocumentCheckIcon" size={18} variant="outline" />
-                <span>Personalised To-do</span>
               </span>
+              <span className="min-w-0 flex-1 truncate">Personalised To-do</span>
               <Icon
                 name="ChevronDownIcon"
                 size={16}
                 variant="outline"
-                className={`transition-smooth ${todoOpen ? 'rotate-180' : ''}`}
+                className={`drawer-chevron transition-transform duration-200 ${todoOpen ? 'rotate-180' : ''}`}
               />
             </button>
 
-            {todoOpen && (
-              <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
-                {AI_TODO_LINKS.map((link) => (
-                  <Link
-                    key={link.path}
-                    href={link.path}
-                    onClick={onClose}
-                    className={`app-nav-link w-full ${isAiTodoTabActive(link.path) ? 'app-nav-link-active' : ''}`}
-                  >
-                    <Icon name={link.icon as any} size={17} variant="outline" />
-                    <span>{link.label}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
+            {todoOpen &&
+              AI_TODO_LINKS.map((link) => (
+                <Link
+                  key={link.path}
+                  href={link.path}
+                  onClick={onClose}
+                  aria-current={isAiTodoTabActive(link.path) ? 'page' : undefined}
+                  className={`${drawerRowClass(isAiTodoTabActive(link.path))} drawer-row-sub`}
+                >
+                  <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
+                    <Icon name={link.icon as any} size={16} variant="outline" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{link.label}</span>
+                </Link>
+              ))}
+          </section>
 
-            <Link href="/ai-lms" onClick={onClose} className={navLinkClass('/ai-lms')}>
-              <Icon name="SparklesIcon" size={18} variant="outline" />
-              <span>AI LMS</span>
+          {/* CAREER STUDIO INTEGRATION */}
+          <section className="drawer-group" aria-label="Create">
+            <Link
+              href="/linkedin-post-generator"
+              onClick={onClose}
+              aria-current={isActivePath('/linkedin-post-generator') ? 'page' : undefined}
+              className={drawerRowClass(isActivePath('/linkedin-post-generator'))}
+            >
+              <span className="drawer-icon" aria-hidden="true">
+                <Icon name="PencilSquareIcon" size={18} variant="outline" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">LinkedIn Post Generator</span>
             </Link>
-
-            <Link href="/linkedin-post-generator" onClick={onClose} className={navLinkClass('/linkedin-post-generator')}>
-              <Icon name="PencilSquareIcon" size={18} variant="outline" />
-              <span>LinkedIn Post Generator</span>
-            </Link>
-
-            {/* CAREER STUDIO INTEGRATION */}
             <button
               type="button"
               onClick={() => setCareerOpen((prev) => !prev)}
-              className={`app-nav-link w-full justify-between ${isCareerRoute ? 'app-nav-link-active' : ''}`}
+              className={drawerHeadClass(isCareerRoute)}
               aria-expanded={careerOpen}
             >
-              <span className="flex items-center gap-1.5">
+              <span className="drawer-icon" aria-hidden="true">
                 <Icon name="BriefcaseIcon" size={18} variant="outline" />
-                <span>Career Studio</span>
               </span>
+              <span className="min-w-0 flex-1 truncate">Career Studio</span>
               <Icon
                 name="ChevronDownIcon"
                 size={16}
                 variant="outline"
-                className={`transition-smooth ${careerOpen ? 'rotate-180' : ''}`}
+                className={`drawer-chevron transition-transform duration-200 ${careerOpen ? 'rotate-180' : ''}`}
               />
             </button>
 
-            {careerOpen && (
-              <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
-                {CAREER_LINKS.map((link) => (
-                  <Link
-                    key={link.path}
-                    href={link.path}
-                    onClick={onClose}
-                    className={`app-nav-link w-full ${isCareerLinkActive(link.path) ? 'app-nav-link-active' : ''}`}
-                  >
-                    <Icon name={link.icon as any} size={17} variant="outline" />
-                    <span>{link.label}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-
-            {isAdmin && (
-              <>
-                <div className="my-2 border-t border-border" role="separator" />
-                <Link href="/admin" onClick={onClose} className={navLinkClass('/admin')}>
-                  <Icon name="ShieldCheckIcon" size={18} variant="outline" />
-                  <span>Admin Portal</span>
+            {careerOpen &&
+              CAREER_LINKS.map((link) => (
+                <Link
+                  key={link.path}
+                  href={link.path}
+                  onClick={onClose}
+                  aria-current={isCareerLinkActive(link.path) ? 'page' : undefined}
+                  className={`${drawerRowClass(isCareerLinkActive(link.path))} drawer-row-sub`}
+                >
+                  <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
+                    <Icon name={link.icon as any} size={16} variant="outline" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{link.label}</span>
                 </Link>
-              </>
-            )}
-          </div>
+              ))}
+          </section>
+
+          {isAdmin && (
+            <section className="drawer-group" aria-label="Admin">
+              <Link
+                href="/admin"
+                onClick={onClose}
+                aria-current={isActivePath('/admin') ? 'page' : undefined}
+                className={drawerRowClass(isActivePath('/admin'))}
+              >
+                <span className="drawer-icon" aria-hidden="true">
+                  <Icon name="ShieldCheckIcon" size={18} variant="outline" />
+                </span>
+                <span className="min-w-0 flex-1 truncate">Admin Portal</span>
+              </Link>
+            </section>
+          )}
+
+          {/* Phones: Log out sits on its own at the end, away from everyday rows. */}
+          {!isGuest && (
+            <section className="drawer-group md:hidden" aria-label="Session">
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  onClose();
+                }}
+                className="drawer-row drawer-row-destructive"
+              >
+                <span className="min-w-0 flex-1 truncate text-center">Log out</span>
+              </button>
+            </section>
+          )}
         </nav>
 
-        {/* Drawer Footer */}
-        <div className="flex flex-shrink-0 items-center gap-2 border-t border-border px-3 py-3">
+        {/* Drawer Footer (md and up; phones have the account card and Log out above) */}
+        <div className="app-drawer-foot">
           {isGuest ? (
             <button type="button" onClick={() => { onClose(); openLoginModal(); }} className="app-nav-link flex-1">
               <Icon name="UserCircleIcon" size={18} variant="outline" />

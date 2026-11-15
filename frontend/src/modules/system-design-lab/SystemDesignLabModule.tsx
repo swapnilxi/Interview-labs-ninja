@@ -1578,7 +1578,7 @@ export default function SystemDesignLabInteractive() {
                     <button
                       type="button"
                       onClick={() => setGuideOpen(true)}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/70 transition-colors shadow-2xs cursor-pointer flex-shrink-0"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium mix-bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border mix-border-border/70 transition-colors shadow-2xs cursor-pointer flex-shrink-0"
                       title="Open System Design Lab Guide"
                     >
                       <Icon name="BookOpenIcon" size={12} className="text-primary flex-shrink-0" />

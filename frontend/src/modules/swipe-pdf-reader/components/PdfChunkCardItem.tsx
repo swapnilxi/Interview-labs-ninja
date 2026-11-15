@@ -18,9 +18,9 @@ export default function PdfChunkCardItem({
   return (
     <div className="w-full h-full flex flex-col bg-card border border-border rounded-3xl shadow-xl overflow-hidden select-none relative">
       {/* Header Banner */}
-      <div className="px-5 pt-4 pb-3 border-b border-border/60 bg-gradient-to-r from-blue-500/5 via-indigo-500/5 to-purple-500/5 flex items-center justify-between">
+      <div className="px-5 pt-4 pb-3 border-b mix-border-border/60 mix-bg-primary/5 flex items-center justify-between">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-xl mix-bg-primary/10 lab-ink flex items-center justify-center shrink-0">
             <Icon name={sourceType === 'pdf' ? 'DocumentIcon' : 'ClipboardDocumentTextIcon'} size={18} />
           </div>
           <div className="min-w-0">
@@ -31,8 +31,8 @@ export default function PdfChunkCardItem({
               <span>Chunk {chunk.chunkIndex} / {chunk.totalChunks}</span>
               {sourceType === 'pdf' && chunk.pageNumber && (
                 <>
-                  <span className="text-muted-foreground/40">•</span>
-                  <span className="text-blue-600 dark:text-blue-400 font-semibold">Page {chunk.pageNumber}</span>
+                  <span className="mix-text-muted-foreground/40">•</span>
+                  <span className="lab-ink font-semibold">Page {chunk.pageNumber}</span>
                 </>
               )}
             </div>
@@ -40,7 +40,7 @@ export default function PdfChunkCardItem({
         </div>
 
         {/* Progress pill & indicator */}
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold">
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full mix-bg-primary/10 border mix-border-primary/20 lab-ink text-xs font-bold">
           <span>{Math.round((chunk.chunkIndex / chunk.totalChunks) * 100)}%</span>
           <span className="text-[10px] text-muted-foreground font-normal">progress</span>
         </div>
@@ -57,19 +57,19 @@ export default function PdfChunkCardItem({
           </h3>
 
           {/* Paragraph Content */}
-          <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+          <p className="text-sm mix-text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
             {chunk.content}
           </p>
         </div>
 
         {/* Key Takeaway Box */}
         {chunk.keyTakeaway && (
-          <div className="p-3.5 rounded-2xl bg-muted/50 border border-border/80 mt-2">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">
+          <div className="p-3.5 rounded-2xl mix-bg-muted/50 border mix-border-border/80 mt-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold lab-ink mb-1">
               <Icon name="LightBulbIcon" size={14} />
               <span>Key Takeaway</span>
             </div>
-            <p className="text-xs text-foreground/80 leading-relaxed font-medium">
+            <p className="text-xs mix-text-foreground/80 leading-relaxed font-medium">
               {chunk.keyTakeaway}
             </p>
           </div>
@@ -91,12 +91,12 @@ export default function PdfChunkCardItem({
       </div>
 
       {/* Swipe hints footer */}
-      <div className="px-5 py-2.5 border-t border-border/50 bg-muted/20 flex items-center justify-between text-[11px] text-muted-foreground font-medium">
+      <div className="px-5 py-2.5 border-t mix-border-border/50 mix-bg-muted/20 flex items-center justify-between text-[11px] text-muted-foreground font-medium">
         <span className="flex items-center gap-1.5">
-          <Icon name="ArrowLeftIcon" size={13} className="text-muted-foreground/70" /> Swipe left for next
+          <Icon name="ArrowLeftIcon" size={13} className="mix-text-muted-foreground/70" /> Swipe left for next
         </span>
         <span className="flex items-center gap-1.5">
-          Swipe right for back <Icon name="ArrowRightIcon" size={13} className="text-muted-foreground/70" />
+          Swipe right for back <Icon name="ArrowRightIcon" size={13} className="mix-text-muted-foreground/70" />
         </span>
       </div>
     </div>

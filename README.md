@@ -536,6 +536,38 @@ Anytime). The other tabs are unchanged; a floating mic (`.vc-fab`) opens the sam
   The user-facing setup guide and the done/pending list live in `frontend/public/notification-setup.html`
   (served at `/notification-setup.html`, linked from the app).
 
+### Scheduler (reminders and AI jobs on a schedule)
+
+`/ai-todo?tab=schedule` (`modules/ai-todo/schedule/`). A schedule is either a **reminder** (a notification with your
+text) or an **AI job** (at each run the AI follows your instructions, can read your open tasks, optionally adds the
+tasks it suggests, and its answer becomes the notification). You can describe one in your own words, or set it up with
+options:
+
+- **Describe it.** `POST /todo/schedules/parse` turns "every weekday at 8:30, plan my day" into a draft. The draft opens
+  in the editor so you can check it before saving. The **options** cover once, every N minutes/hours/days (at least
+  15 min), daily, weekdays, weekly on chosen days, monthly on a day, or a custom 5-field cron, plus an optional end date.
+- **Rules** (`src/lib/schedules/scheduleRules.ts`) are always read in the device's local time.
+  - `normalizeRule` validates a rule and gives it a canonical shape. The server stores it with that shape. Its Python
+    copy is `backend/modules/ai_todo/schedules/rules.py`, with identical error texts and stored JSON, so change both.
+  - The run times (`occurrencesBetween` and the helpers built on it) are worked out only on the device.
+- **Storage:** tables `todo_schedules` and `todo_schedule_runs`. There is one run row per
+  `(schedule_id, scheduled_for)`, and `POST /todo/schedules/{id}/run` claims it.
+  - So a phone and an open tab that both reach the same run make only **one** AI call. The other caller gets
+    `duplicate: true` and the same run.
+  - A failed run, or one stuck in "running" for over 3 minutes, can be retried.
+  - A one-time schedule switches itself off after it runs, except after a manual "Run now".
+  - The endpoints live in `schedules/router.py` and `fe-apis/todo/schedules/handlers.ts`, with byte-identical prompts.
+- **Where it runs:**
+  - Website: `src/lib/schedules/scheduleEngine.ts`, started by `NotificationHost`. It runs in any open tab and shows
+    in-app cards in the reminder stack, notification-centre entries and device notifications.
+    - There is deliberately no server cron, so a closed tab runs nothing.
+    - On return, only the latest missed occurrence counts. A reminder more than 15 minutes late is shown as missed. An AI
+      job up to 6 hours late still runs and is marked late; older ones are reported as missed.
+  - Android app: `src/lib/schedules/nativeScheduler.ts` hands the next 21 days of runs (at most 300) to the native
+    plugin. With the app closed, the plugin fires them and runs AI jobs itself (see "Android app").
+- **Guests** keep reminder schedules in IndexedDB (`localScheduleAdapter`, guest DB v5). AI jobs and the parse are
+  login-only. Guest schedules are not copied to an account when you sign in.
+
 ### Backend layout (`backend/modules/ai-todo/`)
 
 | File | Responsibility |
@@ -674,16 +706,28 @@ A local-first document reader that converts PDFs and study notes into swipeable 
 
 ## SwipeLearn Module (`/swipe-learn`)
 
-A swipeable micro-learning feed (Python, CV, Finance, AI, Interview Prep, Quiz, plus user-added topics). Entirely
-client-side: no backend endpoint, works the same in `fastapi` and `nextjs-api` mode and for guests.
+A swipeable micro-learning feed (Python, CV, Finance, AI, Interview Prep, Quiz, plus user-added topics). Cards and
+progress live in the browser; the only backend piece is the optional "write cards with the Config model" endpoint
+below, which has a twin in both modes.
 
 - **Screens live in the URL**: `?topic=<id>` (`mixed` = every topic), `?tab=scroll` (the same cards as a vertical
   feed), `?tab=saved`. The old `?tab=mixed` is rewritten to `?tab=scroll&topic=mixed`.
-- **Generation on demand** (`services/geminiService.ts`): one Gemini call from the browser returns a batch of
-  1-10 cards (type, count, level and a free-text focus from the Generate sheet; "Quiz me on this" writes questions
-  about one card). Key: SwipeLearn's own key (its Settings sheet), else the Gemini key saved on the Config page.
-  Errors are typed (`no-key`, `auth`, `quota`, `model`, ...) and shown with a Settings/Retry action; there is no
-  offline filler card. It does **not** go through the shared AI provider layer, so only Gemini works here.
+- **Generation on demand** (`services/geminiService.ts`): one AI call returns a batch of 1-10 cards (type, count,
+  level and a free-text focus from the Generate sheet; "Quiz me on this" writes questions about one card). Which AI
+  (`resolveGemini`): (1) SwipeLearn's own Gemini key (its Settings sheet) -> the browser calls Gemini directly;
+  (2) logged in -> `POST /swipe-learn/generate` runs the model chosen in **Config** (any provider, or the server's
+  `.env` default) through the shared AI layer; (3) a guest with a Gemini key on the Config page -> direct Gemini;
+  otherwise the UI offers "Log in" / "Add a key in Config" / "Add a Gemini key" (`components/NoAiKeyActions.tsx`).
+- **Endpoint twins**: `backend/modules/swipe_learn/` (router + `prompt.py`) <-> `frontend/fe-apis/swipeLearn/` +
+  `src/app/api/swipe-learn/generate`. The prompt is `services/cardPrompt.ts` (pure, shared by the browser path and
+  fe-apis) <-> `prompt.py`: normalization and every prompt string are byte-identical, so change both. The server only
+  builds the prompt and returns the raw answer (`{text, model}`); the browser parses it with the same code for every
+  path. No key -> 400 with "No API key configured..." (the client turns it into an "Add a key in Config" prompt).
+- **No repeats**: each batch gets random "angles" (`CARD_ANGLES`) and a seed picked by the client (sent in the request
+  so both prompt builders stay deterministic), up to 150 deck titles (newest first) as "already covered", and a
+  near-duplicate title check (`TitleIndex`: word-set overlap); dropped repeats are replaced in up to two more rounds.
+  Errors are typed (`no-key`, `no-config-key`, `auth`, `quota`, `model`, ...) and shown with a Config/Settings/Retry
+  action; there is no offline filler card.
 - **State** (IndexedDB `labninja-swipe-learn`, `swipeLearnDb.ts`): generated cards, saved ids, custom topics, and
   `feedState.seenIds` (cards already swiped, any topic). A deck is "this topic's cards not in seenIds", so new cards
   can be inserted anywhere without shifting anyone's place. Generated cards lead their deck, newest batch first.
@@ -890,17 +934,51 @@ feature that renders raw user-authored HTML — today all rendered content is es
 
 ## Android app (Capacitor shell: closed-app reminders + FCM push)
 
-`frontend/android/` is a thin Capacitor WebView around the deployed site (`server.url` in `frontend/capacitor.config.ts`,
-`CAP_SERVER_URL` overrides it; local dev: `http://<mac-LAN-ip>:4028`). The web code stays the single source of truth.
+Everything native lives in **`app/`**: the Android project (`app/android/`), `app/capacitor.config.ts`
+(`server.url`; `CAP_SERVER_URL` overrides it), `app/native-shell/`, its own `package.json` (Capacitor CLI, Android and the
+three plugins) and **`app/install_app.sh`**. The app is a thin WebView around the deployed site, so the web code stays the
+single source of truth. See `app/README.md` for the day-to-day commands.
 
-- **Reminders with the app closed, no server/cron:** `src/lib/reminders/nativeReminders.ts` registers every task's
-  `remind_at` as an exact OS alarm (`@capacitor/local-notifications`) and mirrors the task list; `reminderEngine.ts`
-  calls it on every task change. Android 12+ needs the "Alarms & reminders" setting (asked on first launch).
-- **FCM push:** `nativePush.ts` registers the device token (`POST /api/push/fcm-token`, login required, table `fcm_tokens`);
-  `src/lib/server/fcm.ts` sends with `firebase-admin` (`POST /api/push/fcm-test` sends a test). Server env:
-  `FIREBASE_SERVICE_ACCOUNT` = service-account JSON on one line. Without it the sender is a no-op.
+- **Install / update from a Mac:** `./app/install_app.sh` checks the toolchain (Homebrew, Node, JDK 17+, adb, Android SDK),
+  finds the phone over adb, compares a fingerprint of the app files + site URL with the last install and only rebuilds when
+  something changed, then installs, grants the notification and exact-alarm permissions and launches it. Flags: `--local`
+  (app loads the Mac's dev server), `--url`, `--check` (report only), `--force`, `--clean`, `--yes`, `--no-launch`.
+- **The web half stays in `frontend/src/lib/reminders/`** (`nativeReminders.ts`, `nativePush.ts`, `reminderEngine.ts`) because
+  Next/Vercel bundle it; it imports `@capacitor/core` + the two plugins, which therefore remain `frontend/` dependencies.
+  Do not move it into `app/`: the Vercel root is `frontend/`.
+- **Reminders with the app closed, no server/cron:** `nativeReminders.ts` registers every task's `remind_at` as an exact OS
+  alarm (`@capacitor/local-notifications`) and mirrors the task list; `reminderEngine.ts` calls it on every task change.
+  `sendNativeTestNotification` backs the two test buttons in the Alerts sheet ("Test app notification" = in-app card + a phone
+  notification 5 s later; "Test alert (browser)" = web paths only). Android 12+ needs "Alarms & reminders" (the script allows it).
+- **FCM push (app closed):** `nativePush.ts` registers the device token (`POST /api/push/fcm-token`, login required, table
+  `fcm_tokens`); `src/lib/server/fcm.ts` sends with `firebase-admin` (`POST /api/push/fcm-test`). Needs
+  `app/android/app/google-services.json` (Firebase console, Android app id `com.labsninja.app`) **and** the server env
+  `FIREBASE_SERVICE_ACCOUNT` (service-account JSON on one line). Without `google-services.json` `MainActivity` leaves FCM off
+  (it adds a `LabNinjaFcm` user-agent token only when Firebase is configured, and `nativePush.ts` checks it): calling
+  `register()` without Firebase crashes the whole app natively.
+- **Microphone (voice input in the WebView):** the manifest declares `RECORD_AUDIO` + `MODIFY_AUDIO_SETTINGS` and a
+  `<queries>` entry for `android.speech.RecognitionService`. A page's `getUserMedia`/`SpeechRecognition` goes through
+  Capacitor's `BridgeWebChromeClient.onPermissionRequest`, which asks Android at runtime; without the declaration Android
+  refuses silently and Settings shows no Microphone switch. The install script pre-grants it. The voice hooks
+  (`useVoiceNote`, `useVoiceInput`) end the session themselves after an error or a stop, because the WebView may never send
+  the recognizer's `end`. Their texts come from `components/voice/micPermission.ts` (in the app they point to Android
+  Settings, not browser site settings).
+- **To-Do Scheduler with the app closed:** the native `LabNinjaScheduler` plugin lives in
+  `app/android/.../scheduler/`.
+  - `sync()` takes the runs the web side computed, plus the login token, the AI settings and the API base. It keeps
+    them in SharedPreferences, which are excluded from backups (`res/xml/backup_rules.xml`,
+    `data_extraction_rules.xml`), and sets one exact alarm per run.
+  - A reminder alarm shows a notification. An AI-job alarm POSTs `/todo/schedules/{id}/run` from the phone (`goAsync`,
+    at most about 50 s) and shows the AI's answer.
+    - On failure, offline, or with no token, the notification links to `…&run_now=<occurrence>`, which runs it in the
+      app.
+    - A 401 asks you to sign in again.
+  - Tapping a notification opens `origin + href` (MainActivity, extra `labninja_href`; only paths starting with `/`).
+  - Alarms are re-armed after a reboot or app update, and when exact-alarm permission is granted.
+  - Limits:
+    - The phone only knows the runs it was last given, so open the app at least every three weeks.
+    - Login tokens expire after 30 days.
+    - When an alarm fires in Doze, Android allows only about 10 s of network, so a slow AI call can end in the
+      "tap to run it now" fallback.
 - In a normal browser all of this is a no-op; the web-push (VAPID) path in `notifications.ts` is unchanged.
-
-Build (needs JDK 17 + Android Studio/SDK): create a Firebase project, add an Android app with id `com.labsninja.app`,
-save its `google-services.json` to `frontend/android/app/`, then from `frontend/`: `npm run android:sync`,
-`npm run android:open`, and Run on the phone (USB debugging) or Build > Build APK(s).
+- Safe areas: the WebView is edge-to-edge, so `.app-header` and `body` offset by `env(safe-area-inset-top)` (`tailwind.css`).

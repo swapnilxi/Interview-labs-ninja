@@ -659,7 +659,7 @@ export default function TaskNode({
                 <span className="flex items-center gap-1.5 px-1.5" title={`${progress}% of subtasks done`}>
                   <span className="h-1 w-[2.5rem] overflow-hidden rounded-full mix-bg-foreground/10">
                     <span
-                      className={`block h-full rounded-full transition-all duration-300 ${progress === 100 ? 'bg-success' : 'mix-bg-progress'}`}
+                      className={`block h-full rounded-full transition-all duration-300 ${progress === 100 ? 'bg-success' : 'bg-primary'}`}
                       style={{ width: `${progress}%` }}
                     />
                   </span>
@@ -997,7 +997,7 @@ export default function TaskNode({
                             >
                               <Icon name="ArrowLeftIcon" size={10} />
                             </button>
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                            <span className="text-[12px] font-semibold text-muted-foreground">
                               Move into a project
                             </span>
                           </div>
@@ -1169,7 +1169,7 @@ export default function TaskNode({
                   <div className="space-y-3 rounded-lg p-3 mix-bg-foreground/[0.05]">
                     {/* AI Action Buttons */}
                     <div className="flex items-center gap-1 flex-wrap border-b mix-border-foreground/10 pb-2">
-                      <span className="mr-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">AI Journal</span>
+                      <span className="mr-1 text-[12px] font-semibold text-muted-foreground">AI Journal</span>
                       <button
                         type="button"
                         onClick={handleExplainTask}

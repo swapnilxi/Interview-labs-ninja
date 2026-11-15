@@ -152,3 +152,35 @@ export function syncNativeReminders(tasks: Task[]): Promise<void> {
   chain = run;
   return run as Promise<void>;
 }
+
+/**
+ * "Send a test": asks for permission if needed, then has the phone's alarm service show a notification a few
+ * seconds from now (the same path a task reminder takes). Close the app in those seconds to prove it fires closed.
+ * Returns whether it was scheduled.
+ */
+export async function sendNativeTestNotification(delaySeconds = 5): Promise<boolean> {
+  if (!isNativeApp()) return false;
+  try {
+    ensureTapListener();
+    const status = await enableNativeReminders();
+    if (!status?.notifications) return false;
+    await ensureChannel();
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: 2_000_000_000 + Math.floor(Math.random() * 1_000_000),
+          title: 'LabNinja test notification',
+          body: `Scheduled ${delaySeconds}s ago. It works even with the app closed.`,
+          channelId: CHANNEL_ID,
+          schedule: { at: new Date(Date.now() + delaySeconds * 1000), allowWhileIdle: true },
+          smallIcon: 'ic_stat_icon',
+          extra: { href: '/ai-todo?tab=today' },
+        },
+      ],
+    });
+    return true;
+  } catch (err) {
+    console.warn('Native test notification failed:', err);
+    return false;
+  }
+}

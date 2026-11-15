@@ -9,6 +9,8 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Union
 
+from modules.daily_session.dedup import QuestionIndex, hashes_for
+
 
 class Category(str, Enum):
     INTERVIEW = "interview"
@@ -124,6 +126,13 @@ def init_db() -> None:
             cursor.execute("ALTER TABLE questions ADD COLUMN user_id INTEGER DEFAULT NULL;")
         if "raw_json" not in columns:
             cursor.execute("ALTER TABLE questions ADD COLUMN raw_json TEXT DEFAULT NULL;")
+        if "fingerprint" not in columns:
+            cursor.execute("ALTER TABLE questions ADD COLUMN fingerprint TEXT DEFAULT NULL;")
+        if "simhash" not in columns:
+            cursor.execute("ALTER TABLE questions ADD COLUMN simhash INTEGER DEFAULT NULL;")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_questions_fingerprint ON questions(fingerprint);")
+        from modules.daily_session.dedup import backfill_hashes
+        backfill_hashes(conn)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_questions_user_id ON questions(user_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_questions_text ON questions(question_text);")
 
@@ -402,8 +411,8 @@ def insert_questions(user_id: int, session_id: int, questions: List[dict]) -> Op
                 INSERT INTO questions (
                     session_id, question_date, section, number,
                     category, sub_type, difficulty, topics, question_text,
-                    question_type, user_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    question_type, user_id, fingerprint, simhash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
@@ -417,6 +426,7 @@ def insert_questions(user_id: int, session_id: int, questions: List[dict]) -> Op
                     question_text,
                     q.get("question_type", q["sub_type"]),
                     user_id,
+                    *hashes_for(question_text),
                 ),
             )
             inserted_ids.append(cursor.lastrowid)
@@ -555,25 +565,18 @@ def import_quick_practice_questions(
 
         inserted_ids = []
         duplicate_count = 0
+        dup_index = QuestionIndex.load(db_path)
 
         for i, q in enumerate(questions):
             q_text = (q.get("question") or q.get("question_text") or "").strip()
             if not q_text:
                 continue
 
-            # SQL deduplication check
-            cursor.execute(
-                """
-                SELECT id FROM questions
-                WHERE trim(lower(question_text)) = trim(lower(?))
-                ORDER BY id ASC LIMIT 1
-                """,
-                (q_text,),
-            )
-            existing = cursor.fetchone()
-            if existing:
+            # Duplicate check against the whole bank (exact hash + paraphrase) and this batch.
+            if dup_index.is_duplicate(q_text):
                 duplicate_count += 1
                 continue
+            dup_index.add(q_text)
 
             topic_raw = q.get("topic") or q.get("sub_type") or q.get("subType") or "General"
             topic_str = str(topic_raw).strip()
@@ -603,8 +606,8 @@ def import_quick_practice_questions(
                 INSERT INTO questions (
                     session_id, question_date, section, number,
                     category, sub_type, difficulty, topics, question_text,
-                    question_type, user_id, raw_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    question_type, user_id, raw_json, fingerprint, simhash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
@@ -619,6 +622,7 @@ def import_quick_practice_questions(
                     title_str or topic_str,
                     effective_user_id,
                     single_question_json,
+                    *hashes_for(q_text),
                 ),
             )
             new_qid = cursor.lastrowid

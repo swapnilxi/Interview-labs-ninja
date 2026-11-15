@@ -14,7 +14,7 @@ interface SkillBreakdownCardProps {
 
 export default function SkillBreakdownCard({ skills }: SkillBreakdownCardProps) {
   return (
-    <div className="bg-card rounded-lg p-24 shadow-md border border-border">
+    <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-24">
       <div className="flex items-center gap-12 mb-24">
         <Icon name="ChartBarIcon" size={20} variant="outline" />
         <h3 className="font-heading text-lg font-medium text-foreground">

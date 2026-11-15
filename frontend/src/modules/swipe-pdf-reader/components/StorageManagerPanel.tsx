@@ -190,7 +190,7 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
       ? 'bg-rose-500'
       : (estimate?.percent ?? 0) > 60
       ? 'bg-amber-500'
-      : 'bg-blue-500';
+      : 'bg-primary';
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -202,9 +202,9 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
       {/* Panel */}
       <div className="w-full max-w-sm sm:max-w-md bg-card border-l border-border flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border shrink-0 bg-muted/30">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border shrink-0 mix-bg-muted/30">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-xl mix-bg-primary/10 lab-ink flex items-center justify-center">
               <Icon name="CircleStackIcon" size={16} />
             </div>
             <h2 className="text-sm font-bold text-foreground">Local Storage</h2>
@@ -222,18 +222,18 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-              <Icon name="ArrowPathIcon" size={28} className="animate-spin text-blue-500" />
+              <Icon name="ArrowPathIcon" size={28} className="animate-spin lab-ink" />
               <p className="text-xs font-medium">Analysing storage…</p>
             </div>
           ) : (
             <>
               {/* ── Storage Estimate ── */}
               <section>
-                <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2.5">
+                <h3 className="text-[13px] font-semibold text-muted-foreground mb-2.5">
                   Storage Usage
                 </h3>
                 {estimate?.available ? (
-                  <div className="p-3.5 rounded-2xl bg-muted/40 border border-border space-y-2.5">
+                  <div className="p-3.5 rounded-2xl mix-bg-muted/40 border border-border space-y-2.5">
                     {/* Bar */}
                     <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                       <div
@@ -266,7 +266,7 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
                     )}
                   </div>
                 ) : (
-                  <div className="p-3 rounded-2xl bg-muted/40 border border-border text-xs text-muted-foreground">
+                  <div className="p-3 rounded-2xl mix-bg-muted/40 border border-border text-xs text-muted-foreground">
                     Storage estimate unavailable in this browser or mode.
                     <br />
                     {docs.length} document{docs.length !== 1 ? 's' : ''} in local library.
@@ -276,10 +276,10 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
 
               {/* ── Persistent Storage ── */}
               <section>
-                <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2.5">
+                <h3 className="text-[13px] font-semibold text-muted-foreground mb-2.5">
                   Persistent Storage
                 </h3>
-                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border space-y-2.5">
+                <div className="p-3.5 rounded-2xl mix-bg-muted/40 border border-border space-y-2.5">
                   {persisted === null ? null : persisted ? (
                     <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
                       <Icon name="CheckCircleIcon" size={15} />
@@ -287,7 +287,7 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
                     </div>
                   ) : (
                     <div className="flex items-start gap-2 text-[11px] text-muted-foreground">
-                      <Icon name="InformationCircleIcon" size={14} className="shrink-0 mt-0.5 text-blue-500" />
+                      <Icon name="InformationCircleIcon" size={14} className="shrink-0 mt-0.5 lab-ink" />
                       <p className="leading-snug">
                         Without persistent storage, the browser may clear local data under storage pressure. Request it below to protect your library.
                       </p>
@@ -298,7 +298,7 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
                       type="button"
                       onClick={handleRequestPersist}
                       disabled={persistRequesting}
-                      className="w-full py-2 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
+                      className="w-full py-2 px-3.5 rounded-xl bg-primary hover:mix-bg-primary/90 disabled:opacity-60 text-primary-foreground text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
                     >
                       {persistRequesting ? (
                         <Icon name="ArrowPathIcon" size={13} className="animate-spin" />
@@ -315,7 +315,7 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
               {docs.length > 0 && (
                 <section>
                   <div className="flex items-center justify-between mb-2.5">
-                    <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    <h3 className="text-[13px] font-semibold text-muted-foreground">
                       Local Documents
                     </h3>
                     <div className="flex items-center gap-2">
@@ -350,12 +350,12 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
                           onClick={() => toggleSelect(doc.id)}
                           className={`group flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer ${
                             isSelected
-                              ? 'border-blue-500/40 bg-blue-500/8'
-                              : 'border-border bg-muted/20 hover:bg-muted/40'
+                              ? 'mix-border-primary/40 mix-bg-primary/10'
+                              : 'border-border mix-bg-muted/20 hover:mix-bg-muted/40'
                           }`}
                         >
                           {/* Checkbox */}
-                          <div className={`w-4 h-4 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-all ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-muted-foreground/40'}`}>
+                          <div className={`w-4 h-4 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-all ${isSelected ? 'border-primary bg-primary' : 'mix-border-muted-foreground/40'}`}>
                             {isSelected && <Icon name="CheckIcon" size={9} className="text-white" />}
                           </div>
 
@@ -368,7 +368,7 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
                                   {/* Source badge */}
                                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide ${
                                     doc.source === 'cloud'
-                                      ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                                      ? 'mix-bg-primary/10 lab-ink'
                                       : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                   }`}>
                                     {doc.source === 'cloud' ? '☁ Cloud' : '📱 Local'}
@@ -423,10 +423,10 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
 
               {/* ── Auto-Cleanup Policy ── */}
               <section>
-                <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2.5">
+                <h3 className="text-[13px] font-semibold text-muted-foreground mb-2.5">
                   Automatic Cleanup
                 </h3>
-                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border space-y-3">
+                <div className="p-3.5 rounded-2xl mix-bg-muted/40 border border-border space-y-3">
                   <p className="text-[11px] text-muted-foreground leading-snug">
                     Suggest cleanup for documents not opened within a set period. <strong>No data is deleted automatically</strong> — you will be asked to confirm.
                   </p>
@@ -438,7 +438,7 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
                         onClick={() => handleCleanupPolicyChange(p)}
                         className={`py-2 px-2 rounded-xl text-[11px] font-semibold border transition-all ${
                           cleanupPolicy === p
-                            ? 'border-blue-500/50 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                            ? 'mix-border-primary/50 mix-bg-primary/10 lab-ink'
                             : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
                         }`}
                       >
@@ -471,7 +471,7 @@ export default function StorageManagerPanel({ onClose, onDataChanged }: StorageM
 
               {/* ── Danger Zone ── */}
               <section>
-                <h3 className="text-[11px] font-bold text-rose-500 uppercase tracking-wider mb-2.5">
+                <h3 className="text-[13px] font-semibold text-rose-500 mb-2.5">
                   Danger Zone
                 </h3>
                 <div className="p-3.5 rounded-2xl bg-rose-500/5 border border-rose-500/20 space-y-2.5">

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Icon from '@/components/ui/AppIcon';
+import NoAiKeyActions from './NoAiKeyActions';
 
 interface EmptyDeckStateProps {
   /** true: the deck has no cards at all; false: every card was swiped. */
@@ -76,15 +77,7 @@ export default function EmptyDeckState({
             </button>
           </>
         ) : (
-          <>
-            <button type="button" onClick={onOpenSettings} className="swipe-primary-btn">
-              <Icon name="KeyIcon" size={18} />
-              Add a Gemini key
-            </button>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Cards are written by Google Gemini with your own free key from AI Studio.
-            </p>
-          </>
+          <NoAiKeyActions onOpenSettings={onOpenSettings} />
         )}
         {!fresh && onReviewAgain && (
           <button type="button" onClick={onReviewAgain} className="swipe-ghost-btn mx-auto mt-1">

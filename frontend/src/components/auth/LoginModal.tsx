@@ -136,19 +136,18 @@ export default function LoginModal() {
       isOpen={isOpen}
       onClose={() => setIsOpen(false)}
       labelledBy="login-modal-title"
-      className="max-w-md w-full p-0 overflow-hidden border-0 bg-transparent shadow-none"
+      className="w-full max-w-md overflow-hidden rounded-[22px] border mix-border-foreground/10 bg-card shadow-2xl"
     >
-      <div className="relative overflow-hidden rounded-2xl bg-card border border-border shadow-2xl">
-        {/* Modal Top Header Gradient */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-[#5b5bd6] via-[#6d5be0] to-[#7c3aed] px-[1.75rem] pt-[2rem] pb-[1.5rem] text-center text-white">
-          <div className="pointer-events-none absolute -top-16 -right-16 w-[9rem] h-[9rem] rounded-full bg-white/10 blur-xl" />
-          <div className="relative mx-auto mb-[0.875rem] flex h-[3.25rem] w-[3.25rem] items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm shadow-md">
-            <Icon name="LockClosedIcon" size={24} className="text-white" />
+      <div className="relative">
+        {/* Header: the system's own surface (the violet gradient band is retired), an icon tile, title and one line. */}
+        <div className="px-[1.75rem] pb-1 pt-[1.75rem] text-center">
+          <div className="mx-auto mb-[0.875rem] flex h-[3.25rem] w-[3.25rem] items-center justify-center rounded-[16px] mix-bg-primary/15">
+            <Icon name="LockClosedIcon" size={24} className="lab-ink" />
           </div>
-          <h2 id="login-modal-title" className="font-heading text-xl font-bold tracking-tight">
-            {feature ? `Log in to use ${feature}` : mode === 'login' ? 'Welcome Back' : 'Create an Account'}
+          <h2 id="login-modal-title" className="font-heading text-[1.375rem] font-bold tracking-[-0.022em] text-foreground">
+            {feature ? `Log in to use ${feature}` : mode === 'login' ? 'Welcome back' : 'Create an account'}
           </h2>
-          <p className="mt-1 text-xs text-white/80 max-w-[36ch] mx-auto">
+          <p className="mx-auto mt-1 max-w-[36ch] text-[13px] leading-snug text-muted-foreground">
             {feature
               ? 'This feature is AI-powered and tracks your progress across sessions.'
               : 'Everything you practice or build as a guest is saved to your account.'}
@@ -167,55 +166,73 @@ export default function LoginModal() {
           <form onSubmit={handleSubmit} className="space-y-[1.125rem]">
             {mode === 'signup' && (
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-[0.375rem]">
-                  Full Name
+                <label htmlFor="login-name" className="mb-[0.375rem] block text-[13px] font-medium text-muted-foreground">
+                  Full name
                 </label>
                 <input
+                  id="login-name"
                   type="text"
                   required
+                  autoComplete="name"
+                  autoCapitalize="words"
+                  enterKeyHint="next"
                   autoFocus
                   placeholder="Ninja Candidate"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full rounded-xl border border-border bg-input px-[0.875rem] py-[0.75rem] text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="todo-input h-[3rem] px-[0.875rem] text-base sm:text-sm"
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-[0.375rem]">
-                Email Address
+              <label htmlFor="login-email" className="mb-[0.375rem] block text-[13px] font-medium text-muted-foreground">
+                Email address
               </label>
+              {/* Keyboard + autofill hints: the email keyboard, no auto-capital or autocorrect, and the field password
+                  managers (Google Password Manager, iCloud Keychain) recognise as the account name. */}
               <input
+                id="login-email"
                 type="email"
+                inputMode="email"
+                autoComplete={mode === 'login' ? 'username' : 'email'}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="next"
                 required
                 autoFocus={mode === 'login'}
                 placeholder="ninja@labs.dev"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-border bg-input px-[0.875rem] py-[0.75rem] text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="todo-input h-[3rem] px-[0.875rem] text-base sm:text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-[0.375rem]">
+              <label htmlFor="login-password" className="mb-[0.375rem] block text-[13px] font-medium text-muted-foreground">
                 Password
               </label>
               <div className="relative">
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  enterKeyHint="go"
                   required
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-xl border border-border bg-input px-[0.875rem] py-[0.75rem] text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 pr-10"
+                  className="todo-input h-[3rem] px-[0.875rem] pr-10 text-base sm:text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
                 >
-                  <Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={16} />
+                  <Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={18} />
                 </button>
               </div>
             </div>
@@ -223,10 +240,10 @@ export default function LoginModal() {
             <button
               type="submit"
               disabled={submitting}
-              className="mt-[0.5rem] w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-violet-600 py-[0.8rem] text-sm font-bold text-white shadow-md shadow-primary/25 hover:opacity-95 disabled:opacity-50 transition-opacity"
+              className="mt-[0.5rem] flex h-[3rem] w-full items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-primary-foreground transition-opacity hover:opacity-95 active:scale-[0.98] disabled:opacity-50"
             >
               {submitting ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
               ) : (
                 <Icon name="ArrowRightIcon" size={16} />
               )}
@@ -235,14 +252,14 @@ export default function LoginModal() {
           </form>
 
           {/* Mode switch */}
-          <div className="mt-[1.5rem] border-t border-border/60 pt-[1.125rem] text-center">
+          <div className="mt-[1.5rem] border-t border-border pt-[1.125rem] text-center">
             {mode === 'login' ? (
               <p className="text-xs text-muted-foreground">
                 Don&apos;t have an account?{' '}
                 <button
                   type="button"
                   onClick={() => switchMode('signup')}
-                  className="font-bold text-primary hover:underline ml-1"
+                  className="lab-ink ml-1 font-semibold hover:underline"
                 >
                   Sign up free
                 </button>
@@ -253,7 +270,7 @@ export default function LoginModal() {
                 <button
                   type="button"
                   onClick={() => switchMode('login')}
-                  className="font-bold text-primary hover:underline ml-1"
+                  className="lab-ink ml-1 font-semibold hover:underline"
                 >
                   Sign in
                 </button>

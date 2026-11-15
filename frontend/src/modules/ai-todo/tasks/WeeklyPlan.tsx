@@ -83,7 +83,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
             {days.map(day => (
               <div key={day} className="flex w-[280px] shrink-0 flex-col overflow-hidden rounded-xl mix-bg-foreground/[0.04]">
                 <div className="px-4 py-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                  <h3 className="text-[13px] font-semibold text-foreground">
                     {day}
                   </h3>
                   <p className="text-xs text-muted-foreground">
@@ -111,7 +111,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
                                 {task.time_estimate}
                               </span>
                             )}
-                            <span className="text-[11px] uppercase text-muted-foreground">
+                            <span className="text-[11px] font-semibold uppercase text-muted-foreground">
                               {task.priority || 'P3'}
                             </span>
                           </div>

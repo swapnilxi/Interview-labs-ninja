@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+. Same rule as backup_rules.xml: keep the native scheduler's token and AI keys off cloud backups and
+     device-to-device transfers; signing in on the new phone re-creates them. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="labninja_scheduler.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="labninja_scheduler.xml" />
+    </device-transfer>
+</data-extraction-rules>

@@ -20,5 +20,7 @@ export {
   createAccessToken,
   verifyAccessToken,
   getUserFromAuthHeader,
+  publicUser,
   type UserRecord,
+  type PublicUser,
 } from '@/lib/server/authHelper';

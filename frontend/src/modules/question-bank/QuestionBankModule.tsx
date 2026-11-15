@@ -359,14 +359,14 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
 
             {filteredQuestions.length > 0 ? (
               <>
-                <div className="bg-card rounded-lg shadow-md border border-border overflow-hidden">
-                  <div className="p-24 border-b border-border">
+                <div className="overflow-hidden rounded-[20px] border mix-border-foreground/[0.07] bg-card shadow-card">
+                  <div className="border-b border-border p-4 sm:p-24">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-18">
                       <div className="flex items-center gap-12 flex-wrap">
                         <h2 className="font-heading text-lg font-medium text-foreground">
                           Questions
                         </h2>
-                        <span className="px-12 py-6 rounded-md bg-primary/10 text-primary text-sm font-medium tabular-nums">
+                        <span className="lab-ink rounded-full px-2.5 py-0.5 text-sm font-semibold tabular-nums mix-bg-primary/10">
                           {filteredQuestions.length}
                         </span>
                         <button
@@ -374,7 +374,7 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
                           onClick={handleClearDuplicates}
                           disabled={clearingDuplicates}
                           title="Scan and remove duplicate questions from question bank using SQL"
-                          className="inline-flex items-center gap-6 px-12 py-6 rounded-md border border-border bg-card hover:bg-muted text-foreground text-xs font-medium transition-smooth shadow-sm disabled:opacity-50"
+                          className="todo-btn todo-btn-quiet"
                         >
                           <Icon
                             name="SparklesIcon"
@@ -386,7 +386,7 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
                         </button>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
-                        <div role="group" aria-label="View mode" className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
+                        <div role="group" aria-label="View mode" className="ios-segmented">
                           {([['list', 'ListBulletIcon', 'List'], ['grid', 'Squares2X2Icon', 'Grid']] as const).map(([m, icon, label]) => (
                             <button
                               key={m}
@@ -394,9 +394,7 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
                               onClick={() => setViewMode(m)}
                               aria-pressed={viewMode === m}
                               title={`${label} view`}
-                              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
-                                viewMode === m ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                              }`}
+                              className={`ios-segment gap-1.5 ${viewMode === m ? 'ios-segment-active' : ''}`}
                             >
                               <Icon name={icon} size={15} variant="outline" />
                               {label}
@@ -416,8 +414,8 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
                         clearStatus.type === 'success'
                           ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                           : clearStatus.type === 'error'
-                          ? 'bg-destructive/10 text-destructive border-destructive/20'
-                          : 'bg-primary/10 text-primary border-primary/20'
+                          ? 'mix-bg-destructive/10 text-destructive mix-border-destructive/20'
+                          : 'mix-bg-primary/10 lab-ink mix-border-primary/20'
                       }`}>
                         <Icon name="CheckCircleIcon" size={16} variant="solid" className={clearStatus.type === 'error' ? 'text-destructive' : 'text-emerald-500'} />
                         <span>{clearStatus.message}</span>

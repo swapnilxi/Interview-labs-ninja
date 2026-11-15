@@ -7,12 +7,14 @@ import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import Sidebar from '@/modules/common/Sidebar';
 import ThemeToggleIcon from '@/modules/common/ThemeToggleIcon';
+import BrandMark from '@/modules/common/BrandMark';
+import { initialsFor } from '@/lib/ui/initials';
 import NotificationBell from '@/components/ui/NotificationCenter';
 import { OPEN_NAV_EVENT } from '@/components/ui/MobileTabBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, API_BASE_URL } from '@/lib/http/apiClient';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
-import { reapplyStoredAccent } from '@/lib/services/appearanceService';
+import { reapplyStoredAccent, withColorTransition } from '@/lib/services/appearanceService';
 import {
   SidebarMode,
   getStoredSidebarMode,
@@ -190,6 +192,33 @@ function AuthStatus() {
   );
 }
 
+/**
+ * Phones: the account lives behind an avatar (it opens the More sheet, which holds the account card, Settings, theme
+ * and Log out), not behind a one-tap Log out icon in thumb range of the brand. Guests get a Log in pill instead.
+ */
+function MobileAccountButton() {
+  const { user, isGuest } = useAuth();
+  if (isGuest) {
+    return (
+      <button type="button" onClick={() => openLoginModal()} className="nav-pill-button">
+        Log in
+      </button>
+    );
+  }
+  const name = (user?.display_name || user?.email || '').trim();
+  const initials = initialsFor(name);
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event(OPEN_NAV_EVENT))}
+      className="nav-avatar"
+      aria-label={`Account and settings${name ? ` (${name})` : ''}`}
+    >
+      {initials}
+    </button>
+  );
+}
+
 export default function Header() {
   const pathname = usePathname();
   const { isAdmin } = useAuth();
@@ -262,20 +291,25 @@ export default function Header() {
     const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
     localStorage.setItem('interview-ninja-theme', nextTheme);
-    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
-    reapplyStoredAccent();
+    // Cross-fade the switch (colours only). theme-color + Android status-bar icons follow via
+    // components/ui/SystemChromeSync, which watches the class.
+    withColorTransition(() => {
+      document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+      reapplyStoredAccent();
+    });
     window.dispatchEvent(new CustomEvent('interview-ninja-theme-change', { detail: nextTheme }));
   };
 
   return (
     <>
-      <header className={`app-header transition-[left] duration-200 ${sidebarMode === 'icon-only' ? 'md:left-[60px]' : 'left-0'}`}>
-        <nav className="h-[60px] px-3 sm:px-[1.5rem] xl:px-8 flex items-center justify-between gap-2 sm:gap-4">
+      <header className={`app-header transition-[left] duration-200 ${sidebarMode === 'icon-only' ? 'md:left-[calc(60px+var(--safe-left))]' : 'left-0'}`}>
+        <nav className="h-[60px] px-4 sm:px-[1.5rem] xl:px-8 flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-3">
+            {/* Phones open the menu from the tab bar's More tab; this toggle is for the md+ sidebar. */}
             <button
               type="button"
               onClick={toggleSidebar}
-              className={`theme-toggle ${sidebarMode === 'icon-only' ? 'md:hidden' : ''}`}
+              className={`theme-toggle hidden ${sidebarMode === 'icon-only' ? '' : 'md:inline-flex'}`}
               aria-label="Toggle navigation menu"
               aria-expanded={sidebarOpen}
               title={sidebarMode === 'hidden' ? 'Show sidebar menu' : sidebarOpen ? 'Close menu' : 'Open navigation menu'}
@@ -289,41 +323,13 @@ export default function Header() {
 
             <Link
               href="/daily-session"
-              className="flex items-center gap-3 transition-smooth hover:opacity-85"
+              className="flex items-center gap-2.5 transition-smooth hover:opacity-85 active:opacity-70"
+              aria-label="Lab-Ninja home"
             >
-              <div className="flex items-center gap-3">
-                <svg
-                  width="36"
-                  height="36"
-                  viewBox="0 0 40 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="transition-smooth"
-                >
-                  <rect width="40" height="40" rx="8" fill="url(#gradient)" />
-                  <polygon
-                    points="20,6.4 23.39,16.61 33.6,20 23.39,23.39 20,33.6 16.61,23.39 6.4,20 16.61,16.61"
-                    fill="white"
-                  />
-                  <circle cx="20" cy="20" r="1.8" fill="#2563EB" />
-                  <defs>
-                    <linearGradient
-                      id="gradient"
-                      x1="0"
-                      y1="0"
-                      x2="40"
-                      y2="40"
-                      gradientUnits="userSpaceOnUse"
-                    >
-                      <stop stopColor="#2563EB" />
-                      <stop offset="1" stopColor="#7C3AED" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <span className="font-heading whitespace-nowrap text-xl font-semibold text-foreground">
-                  Lab-Ninja
-                </span>
-              </div>
+              <BrandMark size={30} className="md:h-[34px] md:w-[34px]" />
+              <span className="font-heading whitespace-nowrap text-[17px] font-semibold tracking-[-0.02em] text-foreground md:text-xl">
+                Lab-Ninja
+              </span>
             </Link>
           </div>
 
@@ -374,7 +380,13 @@ export default function Header() {
             >
               <ThemeToggleIcon theme={theme} size={18} />
             </button>
-            <AuthStatus />
+            {/* md–lg (tablet): the existing account control; phones get the avatar. */}
+            <span className="hidden md:contents">
+              <AuthStatus />
+            </span>
+            <span className="contents md:hidden">
+              <MobileAccountButton />
+            </span>
           </div>
         </nav>
       </header>

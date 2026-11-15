@@ -104,7 +104,7 @@ export default function LabGuideModal({
     >
       <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden animate-scale-in">
         {/* ── Top Bar: Lab Switcher & Close ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-border bg-muted/40">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-border mix-bg-muted/40">
           {/* Lab Switcher Tabs */}
           <div
             role="tablist"
@@ -125,8 +125,8 @@ export default function LabGuideModal({
                   }}
                   className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                     active
-                      ? 'bg-foreground text-background shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
+                      ? 'bg-foreground text-background shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:mix-bg-muted/70'
                   }`}
                 >
                   <Icon name={l.icon} size={15} />
@@ -141,7 +141,7 @@ export default function LabGuideModal({
             onClick={onClose}
             aria-label="Close guide"
             title="Close (Esc)"
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:mix-bg-muted/80 transition-colors cursor-pointer"
           >
             <Icon name="XMarkIcon" size={18} />
           </button>
@@ -149,14 +149,14 @@ export default function LabGuideModal({
 
         {/* ── Lab Hero Identity ── */}
         <div
-          className="relative px-6 py-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          className="relative px-[1.5rem] py-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           style={{
             background: `linear-gradient(135deg, ${currentLab.accentBg} 0%, transparent 60%)`,
           }}
         >
           <div className="flex items-start sm:items-center gap-3.5">
             <span
-              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl shadow-xs"
+              className="flex h-[3rem] w-[3rem] flex-shrink-0 items-center justify-center rounded-xl shadow-sm"
               style={{
                 backgroundColor: currentLab.accentBg,
                 color: currentLab.accentVar,
@@ -170,7 +170,7 @@ export default function LabGuideModal({
                 <h2 id={modalTitleId} className="text-xl font-bold tracking-tight text-foreground">
                   {currentLab.name} Guide
                 </h2>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-muted text-foreground border border-border">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-foreground border border-border">
                   How-To Handbook
                 </span>
               </div>
@@ -207,7 +207,7 @@ export default function LabGuideModal({
         </div>
 
         {/* ── Internal Tab Navigation ── */}
-        <div className="flex items-center gap-2 px-6 pt-3 border-b border-border bg-card text-xs font-medium">
+        <div className="flex items-center gap-2 px-[1.5rem] pt-3 border-b border-border bg-card text-xs font-medium">
           <button
             type="button"
             onClick={() => setActiveTab('steps')}
@@ -259,10 +259,10 @@ export default function LabGuideModal({
         </div>
 
         {/* ── Scrollable Body Content ── */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-clean">
+        <div className="flex-1 overflow-y-auto p-[1.5rem] space-y-[1.5rem] scrollbar-clean">
           {/* Overview Callout */}
           {!searchQuery && (
-            <div className="p-4 rounded-xl border border-border/80 bg-muted/30 text-xs sm:text-[13px] leading-relaxed text-foreground">
+            <div className="p-4 rounded-xl border mix-border-border/80 mix-bg-muted/30 text-xs sm:text-[13px] leading-relaxed text-foreground">
               <span className="font-semibold text-foreground mr-1.5">Overview:</span>
               <span className="text-muted-foreground">{currentLab.overview}</span>
             </div>
@@ -272,7 +272,7 @@ export default function LabGuideModal({
           {activeTab === 'steps' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold tracking-tight text-foreground uppercase text-[11px] text-muted-foreground">
+                <h3 className="text-sm font-semibold tracking-tight text-foreground uppercase text-xs text-muted-foreground">
                   Step-by-Step Workflow
                 </h3>
                 <span className="text-xs text-muted-foreground">
@@ -289,7 +289,7 @@ export default function LabGuideModal({
                   {filteredSteps.map((step) => (
                     <div
                       key={step.number}
-                      className="p-4 rounded-xl border border-border bg-card/80 hover:bg-card transition-colors shadow-2xs space-y-2.5"
+                      className="p-4 rounded-xl border border-border mix-bg-card/80 hover:bg-card transition-colors shadow-2xs space-y-2.5"
                     >
                       <div className="flex items-center gap-3">
                         <span
@@ -313,9 +313,9 @@ export default function LabGuideModal({
                         {step.details.map((detail, idx) => (
                           <li
                             key={idx}
-                            className="text-xs text-foreground/80 flex items-start gap-2 leading-relaxed"
+                            className="text-xs mix-text-foreground/80 flex items-start gap-2 leading-relaxed"
                           >
-                            <span className="h-1.5 w-1.5 rounded-full bg-primary/60 flex-shrink-0 mt-1.5" />
+                            <span className="h-1.5 w-1.5 rounded-full mix-bg-primary/60 flex-shrink-0 mt-1.5" />
                             <span>{detail}</span>
                           </li>
                         ))}
@@ -331,7 +331,7 @@ export default function LabGuideModal({
           {activeTab === 'sections' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold tracking-tight text-foreground uppercase text-[11px] text-muted-foreground">
+                <h3 className="text-sm font-semibold tracking-tight text-foreground uppercase text-xs text-muted-foreground">
                   What Each Section Delivers
                 </h3>
                 <span className="text-xs text-muted-foreground">
@@ -348,7 +348,7 @@ export default function LabGuideModal({
                   {filteredSections.map((sec, idx) => (
                     <div
                       key={idx}
-                      className="p-4 rounded-xl border border-border bg-card/80 flex flex-col justify-between gap-3 shadow-2xs"
+                      className="p-4 rounded-xl border border-border mix-bg-card/80 flex flex-col justify-between gap-3 shadow-2xs"
                     >
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ export default function LabGuideModal({
                         </p>
                       </div>
 
-                      <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50 text-[11px] text-foreground/90">
+                      <div className="p-2.5 rounded-lg mix-bg-muted/40 border mix-border-border/50 text-xs mix-text-foreground/90">
                         <span className="font-semibold text-primary">Pro Tip: </span>
                         <span>{sec.proTip}</span>
                       </div>
@@ -377,7 +377,7 @@ export default function LabGuideModal({
           {activeTab === 'tips' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold tracking-tight text-foreground uppercase text-[11px] text-muted-foreground">
+                <h3 className="text-sm font-semibold tracking-tight text-foreground uppercase text-xs text-muted-foreground">
                   Productivity & Best Practices
                 </h3>
               </div>
@@ -408,7 +408,7 @@ export default function LabGuideModal({
           {activeTab === 'faq' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold tracking-tight text-foreground uppercase text-[11px] text-muted-foreground">
+                <h3 className="text-sm font-semibold tracking-tight text-foreground uppercase text-xs text-muted-foreground">
                   Frequently Asked Questions
                 </h3>
               </div>
@@ -440,9 +440,9 @@ export default function LabGuideModal({
         </div>
 
         {/* ── Footer ── */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-t border-border bg-muted/30">
+        <div className="flex items-center justify-between px-[1.5rem] py-3.5 border-t border-border mix-bg-muted/30">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <kbd className="px-1.5 py-0.5 rounded border border-border bg-card text-[10px] font-mono">
+            <kbd className="px-1.5 py-0.5 rounded border border-border bg-card text-xs font-mono">
               Esc
             </kbd>
             <span>to close</span>
@@ -481,7 +481,7 @@ export function LabGuideTrigger({
       onClick={onClick}
       aria-label={title}
       title={title}
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/70 transition-colors shadow-2xs cursor-pointer ${className}`}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium mix-bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border mix-border-border/70 transition-colors shadow-2xs cursor-pointer ${className}`}
     >
       <Icon name="BookOpenIcon" size={12} className="text-primary flex-shrink-0" />
       <span>{label}</span>

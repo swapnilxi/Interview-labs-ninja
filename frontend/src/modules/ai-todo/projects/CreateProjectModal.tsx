@@ -79,7 +79,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
 
       <form onSubmit={handleSubmit} className="p-4 space-y-4">
         <div>
-          <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+          <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
             Project Name *
           </label>
           <input
@@ -93,7 +93,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
         </div>
 
         <div>
-          <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+          <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
             Description
           </label>
           <textarea
@@ -106,7 +106,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
               Priority
             </label>
             <select
@@ -121,7 +121,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
             </select>
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
               Due Date
             </label>
             <input
@@ -134,7 +134,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
         </div>
 
         <div>
-          <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+          <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
             Icon & Color
           </label>
           <div className="flex gap-4 items-center">

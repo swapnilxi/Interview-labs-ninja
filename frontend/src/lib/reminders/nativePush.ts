@@ -31,6 +31,12 @@ export function syncPushTokenAfterLogin() {
 
 export async function startNativePush(): Promise<void> {
   if (!isNativeApp() || started) return;
+  // MainActivity adds this token only when Firebase is configured (google-services.json). Calling register()
+  // without it crashes the whole app natively, so skip FCM instead.
+  if (!navigator.userAgent.includes('LabNinjaFcm')) {
+    console.info('FCM push disabled: add android/app/google-services.json and rebuild the app.');
+    return;
+  }
   started = true;
   try {
     await PushNotifications.addListener('registration', (t) => {

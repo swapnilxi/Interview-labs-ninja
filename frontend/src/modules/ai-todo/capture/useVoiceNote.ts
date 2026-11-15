@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { deepgramSTT, isDeepgramEnabled } from '@/modules/ai-lms/services/voiceService';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
+import { micBlockedMessage, micStartErrorMessage } from '@/components/voice/micPermission';
 
 /**
  * Records one spoken note for task capture.
@@ -30,6 +31,8 @@ type Recognition = {
 export type VoiceNoteState = 'idle' | 'listening' | 'transcribing';
 
 const SILENCE_MS = 2600;
+/** How long stop() waits for the recognizer's `end` before finishing on its own. */
+const STOP_GRACE_MS = 1500;
 
 function recognitionCtor(): (new () => Recognition) | null {
   if (typeof window === 'undefined') return null;
@@ -38,7 +41,9 @@ function recognitionCtor(): (new () => Recognition) | null {
 
 export function voiceNoteSupported(): boolean {
   if (typeof window === 'undefined') return false;
-  return Boolean(recognitionCtor()) || (isDeepgramEnabled() && isLoggedIn() && 'MediaRecorder' in window);
+  return (
+    Boolean(recognitionCtor()) || (isDeepgramEnabled() && isLoggedIn() && 'MediaRecorder' in window)
+  );
 }
 
 export function useVoiceNote(onFinal: (text: string) => void) {
@@ -54,6 +59,9 @@ export function useVoiceNote(onFinal: (text: string) => void) {
   const finalTextRef = useRef('');
   const cancelledRef = useRef(false);
   const silenceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Ends the current browser-recognition session (once); set by startBrowser. */
+  const endBrowserRef = useRef<(() => void) | null>(null);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -64,6 +72,45 @@ export function useVoiceNote(onFinal: (text: string) => void) {
     if (silenceRef.current) clearTimeout(silenceRef.current);
     silenceRef.current = null;
   };
+
+  const clearStopGuard = () => {
+    if (stopGuardRef.current) clearTimeout(stopGuardRef.current);
+    stopGuardRef.current = null;
+  };
+
+  /**
+   * Ask the recognizer to stop and hand over what was said. Engines normally answer with `end`, but the Android
+   * WebView can go quiet (after a refused microphone, for one) and never send it, which left the sheet stuck on
+   * "listening" with only Cancel working. So if `end` doesn't come soon, finish anyway.
+   */
+  const stopBrowser = () => {
+    const rec = recognitionRef.current;
+    if (!rec) return;
+    try {
+      rec.stop();
+    } catch {
+      /* already stopped */
+    }
+    if (!stopGuardRef.current) {
+      stopGuardRef.current = setTimeout(() => endBrowserRef.current?.(), STOP_GRACE_MS);
+    }
+  };
+
+  /** Drop the browser recognizer without delivering anything; its late events can't touch a newer session. */
+  const discardBrowser = useCallback(() => {
+    const rec = recognitionRef.current;
+    recognitionRef.current = null;
+    endBrowserRef.current = null;
+    if (stopGuardRef.current) clearTimeout(stopGuardRef.current);
+    stopGuardRef.current = null;
+    if (!rec) return;
+    rec.onresult = rec.onerror = rec.onend = null;
+    try {
+      rec.abort();
+    } catch {
+      /* not started */
+    }
+  }, []);
 
   const releaseAudio = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -79,11 +126,11 @@ export function useVoiceNote(onFinal: (text: string) => void) {
     () => () => {
       cancelledRef.current = true;
       clearSilence();
-      recognitionRef.current?.abort();
+      discardBrowser();
       if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
       releaseAudio();
     },
-    [releaseAudio]
+    [releaseAudio, discardBrowser]
   );
 
   const finish = useCallback((text: string) => {
@@ -108,25 +155,35 @@ export function useVoiceNote(onFinal: (text: string) => void) {
       }
       setInterim(`${finalTextRef.current} ${live}`.trim());
       clearSilence();
-      silenceRef.current = setTimeout(() => rec.stop(), SILENCE_MS);
+      silenceRef.current = setTimeout(stopBrowser, SILENCE_MS);
+    };
+    let ended = false;
+    const end = () => {
+      if (ended) return;
+      ended = true;
+      rec.onresult = rec.onerror = rec.onend = null;
+      clearSilence();
+      clearStopGuard();
+      if (recognitionRef.current === rec) recognitionRef.current = null;
+      if (endBrowserRef.current === end) endBrowserRef.current = null;
+      finish(finalTextRef.current || '');
     };
     rec.onerror = (e: any) => {
       if (e.error === 'no-speech' || e.error === 'aborted') return;
       setError(
         e.error === 'not-allowed' || e.error === 'service-not-allowed'
-          ? 'Microphone is blocked. Allow it in your browser’s site settings.'
+          ? micBlockedMessage()
           : 'Voice input stopped. Try again, or type the task.'
       );
+      // A real error ends the session now: don't wait for an `end` that the Android WebView may never send.
+      end();
     };
-    rec.onend = () => {
-      clearSilence();
-      recognitionRef.current = null;
-      finish(finalTextRef.current || '');
-    };
+    rec.onend = end;
     recognitionRef.current = rec;
+    endBrowserRef.current = end;
     rec.start();
     // Nothing said at all: give up quietly after a while instead of listening forever.
-    silenceRef.current = setTimeout(() => rec.stop(), SILENCE_MS * 3);
+    silenceRef.current = setTimeout(stopBrowser, SILENCE_MS * 3);
   };
 
   const startRecorder = async () => {
@@ -143,7 +200,9 @@ export function useVoiceNote(onFinal: (text: string) => void) {
       }
       setState('transcribing');
       try {
-        const text = await deepgramSTT(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }));
+        const text = await deepgramSTT(
+          new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+        );
         finish(text);
       } catch {
         setError('Could not transcribe that. Try again, or type the task.');
@@ -205,9 +264,11 @@ export function useVoiceNote(onFinal: (text: string) => void) {
         return;
       }
       setState('listening');
-    } catch {
+    } catch (err) {
+      clearSilence();
+      discardBrowser();
       releaseAudio();
-      setError('Microphone is blocked. Allow it in your browser’s site settings.');
+      setError(micStartErrorMessage(err));
       setState('idle');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -216,7 +277,7 @@ export function useVoiceNote(onFinal: (text: string) => void) {
   /** Stop and use what was said. */
   const stop = useCallback(() => {
     clearSilence();
-    if (recognitionRef.current) recognitionRef.current.stop();
+    if (recognitionRef.current) stopBrowser();
     else if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
   }, []);
 
@@ -224,13 +285,12 @@ export function useVoiceNote(onFinal: (text: string) => void) {
   const cancel = useCallback(() => {
     cancelledRef.current = true;
     clearSilence();
-    recognitionRef.current?.abort();
-    recognitionRef.current = null;
+    discardBrowser();
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
     releaseAudio();
     setInterim('');
     setState('idle');
-  }, [releaseAudio]);
+  }, [releaseAudio, discardBrowser]);
 
   return { state, interim, error, level, start, stop, cancel, clearError: () => setError(null) };
 }

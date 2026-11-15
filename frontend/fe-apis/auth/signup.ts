@@ -11,6 +11,7 @@ import {
   createUser,
   hashPassword,
   createAccessToken,
+  publicUser,
 } from '../_shared/db';
 
 export async function handleSignup(req: NextRequest): Promise<NextResponse> {
@@ -48,12 +49,7 @@ export async function handleSignup(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       access_token: token,
       token_type: 'bearer',
-      user: {
-        id: user.id,
-        email: user.email,
-        display_name: user.display_name,
-        role: user.role,
-      },
+      user: publicUser(user),
     });
   } catch (err) {
     console.error('[fe-api/auth/signup] Unexpected error:', err);

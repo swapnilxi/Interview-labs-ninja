@@ -16,6 +16,8 @@ import { apiFetch } from './apiClient';
 
 const DOWN_TTL_MS = 15_000;
 const TIMEOUT_MS = 5_000;
+/** For calls that wait on an AI provider (several rounds of generation): 5 minutes, not the 5-second default. */
+export const AI_TIMEOUT_MS = 5 * 60_000;
 
 let downUntil = 0;
 
@@ -29,19 +31,42 @@ export function isNetworkFailure(err: unknown): boolean {
   return err instanceof TypeError || (err instanceof DOMException && err.name === 'AbortError');
 }
 
+/** Thrown by backendFetch when a call outlives its own `timeoutMs`: the backend answered nothing in time, which is
+ * not the same as being unreachable, so it doesn't trip the circuit breaker and isNetworkFailure() is false. */
+export class BackendTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`The server took longer than ${Math.round(timeoutMs / 1000)}s to answer. Try again.`);
+    this.name = 'BackendTimeoutError';
+  }
+}
+
 /**
  * apiFetch wrapped with a request timeout and circuit-breaker bookkeeping.
  * Throws exactly like apiFetch on network failure; callers should check
  * `isNetworkFailure()` on the caught error to decide whether to fall back.
+ *
+ * `timeoutMs` (default 5s) is for quick data calls; a call that waits on an AI provider must pass a long one
+ * (AI_TIMEOUT_MS). Before it existed, generating Daily Session questions was cut off after 5s every time and the
+ * page silently fell back to the same built-in questions.
  */
-export async function backendFetch(path: string, options: RequestInit = {}): Promise<Response> {
+export async function backendFetch(
+  path: string,
+  options: RequestInit & { timeoutMs?: number } = {}
+): Promise<Response> {
+  const { timeoutMs = TIMEOUT_MS, ...init } = options;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   try {
-    const res = await apiFetch(path, { ...options, signal: options.signal ?? controller.signal });
+    const res = await apiFetch(path, { ...init, signal: init.signal ?? controller.signal });
     downUntil = 0;
     return res;
   } catch (err) {
+    // A long call that simply ran out of time reached the backend: report it as a timeout, not as "offline".
+    if (timedOut && timeoutMs > TIMEOUT_MS) throw new BackendTimeoutError(timeoutMs);
     if (isNetworkFailure(err)) downUntil = Date.now() + DOWN_TTL_MS;
     throw err;
   } finally {

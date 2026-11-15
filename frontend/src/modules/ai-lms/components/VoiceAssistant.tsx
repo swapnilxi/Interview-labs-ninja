@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { deepgramSTT, deepgramTTS, isDeepgramEnabled } from '../services/voiceService';
 import { lmsService } from '../services/lmsService';
+import { micBlockedMessage, micStartErrorMessage } from '@/components/voice/micPermission';
 
 interface VoiceAssistantProps {
   lessonTitle: string;
@@ -233,7 +234,11 @@ export default function VoiceAssistant({ lessonTitle, lessonContentHtml }: Voice
 
         recognitionRef.current.onerror = (event) => {
           if (event.error !== 'aborted') {
-            setError(`Mic error: ${event.error}`);
+            setError(
+              event.error === 'not-allowed' || event.error === 'service-not-allowed'
+                ? micBlockedMessage()
+                : `Mic error: ${event.error}`
+            );
             setAssistantState('idle');
           }
         };
@@ -392,7 +397,7 @@ export default function VoiceAssistant({ lessonTitle, lessonContentHtml }: Voice
         };
         mr.start();
       } catch (err: unknown) {
-        setError(`Microphone access denied: ${err instanceof Error ? err.message : String(err)}`);
+        setError(micStartErrorMessage(err));
         setAssistantState('idle');
       }
     } else if (recognitionRef.current) {

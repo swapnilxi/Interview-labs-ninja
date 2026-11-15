@@ -231,8 +231,8 @@ export default function GoalTimelineBoard({
   return (
     <div className="w-full">
       {allGoals.length === 0 && (
-        <div className="todo-glass mb-[1.5rem] flex items-center gap-3 px-[1.25rem] py-4 text-sm text-muted-foreground">
-          <Icon name="SparklesIcon" size={14} className="text-primary shrink-0" />
+        <div className="todo-glass mb-[1.25rem] flex items-center gap-3 px-4 py-3.5 text-[14px] text-muted-foreground">
+          <Icon name="SparklesIcon" size={16} className="lab-ink shrink-0" />
           <span>
             <strong className="text-foreground font-semibold">Start with what matters</strong> — create a
             goal for any time horizon, from your bigger vision to your next milestone.
@@ -285,7 +285,10 @@ export default function GoalTimelineBoard({
         <div
           ref={scrollRef}
           className={[
-            'flex gap-4 items-start overflow-x-auto [scroll-snap-type:x_mandatory] scrollbar-clean pb-3 todo-stagger',
+            // Phones: the track bleeds to the screen edges (cards slide under the edge, as in a native carousel) and
+            // snaps each column to the page gutter.
+            'goal-track flex gap-3 sm:gap-4 items-start overflow-x-auto [scroll-snap-type:x_mandatory] scrollbar-clean pb-3 todo-stagger',
+            '-mx-4 px-4 scroll-px-4 sm:mx-0 sm:px-0 sm:scroll-px-0',
             isDragging ? 'cursor-grabbing select-none' : 'cursor-grab',
           ].join(' ')}
           onMouseDown={onDragStart}
@@ -296,19 +299,19 @@ export default function GoalTimelineBoard({
           {columns.map((col) => (
             <div
               key={col.id}
-              className="todo-lit shrink-0 flex flex-col bg-card border border-border rounded-xl overflow-hidden [scroll-snap-align:start] w-[82vw] sm:w-[260px]"
+              className="goal-column shrink-0 flex flex-col overflow-hidden [scroll-snap-align:start] w-[82vw] max-w-[22rem] sm:w-[260px]"
             >
-              <div className="flex items-center justify-between px-[1.25rem] py-4 border-b border-border shrink-0" style={{ background: 'color-mix(in srgb, var(--color-foreground) 4%, transparent)' }}>
-                <span className="font-heading text-sm font-bold text-foreground">{col.label}</span>
-                <span className="copilot-tint rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums">
+              <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-1 pt-4">
+                <span className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">{col.label}</span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[12px] font-semibold tabular-nums text-muted-foreground">
                   {col.count}
                 </span>
               </div>
 
               {/* data-vscroll: wheel handler skips this zone so inner vertical scroll still works */}
-              <div data-vscroll="" className="max-h-[460px] overflow-y-auto scrollbar-clean p-4 space-y-3">
+              <div data-vscroll="" className="max-h-[460px] overflow-y-auto overscroll-contain scrollbar-clean space-y-2.5 p-3">
                 {col.standalone.length === 0 && col.groups.length === 0 && (
-                  <p className="py-4 text-center text-xs text-muted-foreground">No {col.label.toLowerCase()} goals yet</p>
+                  <p className="py-5 text-center text-[13px] text-muted-foreground">No {col.label.toLowerCase()} goals yet</p>
                 )}
 
                 {col.standalone.map((item) => renderCard(item))}
@@ -319,20 +322,21 @@ export default function GoalTimelineBoard({
                     <div key={group.root.id} className="space-y-1.5">
                       <button
                         onClick={() => toggleRoot(group.root.id)}
-                        className="w-full flex items-center gap-1 px-1.5 py-1 rounded-md mix-bg-muted/40 hover:mix-bg-muted/70 transition-smooth text-left"
+                        className="flex w-full items-center gap-1.5 rounded-[10px] px-2 py-1.5 text-left transition-smooth mix-bg-muted/40 hover:mix-bg-muted/70"
+                        aria-expanded={!collapsed}
                         title={`${collapsed ? 'Expand' : 'Collapse'} everything under "${group.root.title}"`}
                       >
                         <Icon
                           name="ChevronRightIcon"
-                          size={10}
+                          size={13}
                           className={`shrink-0 text-muted-foreground transition-transform duration-200 ${
                             collapsed ? '' : 'rotate-90'
                           }`}
                         />
-                        <span className="text-xs font-bold text-muted-foreground truncate flex-1">
+                        <span className="flex-1 truncate text-[12px] font-semibold text-muted-foreground">
                           ↳ {group.root.title}
                         </span>
-                        <span className="text-xs text-muted-foreground bg-muted px-1 rounded-sm shrink-0">
+                        <span className="shrink-0 rounded-full bg-muted px-1.5 text-xs font-semibold tabular-nums text-muted-foreground">
                           {group.items.length}
                         </span>
                       </button>
@@ -347,12 +351,12 @@ export default function GoalTimelineBoard({
                 })}
               </div>
 
-              <div className="shrink-0 p-4 pt-0">
+              <div className="shrink-0 p-3 pt-0">
                 <button
                   onClick={() => onAddAtLevel(col.id)}
-                  className="todo-add-slot todo-focus flex w-full items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-semibold"
+                  className="todo-add-slot todo-focus flex w-full items-center justify-center gap-1.5 rounded-[12px] py-2.5 text-[13px] font-semibold"
                 >
-                  <Icon name="PlusIcon" size={13} /> Add {col.label}
+                  <Icon name="PlusIcon" size={15} /> Add {col.label}
                 </button>
               </div>
             </div>

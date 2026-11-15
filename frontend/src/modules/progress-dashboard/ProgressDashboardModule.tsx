@@ -221,7 +221,7 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
         <div className="max-w-[1400px] mx-auto px-24 py-36">
           <div className="animate-pulse space-y-24">
             <div className="h-48 bg-muted rounded-lg w-1/3" />
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-24">
+            <div className="grid grid-cols-2 gap-3 sm:gap-24 md:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-120 bg-muted rounded-lg" />
               ))}
@@ -248,7 +248,7 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
   const content = (
     <div className={embedded ? "space-y-6 pt-1 pb-10" : "max-w-[1400px] mx-auto px-24 py-36 space-y-24"}>
       {/* Metric Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-24 animate-fade-in">
+        <div className="grid grid-cols-2 gap-3 animate-fade-in sm:gap-24 lg:grid-cols-4">
           <MetricCard
             title="Total Sessions Started"
             value={stats.totalSessions || 4}
@@ -260,7 +260,7 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
           <MetricCard
             title="Total Questions Answered"
             value={stats.totalAnswered || 6}
-            subtitle="Persisted SQLite progress answers"
+            subtitle="Across all your sessions"
             icon="CheckCircleIcon"
             color="success"
             trend={{ value: 12, isPositive: true }}
@@ -284,7 +284,7 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
         </div>
 
         {/* Chart Section */}
-        <div className="bg-card border border-border rounded-lg p-24 shadow-md space-y-18">
+        <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-24 space-y-18">
           <div>
             <h3 className="font-heading text-lg font-medium text-foreground">Performance Score Trends</h3>
             <p className="text-sm text-muted-foreground font-caption mt-6">
@@ -295,7 +295,7 @@ export default function ProgressDashboardInteractive({ embedded = false }: { emb
         </div>
 
         {/* Skill Breakdown Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-24">
+        <div className="grid grid-cols-1 gap-3 sm:gap-24 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <SkillBreakdownCard skills={skillsData} />
           </div>

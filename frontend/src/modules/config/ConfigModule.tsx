@@ -29,7 +29,7 @@ const FIELD_BUTTON =
   'todo-input flex min-h-[2.5rem] items-center justify-between gap-2 rounded-md px-3 py-1.5 text-left text-sm';
 /** A segment of the page's tab control: two equal halves on a phone (the label wraps), natural width from `sm`. */
 const TAB =
-  'todo-segment min-w-0 flex-1 justify-center whitespace-normal px-3 py-2 text-center text-sm leading-tight sm:flex-none sm:whitespace-nowrap sm:px-4';
+  'todo-segment min-w-0 flex-1 justify-center whitespace-nowrap px-2 py-2 text-center text-[13px] leading-tight sm:flex-none sm:px-4 sm:text-sm';
 /** Inline `code` chips. */
 const CODE = 'rounded bg-muted px-1.5 py-0.5 font-code text-xs';
 
@@ -723,8 +723,10 @@ export default function ConfigInteractive() {
             onClick={() => setConfigTab('providers')}
             className={TAB}
           >
-            <Icon name="SparklesIcon" size={15} />
-            <span>AI Models & API Keys</span>
+            <Icon name="SparklesIcon" size={15} className="hidden sm:block" />
+            {/* Phones: the short label keeps both segments on one line. */}
+            <span className="sm:hidden">Models & keys</span>
+            <span className="hidden sm:inline">AI Models & API Keys</span>
           </button>
           <button
             type="button"
@@ -732,9 +734,10 @@ export default function ConfigInteractive() {
             onClick={() => setConfigTab('labs')}
             className={TAB}
           >
-            <Icon name="AdjustmentsHorizontalIcon" size={15} />
-            <span>Lab Prompts & Sections</span>
-            <span className="hidden whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider lab-tint lab-ink md:inline">
+            <Icon name="AdjustmentsHorizontalIcon" size={15} className="hidden sm:block" />
+            <span className="sm:hidden">Prompts & sections</span>
+            <span className="hidden sm:inline">Lab Prompts & Sections</span>
+            <span className="hidden whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold lab-tint lab-ink md:inline">
               DSA · Sys Design · CV
             </span>
           </button>

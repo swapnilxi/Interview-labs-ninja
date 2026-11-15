@@ -323,29 +323,30 @@ export default function QuickDaily({ model }: QuickDailyProps) {
   const spinner = (cls: string) => <span className={`${cls} animate-spin rounded-full border-2 border-current border-t-transparent`} />;
 
   return (
-    <div className="flex flex-col gap-[1.75rem]">
+    <div className="flex flex-col gap-[1.25rem] sm:gap-[1.75rem]">
       {/* Capture bar */}
-      <div className="todo-lit bg-card border mix-border-border/80 rounded-xl p-[1.25rem] shadow-sm flex flex-col gap-4">
+      <div className="todo-glass flex flex-col gap-3 p-3 sm:p-[1.25rem]">
         <form onSubmit={handleCreateTask} className="flex flex-col gap-3">
           <div className="relative flex items-center">
             <input
               type="text"
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
-              placeholder="Add a task for today... (hit Enter)"
+              placeholder="Add a task for today…"
               aria-label="New task"
-              className="w-full bg-input border-2 mix-border-border/50 hover:border-border rounded-lg py-3 pl-4 pr-[9rem] text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-smooth placeholder:mix-text-muted-foreground/70"
+              enterKeyHint="done"
+              className="todo-input todo-input-quiet h-[3rem] rounded-full pl-4 pr-[8.25rem] text-base sm:text-sm"
             />
-            <div className="absolute right-2 flex items-center gap-1">
+            <div className="absolute right-1.5 flex items-center gap-0.5">
               {/* Brain Dump (Handwriting) Button */}
               <button
                 type="button"
                 onClick={openBrainDump}
-                className="p-1.5 rounded-md transition-smooth text-muted-foreground hover:bg-purple-500/10 hover:text-purple-500"
+                className="flex h-9 w-9 items-center justify-center rounded-full transition-smooth hover:bg-muted"
                 title="Brain Dump — upload handwriting photo"
                 aria-label="Brain Dump — upload handwriting photo"
               >
-                <FlatIcon name="brain" size={22} />
+                <FlatIcon name="brain" size={20} />
               </button>
               {/* AI Day Plan — top-20 aware */}
               <button
@@ -355,29 +356,28 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                   setDayPlanData(null);
                   setShowDayPlan(true);
                 }}
-                className="p-1.5 rounded-md transition-smooth text-muted-foreground hover:mix-bg-primary/10 hover:text-primary"
+                className="flex h-9 w-9 items-center justify-center rounded-full transition-smooth hover:bg-muted"
                 title="AI Day Plan"
                 aria-label="AI Day Plan"
               >
-                <FlatIcon name="dayPlan" size={22} />
+                <FlatIcon name="dayPlan" size={20} />
               </button>
-              <div className="w-px h-5 bg-border mx-1" />
               <button
                 type="submit"
                 disabled={!inputValue.trim()}
                 aria-label="Add task"
-                className="p-1.5 bg-primary text-primary-foreground rounded-md hover:mix-bg-primary/90 transition-smooth disabled:opacity-50"
+                className="vc-add ml-0.5 h-9 w-9"
               >
-                <Icon name="ArrowUpIcon" size={16} variant="solid" />
+                <Icon name="ArrowUpIcon" size={18} variant="solid" />
               </button>
             </div>
           </div>
 
           {/* Optional details: new tasks land "unsorted" unless you say otherwise */}
-          <div className="flex flex-wrap items-center gap-3 px-1 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-md border mix-border-border/50">
+          <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+            <div className="quick-option">
               <span className={`h-2.5 w-2.5 rounded-full ${QUADRANT_META[addQuadrant].dot}`} aria-hidden="true" />
-              <label htmlFor="quick-add-quadrant" className="font-semibold">Add to:</label>
+              <label htmlFor="quick-add-quadrant" className="font-medium">Add to</label>
               <select
                 id="quick-add-quadrant"
                 value={addQuadrant}
@@ -390,9 +390,9 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               </select>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-md border mix-border-border/50">
-              <Icon name="ClockIcon" size={14} className="text-amber-500" />
-              <label htmlFor="quick-add-time" className="font-semibold">Time:</label>
+            <div className="quick-option">
+              <Icon name="ClockIcon" size={15} className="text-amber-500" />
+              <label htmlFor="quick-add-time" className="font-medium">Time</label>
               <select
                 id="quick-add-time"
                 value={addTimeEstimate}
@@ -408,9 +408,9 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               </select>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-md border mix-border-border/50">
-              <Icon name="CalendarIcon" size={14} className="text-blue-500" />
-              <label htmlFor="quick-add-due" className="font-semibold">Due Date:</label>
+            <div className="quick-option">
+              <Icon name="CalendarIcon" size={15} className="text-blue-500" />
+              <label htmlFor="quick-add-due" className="font-medium">Due</label>
               <input
                 id="quick-add-due"
                 type="date"
@@ -435,12 +435,12 @@ export default function QuickDaily({ model }: QuickDailyProps) {
 
       {/* Toolbar: view · 80/20 · progress */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div className="todo-segmented" role="group" aria-label="Quick Daily view">
+        <div className="todo-segmented w-full sm:w-auto" role="group" aria-label="Quick Daily view">
           <button
             type="button"
             aria-pressed={view === 'list'}
             onClick={() => chooseView('list')}
-            className="todo-segment py-2 text-sm"
+            className="todo-segment flex-1 py-2 text-sm sm:flex-none"
           >
             <Icon name="ListBulletIcon" size={16} /> List
           </button>
@@ -448,19 +448,20 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             type="button"
             aria-pressed={view === 'matrix'}
             onClick={() => chooseView('matrix')}
-            className="todo-segment py-2 text-sm"
+            className="todo-segment flex-1 py-2 text-sm sm:flex-none"
             title="Sort your tasks into the Eisenhower matrix by dragging"
           >
             <Icon name="Squares2X2Icon" size={16} /> Prioritise
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Phones: one row that swipes sideways (it bleeds to the screen edge) instead of wrapping into a pile. */}
+        <div className="-mx-4 flex w-[calc(100%+2rem)] items-center gap-2 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0">
           <button
             type="button"
             onClick={() => setTop20Only(!top20Only)}
             aria-pressed={top20Only}
-            className={`todo-btn todo-btn-secondary py-2 ${top20Only ? 'todo-btn-active' : ''}`}
+            className={`todo-btn todo-btn-quiet shrink-0 py-2 ${top20Only ? 'todo-btn-active' : ''}`}
             title="Show only Top 20% high-leverage tasks"
           >
             <FlatIcon name="star" size={16} /> Top 20%
@@ -469,7 +470,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             type="button"
             onClick={handleAnalyze}
             disabled={analyzeLoading}
-            className="todo-btn todo-btn-secondary py-2"
+            className="todo-btn todo-btn-quiet shrink-0 py-2"
             title="Run AI 80/20 analysis on today's tasks"
           >
             {analyzeLoading ? spinner('h-3.5 w-3.5') : <FlatIcon name="star" size={16} />}
@@ -479,7 +480,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             type="button"
             onClick={handleAutoSort}
             disabled={autoSortLoading || activeTasks.length === 0}
-            className="todo-btn todo-btn-secondary py-2"
+            className="todo-btn todo-btn-quiet shrink-0 py-2"
             title="AI sorts your unsorted tasks into quadrants"
           >
             {autoSortLoading ? spinner('h-3.5 w-3.5') : <FlatIcon name="ai" size={16} />}
@@ -487,8 +488,8 @@ export default function QuickDaily({ model }: QuickDailyProps) {
           </button>
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
-          <div className="min-w-[8.5rem]">
+        <div className="flex w-full items-center gap-3 sm:ml-auto sm:w-auto">
+          <div className="min-w-[8.5rem] flex-1 sm:flex-none">
             <p className="text-sm text-foreground">
               <span className="font-semibold tabular-nums">{completedCount}</span> of{' '}
               <span className="tabular-nums">{totalCount}</span> done
@@ -502,13 +503,13 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               aria-valuemax={totalCount || 1}
               aria-valuenow={completedCount}
             >
-              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${doneRatio}%` }} />
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${doneRatio}%` }} />
             </div>
           </div>
           <button
             type="button"
             onClick={() => setShowEndDay(true)}
-            className="todo-btn todo-btn-secondary py-2"
+            className="todo-btn todo-btn-quiet shrink-0 py-2"
           >
             <FlatIcon name="night" size={16} /> End My Day
           </button>
@@ -565,7 +566,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
       {/* Exported tasks (dimmed historical) */}
       {tasks.filter(t => t.is_exported).length > 0 && (
         <div className="border-t border-border pt-3">
-          <p className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">Moved out</p>
+          <p className="mb-2 px-1 text-[13px] font-semibold text-muted-foreground">Moved out</p>
           {tasks.filter(t => t.is_exported).map(task => (
             <div key={`exp-${task.id}`} className="rounded px-2 py-1.5 text-xs italic text-muted-foreground line-through">
               {task.title}
@@ -587,9 +588,9 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-[1.5rem] py-4 border-b border-border bg-gradient-to-r from-purple-500/10 to-blue-500/10">
+        <div className="flex items-center justify-between px-[1.5rem] py-4 border-b border-border mix-bg-primary/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center"><FlatIcon name="brain" size={22} /></div>
+            <div className="w-9 h-9 rounded-xl mix-bg-primary/15 flex items-center justify-center"><FlatIcon name="brain" size={22} /></div>
             <div>
               <h2 id="quick-braindump-title" className="font-heading font-bold text-foreground text-base">Handwriting Brain Dump</h2>
               <p className="text-xs text-muted-foreground">
@@ -637,9 +638,9 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                   const file = e.dataTransfer.files[0];
                   if (file) handleFileSelect(file);
                 }}
-                className="border-2 border-dashed border-purple-400/40 hover:border-purple-400/80 rounded-xl p-10 flex flex-col items-center gap-4 cursor-pointer transition-smooth bg-purple-500/5 hover:bg-purple-500/10 group todo-focus"
+                className="border-2 border-dashed mix-border-primary/40 hover:mix-border-primary/80 rounded-xl p-10 flex flex-col items-center gap-4 cursor-pointer transition-smooth mix-bg-primary/5 hover:mix-bg-primary/10 group todo-focus"
               >
-                <div className="w-16 h-16 rounded-2xl bg-purple-500/10 group-hover:bg-purple-500/20 flex items-center justify-center transition-smooth">
+                <div className="w-16 h-16 rounded-2xl mix-bg-primary/10 group-hover:mix-bg-primary/20 flex items-center justify-center transition-smooth">
                   <FlatIcon name="camera" size={38} />
                 </div>
                 <div className="text-center">
@@ -676,8 +677,8 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               )}
               <div className="flex flex-col items-center gap-3">
                 <div className="relative w-14 h-14">
-                  <div className="absolute inset-0 rounded-full border-4 border-purple-500/20 border-t-purple-500 animate-spin" />
-                  <div className="absolute inset-3 rounded-full bg-purple-500/10 flex items-center justify-center"><FlatIcon name="search" size={20} /></div>
+                  <div className="absolute inset-0 rounded-full border-4 mix-border-primary/20 border-t-primary animate-spin" />
+                  <div className="absolute inset-3 rounded-full mix-bg-primary/10 flex items-center justify-center"><FlatIcon name="search" size={20} /></div>
                 </div>
                 <p className="text-sm font-semibold text-foreground animate-pulse">Reading your handwriting...</p>
                 <p className="text-xs text-muted-foreground text-center max-w-xs">
@@ -693,7 +694,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               {/* Extracted text accordion */}
               {extractedText && (
                 <details className="border-b border-border">
-                  <summary className="px-[1.5rem] py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer hover:mix-bg-muted/30 transition-smooth flex items-center gap-2">
+                  <summary className="px-[1.5rem] py-3 text-[13px] font-semibold text-muted-foreground cursor-pointer hover:mix-bg-muted/30 transition-smooth flex items-center gap-2">
                     <span className="inline-flex items-center gap-1.5"><FlatIcon name="notes" size={16} /> Raw Extracted Text</span>
                     <span className="text-xs normal-case font-normal">(click to expand)</span>
                   </summary>
@@ -806,7 +807,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                 <p className="text-xs text-muted-foreground">Tip: {shortcutLabel} opens the distraction inbox</p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-5 py-2.5 bg-purple-500 hover:bg-purple-600 text-white text-sm font-bold rounded-xl transition-smooth flex items-center gap-2 shadow-lg shadow-purple-500/20"
+                  className="flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-smooth hover:mix-bg-primary/90"
                 >
                   <FlatIcon name="camera" size={18} /> Choose Photo
                 </button>
@@ -898,7 +899,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               <>
                 {(dayPlanData.plan || []).some((t: any) => t.is_top_20) && (
                   <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-2 inline-flex items-center gap-1.5"><FlatIcon name="star" size={14} /> High Leverage</h4>
+                    <h4 className="mb-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-amber-600 dark:text-amber-400"><FlatIcon name="star" size={14} /> High Leverage</h4>
                     <div className="space-y-2">
                       {(dayPlanData.plan || []).filter((t: any) => t.is_top_20).map((task: any, idx: number) => (
                         <PlanSlot key={idx} task={task} />
@@ -908,7 +909,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                 )}
                 {(dayPlanData.plan || []).some((t: any) => !t.is_top_20) && (
                   <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Other Tasks</h4>
+                    <h4 className="mb-2 text-[13px] font-semibold text-muted-foreground">Other Tasks</h4>
                     <div className="space-y-2">
                       {(dayPlanData.plan || []).filter((t: any) => !t.is_top_20).map((task: any, idx: number) => (
                         <PlanSlot key={idx} task={task} />
@@ -1029,12 +1030,12 @@ function QuickEndDayModal({ incompleteTasks, completedCount, model, onClose, onD
             <div className="p-3 rounded-lg mix-bg-muted/40 border border-border flex items-center justify-around text-center">
               <div>
                 <span className="block text-xl font-bold text-primary">{completedCount}</span>
-                <span className="text-[11px] text-muted-foreground font-medium uppercase">Completed</span>
+                <span className="text-[12px] font-medium text-muted-foreground">Completed</span>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
                 <span className="block text-xl font-bold text-amber-500">{incompleteTasks.length}</span>
-                <span className="text-[11px] text-muted-foreground font-medium uppercase">Incomplete</span>
+                <span className="text-[12px] font-medium text-muted-foreground">Incomplete</span>
               </div>
             </div>
 

@@ -32,7 +32,7 @@ export default function SortControls({
           variant="outline"
           className="text-muted-foreground"
         />
-        <span className="text-sm text-muted-foreground font-caption">
+        <span className="whitespace-nowrap text-sm text-muted-foreground font-caption">
           Sort by:
         </span>
       </div>
@@ -40,7 +40,7 @@ export default function SortControls({
       <select
         value={sortBy}
         onChange={(e) => onSortChange(e.target.value)}
-        className="h-36 px-12 rounded-md bg-input border border-border text-foreground text-sm transition-smooth focus-ring cursor-pointer"
+        className="h-36 min-w-0 cursor-pointer rounded-[10px] border border-border bg-input px-12 text-sm text-foreground transition-smooth focus-ring"
       >
         {sortOptions.map((option) => (
           <option key={option.value} value={option.value}>

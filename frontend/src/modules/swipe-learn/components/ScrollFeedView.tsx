@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import type { ContentCard, QuizDisplayMode, TopicMeta } from '../types';
 import SwipeCardItem from './SwipeCardItem';
 import EmptyDeckState from './EmptyDeckState';
+import NoAiKeyActions from './NoAiKeyActions';
 import Icon from '@/components/ui/AppIcon';
 import type { GeneratingState } from './SwipeDeckView';
 
@@ -120,14 +121,7 @@ export default function ScrollFeedView({
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="swipe-primary-btn swipe-btn-sm"
-            >
-              <Icon name="KeyIcon" size={17} />
-              Add a Gemini key
-            </button>
+            <NoAiKeyActions onOpenSettings={onOpenSettings} layout="inline" showNote={false} />
           )}
         </div>
       </div>

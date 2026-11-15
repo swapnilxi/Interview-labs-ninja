@@ -104,7 +104,7 @@ export default function ContinueLearningBanner({
           className="flex items-center gap-2 overflow-x-auto border-b pb-4 scrollbar-none"
           style={{ borderColor: 'color-mix(in srgb, var(--color-foreground) 10%, transparent)' }}
         >
-          <span className="flex flex-shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="flex flex-shrink-0 items-center gap-1 text-[12px] font-semibold text-muted-foreground">
             <Icon name="ClockIcon" size={12} />
             <span>Recent Tracks</span>
           </span>
@@ -138,7 +138,7 @@ export default function ContinueLearningBanner({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
             {isCompleted ? (
               <span
-                className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] font-semibold"
                 style={tintStyle('--color-success', 12, 28)}
               >
                 <Icon name="CheckCircleIcon" size={12} />
@@ -146,7 +146,7 @@ export default function ContinueLearningBanner({
               </span>
             ) : (
               <span
-                className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] font-semibold"
                 style={tintStyle('--color-primary', 12, 28)}
               >
                 <Icon name="ArrowPathIcon" size={12} />

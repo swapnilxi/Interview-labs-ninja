@@ -1,50 +1,52 @@
 /*
- * Daily Session skin ("Dusk & Diya"), imported by DailySessionContainer.tsx and scoped to `.ds-skin`.
+ * Daily Session skin, imported by DailySessionContainer.tsx and scoped to `.ds-skin`.
  *
  * Plain CSS on CSS variables, so it is free of the two Tailwind traps in this repo (no opacity modifiers on var()
  * colours, no pixel spacing keys). Tailwind does the layout (flex, grid, gap, padding); these classes do colour,
  * surfaces, type and motion.
  *
- * Palette: three hues, three shades each (solid / soft fill / ink for text on the soft fill).
- *   Indigo  = focus and every primary action
+ * Since 2026-11 it sits on the app-wide design tokens (tailwind.css, "Graphite & Fern"), so Daily Session looks like
+ * the rest of the app: surfaces, lines, text, shadows and the action colour come from the global system (the action
+ * colour is --color-primary, and so follows the Settings accent like every other screen). What stays its own are the
+ * meaning-carrying hues, each as solid / soft fill / ink for text on the soft fill:
+ *   Action  = --ds-indigo (name kept) -> the app accent: focus and every primary action
  *   Saffron = reward: streak, XP, hints (the diya on Deepu's head)
  *   Jade    = growth: answered, correct, complete
  *   Rose is semantic only (Hard, "needs review", errors).
- * Neutrals follow the app's warm cream. This palette is fixed on purpose: it does not follow the Settings accent.
  */
 
 .ds-skin {
-  --ds-indigo: #4f4bc9;
-  --ds-indigo-hover: #423eb3;
-  --ds-indigo-soft: #ecebfb;
-  --ds-indigo-ink: #2f2c8f;
+  --ds-indigo: var(--color-primary);
+  --ds-indigo-hover: color-mix(in srgb, var(--color-primary) 90%, var(--color-foreground));
+  --ds-indigo-soft: color-mix(in srgb, var(--color-primary) 13%, transparent);
+  --ds-indigo-ink: var(--lab-accent-ink);
 
-  --ds-gold: #e08a1e;
+  --ds-gold: #d97f12;
   --ds-gold-soft: #fcefd9;
   --ds-gold-ink: #85470a;
 
-  --ds-jade: #17936e;
+  --ds-jade: #11865f;
   --ds-jade-soft: #dcf2e8;
   --ds-jade-ink: #0b5741;
 
-  --ds-rose: #d64561;
+  --ds-rose: #d1344a;
   --ds-rose-soft: #fbe5e9;
   --ds-rose-ink: #8c1f36;
 
-  --ds-bg: #f7f4ee;
-  --ds-surface: #fffdf9;
-  --ds-surface-2: #f2ede4;
-  --ds-line: rgba(36, 30, 22, 0.09);
-  --ds-line-strong: rgba(36, 30, 22, 0.17);
-  --ds-ink: #1d1a16;
-  --ds-ink-2: #59524a;
-  --ds-ink-3: #847c71;
-  --ds-on-solid: #ffffff;
+  --ds-bg: var(--color-background);
+  --ds-surface: var(--color-card);
+  --ds-surface-2: var(--color-muted);
+  --ds-line: var(--color-separator);
+  --ds-line-strong: var(--color-border);
+  --ds-ink: var(--color-foreground);
+  --ds-ink-2: color-mix(in srgb, var(--color-muted-foreground) 70%, var(--color-foreground));
+  --ds-ink-3: var(--color-muted-foreground);
+  --ds-on-solid: var(--color-primary-foreground);
 
-  --ds-shadow-sm: 0 1px 2px rgba(36, 30, 22, 0.05);
-  --ds-shadow-md: 0 1px 2px rgba(36, 30, 22, 0.04), 0 10px 28px -12px rgba(36, 30, 22, 0.14);
-  --ds-shadow-lg: 0 2px 4px rgba(36, 30, 22, 0.04), 0 28px 56px -20px rgba(47, 44, 143, 0.28);
-  --ds-glass: rgba(255, 253, 249, 0.82);
+  --ds-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --ds-shadow-md: var(--shadow-card);
+  --ds-shadow-lg: var(--shadow-float);
+  --ds-glass: var(--material-strong);
 
   --ds-radius: 20px;
   --ds-radius-sm: 12px;
@@ -54,37 +56,19 @@
 }
 
 .dark .ds-skin {
-  --ds-indigo: #6f6bea;
-  --ds-indigo-hover: #807cf2;
-  --ds-indigo-soft: rgba(124, 120, 240, 0.16);
-  --ds-indigo-ink: #c4c2ff;
+  --ds-indigo-ink: color-mix(in srgb, var(--color-primary) 70%, var(--color-foreground));
 
-  --ds-gold: #f0a540;
-  --ds-gold-soft: rgba(240, 165, 64, 0.15);
+  --ds-gold: #f5a53c;
+  --ds-gold-soft: rgba(245, 165, 60, 0.15);
   --ds-gold-ink: #f8cd8f;
 
-  --ds-jade: #27b088;
-  --ds-jade-soft: rgba(39, 176, 136, 0.16);
+  --ds-jade: #2fc795;
+  --ds-jade-soft: rgba(47, 199, 149, 0.15);
   --ds-jade-ink: #8de3c6;
 
-  --ds-rose: #e5607a;
-  --ds-rose-soft: rgba(229, 96, 122, 0.16);
-  --ds-rose-ink: #f6b3c0;
-
-  --ds-bg: #16130f;
-  --ds-surface: #1f1b16;
-  --ds-surface-2: #29241d;
-  --ds-line: rgba(255, 246, 232, 0.08);
-  --ds-line-strong: rgba(255, 246, 232, 0.16);
-  --ds-ink: #f4efe7;
-  --ds-ink-2: #c3b9ac;
-  --ds-ink-3: #93897d;
-  --ds-on-solid: #ffffff;
-
-  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --ds-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -12px rgba(0, 0, 0, 0.5);
-  --ds-shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 28px 56px -20px rgba(0, 0, 0, 0.6);
-  --ds-glass: rgba(31, 27, 22, 0.82);
+  --ds-rose: #ff6b73;
+  --ds-rose-soft: rgba(255, 107, 115, 0.15);
+  --ds-rose-ink: #ffb3b8;
 }
 
 /* Tones: an element with .ds-tone-* tints its .ds-icon-tile / .ds-chip / .ds-tone-text children. */
@@ -143,11 +127,11 @@
   line-height: 1.42;
   color: var(--ds-ink);
 }
+/* Small label above a heading: sentence case, like an iOS grouped-list header (tracked capitals read as chrome). */
 .ds-skin .ds-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--ds-ink-3);
 }
 .ds-skin .ds-body {
@@ -202,17 +186,12 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    radial-gradient(
-      60% 90% at 100% 0%,
-      color-mix(in srgb, var(--ds-gold) 16%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      70% 100% at 0% 0%,
-      color-mix(in srgb, var(--ds-indigo) 13%, transparent),
-      transparent 72%
-    );
+  /* One warm light from the top corner (the diya), nothing else. */
+  background: radial-gradient(
+    60% 90% at 100% 0%,
+    color-mix(in srgb, var(--ds-gold) 10%, transparent),
+    transparent 70%
+  );
 }
 .ds-skin .ds-divide > * + * {
   border-top: 1px solid var(--ds-line);
@@ -225,17 +204,6 @@
 .ds-skin .ds-header {
   position: relative;
   border-bottom: 1px solid var(--ds-line);
-  background:
-    radial-gradient(
-      40% 120% at 100% 0%,
-      color-mix(in srgb, var(--ds-gold) 10%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      50% 140% at 0% 0%,
-      color-mix(in srgb, var(--ds-indigo) 9%, transparent),
-      transparent 72%
-    );
 }
 .ds-skin .ds-tabs {
   display: flex;
@@ -338,6 +306,25 @@
   color: var(--ds-ink-3);
 }
 
+/* Phones: the streak/XP chips shrink to icon + number (labels stay for screen readers) so they share the
+   title's row instead of taking a row of their own. */
+@media (max-width: 639px) {
+  .ds-skin .ds-stats .ds-stat {
+    height: 2.1rem;
+    padding: 0 0.7rem 0 0.55rem;
+    gap: 0.3rem;
+  }
+  .ds-skin .ds-stats .ds-stat small {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
 /* ── Buttons ──────────────────────────────────────────────────────────── */
 .ds-skin .ds-btn {
   display: inline-flex;
@@ -390,10 +377,7 @@
 .ds-skin .ds-btn-primary {
   background: var(--ds-indigo);
   color: var(--ds-on-solid);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 1px 2px rgba(36, 30, 22, 0.12),
-    0 8px 20px -10px color-mix(in srgb, var(--ds-indigo) 70%, transparent);
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--ds-indigo) 60%, transparent);
 }
 .ds-skin .ds-btn-primary:hover:not(:disabled) {
   background: var(--ds-indigo-hover);
@@ -484,13 +468,12 @@
 .ds-skin .ds-seg > button[aria-selected='true'] {
   background: var(--ds-surface);
   color: var(--ds-ink);
-  box-shadow:
-    0 1px 2px rgba(36, 30, 22, 0.08),
-    0 2px 8px -4px rgba(36, 30, 22, 0.12);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1), 0 2px 8px -2px rgba(16, 24, 40, 0.08);
 }
 .dark .ds-skin .ds-seg > button[aria-pressed='true'],
 .dark .ds-skin .ds-seg > button[aria-selected='true'] {
-  background: var(--ds-line-strong);
+  background: #3a4457;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 .ds-skin .ds-seg small {
   font-size: 0.7rem;
@@ -614,11 +597,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    var(--t, var(--ds-indigo)),
-    color-mix(in srgb, var(--t, var(--ds-indigo)) 70%, #fff)
-  );
+  background: var(--t, var(--ds-indigo));
   transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .ds-skin .ds-ring-track {
@@ -894,7 +873,7 @@
   right: 0;
   bottom: var(--mobile-tab-h, 0px);
   z-index: 40;
-  padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.85rem 1rem calc(0.85rem + var(--safe-bottom));
   background: var(--ds-glass);
   -webkit-backdrop-filter: saturate(1.6) blur(16px);
   backdrop-filter: saturate(1.6) blur(16px);
@@ -1017,10 +996,9 @@
 }
 .ds-skin .ds-panel-title {
   margin-bottom: 0.5rem;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--t-ink, var(--ds-ink-3));
 }
 @media (max-width: 639px) {
@@ -1029,4 +1007,44 @@
     height: 1.85rem;
     font-size: 0.75rem;
   }
+}
+
+/* ── Topic picker chips ───────────────────────────────────────────────── */
+.ds-skin .ds-chip-btn {
+  min-height: 1.9rem;
+  border: 1px solid var(--ds-line, rgba(127, 127, 127, 0.25));
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.ds-skin .ds-chip-btn:hover {
+  border-color: var(--ds-indigo-ink, currentColor);
+}
+.ds-skin .ds-chip-btn:focus-visible,
+.ds-skin .ds-chip-x:focus-visible {
+  outline: 2px solid var(--ds-indigo-ink, currentColor);
+  outline-offset: 2px;
+}
+.ds-skin .ds-chip-on {
+  border-color: transparent;
+}
+.ds-skin .ds-chip-custom {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: 0;
+}
+.ds-skin .ds-chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.9rem;
+  width: 1.7rem;
+  border: 1px solid var(--ds-line, rgba(127, 127, 127, 0.25));
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  background: var(--ds-surface-2);
+  color: var(--ds-ink-2);
+  cursor: pointer;
+}
+.ds-skin .ds-chip-x:hover {
+  color: var(--ds-rose-ink, currentColor);
 }

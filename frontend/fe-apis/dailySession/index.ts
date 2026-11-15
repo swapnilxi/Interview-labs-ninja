@@ -13,8 +13,9 @@
  *   POST /session-progress              save_session_progress_endpoint (login)
  *   GET  /session-progress?session_date=  get_session_progress_endpoint (login)
  *   GET  /session-progress/stats        get_progress_stats_endpoint    (login)
+ *   POST /sessions/generate-session-questions  generate_session_questions_endpoint (login; generate.ts + dedup.ts)
  *
- * Not ported yet (FastAPI only): the AI routes (generate-session-questions, generate/evaluate/expand answer, learn
+ * Not ported yet (FastAPI only): the other AI routes (generate/evaluate/expand answer, learn
  * chat, flashcards, lab question generation, YouTube), resume upload, deck import, export, the local-Ollama model list,
  * and POST /questions/clear-duplicates (unauthenticated and destructive in FastAPI — deliberately not copied onto a
  * public deployment). Keep in sync with the Python code (CLAUDE.md, "Dual deployment modes").
@@ -24,6 +25,8 @@ import { withNeonSync } from '@/lib/server/neonSync';
 import { getUserFromAuthHeader } from '@/lib/server/authHelper';
 import { compileRoutes, dispatch, type TodoRoute } from '../todo/router';
 import { HttpError, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
+import { hashesFor } from './dedup';
+import { generateSessionQuestions } from './generate';
 
 // ── Schema (copies of common/db.py; the git-tracked database already has these) ──────────────────────────────
 
@@ -68,9 +71,13 @@ function ensureSessionSchema(db: TodoDb) {
     ['question_type', 'TEXT DEFAULT NULL'],
     ['user_id', 'INTEGER DEFAULT NULL'],
     ['raw_json', 'TEXT DEFAULT NULL'],
+    // Duplicate-check hashes (dedup.ts / dedup.py). Rows saved without them are hashed on the fly when indexed.
+    ['fingerprint', 'TEXT DEFAULT NULL'],
+    ['simhash', 'INTEGER DEFAULT NULL'],
   ]) {
     if (!questionCols.includes(col)) db.exec(`ALTER TABLE questions ADD COLUMN ${col} ${type};`);
   }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_questions_fingerprint ON questions(fingerprint);');
   db.exec(`
     CREATE TABLE IF NOT EXISTS session_progress (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -291,10 +298,11 @@ function persistQuestions(userId: number, body: unknown): Row {
         }
         const { lastInsertRowid } = db.run(
           `INSERT INTO questions (
-             session_id, question_date, section, number, category, sub_type, difficulty, topics, question_text, question_type, user_id
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             session_id, question_date, section, number, category, sub_type, difficulty, topics, question_text, question_type,
+             user_id, fingerprint, simhash
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           sessionId, session.session_date, q.section, q.number, q.category, q.sub_type, q.difficulty,
-          q.topics.join(','), text, q.question_type, userId
+          q.topics.join(','), text, q.question_type, userId, ...hashesFor(text)
         );
         ids.push(Number(lastInsertRowid));
       }
@@ -476,6 +484,17 @@ const PRIVATE: TodoRoute[] = [
   },
   { method: 'GET', path: '/session-progress', handler: (ctx) => getProgress(ctx.userId, ctx.query) },
   { method: 'GET', path: '/session-progress/stats', handler: (ctx) => progressStats(ctx.userId) },
+  {
+    method: 'POST',
+    path: '/sessions/generate-session-questions',
+    handler: async (ctx) => {
+      const body = await ctx.json();
+      const bank = withSessionDb((db) =>
+        db.all<{ question_text: string }>('SELECT question_text FROM questions ORDER BY id').map((r) => r.question_text)
+      );
+      return generateSessionQuestions(body, bank);
+    },
+  },
 ];
 const PRIVATE_ROUTES = compileRoutes(PRIVATE);
 
@@ -511,5 +530,8 @@ const writeSession = withNeonSync(dispatchSession);
  * first path part ('sessions', 'questions' or 'session-progress'), so they match the Python paths.
  */
 export function handleDailySession(req: Request, segments: string[]): Promise<Response> {
-  return req.method === 'GET' ? dispatchSession(req, segments) : writeSession(req, segments);
+  // Generating questions only reads the bank (the session is saved by the POST /sessions/questions that follows),
+  // so it skips the Neon snapshot push that wraps the other writes.
+  const readOnly = req.method === 'GET' || (segments[0] === 'sessions' && segments[1] === 'generate-session-questions');
+  return readOnly ? dispatchSession(req, segments) : writeSession(req, segments);
 }

@@ -47,6 +47,8 @@ const nextConfig = {
     '/api/sessions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/questions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/session-progress/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    // Auth only (the account-status check reads the users table); the cards themselves live in the browser.
+    '/api/swipe-learn/generate': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/subscribe': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/test': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/fcm-token': ['../backend/data/lab_ninja.sqlite3'],
@@ -123,6 +125,8 @@ const nextConfig = {
       { source: '/sessions/:path*', destination: '/api/sessions/:path*' },
       { source: '/questions/:path*', destination: '/api/questions/:path*' },
       { source: '/session-progress/:path*', destination: '/api/session-progress/:path*' },
+      // Exact path: /swipe-learn itself is a page.
+      { source: '/swipe-learn/generate', destination: '/api/swipe-learn/generate' },
       { source: '/access-requests/:path*', destination: '/api/access-requests/:path*' },
     ];
   },

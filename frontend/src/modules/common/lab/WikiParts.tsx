@@ -59,21 +59,22 @@ export function WikiHero({
     <header className="lab-hero" data-wiki-hero>
       <div className="relative">
         <div className="flex items-center gap-[1rem]">
-          <span aria-hidden="true" className="lab-tile h-11 w-11">
+          {/* Phones: the large title carries the identity; the tile would push the title off its gutter. */}
+          <span aria-hidden="true" className="lab-tile hidden h-11 w-11 sm:inline-flex">
             <Icon name={icon} size={22} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="break-words text-2xl font-semibold leading-tight tracking-tight text-foreground">
+              <h1 className="break-words text-[1.75rem] font-bold leading-tight tracking-[-0.024em] text-foreground sm:text-2xl sm:font-semibold">
                 {title}
               </h1>
               {onOpenGuide && (
                 <button
                   type="button"
                   onClick={onOpenGuide}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-card/90 hover:bg-card text-foreground border border-border shadow-2xs hover:border-primary/40 transition-colors cursor-pointer"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[13px] font-semibold text-foreground transition-colors hover:mix-border-primary/40"
                 >
-                  <Icon name="BookOpenIcon" size={13} className="text-primary flex-shrink-0" />
+                  <Icon name="BookOpenIcon" size={14} className="lab-ink flex-shrink-0" />
                   <span>{guideLabel}</span>
                 </button>
               )}
@@ -86,16 +87,17 @@ export function WikiHero({
 
         {/* Compact metrics: inline numbers with hairline dividers. The -ml + overflow-hidden pair clips the first divider on
             every wrapped row, so a divider never dangles. */}
+        {/* Phones: a three-column stat grid, value over label. From sm: inline numbers with hairline dividers. */}
         <div className="mt-[1.25rem] overflow-hidden">
           <dl
             data-wiki-metrics
             aria-label="The lab at a glance"
-            className="-ml-[1rem] flex flex-wrap gap-y-[0.5rem]"
+            className="grid grid-cols-3 gap-x-3 gap-y-4 sm:-ml-[1rem] sm:flex sm:flex-wrap sm:gap-y-[0.5rem]"
           >
             {metrics.map((m) => (
               <div
                 key={m.label}
-                className="flex items-baseline gap-[0.5rem] border-l border-border px-[1rem]"
+                className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-[0.5rem] sm:border-l sm:border-border sm:px-[1rem]"
               >
                 <dt className="order-2 inline-flex items-center gap-1.5 text-xs font-medium mix-text-foreground/[0.74]">
                   {m.tone && (
@@ -107,7 +109,7 @@ export function WikiHero({
                   )}
                   {m.label}
                 </dt>
-                <dd className="order-1 text-lg font-semibold leading-none tabular-nums text-foreground">
+                <dd className="order-1 text-[1.375rem] font-semibold leading-none tracking-[-0.02em] tabular-nums text-foreground sm:text-lg sm:tracking-normal">
                   {m.value}
                 </dd>
               </div>

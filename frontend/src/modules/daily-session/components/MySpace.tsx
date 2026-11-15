@@ -7,6 +7,7 @@ import { questionsService, Question } from '@/lib/services/questionsService';
 import { notify } from '@/lib/ui/notifications';
 import { openLoginModal } from '@/components/auth/LoginModal';
 import { useUrlState } from '@/lib/navigation/urlState';
+import { TOPIC_OPTIONS, cleanTopic } from '../topics';
 
 interface FocusTargets {
   targetRole: string;
@@ -15,7 +16,6 @@ interface FocusTargets {
   focusTopics: string[];
 }
 
-const DEFAULT_TOPICS = ['DSA', 'System Design', 'Computer Vision', 'ML Infra', 'Behavioral'];
 
 export default function MySpace() {
   const { user } = useAuth();
@@ -55,6 +55,7 @@ export default function MySpace() {
     focusTopics: ['DSA', 'System Design'],
   });
   const [targetsSaved, setTargetsSaved] = useState(false);
+  const [customTopicDraft, setCustomTopicDraft] = useState('');
 
   useEffect(() => {
     async function loadStats() {
@@ -114,6 +115,15 @@ export default function MySpace() {
       ? targets.focusTopics.filter((t) => t !== topic)
       : [...targets.focusTopics, topic];
     handleSaveTargets({ ...targets, focusTopics: updated });
+  };
+
+  const addFocusTopic = () => {
+    const t = cleanTopic(customTopicDraft);
+    if (!t) return;
+    setCustomTopicDraft('');
+    if (!targets.focusTopics.some((x) => x.toLowerCase() === t.toLowerCase())) {
+      handleSaveTargets({ ...targets, focusTopics: [...targets.focusTopics, t] });
+    }
   };
 
   const handleCreateQuestion = async (e: React.FormEvent) => {
@@ -192,7 +202,7 @@ export default function MySpace() {
               <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">
                 {displayName}
               </h2>
-              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider border ${
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize border ${
                 isSwapnilxi
                   ? 'bg-violet-500/20 border-violet-500/40 text-violet-400'
                   : 'lab-tint mix-border-primary/30 lab-ink'
@@ -220,15 +230,15 @@ export default function MySpace() {
 
         <dl className="flex flex-wrap items-end gap-x-[1.5rem] gap-y-3">
           <div>
-            <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Question Bank</dt>
+            <dt className="text-[12px] font-semibold text-muted-foreground">Question Bank</dt>
             <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{dbQuestions.length}</dd>
           </div>
           <div>
-            <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Daily Target</dt>
+            <dt className="text-[12px] font-semibold text-muted-foreground">Daily Target</dt>
             <dd className="mt-0.5 text-lg font-semibold tabular-nums lab-ink">{targets.dailyGoal} Qs</dd>
           </div>
           <div>
-            <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</dt>
+            <dt className="text-[12px] font-semibold text-muted-foreground">Status</dt>
             <dd className="mt-0.5 text-lg font-semibold text-emerald-700 dark:text-emerald-300">{isSwapnilxi ? 'SuperAdmin' : 'Active'}</dd>
           </div>
         </dl>
@@ -317,7 +327,7 @@ export default function MySpace() {
             Key Focus Areas
           </label>
           <div className="flex flex-wrap gap-2">
-            {DEFAULT_TOPICS.map((topic) => {
+            {[...TOPIC_OPTIONS, ...targets.focusTopics.filter((t) => !TOPIC_OPTIONS.some((o) => o.toLowerCase() === t.toLowerCase()))].map((topic) => {
               const active = targets.focusTopics.includes(topic);
               return (
                 <button
@@ -337,6 +347,34 @@ export default function MySpace() {
               );
             })}
           </div>
+          <div className="mt-2 flex gap-2">
+            <input
+              type="text"
+              value={customTopicDraft}
+              maxLength={60}
+              onChange={(e) => setCustomTopicDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addFocusTopic();
+                }
+              }}
+              placeholder="Add your own focus area, e.g. Kafka"
+              aria-label="Add a custom focus area"
+              className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground"
+            />
+            <button
+              type="button"
+              onClick={addFocusTopic}
+              disabled={!cleanTopic(customTopicDraft)}
+              className="todo-focus rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              Add
+            </button>
+          </div>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            These are the default topics for a new Daily Session. You can change them for one session on the setup screen.
+          </p>
         </div>
       </div>
 

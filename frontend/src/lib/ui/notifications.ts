@@ -9,6 +9,7 @@
  */
 
 import { toast } from '@/lib/ui/toast';
+import { isNativeApp, sendNativeTestNotification } from '@/lib/reminders/nativeReminders';
 
 export type NotificationSource = 'daily-session' | 'labs' | 'todo' | 'system';
 export type NotificationTone = 'info' | 'success' | 'warning' | 'error';
@@ -315,6 +316,13 @@ export async function showDeviceNotification(input: DeviceNotificationInput): Pr
 
 /** "Send a test" in the notification settings: proves permission, the worker and the device all work. */
 export async function sendTestNotification(): Promise<boolean> {
+  // Android app: the WebView has no Notification API, so use the phone's own alarm service.
+  if (isNativeApp()) return sendNativeTestNotification();
+  return sendBrowserTestNotification();
+}
+
+/** Web only: browser permission, then Web Push / the service worker / the page Notification API. */
+export async function sendBrowserTestNotification(): Promise<boolean> {
   if (browserNotificationsSupported()) {
     if (browserPermission() === 'default') {
       await enableBrowserNotifications();

@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { deepgramSTT, isDeepgramEnabled } from '@/modules/ai-lms/services/voiceService';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
+import { micBlockedMessage, micStartErrorMessage } from './micPermission';
+
+/** How long a stop waits for the recognizer's `end` before resetting the button on its own. */
+const STOP_GRACE_MS = 1500;
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -78,30 +82,59 @@ export function useVoiceInput(onTranscript: (text: string) => void) {
         if (e.results[i].isFinal) onTranscript(e.results[i][0].transcript.trim());
       }
     };
-    rec.onerror = (e) => {
-      setError(e.error === 'not-allowed' ? 'Microphone permission denied.' : 'Voice input failed.');
+    // Only the current recognizer may reset the button: a late event from an older one must not touch a newer one.
+    const done = () => {
+      if (recognitionRef.current !== rec) return;
+      recognitionRef.current = null;
       setState('idle');
     };
-    rec.onend = () => setState('idle');
+    rec.onerror = (e) => {
+      if (e.error === 'aborted') return;
+      setError(
+        e.error === 'not-allowed' || e.error === 'service-not-allowed'
+          ? micBlockedMessage()
+          : 'Voice input failed.'
+      );
+      done();
+    };
+    rec.onend = done;
     recognitionRef.current = rec;
     rec.start();
     setState('recording');
+  };
+
+  /** The Android WebView can go quiet after stop() and never send `end`: don't leave the button on "recording". */
+  const stopBrowser = () => {
+    const rec = recognitionRef.current;
+    if (!rec) return;
+    try {
+      rec.stop();
+    } catch {
+      /* already stopped */
+    }
+    setTimeout(() => {
+      if (recognitionRef.current !== rec) return;
+      recognitionRef.current = null;
+      setState('idle');
+    }, STOP_GRACE_MS);
   };
 
   const toggle = async () => {
     setError(null);
     if (state === 'recording') {
       if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
-      recognitionRef.current?.stop();
+      stopBrowser();
       return;
     }
     if (state !== 'idle') return;
     try {
       if (isDeepgramEnabled() && isLoggedIn()) await startDeepgram();
       else startBrowser();
-    } catch {
+    } catch (err) {
       stopStream();
-      setError('Microphone permission denied.');
+      recognitionRef.current = null;
+      setState('idle');
+      setError(micStartErrorMessage(err));
     }
   };
 

@@ -33,8 +33,8 @@ export default function RequireAdmin({ children }: { children: React.ReactNode }
   if (isGuest || !authorized) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-[4vw] py-48">
-        <div className="max-w-[420px] w-full text-center bg-card border border-border rounded-lg shadow-md p-36 flex flex-col items-center gap-18">
-          <div className="w-48 h-48 rounded-full bg-error/10 flex items-center justify-center">
+        <div className="flex w-full max-w-[420px] flex-col items-center gap-18 rounded-[20px] border mix-border-foreground/[0.07] bg-card p-[1.75rem] text-center shadow-card">
+          <div className="flex h-48 w-48 items-center justify-center rounded-full mix-bg-error/10">
             <Icon name="ShieldExclamationIcon" size={24} className="text-error" />
           </div>
           <h2 className="font-heading text-lg font-semibold text-foreground">
@@ -47,7 +47,7 @@ export default function RequireAdmin({ children }: { children: React.ReactNode }
           </p>
           {isGuest ? (
             <button type="button" onClick={() => openLoginModal()}
-              className="inline-flex items-center justify-center gap-6 py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-smooth focus-ring"
+              className="inline-flex items-center justify-center gap-6 rounded-full bg-primary px-24 py-12 font-semibold text-primary-foreground transition-smooth focus-ring hover:mix-bg-primary/90"
             >
               Log in
             </button>

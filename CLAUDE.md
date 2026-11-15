@@ -91,6 +91,10 @@ further down in `README.md` — check there before assuming a module's shape.
   file). Testing any resume/portfolio/views/templates flow by copying only
   `lab_ninja.sqlite3` leaves the real career_studio data unprotected — copy both files
   and set both env vars.
+- **The Android app lives in `app/`** (Capacitor project, `capacitor.config.ts`, `install_app.sh`; own `package.json`). Install/update on a phone with `./app/install_app.sh` (`--local` = Mac dev server, `--check` = report only). Its web half (`frontend/src/lib/reminders/native*.ts`) must stay in `frontend/` because Vercel bundles it. Never call `PushNotifications.register()` without `google-services.json`: it crashes the app natively, so `MainActivity` gates FCM behind a `LabNinjaFcm` user-agent token. Details: `README.md` ("Android app").
+- **`backendFetch` (`src/lib/http/backendAvailability.ts`) times out after 5s by default.** Any call that waits on an
+  AI provider must pass `timeoutMs: AI_TIMEOUT_MS` (5 min). Without it, Daily Session generation was always cut off
+  and the page silently saved the same built-in questions every time; it no longer falls back on errors at all.
 - **Frontend dev port is 4028.** Backend CORS defaults to `http://localhost:4028`
   (`backend/main.py`) — if you ever see CORS errors in local dev, check that default
   before assuming something else is wrong.
@@ -114,6 +118,10 @@ further down in `README.md` — check there before assuming a module's shape.
   on `isLoggedIn()` from `frontend/src/lib/auth/tokenStore.ts`. When adding a new
   manual-CRUD method to one of these services, add the guest-mode branch too — don't
   let it silently become login-required.
+- **To-Do Scheduler** (`/ai-todo?tab=schedule`): `backend/modules/ai_todo/schedules/` ↔ `frontend/fe-apis/todo/schedules/`
+  (prompts byte-identical), and rule validation `frontend/src/lib/schedules/scheduleRules.ts` (`normalizeRule`) ↔
+  `schedules/rules.py` (same error texts, same stored JSON). Runs happen on the device (web engine + the native Android
+  plugin in `app/android/.../scheduler/`), never on a server cron. Details: README.md ("Scheduler").
 - **AI LMS hierarchy:** Class > Subject (-> Lessons) or Project (-> Module/Step -> Sub-step,
   each generating one Lesson). A Project is an `lms_subjects` row with `kind='project'`; its
   outline lives in `project_plan` JSON. Both levels of outline items carry `{title, focus,
@@ -220,6 +228,10 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   `next.config.mjs` rewrite and an `outputFileTracingIncludes` entry — every `/api/**` route that opens the database
   needs one, or a Vercel function ships without the file and serves an empty DB. Verified the twin way (same requests
   to both on DB copies, bodies diffed).
+- **SwipeLearn** has one endpoint, `POST /swipe-learn/generate` (writes cards with the Config model):
+  `backend/modules/swipe_learn/` ↔ `frontend/fe-apis/swipeLearn/`; its prompt `prompt.py` ↔
+  `src/modules/swipe-learn/services/cardPrompt.ts` (byte-identical, also used by the browser's direct-Gemini path).
+  README ("SwipeLearn Module").
 - Still FastAPI-only: `career_studio`, `linkedin_post_generator`, the admin user-management routes (`/admin/*` except
   db push/pull), Daily Session's AI routes, and the local-Ollama helpers. Don't assume feature parity between modes
   without checking whether a module has a `frontend/src/app/api/**` + `frontend/fe-apis/**` counterpart.

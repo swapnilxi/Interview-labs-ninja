@@ -142,7 +142,18 @@ export default function CareerStudioTabs() {
   return (
     <div className="relative">
       {toast && (
-        <div className={`fixed top-20 right-6 z-[300] px-4 py-2.5 rounded-lg text-sm font-medium shadow-lg animate-fade-in ${toast.type === 'success' ? 'bg-success/10 text-success border border-success/30' : 'bg-error/10 text-error border border-error/30'}`}>{toast.message}</div>
+        <div
+          role="status"
+          data-tone={toast.type}
+          className="todo-toast fixed left-1/2 top-[calc(var(--chrome-top)+0.75rem)] z-[300] w-max -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0"
+        >
+          <Icon
+            name={toast.type === 'success' ? 'CheckCircleIcon' : 'ExclamationCircleIcon'}
+            size={18}
+            className={`mt-px shrink-0 ${toast.type === 'success' ? 'text-success' : 'text-error'}`}
+          />
+          <span className="font-medium">{toast.message}</span>
+        </div>
       )}
 
       <div ref={tabbarRef} className="cs-tabbar">

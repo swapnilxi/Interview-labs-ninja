@@ -147,11 +147,11 @@ function NodeItem({
             </button>
 
             {/* Badges */}
-            <span className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted px-1 rounded-sm">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold capitalize text-muted-foreground">
               {node.node_type}
             </span>
             {node.generation_type !== 'manual' && (
-              <span className="text-[11px] uppercase tracking-wider font-semibold text-blue-500 bg-blue-500/10 px-1 rounded-sm">
+              <span className="copilot-tint rounded-full px-2 py-0.5 text-xs font-semibold">
                 AI {node.generation_type.replace('_', ' ')}
               </span>
             )}
@@ -206,7 +206,7 @@ function NodeItem({
             </button>
             <button
               onClick={() => onAction(node, 'chunk')}
-              className="text-xs font-semibold px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-smooth flex items-center gap-1"
+              className="todo-btn todo-btn-quiet px-2.5 py-1 text-xs"
             >
               <FlatIcon name="quick" size={14} /> Chunk It
             </button>

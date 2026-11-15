@@ -168,7 +168,7 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
               <span key={l} title={l} className={`h-1.5 flex-1 rounded-full transition-colors ${i < depth ? 'bg-primary' : 'bg-border'}`} />
             ))}
           </div>
-          <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          <div className="mt-0.5 text-[11px] font-semibold text-muted-foreground">
             {depth ? `${DEPTH_LABELS[depth - 1]}${meta?.focus ? ` · ${meta.focus}` : ''}` : 'Getting started'} · {candidateCount}/{meta?.max_turns ?? 8} messages
           </div>
         </div>

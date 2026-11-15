@@ -1,53 +1,74 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Poppins:wght@500;600&family=Fira+Code:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&family=Fira+Code:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — "Graphite & Fern".
+ * One iOS-inspired system for phone, tablet and desktop. Hierarchy comes from surface tone and type weight, not from
+ * borders: cards sit on the page by tone, separators are hairlines (8–10% alpha). One accent: lime on dark (it reads as
+ * text at 12:1), fern on light (lime is 2:1 on white, and `text-primary` is used as text in ~450 places).
+ * The Settings accent picker (appearanceService) still overrides --color-primary / --color-ring / --color-glow.
+ * Type is one family: SF Pro on Apple devices (-apple-system), Inter everywhere else, so Android gets the same
+ * neo-grotesque look rather than Roboto. Mirror any change in frontend/config.js.
+ */
 @layer base {
   :root {
     color-scheme: light;
-    --color-background: #f7f3ec;
-    --color-foreground: #24201b;
-    --color-card: #fffaf2;
-    --color-card-foreground: #24201b;
-    --color-popover: #fffaf2;
-    --color-popover-foreground: #24201b;
-    --color-primary: #5b5bd6;
+    --color-background: #f5f6fa;
+    --color-foreground: #111827;
+    --color-card: #ffffff;
+    --color-card-foreground: #111827;
+    --color-popover: #ffffff;
+    --color-popover-foreground: #111827;
+    --color-primary: #357316;
     --color-primary-foreground: #ffffff;
-    --color-secondary: #127c7a;
+    /* The built-in accent when none is chosen (appearanceService "Default"). A chosen accent overrides --color-primary
+       on <html>; this stays put, so the Settings swatch can always show what Default looks like. */
+    --accent-default: #357316;
+    --color-secondary: #0e7490;
     --color-secondary-foreground: #ffffff;
-    --color-accent: #b36b17;
-    --color-accent-foreground: #fffaf2;
-    --color-muted: #eee6da;
-    --color-muted-foreground: #71695f;
-    --color-border: rgba(64, 55, 45, 0.18);
-    --color-input: #fffdf8;
-    --color-ring: #6d6be8;
-    --color-success: #0d7050;
+    --color-accent: #b45309;
+    --color-accent-foreground: #ffffff;
+    --color-muted: #eceef3;
+    --color-muted-foreground: #5c6679;
+    --color-border: rgba(17, 24, 39, 0.1);
+    --color-input: #ffffff;
+    --color-ring: #4c9a26;
+    --color-success: #0b7f55;
     --color-success-foreground: #ffffff;
-    --color-warning: #a45d12;
-    --color-warning-foreground: #fffaf2;
-    --color-error: #c24151;
+    --color-warning: #a65a00;
+    --color-warning-foreground: #ffffff;
+    --color-error: #d1344a;
     --color-error-foreground: #ffffff;
-    --color-destructive: #c24151;
+    --color-destructive: #d1344a;
     --color-destructive-foreground: #ffffff;
-    --color-sidebar: #f0e8dc;
-    --color-surface: #fbf4ea;
+    --color-sidebar: #eef0f5;
+    --color-surface: #ffffff;
     --color-elevated: #ffffff;
-    --color-subtle: #e7dfd2;
-    --color-glow: rgba(91, 91, 214, 0.16);
-    /* Multicolor accents (To-Do). The set reads: violet = --color-primary (AI action, focus, selected), green =
+    --color-subtle: #e3e6ed;
+    --color-glow: rgba(53, 115, 22, 0.14);
+    /* Multicolor accents (To-Do). The set reads: accent = --color-primary (AI action, focus, selected), green =
        --color-success, coral = --color-error, amber = --color-warning, plus two roles that had no token before:
        blue = daily progress / active work, cyan = informational metrics / weekly summaries. */
-    --color-progress: #1a5fc0;
-    --color-info: #06677a;
+    --color-progress: #0a63d6;
+    --color-info: #0b6e82;
     /* Task-tree depth, L1 … L5+ (to-do tree rails, branch lines and the depth legend all read these). */
     --color-depth-1: #2b7de9;
     --color-depth-2: #8a63f0;
     --color-depth-3: #0891a5;
     --color-depth-4: #cc7400;
     --color-depth-5: #d9559f;
+    /* iOS-style materials and lines. --color-separator is the list hairline; --material is the translucent bar fill
+       (nav bar, tab bar, sticky headers), always paired with backdrop-filter and an opaque fallback. */
+    --color-separator: rgba(17, 24, 39, 0.08);
+    --color-fill: rgba(118, 118, 128, 0.12);
+    --color-fill-strong: rgba(118, 118, 128, 0.2);
+    --material: rgba(250, 250, 252, 0.78);
+    --material-strong: rgba(255, 255, 255, 0.92);
+    /* Touch feedback for controls without a pressed style of their own (Android paints this on tap; iOS too). */
+    --tap-highlight: rgba(17, 24, 39, 0.08);
     /* Lab accents. DSA IS the Settings accent. appearanceService.applyAccent() and the inline script in app/layout.tsx write
        --color-primary on <html>; these resolve on <html> too, so they follow live and in both themes, and they exist outside
        .lab-shell on purpose (dialogs, menus and sheets are portalled to <body>). */
@@ -60,8 +81,8 @@
     --wiki-dsa-hover: var(--lab-accent-ink);
     /* CV / System Design keep an IDENTITY hue, read only through --lab-identity (hero glow + icon tile). Their -soft / -hover
        aliases follow the accent, so a class string that is missed cannot leak teal or amber into a button, row or link. */
-    --lab-cv: #1a9d8f;
-    --lab-system: #b36b17;
+    --lab-cv: #0f8c80;
+    --lab-system: #b45f0e;
     --lab-cv-soft: var(--lab-accent-soft);
     --lab-system-soft: var(--lab-accent-soft);
     --wiki-cv-hover: var(--lab-accent-ink);
@@ -69,58 +90,97 @@
     /* Card accent bar opacity ramp */
     --card-bar-idle: 0.35;
     --card-bar-hover: 0.75;
-    --radius-sm: 6px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
-    --radius-xl: 16px;
+    /* Radius grows with hierarchy: chips are pills, controls 10–12, cards 16–20, sheets 28. */
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-sheet: 28px;
+    /* Elevation. Light mode uses soft layered shadows; dark mode leans on surface tone (shadows barely read on #080b12). */
+    --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px -6px rgba(16, 24, 40, 0.08);
+    --shadow-float: 0 2px 6px rgba(16, 24, 40, 0.06), 0 18px 40px -12px rgba(16, 24, 40, 0.18);
+    /* Motion: one spring-like curve for anything that travels (sheets, drawers), a quick ease for feedback. */
+    --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --dur-press: 120ms;
+    --dur-fast: 180ms;
+    --dur-base: 260ms;
+    --dur-sheet: 380ms;
+    /* Phone chrome: compact nav bar and tab bar heights (safe-area insets are added where they are used). */
+    --nav-h: 52px;
+    --tabbar-h: 3.5rem;
+    /*
+     * Safe areas — the ONE source for system-UI insets (status bar, notch / Dynamic Island, cutouts, gesture bar).
+     * env() is right in browsers, iOS standalone and Android Chrome / installed PWAs drawing edge-to-edge. Inside the
+     * Capacitor app (app/), the SystemBars plugin also injects --safe-area-inset-* on <html>; older Android WebViews
+     * report env() as 0 there, so take the larger of the two. max(), never a sum: the two never double up.
+     * Use these (never a fixed 24px / 30px pad, never env() directly): a browser tab simply gets 0.
+     */
+    --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+    --safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+    --safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+    /* The fixed app header, and the bottom edge of all fixed top chrome (status-bar inset + header + account banner):
+       anything that opens "under the header" (side sheets, popovers, desktop alerts) is placed at --chrome-top. */
+    --header-h: 60px;
+    --chrome-top: calc(var(--safe-top) + var(--header-h) + var(--app-banner-h, 0px));
   }
 
   .dark {
     color-scheme: dark;
-    --color-background: #181511;
-    --color-foreground: #f4efe7;
-    --color-card: #211d18;
-    --color-card-foreground: #f4efe7;
-    --color-popover: #252019;
-    --color-popover-foreground: #f4efe7;
-    --color-primary: #8f8cf7;
-    --color-primary-foreground: #17131f;
-    --color-secondary: #5fc6bd;
-    --color-secondary-foreground: #10201f;
-    --color-accent: #f1ad55;
-    --color-accent-foreground: #25190b;
-    --color-muted: #302a22;
-    --color-muted-foreground: #b9ad9f;
-    --color-border: rgba(255, 246, 235, 0.17);
-    --color-input: #29231c;
-    --color-ring: #a9a5ff;
-    --color-success: #31dca4;
-    --color-success-foreground: #0e2119;
-    --color-warning: #f4b75e;
-    --color-warning-foreground: #25190b;
-    --color-error: #ff6475;
-    --color-error-foreground: #2b1015;
-    --color-destructive: #ff6475;
-    --color-destructive-foreground: #2b1015;
-    --color-sidebar: #1d1914;
-    --color-surface: #211d18;
-    --color-elevated: #29231c;
-    --color-subtle: #383026;
-    --color-glow: rgba(143, 140, 247, 0.22);
-    --color-progress: #5ca6ff;
-    --color-info: #2cd6e5;
+    --color-background: #080b12;
+    --color-foreground: #f5f7fa;
+    --color-card: #151b27;
+    --color-card-foreground: #f5f7fa;
+    --color-popover: #202938;
+    --color-popover-foreground: #f5f7fa;
+    --color-primary: #a6f36a;
+    --color-primary-foreground: #0a1104;
+    --accent-default: #a6f36a;
+    --color-secondary: #5cc8d7;
+    --color-secondary-foreground: #04161a;
+    --color-accent: #f6b654;
+    --color-accent-foreground: #1f1405;
+    --color-muted: #1e2533;
+    --color-muted-foreground: #929aaa;
+    --color-border: rgba(255, 255, 255, 0.08);
+    --color-input: #1a2130;
+    --color-ring: #b9f68a;
+    --color-success: #3ddc97;
+    --color-success-foreground: #04170e;
+    --color-warning: #ffb547;
+    --color-warning-foreground: #1f1405;
+    --color-error: #ff6b73;
+    --color-error-foreground: #2b0a0e;
+    --color-destructive: #ff6b73;
+    --color-destructive-foreground: #2b0a0e;
+    --color-sidebar: #0c1019;
+    --color-surface: #151b27;
+    --color-elevated: #202938;
+    --color-subtle: #2a3344;
+    --color-glow: rgba(166, 243, 106, 0.16);
+    --color-progress: #4da3ff;
+    --color-info: #3ccfe0;
     --color-depth-1: #5ca6ff;
     --color-depth-2: #a889ff;
     --color-depth-3: #2cd6e5;
     --color-depth-4: #ffb547;
     --color-depth-5: #e879b9;
+    --color-separator: rgba(255, 255, 255, 0.07);
+    --color-fill: rgba(118, 118, 128, 0.2);
+    --color-fill-strong: rgba(118, 118, 128, 0.3);
+    --material: rgba(12, 16, 25, 0.72);
+    --material-strong: rgba(17, 22, 33, 0.92);
+    --tap-highlight: rgba(255, 255, 255, 0.1);
     /* Lab accents, dark: only what differs. --lab-accent*, --lab-dsa*, --wiki-* stay the :root aliases (a dark copy of one
        would override the alias here, same specificity and later, and freeze the labs on a fixed colour). */
     --lab-accent-ink: color-mix(in srgb, var(--color-primary) 60%, var(--color-foreground));
-    --lab-cv: #5fc6bd;
-    --lab-system: #f1ad55;
+    --lab-cv: #5cc8bd;
+    --lab-system: #f6b654;
     --card-bar-idle: 0.45;
-    --card-bar-hover: 0.90;
+    --card-bar-hover: 0.9;
+    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    --shadow-float: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 24px 48px -16px rgba(0, 0, 0, 0.75);
   }
 
   * {
@@ -129,6 +189,20 @@
 
   html {
     scroll-behavior: smooth;
+    /* Native checkboxes, radios, range sliders and progress bars take the accent (and follow a change of it). */
+    accent-color: var(--color-primary);
+  }
+
+  /* A change of accent or theme cross-fades instead of snapping (appearanceService.withColorTransition adds this class
+     for ~0.35s). Colour properties only, so nothing moves. */
+  html.color-transition,
+  html.color-transition *,
+  html.color-transition *::before,
+  html.color-transition *::after {
+    transition-property: color, background-color, border-color, fill, stroke, box-shadow, outline-color, text-decoration-color !important;
+    transition-duration: 320ms !important;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+    transition-delay: 0s !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -141,30 +215,33 @@
     @apply bg-background text-foreground font-body;
     min-height: 100vh;
     font-size: 16px;
-    line-height: 1.62;
-    letter-spacing: 0;
+    line-height: 1.5;
+    letter-spacing: -0.006em;
+    font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* A soft, themed tap highlight (instead of Android's default blue flash) for anything without its own pressed
+       state; controls that have one (tab bar, capsule buttons, rows, swatches…) turn it off below. */
+    -webkit-tap-highlight-color: var(--tap-highlight);
+    /* Keep pinch-zoom (accessibility) but drop the 300ms double-tap delay on every control. */
+    touch-action: manipulation;
   }
 
+  /* One quiet light source at the top of the page, nothing more. */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent 34%),
-      radial-gradient(circle at 15% 0%, rgba(91, 91, 214, 0.10), transparent 30%),
-      radial-gradient(circle at 85% 10%, rgba(18, 124, 122, 0.09), transparent 28%);
+    background: radial-gradient(120% 55% at 50% -12%, rgba(255, 255, 255, 0.9), transparent 62%);
   }
 
   .dark body::before {
     background:
-      linear-gradient(180deg, rgba(255, 240, 220, 0.03), transparent 40%),
-      radial-gradient(circle at 20% 0%, rgba(143, 140, 247, 0.11), transparent 30%),
-      radial-gradient(circle at 90% 10%, rgba(95, 198, 189, 0.08), transparent 26%);
+      radial-gradient(110% 50% at 50% -14%, rgba(120, 144, 196, 0.12), transparent 60%),
+      radial-gradient(60% 40% at 100% 0%, rgba(166, 243, 106, 0.035), transparent 70%);
   }
 
   h1,
@@ -174,23 +251,33 @@
   h5,
   h6 {
     @apply font-heading text-foreground;
-    letter-spacing: 0;
+    letter-spacing: -0.012em;
   }
 
+  /* Display sizes track tighter, as SF Pro Display does. */
   h1 {
     @apply text-4xl leading-tight font-bold;
+    letter-spacing: -0.024em;
   }
 
   h2 {
     @apply text-3xl leading-snug font-bold;
+    letter-spacing: -0.02em;
   }
 
   h3 {
     @apply text-2xl leading-normal font-semibold;
+    letter-spacing: -0.016em;
   }
 
   h4 {
     @apply text-xl leading-relaxed font-semibold;
+  }
+
+  /* Numbers that are compared or that tick (counts, scores, timers) keep their width. */
+  .tabular-nums,
+  time {
+    font-variant-numeric: tabular-nums;
   }
 
   p {
@@ -216,9 +303,63 @@
 }
 
 @layer components {
+  /* The nav bar: translucent material over the page (iOS bar), a hairline under it, no drop shadow. It starts below the
+     status bar / notch (--safe-top) and keeps its content clear of side cutouts in landscape. */
   .app-header {
-    @apply fixed left-0 right-0 top-0 z-[100] border-b border-border shadow-sm backdrop-blur-xl;
-    background: color-mix(in srgb, var(--color-card) 90%, transparent);
+    @apply fixed left-0 right-0 z-[100] border-b;
+    top: var(--safe-top);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+    border-color: var(--color-separator);
+    background: var(--material);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .app-header {
+      background: var(--material-strong);
+    }
+  }
+
+  /* Android app (edge-to-edge WebView) and iOS standalone: paint the status-bar strip in the bar's own material so
+     the header continues under it. 0px in a browser tab. */
+  html::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--safe-top);
+    z-index: 101;
+    background: var(--material-strong);
+    pointer-events: none;
+  }
+
+  /* Phone nav bar: account avatar and the guest "Log in" pill. */
+  /* Initials avatar: neutral (a contact-card grey), so the accent stays reserved for actions. */
+  .nav-avatar {
+    @apply inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[13px] font-semibold focus-ring;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: linear-gradient(180deg, #a3abb9, #737c8e);
+    transition: transform var(--dur-press) var(--ease-out);
+  }
+
+  .dark .nav-avatar {
+    background: linear-gradient(180deg, #6b7486, #485062);
+  }
+
+  .nav-pill-button {
+    @apply inline-flex h-9 items-center rounded-full px-4 text-[15px] font-semibold focus-ring;
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+    transition: transform var(--dur-press) var(--ease-out), opacity var(--dur-fast);
+  }
+
+  .nav-avatar:active,
+  .nav-pill-button:active {
+    transform: scale(0.94);
   }
 
   /* Account-status notice (modules/common/PendingStatusBanner.tsx): a strip fixed directly under the
@@ -226,7 +367,7 @@
      is published as --app-banner-h; body pads by it so page content starts below the strip. */
   .app-banner {
     @apply fixed left-0 right-0 z-[95] border-b px-[4vw] py-2 text-center text-[13px] font-medium leading-snug;
-    top: 60px;
+    top: calc(var(--safe-top) + var(--header-h));
   }
 
   .app-banner-warning {
@@ -242,17 +383,46 @@
   }
 
   body {
-    padding-top: var(--app-banner-h, 0px);
+    padding-top: calc(var(--app-banner-h, 0px) + var(--safe-top));
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+
+  /*
+   * Full-viewport fixed layers — dialog backdrops, full-screen panels, side panels, readers — start below the system
+   * status bar / notch, app-wide. ~40 overlays build their own `fixed inset-0` (AI LMS, Career Studio, lab dialogs, the
+   * PDF reader…): this is one rule for all of them, not a patch per overlay. --safe-top is 0 in a browser tab, so there
+   * nothing moves; edge-to-edge (the Android app, installed PWAs) it is the status-bar height. Specificity (two classes)
+   * beats the single `inset-0` / `top-0` utility.
+   */
+  .fixed.inset-0,
+  .fixed.inset-y-0,
+  .fixed.top-0 {
+    top: var(--safe-top);
+  }
+
+  /* A full-height panel that now starts lower must end at the bottom edge, not overflow it by the inset. */
+  .fixed.top-0.h-full,
+  .fixed.top-0.h-screen,
+  .fixed.inset-0.h-full,
+  .fixed.inset-0.h-screen {
+    height: auto;
+    bottom: 0;
+  }
+
+  /* The md+ icon rail (Sidebar.tsx) also clears a left cutout in landscape. */
+  .app-rail {
+    left: var(--safe-left);
   }
 
   /* Full-height page shells: 100vh minus the banner (identical to h-screen when there is none). */
   .h-app-screen {
-    height: calc(100vh - var(--app-banner-h, 0px));
+    height: calc(100vh - var(--app-banner-h, 0px) - var(--safe-top));
   }
 
   @supports (height: 100dvh) {
     .h-app-screen {
-      height: calc(100dvh - var(--app-banner-h, 0px));
+      height: calc(100dvh - var(--app-banner-h, 0px) - var(--safe-top));
     }
   }
 
@@ -260,8 +430,11 @@
      reserve its height. Full-height shells shrink (their inner panes scroll); normal pages get
      bottom padding on <body>. */
   @media (max-width: 767px) {
+    /* The tab bar floats --tabbar-gap above the bottom edge (more where there is a home indicator / gesture bar);
+       --mobile-tab-h is the whole band it occupies, plus breathing room, and is what pages reserve. */
     html.has-mobile-tabs {
-      --mobile-tab-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+      --tabbar-gap: max(0.625rem, calc(var(--safe-bottom) - 0.25rem));
+      --mobile-tab-h: calc(var(--tabbar-h) + var(--tabbar-gap) + 0.75rem);
     }
 
     html.has-mobile-tabs body {
@@ -287,23 +460,53 @@
     }
   }
 
+  /* Desktop top nav: labels never wrap onto two lines; below 1536px the labels carry the links on their own (the icons
+     came back to fit "Daily Session", "System Design" … on one line beside the account controls). */
+  .app-header .app-nav-link {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1535px) {
+    .app-header nav > div > a.app-nav-link > svg {
+      display: none;
+    }
+  }
+
+  /* Round icon button on a quiet fill (iOS bar button style). Used across headers, drawers and toolbars. */
   .theme-toggle {
-    @apply inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-smooth hover:bg-muted hover:text-foreground focus-ring;
-    background: color-mix(in srgb, var(--color-muted) 60%, transparent);
+    @apply inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-ring;
+    background: var(--color-fill);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      transform var(--dur-press) var(--ease-out);
+  }
+
+  .theme-toggle:hover {
+    background: var(--color-fill-strong);
+  }
+
+  .theme-toggle:active {
+    transform: scale(0.92);
   }
 
   /* Sidebar rail mode: shifts main page content and header on desktop (md+) */
   @media (min-width: 768px) {
     html.has-sidebar-rail body,
     body.has-sidebar-rail {
-      padding-left: 60px;
+      padding-left: calc(60px + var(--safe-left));
     }
 
     html.has-sidebar-rail .app-header,
     body.has-sidebar-rail .app-header,
     html.has-sidebar-rail .app-banner,
     body.has-sidebar-rail .app-banner {
-      left: 60px;
+      left: calc(60px + var(--safe-left));
+    }
+
+    /* The header's left edge already clears the cutout here (it starts after the rail). */
+    html.has-sidebar-rail .app-header {
+      padding-left: 0;
     }
 
     /* Slide only on user toggles: `sidebar-animate` is added after the first paint, so the
@@ -434,18 +637,33 @@
     @apply rounded-lg border border-border bg-card p-5;
   }
 
-  /* Career Studio — shared visual primitives (hero, segmented tabs, empty states) */
+  /* Career Studio — shared visual primitives (section chips, empty states). The section switcher is a row of chips; on
+     phones it bleeds to the screen edges and scrolls, so a chip is cut by the screen edge, never inside a box. */
   .cs-tabbar {
-    @apply flex items-center gap-1 p-1.5 rounded-xl border border-border mb-6 overflow-x-auto scrollbar-clean;
-    background: color-mix(in srgb, var(--color-muted) 70%, transparent);
+    @apply flex items-center gap-2 overflow-x-auto scrollbar-none;
+    margin-bottom: 1.25rem;
+  }
+
+  @media (max-width: 639px) {
+    .cs-tabbar {
+      margin-left: -1rem;
+      margin-right: -1rem;
+      padding: 0 1rem;
+    }
   }
 
   .cs-tab {
-    @apply relative inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-smooth text-muted-foreground hover:text-foreground;
+    @apply relative inline-flex h-9 flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold text-muted-foreground hover:text-foreground;
+    background: var(--color-fill);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
   }
 
-  .cs-tab-active {
-    @apply bg-card text-primary shadow-sm;
+  .cs-tab-active,
+  .cs-tab-active:hover {
+    color: var(--color-background);
+    background: var(--color-foreground);
   }
 
   .cs-empty-badge {
@@ -624,67 +842,67 @@
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
+  /* AI LMS controls and surfaces, on the shared system: grouped cards (no lit rims, no glow), capsule buttons, the iOS
+     segmented control. Each class keeps its own accent (`--card-accent`, from the class's accent_color) as a faint wash and
+     on hover. */
   .lms-panel {
-    @apply rounded-2xl border border-border;
-    border-color: color-mix(in srgb, var(--color-foreground) 12%, transparent);
-    background: color-mix(in srgb, var(--color-card) 72%, transparent);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 6%, transparent),
-      0 10px 30px -18px rgba(0, 0, 0, 0.45);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    @apply rounded-[20px] border;
+    border-color: var(--color-separator);
+    background: var(--color-card);
+    box-shadow: var(--shadow-card);
   }
 
   .lms-btn {
-    @apply lms-focus inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-4 text-[0.8125rem] font-semibold transition-colors;
+    @apply lms-focus inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-4 text-[0.8125rem] font-semibold;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      transform var(--dur-press) var(--ease-out);
+  }
+  .lms-btn:active {
+    transform: scale(0.97);
   }
 
   .lms-btn-secondary {
-    @apply lms-btn text-foreground;
-    border-color: color-mix(in srgb, var(--color-foreground) 14%, transparent);
-    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+    @apply lms-btn border-transparent;
+    color: var(--lab-accent-ink);
+    background: var(--color-fill);
   }
   .lms-btn-secondary:hover {
-    background: color-mix(in srgb, var(--color-foreground) 9%, transparent);
+    background: var(--color-fill-strong);
   }
 
   .lms-btn-primary {
     @apply lms-btn border-transparent bg-primary text-primary-foreground;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--color-primary) 40%, transparent),
-      0 0 14px -2px color-mix(in srgb, var(--color-primary) 55%, transparent),
-      inset 0 1px 0 color-mix(in srgb, white 22%, transparent);
   }
   .lms-btn-primary:hover {
-    background: color-mix(in srgb, var(--color-primary) 86%, var(--color-foreground));
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--color-primary) 60%, transparent),
-      0 0 22px -1px color-mix(in srgb, var(--color-primary) 70%, transparent),
-      inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 90%, var(--color-foreground));
   }
 
   .lms-btn-lg {
-    @apply h-[3rem] gap-2 rounded-xl px-[1.5rem] text-sm;
+    @apply h-[3rem] gap-2 px-[1.5rem] text-sm;
   }
 
   .lms-segment {
-    @apply inline-flex items-center gap-1 rounded-xl border p-1.5;
-    border-color: color-mix(in srgb, var(--color-foreground) 12%, transparent);
-    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+    @apply inline-flex items-center gap-0.5 rounded-[11px] p-0.5;
+    background: var(--color-fill);
   }
   .lms-segment-item {
-    @apply lms-focus inline-flex h-9 items-center gap-2 rounded-lg border border-transparent px-4 text-[0.8125rem] font-semibold text-muted-foreground transition-colors hover:text-foreground;
+    @apply lms-focus inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] px-4 text-[0.8125rem] font-semibold text-muted-foreground transition-colors hover:text-foreground;
   }
   .lms-segment-item[aria-current='true'] {
-    @apply text-foreground;
-    background: color-mix(in srgb, var(--color-primary) 16%, var(--color-card));
-    border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+    color: var(--lab-accent-ink);
+    background: var(--color-card);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1), 0 2px 8px -2px rgba(16, 24, 40, 0.08);
+  }
+  .dark .lms-segment-item[aria-current='true'] {
+    background: #3a4457;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
 
   .lms-input {
-    @apply w-full rounded-xl border text-sm text-foreground placeholder:text-muted-foreground transition-colors;
-    border-color: color-mix(in srgb, var(--color-foreground) 14%, transparent);
-    background: color-mix(in srgb, var(--color-card) 80%, transparent);
+    @apply w-full rounded-[12px] border text-sm text-foreground placeholder:text-muted-foreground transition-colors;
+    border-color: var(--color-border);
+    background: var(--color-input);
   }
   .lms-input:focus {
     outline: none;
@@ -694,130 +912,54 @@
 
   /* Class card: `--card-accent` is set per card from the class's accent_color. */
   .lms-card {
-    @apply lms-focus relative flex h-full flex-col rounded-2xl border;
-    border-color: color-mix(in srgb, var(--card-accent) 14%, color-mix(in srgb, var(--color-foreground) 10%, transparent));
+    @apply lms-focus relative flex h-full flex-col rounded-[20px] border;
+    border-color: var(--color-separator);
     background:
-      radial-gradient(120% 70% at 0% 0%, color-mix(in srgb, var(--card-accent) 9%, transparent), transparent 60%),
+      radial-gradient(120% 70% at 0% 0%, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 60%),
       var(--color-card);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 7%, transparent),
-      0 1px 2px rgba(0, 0, 0, 0.18),
-      0 12px 28px -18px rgba(0, 0, 0, 0.5);
-    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1), border-color 300ms, box-shadow 300ms;
+    box-shadow: var(--shadow-card);
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out),
+      transform var(--dur-press) var(--ease-out);
   }
-  /* Static illuminated rim (no motion): faint accent ring with a fixed specular highlight, plus a
-     tight edge trace. The hover shimmer stays on .glow-card-rim. `.lms-lit` = same for panels. */
   .lms-card,
   .lms-lit {
     --lit: var(--card-accent, var(--color-primary));
     position: relative;
   }
-  .lms-card::after,
-  .lms-lit::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    border-radius: inherit;
-    padding: 2px;
-    pointer-events: none;
-    background: linear-gradient(
-      125deg,
-      color-mix(in srgb, var(--lit) 35%, white) 0%,
-      color-mix(in srgb, var(--lit) 75%, transparent) 9%,
-      color-mix(in srgb, var(--lit) 26%, transparent) 28%,
-      color-mix(in srgb, var(--lit) 20%, transparent) 70%,
-      color-mix(in srgb, var(--lit) 55%, transparent) 92%,
-      color-mix(in srgb, var(--lit) 40%, white) 100%
-    );
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-  }
-  .lms-card {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--lit) 7%, transparent),
-      0 0 5px 0 color-mix(in srgb, var(--lit) 9%, transparent),
-      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 7%, transparent),
-      0 0 22px -8px color-mix(in srgb, var(--lit) 16%, transparent),
-      0 12px 28px -18px rgba(0, 0, 0, 0.5);
-  }
   .lms-lit {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--lit) 7%, transparent),
-      0 0 5px 0 color-mix(in srgb, var(--lit) 9%, transparent),
-      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 6%, transparent),
-      0 0 22px -8px color-mix(in srgb, var(--lit) 16%, transparent);
+    box-shadow: var(--shadow-card);
   }
   .lms-card-interactive {
     cursor: pointer;
   }
-  .lms-card-interactive:hover,
-  .lms-card-interactive:focus-visible {
-    transform: translateY(-3px);
-    border-color: color-mix(in srgb, var(--card-accent) 45%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--lit) 10%, transparent),
-      0 0 6px 0 color-mix(in srgb, var(--lit) 13%, transparent),
-      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 9%, transparent),
-      0 18px 36px -16px color-mix(in srgb, var(--card-accent) 38%, transparent);
+  .lms-card-interactive:active {
+    transform: scale(0.99);
+  }
+  @media (hover: hover) {
+    .lms-card-interactive:hover {
+      border-color: color-mix(in srgb, var(--card-accent) 40%, var(--color-separator));
+    }
+    .lms-card-interactive:hover .lms-card-title {
+      color: var(--card-accent);
+    }
+    .lms-card-interactive:hover .lms-card-open {
+      transform: translateX(3px);
+    }
   }
   .lms-card-interactive:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--card-accent) 80%, transparent);
     outline-offset: 2px;
   }
   .lms-card-title {
-    transition: color 300ms;
-  }
-  .lms-card-interactive:hover .lms-card-title,
-  .lms-card-interactive:focus-visible .lms-card-title {
-    color: var(--card-accent);
+    transition: color var(--dur-fast);
   }
   .lms-card-open {
-    transition: transform 300ms;
+    transition: transform var(--dur-fast);
   }
-  .lms-card-interactive:hover .lms-card-open,
-  .lms-card-interactive:focus-visible .lms-card-open {
-    transform: translateX(3px);
-  }
-
-  /* Hover shimmer: a bright accent arc orbits the card edge with a soft outer glow. Idle = hidden. */
+  /* The orbiting hover arc is retired with the rest of the glow. */
   .lms-card .glow-card-rim {
-    padding: 2px;
-    /* whole edge lit softly; the orbiting arc rides on top of it */
-    background: color-mix(in srgb, var(--card-accent) 55%, transparent);
-    filter: drop-shadow(0 0 9px color-mix(in srgb, var(--card-accent) 85%, transparent));
-  }
-  .lms-card-interactive:hover,
-  .lms-card-interactive:focus-visible {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--lit) 10%, transparent),
-      0 0 6px 0 color-mix(in srgb, var(--lit) 13%, transparent),
-      inset 0 0 22px -8px color-mix(in srgb, var(--card-accent) 35%, transparent),
-      0 0 0 2px color-mix(in srgb, var(--card-accent) 22%, transparent),
-      0 18px 40px -14px color-mix(in srgb, var(--card-accent) 50%, transparent);
-  }
-  .lms-card .glow-card-rim::before {
-    background: conic-gradient(
-      from 0deg,
-      transparent 0deg,
-      transparent 40deg,
-      color-mix(in srgb, var(--card-accent) 55%, transparent) 70deg,
-      var(--card-accent) 100deg,
-      color-mix(in srgb, var(--card-accent) 40%, white) 120deg,
-      var(--card-accent) 140deg,
-      color-mix(in srgb, var(--card-accent) 55%, transparent) 170deg,
-      transparent 200deg,
-      transparent 360deg
-    );
-    animation-duration: 2.2s;
-  }
-  .lms-card .glow-card-rim::after {
     display: none;
   }
 
@@ -830,8 +972,8 @@
 
   .lms-admin-pill {
     @apply lms-focus fixed z-40 inline-flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-xs font-medium text-foreground transition-colors;
-    right: max(1rem, env(safe-area-inset-right));
-    bottom: max(1rem, env(safe-area-inset-bottom));
+    right: max(1rem, var(--safe-right));
+    bottom: max(1rem, var(--safe-bottom));
     border-color: color-mix(in srgb, var(--color-foreground) 16%, transparent);
     background: color-mix(in srgb, var(--color-card) 82%, transparent);
     box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.5);
@@ -873,20 +1015,24 @@
    * accent-color setting (which re-points --color-primary) working everywhere.
    */
   .todo-glass {
-    @apply rounded-xl border border-border;
-    background: color-mix(in srgb, var(--color-card) 84%, transparent);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--color-foreground) 5%, transparent),
-      0 1px 2px rgba(15, 12, 8, 0.05),
-      0 10px 28px -16px rgba(15, 12, 8, 0.22);
+    @apply rounded-xl border;
+    border-color: var(--color-separator);
+    background: var(--color-card);
+    box-shadow: var(--shadow-card);
   }
 
   .todo-focus {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
+  /* Capsule buttons (iOS / current app-store style). 13px semibold; on touch screens every one is >= 40px tall (below). */
   .todo-btn {
-    @apply todo-focus inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-smooth disabled:cursor-not-allowed disabled:opacity-50;
+    @apply todo-focus inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold disabled:cursor-not-allowed disabled:opacity-50;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out),
+      transform var(--dur-press) var(--ease-out);
   }
 
   /* Flat at rest. The glow belongs to an interaction (hover), not to the button sitting there. */
@@ -895,13 +1041,13 @@
   }
 
   .todo-btn-primary:not(:disabled):hover {
-    background: color-mix(in srgb, var(--color-primary) 88%, var(--color-foreground));
-    box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--color-primary) 65%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 90%, var(--color-foreground));
   }
 
   .todo-btn-secondary {
-    @apply border border-border text-foreground;
-    background: color-mix(in srgb, var(--color-card) 70%, transparent);
+    @apply border text-foreground;
+    border-color: var(--color-border);
+    background: var(--color-card);
   }
 
   .todo-btn-secondary:not(:disabled):hover {
@@ -911,13 +1057,14 @@
 
   /* Quiet secondary: a soft fill instead of an outline. Opt-in (Smart To-Do and the page frame); declared
      before .todo-btn-active so a pressed toggle (`todo-btn-quiet todo-btn-active`) keeps its tint. */
+  /* Secondary button, iOS "gray" style: a neutral fill with the label in the accent ink, so it follows the accent. */
   .todo-btn-quiet {
-    @apply text-foreground;
-    background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
+    color: var(--lab-accent-ink);
+    background: var(--color-fill);
   }
 
   .todo-btn-quiet:not(:disabled):not(.todo-btn-active):hover {
-    background: color-mix(in srgb, var(--color-foreground) 11%, transparent);
+    background: var(--color-fill-strong);
   }
 
   .todo-btn-ghost {
@@ -945,7 +1092,7 @@
   }
 
   .todo-input {
-    @apply w-full rounded-lg border border-border bg-input text-foreground transition-smooth placeholder:text-muted-foreground focus:outline-none;
+    @apply w-full rounded-[12px] border border-border bg-input text-foreground transition-smooth placeholder:text-muted-foreground focus:outline-none;
   }
 
   .todo-input:focus {
@@ -956,11 +1103,11 @@
   /* Quiet field: a soft fill that only gains an edge (and the focus ring) while you are typing in it. */
   .todo-input-quiet {
     border-color: transparent;
-    background: color-mix(in srgb, var(--color-foreground) 5%, transparent);
+    background: var(--color-fill);
   }
 
   .todo-input-quiet:hover:not(:focus) {
-    background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+    background: var(--color-fill-strong);
   }
 
   .todo-input-quiet:focus {
@@ -970,19 +1117,23 @@
   }
 
   /* Segmented control: views, sub-views. Selected state comes from aria-pressed. */
+  /* Segmented control (iOS): a quiet track, the selected segment raised on it. Selected state comes from aria-pressed. */
   .todo-segmented {
-    @apply inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border p-0.5 scrollbar-none;
-    background: color-mix(in srgb, var(--color-muted) 55%, transparent);
+    @apply inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-[11px] border border-transparent p-0.5 scrollbar-none;
+    background: var(--color-fill);
   }
 
-  /* Same box (the border stays, so nothing shifts) with the outline taken out. */
+  /* Kept for the call sites that opt in; the track is already quiet. */
   .todo-segmented-quiet {
     border-color: transparent;
-    background: color-mix(in srgb, var(--color-foreground) 5%, transparent);
   }
 
   .todo-segment {
-    @apply todo-focus inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-smooth hover:text-foreground;
+    @apply todo-focus inline-flex flex-shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] px-3 py-1.5 text-[13px] font-semibold text-muted-foreground hover:text-foreground;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
   }
 
   /* The track scrolls (overflow-x), so an offset ring would be clipped at its edge: draw the focus ring inside. */
@@ -993,33 +1144,42 @@
 
   .todo-segment[aria-pressed='true'],
   .todo-segment[aria-current='page'] {
-    @apply bg-card text-foreground shadow-sm;
+    color: var(--lab-accent-ink);
+    background: var(--color-card);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1), 0 2px 8px -2px rgba(16, 24, 40, 0.08);
+  }
+
+  .dark .todo-segment[aria-pressed='true'],
+  .dark .todo-segment[aria-current='page'] {
+    background: #3a4457;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
 
   .todo-segment[aria-pressed='true'] svg,
   .todo-segment[aria-current='page'] svg {
-    @apply text-primary;
+    color: var(--lab-accent-ink);
   }
 
-  /* View selectors (task layout, planning views): the selected one is violet text and icon on a soft violet tint, so it is
-     found at a glance without an outline or a shadow. Opt-in; the Copilot's Local/Online toggle keeps the neutral raise. */
+  .dark .todo-segment[aria-pressed='true'] svg,
+  .dark .todo-segment[aria-current='page'] svg {
+    color: var(--color-primary);
+  }
+
+  /* View selectors (task layout, planning views) used to tint the selected segment; one segmented style everywhere now
+     (raised segment, accent icon), so the opt-in class only keeps its name. */
   .todo-segmented-accent .todo-segment[aria-pressed='true'],
   .todo-segmented-accent .todo-segment[aria-current='page'] {
-    @apply text-primary shadow-none;
-    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+    color: var(--lab-accent-ink);
   }
 
-  /* Light theme only: the violet text of a selected control sat on its own violet tint at 3.7-3.9:1, and muted text on the
-     segmented track at 4.4:1 (small text needs 4.5:1). A shade darker clears it; the dark theme is untouched. */
-  html:not(.dark) .todo-btn-active,
-  html:not(.dark) .todo-segmented-accent .todo-segment[aria-pressed='true'],
-  html:not(.dark) .todo-segmented-accent .todo-segment[aria-current='page'] {
+  /* Light theme: an accent-text pressed toggle on its own tint needs a shade more contrast for small text. */
+  html:not(.dark) .todo-btn-active {
     color: color-mix(in srgb, var(--color-primary) 76%, var(--color-foreground));
   }
 
-  /* (#71695f is the light --color-muted-foreground: a custom property can't be defined from itself.) */
+  /* (#5c6679 is the light --color-muted-foreground: a custom property can't be defined from itself.) */
   html:not(.dark) .todo-segmented {
-    --color-muted-foreground: color-mix(in srgb, #71695f 78%, var(--color-foreground));
+    --color-muted-foreground: color-mix(in srgb, #5c6679 85%, var(--color-foreground));
   }
 
   /* Touch targets (checklist 1.8). On a coarse pointer — a finger — everything you tap in the To-Do area is at
@@ -1041,9 +1201,10 @@
   /* Fast-capture bar: the one entry point that should read as "type here". A plain surface with a
      hairline edge; the violet ring appears only while you are typing in it. */
   .todo-capture {
-    @apply flex items-center gap-3 rounded-xl border py-1.5 pl-4 pr-1.5 transition-smooth;
-    border-color: color-mix(in srgb, var(--color-foreground) 15%, transparent);
+    @apply flex items-center gap-3 rounded-full border py-1.5 pl-4 pr-1.5 transition-smooth;
+    border-color: var(--color-separator);
     background: var(--color-card);
+    box-shadow: var(--shadow-card);
   }
 
   .todo-capture:hover:not(:focus-within) {
@@ -1068,181 +1229,39 @@
   }
 
   .todo-task-card {
-    @apply relative rounded-lg border border-border transition-smooth;
-    background: color-mix(in srgb, var(--color-card) 78%, transparent);
-  }
-
-  .todo-task-card:hover {
-    border-color: color-mix(in srgb, var(--color-foreground) 20%, transparent);
-    box-shadow: 0 6px 18px -12px rgba(15, 12, 8, 0.35);
+    @apply relative rounded-lg border transition-smooth;
+    border-color: var(--color-separator);
+    background: var(--color-card);
   }
 
   /*
-   * Lit To-Do cards. Rest: the whole edge is softly lit (::after) with a gentle ambient glow.
-   * Hover/focus-within: the card lifts, the glow strengthens and a brighter arc (::before)
-   * orbits the edge. Rings are masked pseudo-elements, so they work on overflow-hidden cards;
-   * the glow is a box-shadow for the same reason. `--lit` defaults to the theme accent.
-   * `.todo-task-card` shares the hover behaviour only (a list of rest-lit cards would be noise).
+   * Grouped cards (`.todo-lit`, its `lit-soft` / `lit-static` variants and `.todo-task-card`).
+   * They used to glow: a lit rim, a specular highlight and an arc orbiting the edge on hover. Now they are plain grouped
+   * cards — the card surface, a hairline, the theme's card shadow — and hover only firms up the hairline. No lift: a card
+   * moving under the pointer reads as a toy, and on a phone there is no hover anyway. The class names stay (Daily
+   * Session, SwipeLearn and every To-Do tab use them).
    *
-   * DO NOT render dialogs, menus or any `position: fixed/absolute` overlay *inside* these elements.
-   * The hover `transform` makes them a containing block for fixed descendants (a "full-screen"
-   * dialog shrinks to the card) and a stacking context (the next card paints over their menus).
-   * Use components/ui/Modal.tsx and components/ui/Popover.tsx, which portal to <body>.
+   * Still true: never render a dialog, menu or `position: fixed/absolute` overlay inside these elements. Use
+   * components/ui/Modal.tsx and components/ui/Popover.tsx, which portal to <body>.
    */
-  @property --lit-angle {
-    syntax: '<angle>';
-    inherits: false;
-    initial-value: 0deg;
-  }
-
   .todo-lit,
   .todo-task-card {
     --lit: var(--color-primary);
     position: relative;
+    border-color: var(--color-separator);
     transition:
-      transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
-      box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1),
-      border-color 300ms;
-  }
-
-  .todo-lit::before,
-  .todo-lit::after,
-  .todo-task-card::before,
-  .todo-task-card::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 2px;
-    pointer-events: none;
-    transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-  }
-
-  /* Rest ring: always lit on .todo-lit, hidden on task cards until hover. */
-  .todo-lit::after,
-  .todo-task-card::after {
-    z-index: 4;
-    opacity: 0;
-    /* Stationary specular highlight: a polished-glass reflection on the top-left corner, a
-       fainter echo bottom-right. Linear (not conic) so it sits in the same spot on any card shape. */
-    background: linear-gradient(
-      125deg,
-      color-mix(in srgb, var(--lit) 35%, white) 0%,
-      color-mix(in srgb, var(--lit) 75%, transparent) 9%,
-      color-mix(in srgb, var(--lit) 26%, transparent) 28%,
-      color-mix(in srgb, var(--lit) 20%, transparent) 70%,
-      color-mix(in srgb, var(--lit) 55%, transparent) 92%,
-      color-mix(in srgb, var(--lit) 40%, white) 100%
-    );
-  }
-  .todo-lit::after {
-    opacity: 1;
-  }
-
-  /* Hover arc. */
-  .todo-lit::before,
-  .todo-task-card::before {
-    z-index: 5;
-    opacity: 0;
-    background: conic-gradient(
-      from var(--lit-angle),
-      transparent 0deg,
-      transparent 60deg,
-      color-mix(in srgb, var(--lit) 60%, transparent) 85deg,
-      color-mix(in srgb, var(--lit) 45%, white) 105deg,
-      color-mix(in srgb, var(--lit) 60%, transparent) 125deg,
-      transparent 150deg,
-      transparent 360deg
-    );
-    animation: todo-lit-orbit 2s linear infinite paused;
+      border-color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
   }
 
   .todo-lit {
-    border-color: color-mix(in srgb, var(--lit) 14%, var(--color-border));
-    box-shadow:
-      /* edge trace: hugs the 1px border, barely perceptible */
-      0 0 0 1px color-mix(in srgb, var(--lit) 7%, transparent),
-      0 0 5px 0 color-mix(in srgb, var(--lit) 9%, transparent),
-      inset 0 0 16px -10px color-mix(in srgb, var(--lit) 16%, transparent),
-      0 0 22px -8px color-mix(in srgb, var(--lit) 16%, transparent);
+    box-shadow: var(--shadow-card);
   }
 
-  .todo-lit:hover,
-  .todo-lit:focus-within {
-    transform: translateY(-3px);
-    border-color: color-mix(in srgb, var(--lit) 40%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--lit) 10%, transparent),
-      0 0 6px 0 color-mix(in srgb, var(--lit) 13%, transparent),
-      inset 0 0 22px -8px color-mix(in srgb, var(--lit) 26%, transparent),
-      0 0 28px -6px color-mix(in srgb, var(--lit) 30%, transparent),
-      0 14px 30px -14px color-mix(in srgb, var(--lit) 34%, transparent);
-  }
-
-  /* Softer variant (`todo-lit lit-soft`): same rim + hover shimmer, but a quieter resting state.
-     Used outside the To-Do area (e.g. Daily Session). */
-  .todo-lit.lit-soft:not(:hover):not(:focus-within) {
-    border-color: color-mix(in srgb, var(--lit) 8%, var(--color-border));
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--lit) 4%, transparent),
-      0 0 4px 0 color-mix(in srgb, var(--lit) 5%, transparent),
-      0 0 14px -8px color-mix(in srgb, var(--lit) 8%, transparent);
-  }
-  .todo-lit.lit-soft:not(:hover):not(:focus-within)::after {
-    opacity: 0.4;
-  }
-
-  /* Static variant (`todo-lit lit-soft lit-static`) for reading surfaces: the same quiet rim, fixed
-     highlight and soft glow at rest AND on hover. No shimmer, no lift, no glow change. */
-  .todo-lit.lit-static::before {
-    display: none;
-  }
-  .todo-lit.lit-static,
-  .todo-lit.lit-static:hover,
-  .todo-lit.lit-static:focus-within {
-    transform: none;
-    border-color: color-mix(in srgb, var(--lit) 8%, var(--color-border));
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--lit) 4%, transparent),
-      0 0 4px 0 color-mix(in srgb, var(--lit) 5%, transparent),
-      0 0 14px -8px color-mix(in srgb, var(--lit) 8%, transparent);
-  }
-  .todo-lit.lit-static::after,
-  .todo-lit.lit-static:hover::after,
-  .todo-lit.lit-static:focus-within::after {
-    opacity: 0.4;
-  }
-
-  .todo-task-card:hover {
-    transform: translateY(-2px);
-    border-color: color-mix(in srgb, var(--lit) 50%, transparent);
-    box-shadow: 0 12px 26px -14px color-mix(in srgb, var(--lit) 45%, transparent);
-  }
-
-  .todo-lit:hover::after,
-  .todo-lit:focus-within::after,
-  .todo-task-card:hover::after {
-    opacity: 1;
-  }
-
-  .todo-lit:hover::before,
-  .todo-lit:focus-within::before,
-  .todo-task-card:hover::before {
-    opacity: 1;
-    animation-play-state: running;
-  }
-
-  @keyframes todo-lit-orbit {
-    to {
-      --lit-angle: 360deg;
+  @media (hover: hover) {
+    .todo-lit:hover,
+    .todo-task-card:hover {
+      border-color: color-mix(in srgb, var(--color-foreground) 16%, transparent);
     }
   }
 
@@ -1405,9 +1424,6 @@
 
   .todo-icon-chip {
     transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  .todo-lit:hover .todo-icon-chip {
-    transform: scale(1.1) rotate(-4deg);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1584,16 +1600,19 @@
   }
 
   /* Dashed "add" slot used in board columns. */
+  /* "Add" slot at the foot of a board column: a quiet filled button in the accent ink (no dashed outline). */
   .todo-add-slot {
-    @apply text-muted-foreground transition-all;
-    border: 1px dashed color-mix(in srgb, var(--color-foreground) 22%, transparent);
+    color: var(--lab-accent-ink);
+    background: var(--color-fill);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      transform var(--dur-press) var(--ease-out);
+  }
+  .dark .todo-add-slot {
+    color: var(--color-primary);
   }
   .todo-add-slot:hover {
-    @apply text-foreground;
-    transform: translateY(-1px);
-    border-style: solid;
-    border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
-    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+    background: var(--color-fill-strong);
   }
   .todo-add-slot:active {
     transform: scale(0.98);
@@ -1604,7 +1623,9 @@
   }
 
   .todo-popover {
-    @apply rounded-lg border border-border bg-popover text-popover-foreground shadow-lg;
+    @apply rounded-[14px] border bg-popover text-popover-foreground;
+    border-color: var(--color-separator);
+    box-shadow: var(--shadow-float);
   }
 
   /* Menu items kept only a background tint on keyboard focus (about 1.2:1 against the menu): draw an edge too. */
@@ -1638,14 +1659,16 @@
   /* Toast of components/ui/ToastHost.tsx. Opaque (mixed with the popover colour) so it stays
      readable over any content. Tint comes from data-tone. */
   .todo-toast {
-    @apply flex items-start gap-2.5 rounded-xl border border-border bg-popover px-3.5 py-2.5 text-[13px] text-popover-foreground shadow-xl animate-fade-in;
+    @apply flex items-start gap-2.5 rounded-[16px] border bg-popover px-4 py-3 text-[14px] text-popover-foreground animate-fade-in;
+    border-color: var(--color-separator);
+    box-shadow: var(--shadow-float);
     max-width: min(26rem, calc(100vw - 2rem));
   }
 
   /* Bottom-centre. No floating button sits down here below lg any more, so a phone's toast only has to clear the
      home indicator, or the tab bar when there is one. */
   .todo-toast-host {
-    bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(1.5rem + var(--safe-bottom));
   }
 
   @media (max-width: 767px) {
@@ -1687,53 +1710,174 @@
   }
 
   /* ── Mobile tab bar ─────────────────────────────────────────────────────────────────── */
+  /* A floating glass capsule inset from the screen edges (current iOS tab bar), clear of the home indicator / Android
+     gesture bar. Content scrolls under it and shows through the material. Sizes live in html.has-mobile-tabs. */
   .mobile-tabbar {
-    @apply fixed inset-x-0 bottom-0 z-[120] flex items-stretch border-t border-border;
-    height: calc(3.5rem + env(safe-area-inset-bottom, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
-    background: color-mix(in srgb, var(--color-card) 94%, transparent);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
+    @apply fixed z-[120] flex items-stretch;
+    left: calc(0.75rem + var(--safe-left));
+    right: calc(0.75rem + var(--safe-right));
+    bottom: var(--tabbar-gap, 0.75rem);
+    height: var(--tabbar-h);
+    padding: 0.3rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-separator);
+    background: var(--material);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    backdrop-filter: saturate(180%) blur(24px);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, #fff 9%, transparent),
+      0 10px 30px -10px rgba(0, 0, 0, 0.35);
+  }
+
+  html:not(.dark) .mobile-tabbar {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      0 10px 30px -12px rgba(16, 24, 40, 0.28),
+      0 1px 3px rgba(16, 24, 40, 0.06);
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .mobile-tabbar {
+      background: var(--material-strong);
+    }
   }
 
   .mobile-tab {
-    @apply flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground transition-colors;
+    @apply relative flex min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-full text-[10.5px] font-semibold text-muted-foreground;
+    letter-spacing: 0.01em;
     -webkit-tap-highlight-color: transparent;
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out),
+      transform var(--dur-press) var(--ease-out);
+  }
+
+  .mobile-tab:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: -2px;
   }
 
   .mobile-tab:active {
-    background: color-mix(in srgb, var(--color-muted) 70%, transparent);
+    transform: scale(0.92);
   }
 
   .mobile-tab-active {
     color: var(--color-primary);
+    background: var(--color-fill);
   }
 
-  .mobile-tab-active span:last-child {
-    font-weight: 700;
+  html:not(.dark) .mobile-tab-active {
+    color: var(--lab-accent-ink);
   }
 
   /* Unread count on a bell. */
   .notif-badge {
     @apply absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-error-foreground;
+    box-shadow: 0 0 0 2px var(--color-background);
   }
 
-  /* Bottom sheet on phones (notifications, labs picker); a floating panel from sm up. */
+  /* ── Sheets and dialogs ─────────────────────────────────────────────────────────────── */
+  /* Bottom sheet on phones (notifications, labs picker, …); a floating panel from sm up. */
   .notif-sheet {
-    max-height: 85dvh;
-    border-radius: 1.25rem 1.25rem 0 0;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    animation: sheet-up 220ms cubic-bezier(0.32, 0.72, 0, 1);
+    max-height: 88vh;
+    max-height: min(88dvh, calc(100dvh - var(--safe-top) - 0.75rem));
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    padding-bottom: var(--safe-bottom);
+    animation: sheet-up var(--dur-sheet) var(--ease-ios);
+    will-change: transform;
   }
 
   @media (min-width: 640px) {
     .notif-sheet {
       max-height: min(36rem, calc(100dvh - 5rem));
-      border-radius: 1rem;
+      border-radius: var(--radius-xl);
       padding-bottom: 0;
-      animation: none;
+      animation: dialog-in var(--dur-fast) var(--ease-out);
+    }
+  }
+
+  /* iOS grouped sheet: grouped background, hairline rim, the float shadow. */
+  .ios-sheet {
+    --sheet-cell: var(--color-card);
+    background: var(--color-background);
+    border: 1px solid var(--color-separator);
+    box-shadow: var(--shadow-float);
+  }
+
+  .dark .ios-sheet {
+    --sheet-cell: var(--color-elevated);
+    background: var(--color-card);
+  }
+
+  .ios-sheet-backdrop {
+    background: rgba(5, 8, 14, 0.42);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+
+  .ios-sheet-grabber {
+    @apply flex flex-shrink-0 justify-center pb-1.5 pt-2;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .ios-sheet-grabber > span {
+    @apply block h-[5px] w-9 rounded-full;
+    background: var(--color-fill-strong);
+  }
+
+  .ios-sheet-head {
+    @apply flex flex-shrink-0 items-center justify-between gap-3 px-5 pb-3 pt-1;
+    touch-action: none;
+  }
+
+  .ios-sheet-title {
+    @apply font-heading text-[20px] font-bold leading-tight text-foreground;
+    letter-spacing: -0.02em;
+  }
+
+  /* The sheet's "Done": a text button in the accent, as in iOS. */
+  .sheet-done {
+    @apply inline-flex h-9 flex-shrink-0 items-center rounded-full px-3.5 text-[15px] font-semibold focus-ring;
+    color: var(--lab-accent-ink);
+    background: var(--color-fill);
+    transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-fast);
+  }
+
+  .dark .sheet-done {
+    color: var(--color-primary);
+  }
+
+  .sheet-done:active {
+    transform: scale(0.94);
+  }
+
+  /* Every dialog fades its backdrop in; a centred panel scales up from 96%. Closing reverses both (Modal keeps the
+     dialog mounted for 200ms with data-state="closing"). */
+  [data-modal-root] {
+    animation: backdrop-in var(--dur-fast) var(--ease-out);
+    overscroll-behavior: contain;
+  }
+
+  [data-modal-root] > .ui-modal-panel:not(.notif-sheet):not(.vc-sheet) {
+    animation: dialog-in var(--dur-fast) var(--ease-out);
+  }
+
+  [data-modal-root][data-state='closing'] {
+    animation: backdrop-out 200ms var(--ease-out) forwards;
+  }
+
+  [data-modal-root][data-state='closing'] > .ui-modal-panel:not(.notif-sheet):not(.vc-sheet) {
+    animation: dialog-out 200ms var(--ease-out) forwards;
+  }
+
+  [data-modal-root][data-state='closing'] > :is(.notif-sheet, .vc-sheet):not([data-dragged]) {
+    animation: sheet-down 200ms var(--ease-ios) forwards;
+  }
+
+  @media (min-width: 640px) {
+    [data-modal-root][data-state='closing'] > :is(.notif-sheet, .vc-sheet):not([data-dragged]) {
+      animation: dialog-out 160ms var(--ease-out) forwards;
     }
   }
 
@@ -1746,10 +1890,388 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .notif-sheet {
-      animation: none;
+  @keyframes sheet-down {
+    from {
+      transform: translateY(0);
     }
+    to {
+      transform: translateY(105%);
+    }
+  }
+
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes dialog-out {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+
+  @keyframes backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes backdrop-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .notif-sheet,
+    [data-modal-root],
+    [data-modal-root] > .ui-modal-panel,
+    [data-modal-root][data-state='closing'],
+    [data-modal-root][data-state='closing'] > .ui-modal-panel {
+      animation: none !important;
+    }
+  }
+
+  /* Phones: regular dialogs present as bottom sheets (Modal sets data-mobile-sheet; alerts and own-sheet panels opt
+     out). The overrides beat each panel's own centring, width, max-height and radius utilities. */
+  .ui-sheet-grabber {
+    display: none;
+  }
+
+  @media (max-width: 639px) {
+    [data-modal-root][data-mobile-sheet] {
+      align-items: flex-end !important;
+      justify-content: center !important;
+      padding: 0 !important;
+    }
+
+    [data-modal-root][data-mobile-sheet] > .ui-modal-panel {
+      width: 100% !important;
+      max-width: none !important;
+      height: auto !important;
+      max-height: calc(100vh - var(--safe-top) - 0.75rem) !important;
+      max-height: min(92dvh, calc(100dvh - var(--safe-top) - 0.75rem)) !important;
+      border-radius: var(--radius-sheet) var(--radius-sheet) 0 0 !important;
+      border-width: 1px 0 0 !important;
+      border-color: var(--color-separator) !important;
+      padding-bottom: var(--safe-bottom);
+      box-shadow: var(--shadow-float) !important;
+      animation: sheet-up var(--dur-sheet) var(--ease-ios) !important;
+    }
+
+    /* A panel that does not lay itself out as a column scrolls as a whole. */
+    [data-modal-root][data-mobile-sheet] > .ui-modal-panel:not(.flex) {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    [data-modal-root][data-mobile-sheet][data-state='closing'] > .ui-modal-panel:not([data-dragged]) {
+      animation: sheet-down 200ms var(--ease-ios) forwards !important;
+    }
+
+    [data-modal-root][data-mobile-sheet] .ui-sheet-grabber {
+      display: flex;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      margin-bottom: -0.5rem;
+    }
+  }
+
+  /* ── iOS alert (ConfirmHost) ─────────────────────────────────────────────────────────── */
+  .ios-alert {
+    border-radius: 20px;
+    border: 1px solid var(--color-separator);
+    background: var(--material-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(30px);
+    backdrop-filter: saturate(180%) blur(30px);
+    box-shadow: var(--shadow-float);
+  }
+
+  .ios-alert-actions {
+    @apply grid grid-cols-2;
+    border-top: 1px solid var(--color-separator);
+  }
+
+  .ios-alert-button {
+    @apply todo-focus flex min-h-[2.875rem] items-center justify-center px-3 text-[16px];
+    color: var(--lab-accent-ink);
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .dark .ios-alert-button {
+    color: var(--color-primary);
+  }
+
+  .ios-alert-button + .ios-alert-button {
+    border-left: 1px solid var(--color-separator);
+  }
+
+  .ios-alert-button:hover {
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  }
+
+  .ios-alert-button:active {
+    background: color-mix(in srgb, var(--color-foreground) 9%, transparent);
+  }
+
+  .ios-alert-button.ios-alert-danger,
+  .dark .ios-alert-button.ios-alert-danger {
+    color: var(--color-error);
+  }
+
+  /* ── iOS segmented control ─────────────────────────────────────────────────────────── */
+  .ios-segmented {
+    @apply inline-flex flex-shrink-0 items-center gap-0.5 rounded-[10px] p-0.5;
+    background: var(--color-fill);
+  }
+
+  .ios-segment {
+    @apply inline-flex h-8 min-w-0 items-center justify-center whitespace-nowrap rounded-[8px] px-3 text-[13px] font-semibold text-muted-foreground focus-ring;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+
+  .ios-segment-active {
+    color: var(--lab-accent-ink);
+    background: var(--color-card);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1), 0 2px 8px -2px rgba(16, 24, 40, 0.08);
+  }
+
+  .dark .ios-segment-active {
+    background: #3a4457;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+
+  /* ── Menu: left drawer from md up, bottom sheet on phones ──────────────────────────── */
+  .app-drawer-backdrop {
+    @apply fixed inset-0 z-[200];
+    top: var(--safe-top);
+    background: rgba(5, 8, 14, 0.42);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-base) var(--ease-out);
+  }
+
+  .app-drawer-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .app-drawer {
+    --sheet-cell: var(--color-card);
+    @apply fixed z-[210] flex flex-col;
+    top: var(--safe-top);
+    bottom: 0;
+    left: 0;
+    padding-left: var(--safe-left);
+    width: calc(300px + var(--safe-left));
+    max-width: 85vw;
+    background: var(--color-background);
+    border-right: 1px solid var(--color-separator);
+    box-shadow: var(--shadow-float);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform var(--dur-sheet) var(--ease-ios),
+      visibility 0s linear var(--dur-sheet);
+  }
+
+  .dark .app-drawer {
+    --sheet-cell: var(--color-elevated);
+    background: var(--color-card);
+  }
+
+  .app-drawer[data-open='true'] {
+    transform: none;
+    visibility: visible;
+    transition: transform var(--dur-sheet) var(--ease-ios);
+  }
+
+  .app-drawer-head {
+    @apply flex h-[60px] flex-shrink-0 items-center justify-between px-4;
+  }
+
+  .app-drawer-nav {
+    @apply flex flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4 pt-1;
+    overscroll-behavior: contain;
+  }
+
+  .app-drawer-foot {
+    @apply hidden flex-shrink-0 items-center gap-2 border-t px-3 py-3 md:flex;
+    border-color: var(--color-separator);
+  }
+
+  @media (max-width: 767px) {
+    .app-drawer {
+      top: auto;
+      bottom: 0;
+      right: 0;
+      width: auto;
+      max-width: none;
+      padding-left: 0;
+      /* vh first: Android WebViews older than Chrome 108 have no dvh. Never taller than the room under the status bar. */
+      height: min(92vh, 56rem);
+      height: min(92dvh, 56rem, calc(100dvh - var(--safe-top) - 0.75rem));
+      border-right: 0;
+      border-top: 1px solid var(--color-separator);
+      border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+      padding-bottom: var(--safe-bottom);
+      transform: translateY(100%);
+    }
+
+    .app-drawer-head {
+      @apply h-auto px-5 pb-3 pt-1;
+    }
+
+    .app-drawer-nav {
+      @apply px-4;
+      padding-bottom: 1.5rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-drawer,
+    .app-drawer[data-open='true'],
+    .app-drawer-backdrop {
+      transition: none;
+    }
+  }
+
+  /* Grouped list (iOS inset grouped): rows on one rounded cell, inset hairlines between them. Used by the menu and by
+     the phone sheets (labs picker). --sheet-cell comes from the surface it sits on. */
+  .drawer-group {
+    @apply flex flex-shrink-0 flex-col overflow-hidden;
+    border-radius: 16px;
+    background: var(--sheet-cell, var(--color-card));
+  }
+
+  .drawer-row {
+    @apply relative flex min-h-[46px] w-full items-center gap-3 px-3.5 text-left text-[15px] font-medium text-foreground focus-ring;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .drawer-row-tall {
+    @apply min-h-[60px] py-2;
+  }
+
+  /* Inset hairline above every row but the first (it starts after the icon, as in iOS). */
+  .drawer-row + .drawer-row::before,
+  li + li > .drawer-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 3.6rem;
+    height: 1px;
+    background: var(--color-separator);
+  }
+
+  .drawer-row:is(a, button):hover {
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  }
+
+  .drawer-row:is(a, button):active {
+    background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  }
+
+  .drawer-row-sub {
+    @apply min-h-[44px] text-[15px] font-normal;
+    padding-left: 1.5rem;
+  }
+
+  .drawer-row-sub + .drawer-row-sub::before,
+  .drawer-row-head + .drawer-row-sub::before {
+    left: 4.1rem;
+  }
+
+  .drawer-row-active {
+    color: var(--lab-accent-ink);
+  }
+
+  .dark .drawer-row-active {
+    color: var(--color-primary);
+  }
+
+  .drawer-row-destructive {
+    @apply justify-center font-semibold;
+    color: var(--color-error);
+  }
+
+  .drawer-icon {
+    @apply flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-[9px] text-muted-foreground;
+    background: var(--color-fill);
+  }
+
+  .drawer-icon-sm {
+    @apply h-[26px] w-[26px] rounded-[8px];
+  }
+
+  .drawer-icon-lg {
+    @apply h-10 w-10 rounded-[12px];
+  }
+
+  .drawer-row-active .drawer-icon {
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+  }
+
+  .drawer-chevron {
+    @apply flex-shrink-0;
+    color: color-mix(in srgb, var(--color-muted-foreground) 70%, transparent);
+  }
+
+  .drawer-avatar {
+    @apply flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-[16px] font-semibold;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: linear-gradient(180deg, #a3abb9, #737c8e);
+  }
+
+  .dark .drawer-avatar {
+    background: linear-gradient(180deg, #6b7486, #485062);
+  }
+
+  .drawer-row-tall + .drawer-row::before {
+    left: 3.6rem;
+  }
+
+  .drawer-badge {
+    @apply flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold;
+    color: var(--lab-accent-ink);
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  }
+
+  .drawer-badge-new {
+    color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  }
+
+  .drawer-badge-warm {
+    color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 16%, transparent);
   }
 
   /* ── Labs on phones: topics + copilot become slide-over sheets ──────────────────────── */
@@ -1757,7 +2279,7 @@
     .lab-sidebar,
     .lab-copilot {
       position: fixed;
-      top: calc(60px + var(--app-banner-h, 0px));
+      top: var(--chrome-top);
       bottom: var(--mobile-tab-h, 0px);
       z-index: 115;
       width: min(88vw, 22rem) !important;
@@ -1785,7 +2307,7 @@
     .lab-sheet-backdrop {
       position: fixed;
       inset: 0;
-      top: calc(60px + var(--app-banner-h, 0px));
+      top: var(--chrome-top);
       bottom: var(--mobile-tab-h, 0px);
       z-index: 114;
       background: rgba(0, 0, 0, 0.45);
@@ -1813,7 +2335,7 @@
    */
   .todo-fab {
     @apply todo-focus fixed z-30 flex h-[2.5rem] w-[2.5rem] items-center justify-center rounded-full shadow-md transition-smooth;
-    bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(1.25rem + var(--safe-bottom));
   }
 
   /* No lift: it is a fixed control, it should not move under the pointer. */
@@ -1822,7 +2344,7 @@
   }
 
   .todo-fab-right {
-    right: calc(1rem + env(safe-area-inset-right, 0px));
+    right: calc(1rem + var(--safe-right));
   }
 
   /*
@@ -1832,8 +2354,8 @@
    */
   .todo-capture-popover {
     @apply fixed z-40;
-    top: calc(60px + var(--app-banner-h, 0px) + 0.5rem);
-    right: calc(1rem + env(safe-area-inset-right, 0px));
+    top: calc(var(--chrome-top) + 0.5rem);
+    right: calc(1rem + var(--safe-right));
     width: min(20rem, calc(100vw - 2rem));
   }
 
@@ -1860,7 +2382,7 @@
   .todo-skip-link:focus {
     position: fixed;
     z-index: 130;
-    top: calc(60px + var(--app-banner-h, 0px) + 0.5rem);
+    top: calc(var(--chrome-top) + 0.5rem);
     left: 50%;
     transform: translateX(-50%);
   }
@@ -1891,7 +2413,7 @@
 
   .todo-copilot {
     position: fixed;
-    top: calc(60px + var(--app-banner-h, 0px));
+    top: var(--chrome-top);
     right: 0;
     bottom: var(--mobile-tab-h, 0px);
     z-index: 115;
@@ -1913,7 +2435,7 @@
   .todo-copilot-backdrop {
     position: fixed;
     inset: 0;
-    top: calc(60px + var(--app-banner-h, 0px));
+    top: var(--chrome-top);
     bottom: var(--mobile-tab-h, 0px);
     z-index: 114;
     background: rgba(0, 0, 0, 0.45);
@@ -2070,28 +2592,28 @@
 }
 
 @layer components {
-  /* DSA lab type: Poppins Medium for headings and item titles, Montserrat for running text. Scoped to the lab's
+  /* DSA lab type: the app's one family (SF Pro / Inter), semibold for headings and item titles. Scoped to the lab's
      roots (the shell, the organizer layer, its dialogs), so no other module changes. */
   .dsa-type {
-    --dsa-heading-font: 'Poppins', 'Montserrat', ui-sans-serif, system-ui, sans-serif;
-    font-weight: 500; /* Montserrat 400 reads thin at the lab's small sizes; explicit font-* classes still win */
+    --dsa-heading-font: inherit;
   }
   .dsa-type :is(h1, h2, h3, h4),
   .dsa-type .dsa-heading {
     font-family: var(--dsa-heading-font);
-    font-weight: 500;
-    letter-spacing: -0.005em;
+    font-weight: 600;
+    letter-spacing: -0.012em;
   }
 
-  /* Caption recipe (uppercase labels such as "WEEKS 1-4", "Suggested", "Recent"): the whole style lives here, so every
+  /* Caption recipe (section labels such as "Weeks 1-4", "Suggested", "Recent"): the whole style lives here, so every
      caption is the same whatever tag it is. Out-specifies the h1-h4 rule above (a caption that is an <h3> looks like one
-     that is a <p>) and any size or weight utility left on the element. Colour stays with the element. */
+     that is a <p>) and any size or weight utility left on the element. Colour stays with the element. Sentence case,
+     like an iOS grouped-list header: tracked capitals read as template chrome. */
   .dsa-type .dsa-caption {
-    font-family: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
-    font-size: 0.6875rem;
+    font-family: inherit;
+    font-size: 0.75rem;
     font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    text-transform: none;
   }
 
   /* A truncated title clips at its line box (overflow: hidden). Poppins' ascenders, descenders and accents can reach past a tight
@@ -2174,12 +2696,8 @@
     --color-border: color-mix(in srgb, var(--color-foreground) 13%, transparent); /* ONE hairline, adapts to light/dark */
   }
 
-  :is(.lab-shell, .lab-page) {
-    font-weight: 500; /* 400 reads thin in Montserrat at 12-14px; explicit font-* still wins */
-  }
-
   html:not(.dark) :is(.lab-shell, .lab-page, .dsa-type) {
-    --color-muted-foreground: #655d53; /* >= 4.5:1 on the sidebar tone and hovered rows */
+    --color-muted-foreground: #556074; /* >= 4.5:1 on the sidebar tone and hovered rows */
   }
 
   /* Cards inside the labs: hairline only. Scoped because Career Studio (8 files) and LinkedIn also use .lab-card. */
@@ -2297,26 +2815,20 @@
 
   /* ── Capture card ─────────────────────────────────────────────── */
   .vc-card {
-    --vc-partner: #06b6d4;
     position: relative;
-    border-radius: 1.25rem;
-    padding: 0.625rem 0.625rem 0.75rem;
-    border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
-    background:
-      radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--color-primary) 11%, transparent), transparent 58%),
-      radial-gradient(90% 140% at 100% 100%, color-mix(in srgb, var(--vc-partner) 8%, transparent), transparent 60%),
-      var(--color-card);
-    box-shadow:
-      0 1px 2px rgba(15, 12, 8, 0.04),
-      0 22px 44px -30px color-mix(in srgb, var(--color-primary) 55%, transparent);
-    transition: border-color 200ms ease, box-shadow 200ms ease;
+    border-radius: 1.5rem;
+    padding: 0.5rem 0.5rem 0.625rem;
+    border: 1px solid var(--color-separator);
+    background: var(--color-card);
+    box-shadow: var(--shadow-card);
+    transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
   }
   .vc-card:focus-within,
   .vc-card[data-listening='true'] {
-    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+    border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-separator));
     box-shadow:
-      0 0 0 4px color-mix(in srgb, var(--color-ring) 13%, transparent),
-      0 22px 44px -28px color-mix(in srgb, var(--color-primary) 60%, transparent);
+      0 0 0 4px color-mix(in srgb, var(--color-ring) 14%, transparent),
+      var(--shadow-card);
   }
   .vc-card-compact,
   .vc-card-compact:focus-within,
@@ -2368,14 +2880,13 @@
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
-    color: #fff;
-    background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 52%, #06b6d4));
-    box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--color-primary) 80%, transparent);
-    transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+    box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--color-primary) 70%, transparent);
+    transition: transform var(--dur-press) var(--ease-out), box-shadow var(--dur-fast) ease, filter var(--dur-fast) ease;
   }
   .vc-mic:hover:not(:disabled) {
-    transform: translateY(-1px);
-    filter: brightness(1.06);
+    filter: brightness(1.05);
   }
   .vc-mic:active:not(:disabled) {
     transform: scale(0.95);
@@ -2391,8 +2902,9 @@
   }
   .vc-mic[data-state='listening'] {
     transform: scale(calc(1 + var(--vc-level, 0) * 0.1));
-    background: linear-gradient(135deg, #f43f5e, color-mix(in srgb, #f43f5e 60%, var(--color-primary)));
-    box-shadow: 0 10px 24px -10px rgba(244, 63, 94, 0.75);
+    color: #fff;
+    background: #ef4459;
+    box-shadow: 0 8px 20px -10px rgba(239, 68, 89, 0.75);
   }
   .vc-mic[data-state='listening']::before,
   .vc-mic[data-state='listening']::after {
@@ -2430,7 +2942,7 @@
     width: 3px;
     height: 100%;
     border-radius: 9999px;
-    background: linear-gradient(to top, var(--color-primary), #06b6d4);
+    background: var(--color-primary);
     animation: vc-wave 1s ease-in-out infinite;
     transform-origin: center;
   }
@@ -2534,8 +3046,8 @@
     background: transparent;
   }
   .vc-chip-ai {
-    color: var(--color-primary);
-    background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 12%, transparent), color-mix(in srgb, #06b6d4 10%, transparent));
+    color: var(--lab-accent-ink);
+    background: color-mix(in srgb, var(--color-primary) 13%, transparent);
     border-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
   }
   .vc-chip-x {
@@ -2574,7 +3086,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 0.875rem;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 14%, transparent), color-mix(in srgb, #06b6d4 12%, transparent));
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
   }
   .vc-note {
     margin-top: 0.625rem;
@@ -2623,24 +3135,23 @@
   .vc-fab {
     position: fixed;
     z-index: 60;
-    right: max(1.25rem, env(safe-area-inset-right, 0px));
-    bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    right: max(1.25rem, var(--safe-right));
+    bottom: calc(1.25rem + var(--safe-bottom));
     display: inline-flex;
     height: 3.5rem;
     width: 3.5rem;
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
-    color: #fff;
-    background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 52%, #06b6d4));
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
     box-shadow:
-      0 14px 30px -12px color-mix(in srgb, var(--color-primary) 85%, transparent),
-      0 2px 6px rgba(0, 0, 0, 0.12);
-    transition: transform 160ms ease, filter 160ms ease;
+      0 10px 24px -10px color-mix(in srgb, var(--color-primary) 70%, transparent),
+      0 2px 6px rgba(0, 0, 0, 0.14);
+    transition: transform var(--dur-press) var(--ease-out), filter var(--dur-fast) ease, opacity 200ms ease;
   }
   .vc-fab:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.06);
+    filter: brightness(1.05);
   }
   /* On Today the capture card has its own mic: the floating one appears only once that card has scrolled away. */
   .vc-fab-today {
@@ -2677,20 +3188,18 @@
   .vc-sheet {
     width: 100%;
     max-width: 34rem;
-    border-radius: 1.5rem 1.5rem 0 0;
-    border: 1px solid var(--color-border);
-    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
-    background:
-      radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 60%),
-      var(--color-card);
-    box-shadow: 0 -18px 50px -20px rgba(0, 0, 0, 0.45);
-    animation: vc-sheet-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    border: 1px solid var(--color-separator);
+    padding: 1rem 1rem calc(1rem + var(--safe-bottom));
+    background: var(--color-card);
+    box-shadow: var(--shadow-float);
+    animation: sheet-up var(--dur-sheet) var(--ease-ios) both;
   }
   @media (min-width: 640px) {
     .vc-sheet {
-      border-radius: 1.5rem;
+      border-radius: var(--radius-xl);
       padding-bottom: 1rem;
-      box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.5);
+      animation: dialog-in var(--dur-fast) var(--ease-out) both;
     }
   }
   @keyframes vc-sheet-in {
@@ -2869,13 +3378,13 @@
     align-items: center;
     gap: 0.75rem;
     margin-top: 0.75rem;
-    border-radius: 1rem;
+    border-radius: 1.125rem;
     padding: 0.625rem 0.625rem 0.625rem 0.875rem;
     font-size: 0.8125rem;
     line-height: 1.4;
     color: var(--color-foreground);
-    border: 1px solid color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
-    background: color-mix(in srgb, var(--color-warning) 8%, var(--color-card));
+    border: 1px solid color-mix(in srgb, var(--color-warning) 22%, var(--color-separator));
+    background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card));
     animation: todo-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   @media (min-width: 1280px) {
@@ -2888,10 +3397,9 @@
   .rem-status {
     border-radius: 1.25rem;
     padding: 1rem;
-    border: 1px solid var(--color-border);
-    background:
-      radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, #06b6d4 8%, transparent), transparent 60%),
-      var(--color-card);
+    border: 1px solid var(--color-separator);
+    background: var(--color-card);
+    box-shadow: var(--shadow-card);
   }
   .rem-status-icon,
   .rem-alert-icon {
@@ -2901,8 +3409,8 @@
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    border-radius: 0.875rem;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 14%, transparent), color-mix(in srgb, #06b6d4 12%, transparent));
+    border-radius: 0.75rem;
+    background: var(--color-fill);
   }
   .rem-status-dot {
     margin-top: 0.375rem;
@@ -2930,14 +3438,185 @@
     background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
   }
 
+  /* ── To-Do → Scheduler (modules/ai-todo/schedule) ─────────────── */
+  .sch-composer {
+    padding: 0.375rem 0.375rem 0.5rem;
+  }
+  .sch-describe {
+    display: block;
+    width: 100%;
+    min-height: 3.25rem;
+    resize: none;
+    border: 0;
+    background: transparent;
+    padding: 0.625rem 0.75rem 0.25rem;
+    font-size: 1rem; /* 16px: iPhone doesn't zoom the page on focus */
+    line-height: 1.45;
+    color: var(--color-foreground);
+    outline: none;
+  }
+  .sch-describe::placeholder {
+    color: var(--color-muted-foreground);
+  }
+  .sch-describe:disabled {
+    cursor: not-allowed;
+  }
+  .sch-example {
+    border-radius: 9999px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    text-align: left;
+    color: var(--color-muted-foreground);
+    background: var(--color-fill);
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .sch-example:hover {
+    color: var(--color-foreground);
+    background: var(--color-fill-strong);
+  }
+  .sch-example:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+  .sch-editor {
+    border-radius: 1.25rem;
+    padding: 1rem;
+    border: 1px solid var(--color-separator);
+    background: var(--color-card);
+    box-shadow: var(--shadow-card);
+  }
+  .sch-label {
+    display: block;
+    margin: 0.875rem 0 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-muted-foreground);
+  }
+  .sch-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--color-foreground);
+  }
+  .sch-check input {
+    height: 1.05rem;
+    width: 1.05rem;
+    accent-color: var(--lab-accent);
+  }
+  .sch-day {
+    height: 2.5rem;
+    width: 2.5rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-muted-foreground);
+    background: var(--color-fill);
+  }
+  .sch-day[aria-pressed='true'] {
+    color: #fff;
+    background: var(--lab-accent);
+  }
+  .sch-day:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+  .sch-preview {
+    margin-top: 0.875rem;
+    border-radius: 0.875rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--color-muted-foreground);
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  }
+  .sch-item {
+    border-radius: 1.125rem;
+    padding: 0.875rem;
+    border: 1px solid var(--color-separator);
+    background: var(--color-card);
+    box-shadow: var(--shadow-card);
+    transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  }
+  .sch-item[data-off='true'] {
+    box-shadow: none;
+    background: transparent;
+  }
+  .sch-item[data-off='true'] .rem-alert-icon {
+    opacity: 0.6;
+  }
+  .sch-item[data-focus='true'] {
+    border-color: color-mix(in srgb, var(--lab-accent) 55%, var(--color-separator));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lab-accent) 16%, transparent);
+  }
+  /* iOS-style switch: the button is the track, ::after the knob. */
+  .sch-switch {
+    position: relative;
+    height: 1.75rem;
+    width: 2.875rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--color-fill-strong);
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+  .sch-switch::after {
+    content: '';
+    position: absolute;
+    top: 0.1875rem;
+    left: 0.1875rem;
+    height: 1.375rem;
+    width: 1.375rem;
+    border-radius: 9999px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: transform var(--dur-fast) var(--ease-out);
+  }
+  .sch-switch[aria-checked='true'] {
+    background: var(--color-success);
+  }
+  .sch-switch[aria-checked='true']::after {
+    transform: translateX(1.125rem);
+  }
+  .sch-switch:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+  .sch-switch:disabled {
+    opacity: 0.6;
+  }
+  .sch-run {
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.625rem;
+    background: color-mix(in srgb, var(--color-foreground) 3.5%, transparent);
+  }
+  .sch-run[data-highlight='true'] {
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lab-accent) 60%, transparent);
+  }
+  .sch-run-dot {
+    display: inline-block;
+    margin-right: 0.375rem;
+    height: 0.5rem;
+    width: 0.5rem;
+    border-radius: 9999px;
+    vertical-align: 0.05rem;
+    background: var(--color-success);
+  }
+  .sch-run[data-status='error'] .sch-run-dot {
+    background: var(--color-destructive);
+  }
+  .sch-run[data-status='running'] .sch-run-dot {
+    background: var(--color-warning);
+  }
+
   /* ── The reminder that goes off in the app ───────────────────── */
   /* Desktop: top-right under the header, like a system notification, so it never covers a text box at the bottom;
      on the To-Do page it keeps clear of the Copilot column. Phones: just above the tab bar, in thumb reach. */
   .rem-alerts {
     position: fixed;
     z-index: 140;
-    top: calc(60px + var(--app-banner-h, 0px) + 0.75rem);
-    right: max(1rem, env(safe-area-inset-right, 0px));
+    top: calc(var(--chrome-top) + 0.75rem);
+    right: max(1rem, var(--safe-right));
     display: flex;
     width: min(23rem, calc(100vw - 2rem));
     flex-direction: column;
@@ -2956,23 +3635,24 @@
       top: auto;
       right: 0.75rem;
       left: 0.75rem;
-      bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+      bottom: calc(0.75rem + var(--safe-bottom));
       width: auto;
     }
     html.has-mobile-tabs .rem-alerts {
       bottom: calc(0.75rem + var(--mobile-tab-h));
     }
   }
+  /* In-app reminder: a notification banner in the bar material (as a system notification looks), not a lit card. */
   .rem-alert {
-    border-radius: 1.25rem;
-    padding: 1rem;
-    border: 1px solid color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+    border-radius: 1.375rem;
+    padding: 0.875rem 0.875rem 0.875rem 1rem;
+    border: 1px solid var(--color-separator);
     color: var(--color-popover-foreground);
-    background:
-      radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 60%),
-      var(--color-popover);
-    box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.5);
-    animation: rem-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    background: var(--material-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    backdrop-filter: saturate(180%) blur(24px);
+    box-shadow: var(--shadow-float);
+    animation: rem-in 380ms var(--ease-ios) both;
   }
   .rem-alert-icon {
     animation: rem-ring 1.2s ease-in-out 0.3s 2;
@@ -3015,6 +3695,325 @@
     }
     .vc-wave i {
       transform: scaleY(0.6);
+    }
+  }
+}
+
+
+/*
+ * ── iOS layer: shared page patterns (To-Do sections, boards, skeletons) ─────────────────────────────────────────────
+ */
+@layer components {
+  /* Section header inside a tab: title + one quiet line on the left, the tab's primary action on the right. */
+  .todo-section-head {
+    @apply flex items-center justify-between gap-4;
+  }
+
+  .todo-section-title {
+    @apply font-heading text-[22px] font-bold leading-tight text-foreground;
+    letter-spacing: -0.022em;
+  }
+
+  .todo-section-sub {
+    @apply mt-0.5 text-[13px] leading-snug text-muted-foreground;
+  }
+
+  @media (min-width: 640px) {
+    .todo-section-title {
+      @apply text-xl;
+    }
+
+    .todo-section-sub {
+      @apply text-sm;
+    }
+  }
+
+  /* To-Do's phone section switcher: segments share the width but never shrink below their label; if a future section
+     makes the set wider than the screen, the control scrolls sideways instead of clipping a label. */
+  .todo-section-switch {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .todo-section-switch::-webkit-scrollbar {
+    display: none;
+  }
+
+  .todo-section-switch .ios-segment {
+    flex: 1 0 auto;
+    padding-left: 0.375rem;
+    padding-right: 0.375rem;
+  }
+
+  /* Board column (Goals timeline): a grouped card. */
+  .goal-column {
+    border-radius: 20px;
+    border: 1px solid var(--color-separator);
+    background: var(--color-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Cards inside a column sit on a recessed tone rather than repeating the column's card. */
+  .goal-column .goal-card {
+    background: color-mix(in srgb, var(--color-foreground) 3%, var(--color-card));
+  }
+
+  .dark .goal-column .goal-card {
+    background: var(--color-elevated);
+  }
+
+  .goal-card {
+    border-radius: 14px;
+  }
+
+  .goal-card-selected,
+  .goal-card-selected:hover {
+    border-color: color-mix(in srgb, var(--color-primary) 70%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 18%, transparent);
+  }
+
+  .goal-card-actions {
+    border-top: 1px solid var(--color-separator);
+  }
+
+  /* Quick Daily's optional details ("Add to", "Time", "Due"): compact option chips with a visible label. */
+  .quick-option {
+    @apply flex h-9 max-w-full items-center gap-1.5 whitespace-nowrap rounded-full px-3;
+    background: var(--color-fill);
+  }
+
+  .quick-option select,
+  .quick-option input {
+    @apply min-w-0 cursor-pointer bg-transparent font-semibold text-foreground focus:outline-none;
+  }
+
+  /* Loading skeleton: a soft fill with one slow sheen (off for reduced motion). */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-fill);
+  }
+
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-foreground) 6%, transparent), transparent);
+    animation: skeleton-sheen 1.4s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-sheen {
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton::after {
+      animation: none;
+    }
+  }
+}
+
+/*
+ * ── Accent colour selector (config/AppearanceSettingsCard) ─────────────────────────────────────────────────────────
+ * iOS-settings-style swatches with a live preview drawn from the accent tokens.
+ */
+@layer components {
+  .accent-preview {
+    @apply flex flex-wrap items-center gap-3 rounded-[16px] p-3;
+    border: 1px solid var(--color-separator);
+    background: var(--color-background);
+  }
+
+  .accent-preview-button {
+    @apply inline-flex h-9 items-center rounded-full px-4 text-[13px] font-semibold;
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+  }
+
+  .accent-preview-switch {
+    @apply relative inline-block h-[26px] w-[44px] flex-shrink-0 rounded-full;
+    background: var(--color-primary);
+  }
+
+  .accent-preview-switch > span {
+    @apply absolute right-[3px] top-[3px] h-5 w-5 rounded-full bg-white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  }
+
+  .accent-preview-check {
+    @apply inline-flex h-[1.5rem] w-[1.5rem] flex-shrink-0 items-center justify-center rounded-[7px];
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+  }
+
+  .accent-preview-segment {
+    @apply ios-segmented;
+  }
+
+  .accent-preview-progress {
+    @apply block h-1.5 min-w-[5rem] flex-1 overflow-hidden rounded-full;
+    background: var(--color-fill);
+  }
+
+  .accent-preview-progress > span {
+    @apply block h-full w-[62%] rounded-full;
+    background: var(--color-primary);
+  }
+
+  .accent-swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(4.25rem, 1fr));
+    gap: 0.75rem 0.25rem;
+  }
+
+  .accent-swatch {
+    @apply flex flex-col items-center gap-1.5 rounded-[14px] py-1.5 outline-none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .accent-swatch-dot {
+    @apply relative flex h-[2.75rem] w-[2.75rem] items-center justify-center overflow-hidden rounded-full;
+    background: var(--swatch);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+    transition:
+      transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 200ms var(--ease-out);
+  }
+
+  .accent-swatch-dot-custom {
+    background: conic-gradient(from 200deg, #ff5f6d, #ffc371, #a6f36a, #47c8ff, #8b6cff, #ff5fb7, #ff5f6d);
+  }
+
+  @media (hover: hover) {
+    .accent-swatch:hover .accent-swatch-dot {
+      transform: scale(1.05);
+    }
+  }
+
+  .accent-swatch:active .accent-swatch-dot {
+    transform: scale(0.92);
+  }
+
+  /* Selected: a ring in the swatch's own colour, separated from it by the card colour, and a gentle spring up. */
+  .accent-swatch[data-active] .accent-swatch-dot {
+    overflow: visible;
+    transform: scale(1.06);
+    box-shadow:
+      0 0 0 3px var(--color-card),
+      0 0 0 5px var(--swatch, var(--color-primary));
+  }
+
+  .accent-swatch:focus-visible .accent-swatch-dot,
+  .accent-swatch:focus-within .accent-swatch-dot {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 6px;
+  }
+
+  .accent-swatch-check {
+    animation: swatch-check 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes swatch-check {
+    from {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .accent-swatch-label {
+    @apply text-[12px] font-medium leading-tight text-muted-foreground;
+  }
+
+  .accent-swatch[data-active] .accent-swatch-label {
+    @apply font-semibold text-foreground;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .accent-swatch-dot,
+    .accent-swatch-check {
+      animation: none;
+      transition: none;
+    }
+  }
+}
+
+
+/*
+ * ── Touch platforms (Android + iOS) ─────────────────────────────────────────────────────────────────────────────────
+ */
+@layer components {
+  /* Controls that draw their own pressed state: no extra tap flash, and no text selection on a long press (Android
+     selects a tab label otherwise). */
+  .mobile-tabbar,
+  .theme-toggle,
+  .nav-avatar,
+  .nav-pill-button,
+  .sheet-done,
+  .ios-segment,
+  .todo-btn,
+  .lms-btn,
+  .ios-alert-button,
+  .drawer-row,
+  .accent-swatch {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .mobile-tabbar a {
+    -webkit-touch-callout: none;
+  }
+
+  /* While the on-screen keyboard is up (MobileTabBar sets html.keyboard-open), the floating tab bar and the mic button
+     step aside: with the Android app's adjustResize they would otherwise ride on top of the keyboard, over the field. */
+  .mobile-tabbar,
+  .vc-fab {
+    transition:
+      opacity var(--dur-fast) var(--ease-out),
+      transform var(--dur-base) var(--ease-ios);
+  }
+
+  html.keyboard-open .mobile-tabbar,
+  html.keyboard-open .vc-fab {
+    opacity: 0;
+    transform: translateY(1.25rem);
+    pointer-events: none;
+  }
+
+  /* Finger-sized chrome: at least 40–44px on touch screens (a mouse keeps the compact desktop sizes). */
+  @media (pointer: coarse) {
+    .theme-toggle {
+      height: 2.75rem;
+      width: 2.75rem;
+    }
+
+    .nav-avatar {
+      height: 2.5rem;
+      width: 2.5rem;
+    }
+
+    .nav-pill-button,
+    .sheet-done {
+      min-height: 2.5rem;
+    }
+
+    .ios-segment {
+      min-height: 2.25rem;
+    }
+
+    .drawer-row {
+      min-height: 48px;
+    }
+
+    .drawer-row-sub {
+      min-height: 46px;
     }
   }
 }

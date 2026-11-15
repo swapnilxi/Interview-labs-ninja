@@ -118,7 +118,7 @@ export default function ChunkSearchPanel({
 
         {/* Status bar */}
         {queryTrimmed.length >= 2 && (
-          <div className="px-4 py-1.5 border-b border-border/50 bg-muted/20 shrink-0">
+          <div className="px-4 py-1.5 border-b mix-border-border/50 mix-bg-muted/20 shrink-0">
             <p className="text-[10px] font-semibold text-muted-foreground">
               {isEmpty
                 ? `No results for "${queryTrimmed}"`
@@ -133,13 +133,13 @@ export default function ChunkSearchPanel({
             <div className="text-center py-10 text-muted-foreground">
               <Icon name="MagnifyingGlassIcon" size={32} className="mx-auto mb-2 opacity-20" />
               <p className="text-xs font-medium">Type at least 2 characters to search</p>
-              <p className="text-[11px] mt-1 text-muted-foreground/70">Searches titles, content, and key takeaways</p>
+              <p className="text-[11px] mt-1 mix-text-muted-foreground/70">Searches titles, content, and key takeaways</p>
             </div>
           ) : isEmpty ? (
             <div className="text-center py-10 text-muted-foreground">
               <Icon name="DocumentMagnifyingGlassIcon" size={32} className="mx-auto mb-2 opacity-20" />
               <p className="text-xs font-medium">No matching chunks found</p>
-              <p className="text-[11px] mt-1 text-muted-foreground/70">Try different keywords</p>
+              <p className="text-[11px] mt-1 mix-text-muted-foreground/70">Try different keywords</p>
             </div>
           ) : (
             <div className="p-2 space-y-1">
@@ -151,11 +151,11 @@ export default function ChunkSearchPanel({
                     onJumpToChunk(chunk.chunkIndex - 1);
                     onClose();
                   }}
-                  className="w-full text-left group p-3 rounded-xl border border-transparent hover:border-blue-500/20 hover:bg-blue-500/5 transition-all"
+                  className="w-full text-left group p-3 rounded-xl border border-transparent hover:mix-border-primary/20 hover:mix-bg-primary/5 transition-all"
                 >
                   <div className="flex items-start gap-2.5">
                     <div className="flex flex-col gap-1 shrink-0 mt-0.5">
-                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded whitespace-nowrap">
+                      <span className="text-[10px] font-bold lab-ink mix-bg-primary/10 px-1.5 py-0.5 rounded whitespace-nowrap">
                         Chunk {chunk.chunkIndex}
                       </span>
                       {chunk.pageNumber && (
@@ -165,16 +165,16 @@ export default function ChunkSearchPanel({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+                      <p className="text-xs font-bold text-foreground group-hover:lab-ink transition-colors truncate">
                         {chunk.title}
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed" style={{ wordBreak: 'break-word' }}>
                         {matchSnippet}
                       </p>
                     </div>
-                    <div className="shrink-0 flex items-center gap-1 text-[10px] text-muted-foreground/60">
+                    <div className="shrink-0 flex items-center gap-1 text-[10px] mix-text-muted-foreground/60">
                       <span>{matchCount}×</span>
-                      <Icon name="ChevronRightIcon" size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500" />
+                      <Icon name="ChevronRightIcon" size={12} className="opacity-0 group-hover:opacity-100 transition-opacity lab-ink" />
                     </div>
                   </div>
                 </button>
@@ -184,7 +184,7 @@ export default function ChunkSearchPanel({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-border/50 bg-muted/20 shrink-0 flex items-center justify-between">
+        <div className="px-4 py-2 border-t mix-border-border/50 mix-bg-muted/20 shrink-0 flex items-center justify-between">
           <p className="text-[10px] text-muted-foreground">
             Press <kbd className="px-1 py-0.5 rounded bg-muted border border-border text-[9px]">Esc</kbd> to close
           </p>

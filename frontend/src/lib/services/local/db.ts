@@ -14,7 +14,7 @@
  */
 
 const DB_NAME = 'labninja-guest';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 export type StoreName =
   | 'tasks'
@@ -25,6 +25,8 @@ export type StoreName =
   | 'projects'
   | 'project_nodes'
   | 'goal_nodes'
+  | 'schedules'
+  | 'schedule_runs'
   | 'meta';
 
 const STORE_INDEXES: Partial<Record<StoreName, string[]>> = {
@@ -33,6 +35,7 @@ const STORE_INDEXES: Partial<Record<StoreName, string[]>> = {
   quick_tasks: ['date'],
   project_nodes: ['project_id', 'parent_node_id'],
   goal_nodes: ['parent_id'],
+  schedule_runs: ['schedule_id'],
 };
 
 /** Stores that use a non-'id' keyPath. */
@@ -55,6 +58,7 @@ function openDb(): Promise<IDBDatabase> {
       const tx = req.transaction;
       const stores: StoreName[] = [
         'tasks', 'task_notes', 'inbox', 'daily_plans', 'quick_tasks', 'projects', 'project_nodes', 'goal_nodes', 'meta',
+        'schedules', 'schedule_runs', // v5: To-Do Scheduler (guest reminders)
         // reader_* stores removed — they now live in labninja-swipe-pdf (swipePdfDb.ts)
       ];
       for (const name of stores) {

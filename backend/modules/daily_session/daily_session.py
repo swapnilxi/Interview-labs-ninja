@@ -7,6 +7,7 @@ import json
 import random
 import re
 import sqlite3
+import time
 import urllib.request
 from datetime import date
 from typing import Dict, List, Literal, Optional
@@ -30,6 +31,7 @@ from modules.common.db import (
     fetch_progress_stats,
     fetch_recent_sessions,
 )
+from modules.daily_session.dedup import QuestionIndex
 from modules.common.export_md import render_markdown_for_day
 from modules.common.ai import AISettings, call_ai_text, extract_json_array, extract_json_object
 from modules.daily_session.evaluation import (
@@ -126,6 +128,8 @@ class GenerateSessionQuestionsRequest(AISettings):
     jd_present: Optional[bool] = False
     cv_text: Optional[str] = None
     jd_text: Optional[str] = None
+    # Topics picked on the setup screen: preset labels (see _TOPIC_SLOTS) and/or free-text custom topics.
+    topics: Optional[List[str]] = None
 
 
 try:
@@ -448,43 +452,6 @@ DIVERSE_QUESTIONS_CATALOG = [
 ]
 
 
-def _get_recent_question_texts(limit: int = 300) -> List[str]:
-    try:
-        conn = sqlite3.connect(get_db_path())
-        cursor = conn.cursor()
-        cursor.execute("SELECT question_text FROM questions ORDER BY id DESC LIMIT ?", (limit,))
-        rows = cursor.fetchall()
-        conn.close()
-        return [r[0].strip() for r in rows if r[0]]
-    except Exception:
-        return []
-
-
-_STOPWORDS = {
-    "the", "a", "an", "of", "to", "and", "in", "on", "for", "is", "are", "how", "do", "does", "you", "your",
-    "would", "what", "why", "with", "that", "this", "it", "as", "be", "by", "or", "when", "from", "at",
-}
-
-
-def _tokens(text: str) -> set:
-    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in _STOPWORDS and len(w) > 2}
-
-
-def _is_duplicate(text: str, seen_texts: set, seen_tokens: List[set]) -> bool:
-    """Exact match, or a near-paraphrase (Jaccard token overlap >= 0.6) of anything already seen."""
-    norm = " ".join(re.findall(r"[a-z0-9]+", text.lower()))
-    if norm in seen_texts:
-        return True
-    toks = _tokens(text)
-    if not toks:
-        return False
-    for other in seen_tokens:
-        union = toks | other
-        if union and len(toks & other) / len(union) >= 0.6:
-            return True
-    return False
-
-
 # Random angles per slot so successive generations explore different ground.
 _SLOT_FOCUS = {
     "Data Structures": ["heaps and priority queues", "tries", "graphs and BFS/DFS", "sliding window", "union-find", "monotonic stack", "interval scheduling", "LRU/LFU caches", "binary search on answer", "dynamic programming", "two pointers", "segment trees"],
@@ -502,65 +469,156 @@ _SECTION_A = ["Data Structures", "System Design (Mid-Scale)", "Scenario-Based Bu
 _SECTION_B = ["Classical CV", "Deep Learning Vision", "CV Training Strategy", "Dataset Quality", "CV Optimization"]
 
 
-def _build_session_prompt(diff_label: str, avoid: List[str], focus: Dict[str, str], extra_context: str) -> str:
-    excluded = "\n".join(f"- {t}" for t in avoid) or "(none yet)"
-    focus_lines = "\n".join(f"   - {k}: {v}" for k, v in focus.items())
-    return f"""You are Interview-Ninja, an elite technical interviewer.
-Generate exactly 10 distinct, realistic interview questions for a tech candidate.
+_SLOT_BRIEF = {
+    "Data Structures": ("A", 1, "Data Structures / Algorithm: a concrete problem with input/output and a complexity angle"),
+    "System Design (Mid-Scale)": ("A", 2, "Mid-Scale System Design: one service, clear requirements, trade-offs"),
+    "Scenario-Based Bug": ("A", 3, "Scenario-Based Production Bug: symptoms are given, the candidate finds root cause and fix"),
+    "Large-Scale System Design": ("A", 4, "Large-Scale Distributed Architecture: scale numbers, failure modes, consistency"),
+    "Leadership": ("A", 5, "Behavioral / Engineering Leadership: a specific situation, not a generic 'tell me about yourself'"),
+    "Classical CV": ("B", 1, "Classical / Geometric Computer Vision"),
+    "Deep Learning Vision": ("B", 2, "Deep Learning Vision Architecture"),
+    "CV Training Strategy": ("B", 3, "CV Training Strategy / Quantization / Fine-tuning"),
+    "Dataset Quality": ("B", 4, "Dataset Quality / Labeling Imbalance / Bias"),
+    "CV Optimization": ("B", 5, "CV Optimization / Edge Inference / TensorRT"),
+}
+_MAX_ATTEMPTS = 5
+# Stop starting new rounds after this many seconds (a serverless function has a time limit) and give the
+# model room for ten detailed questions: the default 2048-token budget can cut the JSON off mid-array.
+_TIME_BUDGET_S = 60
+_MAX_TOKENS = 4096
+_MIN_QUESTION_CHARS = 40
+_SESSION_SIZE = 10
+_MAX_CUSTOM_TOPICS = 10
+# common/ai's error when no provider has a key (both "No API key configured for this model..." and the
+# Ollama-unreachable variant start with it).
+_NO_KEY_MARKER = "No API key configured"
+_NEEDS_KEY_WARNING = "No AI key is set up yet. Add one in Config and every session is written fresh for you."
+
+# Preset topic label (case-insensitive) -> the slots (sub_types) it unlocks. Keep the labels in step with
+# TOPIC_OPTIONS in frontend/src/modules/daily-session/topics.ts.
+_TOPIC_SLOTS = {
+    "dsa": ["Data Structures"],
+    "system design": ["System Design (Mid-Scale)", "Large-Scale System Design"],
+    "debugging": ["Scenario-Based Bug"],
+    "behavioral": ["Leadership"],
+    "computer vision": ["Classical CV", "Deep Learning Vision", "Dataset Quality"],
+    "ml infra": ["CV Training Strategy", "CV Optimization"],
+}
+
+
+def _plan_slots(topics: Optional[List[str]]) -> List[dict]:
+    """Turn the picked topics into exactly ``_SESSION_SIZE`` question slots.
+
+    No topics: the standard ten, one per sub_type. Preset topics: ten slots spread round-robin over the
+    sub_types those topics unlock (so "DSA" alone gives ten different data-structure questions). Custom
+    free-text topics become the required subject of a slot: every slot when no preset is picked, otherwise
+    every other slot, so presets still get their share. Slots stay in the canonical section A -> B order.
+    """
+    canonical = _SECTION_A + _SECTION_B
+    presets: List[str] = []
+    customs: List[str] = []
+    for raw in topics or []:
+        label = " ".join(str(raw).split())[:60]
+        if not label:
+            continue
+        if label.lower() in _TOPIC_SLOTS:
+            presets.append(label.lower())
+        elif label.lower() not in {c.lower() for c in customs}:
+            customs.append(label)
+    customs = customs[:_MAX_CUSTOM_TOPICS]
+
+    unlocked = {sub for t in presets for sub in _TOPIC_SLOTS[t]}
+    pool = [t for t in canonical if t in unlocked] if unlocked else list(canonical)
+    chosen = [pool[i % len(pool)] for i in range(_SESSION_SIZE)]
+    chosen.sort(key=canonical.index)
+
+    slots = [{"i": n, "sub_type": t, "custom": None} for n, t in enumerate(chosen)]
+    if customs:
+        targets = [sl for sl in slots] if not unlocked else slots[::2]
+        for k, sl in enumerate(targets):
+            sl["custom"] = customs[k % len(customs)]
+    return slots
+
+
+def _pick_focus(sub_type: str, index: QuestionIndex, used: set) -> str:
+    """The least-covered angle for a slot, so successive sessions explore ground the bank has not seen."""
+    options = [f for f in _SLOT_FOCUS[sub_type] if f not in used] or list(_SLOT_FOCUS[sub_type])
+    scored = sorted(options, key=lambda f: (index.coverage(f), random.random()))
+    focus = random.choice(scored[:3])
+    used.add(focus)
+    return focus
+
+
+def _build_session_prompt(
+    diff_label: str,
+    slots: List[dict],
+    known: Dict[int, List[str]],
+    rejected: List[str],
+    extra_context: str,
+) -> str:
+    slot_lines = []
+    for sl in slots:
+        t = sl["sub_type"]
+        if sl["custom"]:
+            build = (
+                f'REQUIRED topic: "{sl["custom"]}". Ask about this topic, in the style of this slot; '
+                f'if the topic does not fit the style, keep the topic and bend the style.'
+            )
+        else:
+            build = f'Build it around: {sl["focus"]}.'
+        slot_lines.append(f'- slot {sl["i"]}, sub_type "{t}": {_SLOT_BRIEF[t][2]}. {build}')
+    known_blocks = []
+    for sl in slots:
+        items = "\n".join(f"    * {q[:140]}" for q in known.get(sl["i"], [])) or "    * (nothing yet)"
+        known_blocks.append(f'  [slot {sl["i"]}: {sl["sub_type"]}] already in the bank:\n{items}')
+    rejected_block = ""
+    if rejected:
+        rejected_block = "\nThese drafts were REJECTED as duplicates of existing questions; take a clearly different angle:\n" + "\n".join(
+            f"- {q[:140]}" for q in rejected[-12:]
+        ) + "\n"
+    return f"""You are Interview-Ninja, an elite technical interviewer writing a question bank.
+Write exactly {len(slots)} interview questions, one per slot below.
 Difficulty Level: {diff_label}
-Variation seed: {random.randint(100000, 999999)} (use it to pick fresh angles; never reuse earlier phrasing).
+Variation seed: {random.randint(100000, 999999)}
 
-SECTION A (5 questions):
-1: Data Structures / Algorithm (sub_type: "Data Structures")
-2: Mid-Scale System Design (sub_type: "System Design (Mid-Scale)")
-3: Scenario-Based Production Bug / Root-Cause Debugging (sub_type: "Scenario-Based Bug")
-4: Large-Scale Distributed Architecture (sub_type: "Large-Scale System Design")
-5: Behavioral / Engineering Leadership (sub_type: "Leadership")
-
-SECTION B (5 questions):
-1: Classical Computer Vision / Geometric Vision (sub_type: "Classical CV")
-2: Deep Learning Vision Architecture (sub_type: "Deep Learning Vision")
-3: CV Training Strategy / Quantization / Fine-tuning (sub_type: "CV Training Strategy")
-4: Dataset Quality / Labeling Imbalance / Bias (sub_type: "Dataset Quality")
-5: CV Optimization / Edge Inference / TensorRT (sub_type: "CV Optimization")
-
-Suggested focus for each slot this time (build the question around it):
-{focus_lines}
+SLOTS:
+{chr(10).join(slot_lines)}
 {extra_context}
-CRITICAL CONSTRAINTS:
-1. All 10 questions must be different from each other in topic AND wording.
-2. Do NOT repeat, paraphrase, or closely resemble ANY of these previously asked questions:
-{excluded}
+EXISTING QUESTIONS (the bank already covers these; do not repeat, rephrase or restate any of them):
+{chr(10).join(known_blocks)}
+{rejected_block}
+QUALITY BAR:
+1. Each question must be specific and answerable in an interview: a concrete scenario, constraint, number or trade-off. No vague "explain X" one-liners.
+2. A different core concept or scenario from every existing question above, not merely different wording.
+3. Questions must also differ from each other in topic and wording, even when two slots share a sub_type.
+4. Standalone: do not refer to "the above" or to other questions.
 
-Return ONLY a valid JSON array of 10 objects with this exact structure:
+Return ONLY a valid JSON array of {len(slots)} objects, one per slot, exactly:
 [
   {{
-    "section": "A",
-    "number": 1,
-    "category": "interview",
-    "sub_type": "Data Structures",
+    "slot": <the slot number>,
     "difficulty": "{diff_label.lower()}",
-    "topics": ["DSA"],
-    "question_text": "...",
-    "question_type": "Data Structures"
-  }},
-  ...
+    "topics": ["<2-3 short topic tags>"],
+    "question_text": "..."
+  }}
 ]"""
 
 
-@public_router.post("/sessions/generate-session-questions")
+@router.post("/sessions/generate-session-questions")
 async def generate_session_questions_endpoint(payload: GenerateSessionQuestionsRequest) -> dict:
-    """Generate unique, non-duplicate questions for a session using AI.
+    """Generate unique questions for a session using AI (login required, like every AI endpoint).
 
-    Every AI question is checked against the question bank (exact + near-paraphrase); duplicates
-    trigger a retry with them added to the avoid list, and any remaining gap is topped up from
-    the curated catalog, unseen entries first.
+    Twin: frontend/fe-apis/dailySession/generate.ts (nextjs-api mode) -- prompts, limits and the catalog are
+    copied verbatim, so change both. ``payload.topics`` (optional) narrows the session to picked topics, see ``_plan_slots``.
+
+    The whole Question Bank is loaded into a fingerprint index (SHA-256 + SimHash + inverted word index,
+    see ``dedup.py``). Per slot the model is shown the existing questions most related to that slot and the
+    least-covered focus angle; every draft is checked against the full bank and the rest of the batch.
+    Rejected slots are retried (only the missing ones) with the rejected drafts fed back, up to
+    ``_MAX_ATTEMPTS`` rounds, and any remaining gap is topped up from the curated catalog.
     """
-    recent_texts = _get_recent_question_texts()
     diff_label = (payload.difficulty or "Mixed").capitalize()
-
-    seen_texts = {" ".join(re.findall(r"[a-z0-9]+", t.lower())) for t in recent_texts}
-    seen_tokens = [_tokens(t) for t in recent_texts]
+    index = QuestionIndex.load()
 
     context_bits = []
     if payload.cv_text:
@@ -569,77 +627,117 @@ async def generate_session_questions_endpoint(payload: GenerateSessionQuestionsR
         context_bits.append(f"Target job description (tailor a few questions to it):\n{payload.jd_text[:1500]}")
     extra_context = ("\n" + "\n\n".join(context_bits) + "\n") if context_bits else ""
 
-    slots = _SECTION_A + _SECTION_B
-    accepted: Dict[str, dict] = {}  # sub_type -> question
-    avoid = recent_texts[:60]
+    slots = _plan_slots(payload.topics)
+    topic_filtered = len({s["sub_type"] for s in slots}) < len(_SECTION_A + _SECTION_B) or any(s["custom"] for s in slots)
+    accepted: Dict[int, dict] = {}  # slot number -> question
+    rejected: List[str] = []
+    used_focus: set = set()
+    stats = {"attempts": 0, "rejected_duplicates": 0}
 
-    for attempt in range(3):
-        missing = [t for t in slots if t not in accepted]
-        if not missing:
+    ai_error: Optional[str] = None
+    started = time.monotonic()
+    for attempt in range(_MAX_ATTEMPTS):
+        missing = [sl for sl in slots if sl["i"] not in accepted]
+        if not missing or (attempt and time.monotonic() - started > _TIME_BUDGET_S):
             break
-        focus = {t: random.choice(_SLOT_FOCUS[t]) for t in slots}
-        prompt = _build_session_prompt(diff_label, avoid, focus, extra_context)
+        stats["attempts"] += 1
+        for sl in missing:
+            sl["focus"] = sl["custom"] or _pick_focus(sl["sub_type"], index, used_focus)
+        known = {sl["i"]: index.related(f'{sl["sub_type"]} {sl["focus"]}', 20) for sl in missing}
+        prompt = _build_session_prompt(diff_label, missing, known, rejected, extra_context)
         try:
-            parsed = extract_json_array(call_ai_text(prompt, payload))
+            parsed = extract_json_array(call_ai_text(prompt, payload, max_tokens=_MAX_TOKENS))
         except Exception as e:
             print(f"[generate-session-questions] AI attempt {attempt + 1} failed: {e}")
+            ai_error = str(e)
             break
-        for idx, item in enumerate(parsed[:10]):
-            sub_type = slots[idx] if idx < len(slots) else None
-            if not sub_type or sub_type in accepted or not isinstance(item, dict):
+        by_slot = {sl["i"]: sl for sl in missing}
+        for pos, item in enumerate(parsed):
+            if not isinstance(item, dict):
+                continue
+            # Match by the slot number the model echoed; fall back to position among the requested slots.
+            try:
+                n = int(item.get("slot"))
+            except (TypeError, ValueError):
+                n = missing[pos]["i"] if pos < len(missing) else -1
+            sl = by_slot.get(n)
+            if sl is None or n in accepted:
                 continue
             q_text = str(item.get("question_text") or item.get("text") or "").strip()
-            if not q_text or _is_duplicate(q_text, seen_texts, seen_tokens):
-                if q_text:
-                    avoid = [q_text] + avoid
+            if len(q_text) < _MIN_QUESTION_CHARS:
                 continue
-            seen_texts.add(" ".join(re.findall(r"[a-z0-9]+", q_text.lower())))
-            seen_tokens.append(_tokens(q_text))
-            sec = "A" if idx < 5 else "B"
-            accepted[sub_type] = {
-                "section": sec,
-                "number": (idx % 5) + 1,
-                "category": "interview" if sec == "A" else "cv_skill",
+            dup = index.find_duplicate(q_text)
+            if dup:
+                stats["rejected_duplicates"] += 1
+                rejected.append(q_text)
+                print(f"[generate-session-questions] rejected ({dup[0]}): {q_text[:80]!r} ~ {dup[1][:80]!r}")
+                continue
+            index.add(q_text)
+            sub_type = sl["sub_type"]
+            raw_tags = item.get("topics")
+            tags = [t for t in raw_tags if isinstance(t, str) and t.strip()] if isinstance(raw_tags, list) else []
+            if not tags:
+                tags = [sub_type]
+            if sl["custom"] and sl["custom"] not in tags:
+                tags = [sl["custom"]] + tags
+            accepted[n] = {
+                "section": _SLOT_BRIEF[sub_type][0],
+                "category": "interview" if _SLOT_BRIEF[sub_type][0] == "A" else "cv_skill",
                 "sub_type": sub_type,
-                "difficulty": item.get("difficulty") or diff_label.lower(),
-                "topics": item.get("topics") if isinstance(item.get("topics"), list) else [sub_type],
+                "difficulty": str(item.get("difficulty") or diff_label.lower()),
+                "topics": tags,
                 "question_text": q_text,
-                "question_type": item.get("question_type") or sub_type,
+                "question_type": sub_type,
             }
 
+    # No AI key at all: ask for one instead of handing out the built-in set (which runs dry and repeats).
+    # The client shows an "Add a key in Config" prompt for `needs_key`.
+    if not accepted and ai_error and _NO_KEY_MARKER in ai_error:
+        return {"questions": [], "source": "none", "stats": stats, "needs_key": True, "warning": _NEEDS_KEY_WARNING}
+
     # Top up any gaps from the curated catalog. Never reuse a question that is already in the bank
-    # or in this session: prefer the same slot, then any other slot of the same section; if the
-    # catalog is exhausted the slot is left empty and reported, rather than silently repeated.
+    # or in this session. Prefer the same sub_type, then (only when no topics were picked) any other
+    # slot of the same section; if nothing fresh is left the slot stays empty and is reported.
     source = "ai" if len(accepted) == len(slots) else ("mixed" if accepted else "catalog")
-    for idx, sub_type in enumerate(slots):
-        if sub_type in accepted:
+    for sl in slots:
+        if sl["i"] in accepted:
             continue
-        sec = "A" if sub_type in _SECTION_A else "B"
-        same_slot = [q for q in DIVERSE_QUESTIONS_CATALOG if q["section"] == sec and q.get("sub_type") == sub_type]
-        same_sec = [q for q in DIVERSE_QUESTIONS_CATALOG if q["section"] == sec]
+        sub_type = sl["sub_type"]
+        sec = _SLOT_BRIEF[sub_type][0]
+        pools = [[q for q in DIVERSE_QUESTIONS_CATALOG if q["section"] == sec and q.get("sub_type") == sub_type]]
+        if not topic_filtered:
+            pools.append([q for q in DIVERSE_QUESTIONS_CATALOG if q["section"] == sec])
         chosen = None
-        for pool in (same_slot, same_sec):
-            fresh = [q for q in pool if not _is_duplicate(q["question_text"], seen_texts, seen_tokens)]
+        for pool in pools:
+            fresh = [q for q in pool if not index.is_duplicate(q["question_text"])]
             if fresh:
                 chosen = random.choice(fresh)
                 break
         if chosen is None:
             continue
-        seen_texts.add(" ".join(re.findall(r"[a-z0-9]+", chosen["question_text"].lower())))
-        seen_tokens.append(_tokens(chosen["question_text"]))
-        accepted[chosen.get("sub_type", sub_type)] = {
+        index.add(chosen["question_text"])
+        accepted[sl["i"]] = {
             **chosen,
-            "number": (idx % 5) + 1,
             "difficulty": diff_label.lower() if diff_label != "Mixed" else chosen["difficulty"],
         }
 
-    questions = list(accepted.values())
-    result = {"questions": questions, "source": source}
+    # Number the questions 1..n inside each section, in slot order.
+    questions = [accepted[i] for i in sorted(accepted)]
+    counters: Dict[str, int] = {}
+    for q in questions:
+        counters[q["section"]] = counters.get(q["section"], 0) + 1
+        q["number"] = counters[q["section"]]
+    result = {"questions": questions, "source": source, "stats": stats}
+    if ai_error:
+        result["ai_error"] = ai_error[:300]
     if len(questions) < len(slots):
         result["warning"] = (
-            f"Only {len(questions)} brand-new questions were available. "
-            "Add an AI key in Settings to get a fresh, unique set every time."
+            f"The AI couldn't write new questions ({ai_error[:160]}). Only {len(questions)} unused built-in questions were left."
+            if ai_error
+            else f"Only {len(questions)} brand-new questions were found. Generate again or pick other topics for the rest."
         )
+    elif ai_error:
+        result["warning"] = f"The AI couldn't write new questions ({ai_error[:160]}), so some come from the built-in set."
     return result
 
 

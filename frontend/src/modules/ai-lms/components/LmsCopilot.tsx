@@ -80,7 +80,7 @@ export default function LmsCopilot() {
       {open && (
         <aside
           aria-label="AI LMS Copilot"
-          className="todo-popover fixed bottom-0 right-0 top-[60px] z-[120] flex w-[400px] max-w-full flex-col rounded-none border-y-0 border-r-0 animate-slide-up"
+          className="todo-popover fixed bottom-[var(--mobile-tab-h,0px)] right-0 top-[var(--chrome-top)] z-[120] flex w-[400px] max-w-full flex-col rounded-none border-y-0 border-r-0 animate-slide-up"
         >
           {/* key: a new open item starts a fresh, correctly scoped conversation */}
           <CopilotChat

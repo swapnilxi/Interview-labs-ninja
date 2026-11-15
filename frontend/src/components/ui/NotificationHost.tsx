@@ -3,8 +3,15 @@
 import { useEffect } from 'react';
 import ToastHost from '@/components/ui/ToastHost';
 import ReminderAlerts from '@/components/ui/ReminderAlerts';
-import { browserPermission, ensureServiceWorker, getPrefs, hasNotification, notify } from '@/lib/ui/notifications';
+import {
+  browserPermission,
+  ensureServiceWorker,
+  getPrefs,
+  hasNotification,
+  notify,
+} from '@/lib/ui/notifications';
 import { startReminderEngine } from '@/lib/reminders/reminderEngine';
+import { startScheduleEngine } from '@/lib/schedules/scheduleEngine';
 import { enableNativeReminders } from '@/lib/reminders/nativeReminders';
 import { startNativePush, syncPushTokenAfterLogin } from '@/lib/reminders/nativePush';
 import { onAuthChange } from '@/lib/auth/tokenStore';
@@ -107,9 +114,12 @@ export default function NotificationHost() {
     void enableNativeReminders().then(() => startNativePush());
     const offAuth = onAuthChange(syncPushTokenAfterLogin);
     const stopEngine = startReminderEngine();
+    // To-Do Scheduler: scheduled reminders and AI jobs (lib/schedules/scheduleEngine.ts), plus the phone's alarms.
+    const stopScheduler = startScheduleEngine();
     return () => {
       offAuth();
       stopEngine();
+      stopScheduler();
     };
   }, []);
 

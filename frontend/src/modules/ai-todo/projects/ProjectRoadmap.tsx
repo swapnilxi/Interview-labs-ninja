@@ -156,7 +156,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                   {/* Header */}
                   <div className="p-3 bg-emerald-500/10 border-b border-emerald-500/20">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                      <span className="text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
                         Phase {index + 1}
                       </span>
                       {phase.duration && (
@@ -184,7 +184,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
 
                     {/* Tasks */}
                     <div>
-                      <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Key Tasks</h4>
+                      <h4 className="mb-2 text-[12px] font-semibold text-muted-foreground">Key Tasks</h4>
                       <ul className="space-y-1.5">
                         {phase.key_tasks?.map((task: string, tIndex: number) => {
                           const key = `${index}-${tIndex}`;

@@ -12,10 +12,11 @@ export const DEFAULT_DAILY_TARGET = 3;
 /** Same height in every state (numbers, placeholder, "unavailable"), so the list below never jumps when stats arrive. */
 const ROW = 'flex min-h-[2rem] flex-wrap items-center gap-x-[1.75rem] gap-y-2';
 
-// One accent per metric, by meaning: blue = today's progress, green = a streak and a reached target, cyan = the week.
-// A zero is shown in the muted text colour, not the accent: nothing done yet is a calm state, not a missing one.
+// One colour per metric, by meaning: today's progress = the Settings accent (it follows a change of accent), green = a
+// streak and a reached target, cyan = the week. A zero is shown in the muted text colour, not the accent: nothing done
+// yet is a calm state, not a missing one.
 const TONE = {
-  progress: { figure: 'mix-text-progress', track: 'mix-bg-progress/20', fill: 'mix-bg-progress' },
+  progress: { figure: 'lab-ink', track: 'mix-bg-primary/20', fill: 'bg-primary' },
   success: { figure: 'text-success', track: 'mix-bg-success/20', fill: 'bg-success' },
   info: { figure: 'mix-text-info', track: 'mix-bg-info/20', fill: 'mix-bg-info' },
 } as const;

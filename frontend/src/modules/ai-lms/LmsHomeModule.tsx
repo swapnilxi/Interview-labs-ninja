@@ -109,7 +109,7 @@ export default function LmsHomeModule() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-[1.5rem]">
           <div className="flex items-start sm:items-center gap-4 min-w-0">
             <div
-              className="flex h-[3rem] w-[3rem] flex-shrink-0 items-center justify-center rounded-xl border text-primary"
+              className="hidden h-[3rem] w-[3rem] flex-shrink-0 items-center justify-center rounded-xl border text-primary sm:flex"
               style={{
                 background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)',
                 borderColor: 'color-mix(in srgb, var(--color-primary) 30%, transparent)',
@@ -119,11 +119,11 @@ export default function LmsHomeModule() {
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <h1 className="font-heading text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                <h1 className="font-heading text-[1.75rem] font-bold leading-tight tracking-[-0.024em] text-foreground sm:text-2xl">
                   AI Learning Platform
                 </h1>
                 <span
-                  className="inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary"
+                  className="lab-ink inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold"
                   style={{
                     background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)',
                     borderColor: 'color-mix(in srgb, var(--color-primary) 28%, transparent)',
@@ -139,11 +139,12 @@ export default function LmsHomeModule() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 lg:flex-shrink-0">
+          {/* Phones: the primary action leads on its own row; the secondary ones share the row under it. */}
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3 lg:flex-shrink-0">
             <Link
               href="/ai-lms/landing"
               title="About AI LMS & all classes"
-              className="lms-btn-secondary"
+              className={`lms-btn-secondary ${canEdit && activeTab === 'classes' ? '' : 'col-span-2'}`}
             >
               <Icon name="InformationCircleIcon" size={15} />
               <span>About AI LMS</span>
@@ -161,7 +162,7 @@ export default function LmsHomeModule() {
             )}
 
             {canEdit && (
-              <Link href="/ai-lms/generate" className="lms-btn-primary">
+              <Link href="/ai-lms/generate" className="lms-btn-primary order-first col-span-2 sm:order-none">
                 <Icon name="SparklesIcon" size={15} />
                 <span>Generate Lesson</span>
               </Link>
@@ -173,24 +174,26 @@ export default function LmsHomeModule() {
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t pt-[1.5rem]"
           style={{ borderColor: 'color-mix(in srgb, var(--color-foreground) 10%, transparent)' }}
         >
-          <nav className="lms-segment w-fit max-w-full overflow-x-auto" aria-label="AI LMS sections">
+          <nav className="lms-segment w-full max-w-full overflow-x-auto sm:w-fit" aria-label="AI LMS sections">
             <button
               type="button"
               onClick={() => handleTabChange('classes')}
               aria-current={activeTab === 'classes'}
-              className="lms-segment-item"
+              className="lms-segment-item flex-1 px-2 sm:flex-none sm:px-4"
             >
               <Icon name="AcademicCapIcon" size={15} />
-              <span>Class Management</span>
+              <span className="sm:hidden">Classes</span>
+              <span className="hidden sm:inline">Class Management</span>
             </button>
             <button
               type="button"
               onClick={() => handleTabChange('instructors')}
               aria-current={activeTab === 'instructors'}
-              className="lms-segment-item"
+              className="lms-segment-item flex-1 px-2 sm:flex-none sm:px-4"
             >
               <Icon name="UserGroupIcon" size={15} />
-              <span>Instructor Management</span>
+              <span className="sm:hidden">Instructors</span>
+              <span className="hidden sm:inline">Instructor Management</span>
             </button>
           </nav>
 

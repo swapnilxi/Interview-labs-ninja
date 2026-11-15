@@ -14,7 +14,7 @@ export default function DifficultyProgressCard({
   difficulties,
 }: DifficultyProgressCardProps) {
   return (
-    <div className="bg-card rounded-lg p-24 shadow-md border border-border">
+    <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-24">
       <h3 className="font-heading text-lg font-medium text-foreground mb-24">
         Difficulty Progression
       </h3>

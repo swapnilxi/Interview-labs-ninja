@@ -6,8 +6,11 @@ import Modal from '@/components/ui/Modal';
 import Icon from '@/components/ui/AppIcon';
 import AutoSaveStatus from '@/components/ui/AutoSaveStatus';
 import { useAutoSave } from '@/lib/ui/useAutoSave';
+import { useAuth } from '@/contexts/AuthContext';
+import { defaultAIRequestFields } from '@/lib/services/settingsService';
 import {
   GEMINI_MODEL_OPTIONS,
+  configModelLabel,
   getConfigGeminiKey,
   getStoredGeminiKey,
   resolveGemini,
@@ -35,6 +38,8 @@ export default function SettingsModal({
   const [showKey, setShowKey] = useState(false);
   const [model, setModel] = useState('');
   const [configKey, setConfigKey] = useState('');
+  const [configModel, setConfigModel] = useState('');
+  const { isGuest } = useAuth();
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
@@ -65,15 +70,47 @@ export default function SettingsModal({
     modelTouched.current = false;
     setApiKey(getStoredGeminiKey());
     setConfigKey(getConfigGeminiKey());
-    setModel(resolveGemini().model);
+    try {
+      setConfigModel(defaultAIRequestFields().model || '');
+    } catch {
+      setConfigModel('');
+    }
+    // The Gemini model this sheet edits (the Config model is only shown, and changed on the Config page).
+    setModel(resolveGemini().model.startsWith('gemini') ? resolveGemini().model : 'gemini-flash-latest');
     setShowKey(false);
     setTestStatus('idle');
     setErrorMessage('');
     setConfirmReset(false);
   }, [isOpen]);
 
-  const effectiveKey = apiKey.trim() || configKey;
-  const usingConfigKey = !apiKey.trim() && !!configKey;
+  const ownKey = apiKey.trim();
+  // Logged in, the Config model runs on the server unless SwipeLearn has its own key; a guest's Config Gemini key is
+  // used straight from the browser. The model picker and the test only matter when Gemini is the one writing.
+  const usingConfigKey = !ownKey && isGuest && !!configKey;
+  const effectiveKey = ownKey || (usingConfigKey ? configKey : '');
+  const geminiActive = !!effectiveKey;
+  const configLabel = configModelLabel(configModel);
+  const summary = ownKey
+    ? {
+        title: `Gemini · ${model}`,
+        text: isGuest
+          ? "SwipeLearn's own key, used straight from this browser."
+          : `SwipeLearn's own key below is used instead of your Config model (${configLabel}). Remove it to go back.`,
+      }
+    : !isGuest
+      ? {
+          title: configLabel,
+          text: 'The model chosen on the Config page, with the keys saved there. Any provider works.',
+        }
+      : usingConfigKey
+        ? {
+            title: `Gemini · ${model}`,
+            text: 'With the Gemini key saved on the Config page. Log in to use any other model from Config.',
+          }
+        : {
+            title: 'No AI set up yet',
+            text: 'Log in to use any model you set up in Config, or add a Gemini key below.',
+          };
   const modelOptions = GEMINI_MODEL_OPTIONS.some((m) => m.id === model)
     ? GEMINI_MODEL_OPTIONS
     : [...GEMINI_MODEL_OPTIONS, { id: model, label: model }];
@@ -119,6 +156,21 @@ export default function SettingsModal({
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-4 scrollbar-clean">
+        {/* Which model writes the cards */}
+        <div className="rounded-xl border border-border px-4 py-3">
+          <p className="swipe-field-label">Model in use</p>
+          <p className="break-words text-sm font-semibold text-foreground">{summary.title}</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            {summary.text}{' '}
+            <Link
+              href="/config"
+              className="font-semibold text-foreground underline-offset-2 hover:underline"
+            >
+              {isGuest ? 'Open Config' : 'Change in Config'}
+            </Link>
+          </p>
+        </div>
+
         {/* Key */}
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -126,7 +178,7 @@ export default function SettingsModal({
               htmlFor="swipe-gemini-key"
               className="text-xs font-bold tracking-wide text-muted-foreground"
             >
-              Google Gemini API key
+              {isGuest ? 'Google Gemini API key' : 'Gemini key for SwipeLearn only (optional)'}
             </label>
             <a
               href="https://aistudio.google.com/app/apikey"
@@ -148,7 +200,7 @@ export default function SettingsModal({
                 edit({ apiKey: e.target.value });
                 setTestStatus('idle');
               }}
-              placeholder={configKey ? 'Using the key from Config' : 'AIza…'}
+              placeholder={usingConfigKey ? 'Using the key from Config' : 'AIza…'}
               autoComplete="off"
               spellCheck={false}
               className="swipe-input swipe-input-pad-end"
@@ -163,7 +215,12 @@ export default function SettingsModal({
             </button>
           </div>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            {usingConfigKey ? (
+            {!isGuest && !ownKey ? (
+              <>
+                Leave this empty to use your Config model. A key here stays in this browser and goes straight to
+                Google.
+              </>
+            ) : usingConfigKey ? (
               <>
                 Using the Gemini key saved on the{' '}
                 <Link
@@ -190,6 +247,8 @@ export default function SettingsModal({
           </p>
         </div>
 
+        {geminiActive && (
+          <>
         {/* Model */}
         <div>
           <label htmlFor="swipe-gemini-model" className="swipe-field-label">
@@ -263,6 +322,8 @@ export default function SettingsModal({
             </button>
           )}
         </div>
+          </>
+        )}
 
         {/* Progress */}
         <div className="border-t border-border pt-4">

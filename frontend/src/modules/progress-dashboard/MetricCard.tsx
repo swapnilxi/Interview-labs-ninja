@@ -12,13 +12,15 @@ interface MetricCardProps {
   color: 'primary' | 'secondary' | 'success' | 'accent';
 }
 
+// `mix-*` (tailwind/mix-colors.js): theme colours are bare var()s, so `bg-primary/20` would compile to nothing.
 const colorClasses = {
-  primary: 'bg-primary/20 text-primary',
-  secondary: 'bg-secondary/20 text-secondary',
-  success: 'bg-success/20 text-success',
-  accent: 'bg-accent/20 text-accent',
+  primary: 'mix-bg-primary/15 lab-ink',
+  secondary: 'mix-bg-secondary/15 text-secondary',
+  success: 'mix-bg-success/15 text-success',
+  accent: 'mix-bg-accent/15 text-accent',
 };
 
+/** A compact metric tile: icon and trend on top, the number large, the label under it (two to a row on phones). */
 export default function MetricCard({
   title,
   value,
@@ -28,33 +30,29 @@ export default function MetricCard({
   color,
 }: MetricCardProps) {
   return (
-    <div className="bg-card rounded-lg p-24 shadow-md border border-border hover:shadow-lg transition-smooth">
-      <div className="flex items-start justify-between mb-18">
-        <div className={`w-48 h-48 rounded-md ${colorClasses[color]} flex items-center justify-center`}>
-          <Icon name={icon as any} size={24} variant="outline" />
-        </div>
+    <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-[1.25rem]">
+      <div className="flex items-center justify-between gap-2">
+        <span className={`flex h-9 w-9 items-center justify-center rounded-[11px] ${colorClasses[color]}`}>
+          <Icon name={icon as any} size={19} variant="outline" />
+        </span>
         {trend && (
-          <div className={`flex items-center gap-4 text-sm font-medium ${trend.isPositive ? 'text-success' : 'text-error'}`}>
+          <span
+            className={`inline-flex items-center gap-1 text-[12px] font-semibold tabular-nums ${trend.isPositive ? 'text-success' : 'text-error'}`}
+          >
             <Icon
               name={trend.isPositive ? 'ArrowTrendingUpIcon' : 'ArrowTrendingDownIcon'}
-              size={16}
+              size={14}
               variant="outline"
             />
-            <span>{Math.abs(trend.value)}%</span>
-          </div>
+            {Math.abs(trend.value)}%
+          </span>
         )}
       </div>
-      <div>
-        <h3 className="text-3xl font-heading font-semibold text-foreground mb-6">
-          {value}
-        </h3>
-        <p className="text-sm font-medium text-muted-foreground mb-4">
-          {title}
-        </p>
-        <p className="text-xs text-muted-foreground font-caption">
-          {subtitle}
-        </p>
-      </div>
+      <p className="mt-4 font-heading text-[1.75rem] font-semibold leading-none tracking-[-0.025em] tabular-nums text-foreground sm:text-3xl">
+        {value}
+      </p>
+      <p className="mt-2 text-[13px] font-semibold leading-snug text-foreground">{title}</p>
+      <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">{subtitle}</p>
     </div>
   );
 }

@@ -13,11 +13,12 @@ import QuickDaily from '@/modules/ai-todo/quick/QuickDaily';
 import SmartTodo from '@/modules/ai-todo/tasks/SmartTodo';
 import PlanProject from '@/modules/ai-todo/projects/PlanProject';
 import Goals from '@/modules/ai-todo/goals/Goals';
+import SchedulerView from '@/modules/ai-todo/schedule/SchedulerView';
 import TodayView from '@/modules/ai-todo/today/TodayView';
 import VoiceCapture from '@/modules/ai-todo/capture/VoiceCapture';
 import { todoService } from '@/lib/services/todoService';
 
-const VALID_TABS: TodoTab[] = ['today', 'quick', 'smart', 'plan', 'goals'];
+const VALID_TABS: TodoTab[] = ['today', 'quick', 'smart', 'plan', 'goals', 'schedule'];
 
 function TodoPageInner() {
   const searchParams = useSearchParams();
@@ -171,19 +172,20 @@ function TodoPageInner() {
             <div className="max-w-[1440px] mx-auto px-4 sm:px-[2rem] lg:pl-[2.5rem] lg:pr-[3.5rem] pt-[1rem] sm:pt-[1.5rem] pb-[7rem]">
               {/* Page header: a title and one quiet line — no tile, no tagline. The faint violet wash behind it is the
                   only gradient on the page: it fades to nothing before any edge, so there is no box and no glow. */}
-              <header className="relative mb-[1rem] flex items-start justify-between gap-3">
+              <header className="relative mb-[1rem] flex items-center justify-between gap-3 sm:items-start">
                 <div
                   aria-hidden="true"
                   className="pointer-events-none absolute -top-[2rem] left-[-1rem] right-[-1rem] h-[10rem] sm:left-[-2rem] sm:right-[-2rem] lg:left-[-2.5rem] lg:right-[-3.5rem]"
                   style={{ background: 'radial-gradient(ellipse 42% 78% at 22% 0%, color-mix(in srgb, var(--color-primary) 9%, transparent), transparent)' }}
                 />
                 <div className="relative min-w-0">
-                  <h1 className="font-heading text-2xl font-semibold leading-tight tracking-tight text-foreground">AI To-Do</h1>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <h1 className="font-heading text-[2rem] font-bold leading-[1.1] tracking-[-0.026em] text-foreground sm:text-2xl sm:font-semibold sm:leading-tight">AI To-Do</h1>
+                  {/* Phones: the large title carries the page; the tagline would wrap beside the buttons. */}
+                  <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
                     Say a task. It lands with its date and reminder.
                   </p>
                 </div>
-                <div className="relative mt-1 flex shrink-0 items-center gap-2">
+                <div className="relative flex shrink-0 items-center gap-2 sm:mt-1">
                   {/* Distraction inbox: a header control rather than a floating button, so nothing ever sits on top of a
                       task row. Alt/Option+D opens the same panel from anywhere on the page. */}
                   <button
@@ -242,6 +244,10 @@ function TodoPageInner() {
 
               {activeTab === 'goals' && (
                 <Goals model={model} />
+              )}
+
+              {activeTab === 'schedule' && (
+                <SchedulerView />
               )}
             </div>
           </main>
@@ -372,8 +378,11 @@ function TodoPageInner() {
         overlayClassName="flex items-end justify-center sm:items-center"
         className="vc-sheet"
       >
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <p className="font-heading text-base font-semibold text-foreground">Speak a task</p>
+        <div className="ios-sheet-grabber -mt-2 sm:hidden" data-sheet-grabber="" aria-hidden="true">
+          <span />
+        </div>
+        <div className="ios-sheet-head mb-2 px-0 pb-0">
+          <p className="ios-sheet-title">Speak a task</p>
           <button type="button" onClick={closeVoiceSheet} className="todo-btn todo-btn-ghost h-9 w-9 px-0" aria-label="Close">
             <Icon name="XMarkIcon" size={18} />
           </button>

@@ -183,7 +183,7 @@ export default function QuickTaskDetailModal({
         {/* Due Date & Time Estimate Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mix-bg-muted/20 p-3 rounded-xl border mix-border-border/60">
           <div>
-            <label htmlFor="quick-detail-due" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+            <label htmlFor="quick-detail-due" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
               Due Date
             </label>
             <input
@@ -196,7 +196,7 @@ export default function QuickTaskDetailModal({
           </div>
 
           <div>
-            <label htmlFor="quick-detail-estimate" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+            <label htmlFor="quick-detail-estimate" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
               Time Estimate
             </label>
             <input

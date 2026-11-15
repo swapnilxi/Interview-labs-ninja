@@ -27,11 +27,15 @@ import GenerateSheet from './components/GenerateSheet';
 import Icon from '@/components/ui/AppIcon';
 import {
   generateCards,
+  isConfigFixable,
   isSettingsFixable,
+  refreshConfigFromAccount,
   resolveGemini,
   type GenerateCardsRequest,
   type ResolvedGemini,
 } from './services/geminiService';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { sounds } from './utils/soundEffects';
 import { useSwipeLearnStorage } from './utils/useSwipeLearnStorage';
 import type { StoredCard, StoredCustomTopic } from './utils/useSwipeLearnStorage';
@@ -118,7 +122,11 @@ export default function SwipeLearnModule() {
   const [quizMode, setQuizMode] = useState<QuizDisplayMode>('quiz');
   const [learnModeEnabled, setLearnModeEnabled] = useState(false);
 
-  const [gemini, setGemini] = useState<ResolvedGemini>({ apiKey: '', source: 'none', model: '' });
+  const [gemini, setGemini] = useState<ResolvedGemini>({ apiKey: '', source: 'none', model: '', label: '' });
+  // The server found no key for the Config model on the last try: show "Add a key in Config" until something changes.
+  const [needsConfigKey, setNeedsConfigKey] = useState(false);
+  const router = useRouter();
+  const { user } = useAuth();
   const [generating, setGenerating] = useState<GeneratingState | null>(null);
   const generatingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -188,8 +196,23 @@ export default function SwipeLearnModule() {
   const deckLabel =
     activeSub?.label ?? (feedMode === 'mixed' ? 'mixed' : (activeTopic?.label ?? feedMode));
 
-  // ── Gemini key/model (localStorage, so only readable on the client) ──────
-  const refreshGemini = useCallback(() => setGemini(resolveGemini()), []);
+  // ── Which AI writes the cards (localStorage + login, so only readable on the client) ──────
+  const refreshGemini = useCallback(() => {
+    setGemini(resolveGemini());
+    // Coming back from Config (focus) or a key saved in another tab (storage): let them try again.
+    setNeedsConfigKey(false);
+  }, []);
+  // Logged in: the model choice saved to the account wins over this browser's copy (a new browser follows Config).
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    refreshConfigFromAccount().then(() => {
+      if (!cancelled) refreshGemini();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, refreshGemini]);
   useEffect(() => {
     refreshGemini();
     // A key saved on the Config page in another tab should work here without a reload.
@@ -200,7 +223,7 @@ export default function SwipeLearnModule() {
       window.removeEventListener('focus', refreshGemini);
     };
   }, [refreshGemini]);
-  const hasKey = gemini.source !== 'none';
+  const hasKey = gemini.source !== 'none' && !needsConfigKey;
 
   // ── Hydrate from IndexedDB ───────────────────────────────────────────────
   useEffect(() => {
@@ -498,12 +521,15 @@ export default function SwipeLearnModule() {
           return;
         }
         const message = (error as Error)?.message || 'Generation failed.';
+        if (isConfigFixable(error)) setNeedsConfigKey(true);
         showToast(
           message,
           'error',
-          isSettingsFixable(error)
-            ? { label: 'Settings', run: () => setShowSettings(true) }
-            : { label: 'Retry', run: () => void runGenerate(options, target) }
+          isConfigFixable(error)
+            ? { label: 'Open Config', run: () => router.push('/config') }
+            : isSettingsFixable(error)
+              ? { label: 'Settings', run: () => setShowSettings(true) }
+              : { label: 'Retry', run: () => void runGenerate(options, target) }
         );
       } finally {
         generatingRef.current = false;
@@ -518,6 +544,7 @@ export default function SwipeLearnModule() {
       learnModeEnabled,
       learnStorage,
       markSeen,
+      router,
       savedSet,
       showToast,
       topicMap,
@@ -766,8 +793,8 @@ export default function SwipeLearnModule() {
           FOCUS_PLACEHOLDERS[feedMode] ?? `e.g. a part of ${activeTopic?.label ?? 'this topic'}`
         }
         onGenerate={handleSheetGenerate}
-        keySource={gemini.source}
-        model={gemini.model}
+        hasKey={hasKey}
+        modelLabel={gemini.label}
         onOpenSettings={() => setShowSettings(true)}
         busy={!!generating}
       />

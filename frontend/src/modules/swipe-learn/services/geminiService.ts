@@ -1,18 +1,32 @@
 'use client';
 
 /**
- * SwipeLearn card generation: one Gemini call from the browser returns a batch of cards.
+ * SwipeLearn card generation: one AI call returns a batch of cards.
  *
- * Which key: SwipeLearn's own key (its Settings sheet) wins; otherwise the Gemini key saved on the Config page
- * is used, so someone who set Gemini up once for the app does not paste it again. Either way the key stays in
- * this browser's localStorage and goes straight to Google; nothing passes through our backend, which is why
- * guests can generate too.
+ * Which AI writes them (resolveCardAi):
+ *   1. SwipeLearn's own Gemini key (its Settings sheet), when set: the browser calls Gemini directly.
+ *   2. Logged in: the server runs the model chosen on the Config page (any provider, or the server's .env default),
+ *      through POST /swipe-learn/generate (FastAPI backend/modules/swipe_learn, or fe-apis/swipeLearn).
+ *   3. Guest with a Gemini key saved on the Config page: the browser calls Gemini directly.
+ *   Otherwise there is no AI to use and the UI asks for a key (or a login).
+ * Keys stay in this browser's localStorage either way; the server path only uses them for that one call.
+ *
+ * Both paths share the prompt (cardPrompt.ts, twin of backend/modules/swipe_learn/prompt.py) and this file's parser.
+ * Each batch gets random "angles" and a seed so two batches start from different places, the deck's titles go in as
+ * "already covered", and near-duplicates the model still sends are dropped and topped up with another round.
  *
  * There is no offline "fallback" card: a failed call throws a SwipeGenerateError the UI can explain (no key,
  * bad key, quota, network). The old template filler cards looked real but taught nothing.
  */
 
-import { defaultAIRequestFields } from '@/lib/services/settingsService';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
+import { apiFetch, parseApiError } from '@/lib/http/apiClient';
+import {
+  USE_ENV_DEFAULT_MODEL,
+  defaultAIRequestFields,
+  isMissingKeyError,
+  settingsService,
+} from '@/lib/services/settingsService';
 import type {
   CardContentType,
   CardDepth,
@@ -20,6 +34,13 @@ import type {
   DifficultyLevel,
   GenerateFormat,
 } from '../types';
+import {
+  CARD_ANGLES,
+  MAX_AVOID_TITLES,
+  buildCardPrompt,
+  normalizeCardRequest,
+  type CardPromptRequest,
+} from './cardPrompt';
 
 const KEY_STORAGE = 'swipelearn_gemini_api_key_v1';
 const MODEL_STORAGE = 'swipelearn_gemini_model_v1';
@@ -90,47 +111,97 @@ export function saveStoredGeminiModel(model: string): void {
   writeLocal(MODEL_STORAGE, model.trim() || null);
 }
 
-export type GeminiKeySource = 'swipelearn' | 'config' | 'none';
+/**
+ * Where the cards come from: 'swipelearn' = SwipeLearn's own Gemini key, 'config' = the Gemini key saved on the
+ * Config page (guests), 'server' = the model chosen in Config, run by our server (logged in), 'none' = no AI yet.
+ */
+export type GeminiKeySource = 'swipelearn' | 'config' | 'server' | 'none';
 
 export interface ResolvedGemini {
+  /** The Gemini key the browser will use ('' on the server path). */
   apiKey: string;
   source: GeminiKeySource;
+  /** The Gemini model (direct paths) or the Config model id ('' = the server's .env default). */
   model: string;
+  /** How to show the model, e.g. "Gemini · gemini-flash-latest" or "gpt-4o-mini · from Config". */
+  label: string;
 }
 
-/** The key and model a generate call will use right now. */
+/** The model chosen on the Config page, as shown to people ('' = the server's .env default). */
+export function configModelLabel(model: string): string {
+  if (model === USE_ENV_DEFAULT_MODEL) return 'Server default model';
+  if (model === 'custom') {
+    let custom = '';
+    try {
+      custom = (JSON.parse(window.localStorage.getItem('labninja.ai-settings.v1') || '{}').customModel || '').trim();
+    } catch {
+      custom = '';
+    }
+    return custom || 'Custom endpoint';
+  }
+  if (model === 'ollama') return 'Ollama';
+  if (model.startsWith('ollama::')) return `Ollama · ${model.slice('ollama::'.length)}`;
+  return model;
+}
+
+/** Which AI a generate call will use right now (see the file comment for the order). */
 export function resolveGemini(): ResolvedGemini {
   const own = getStoredGeminiKey();
-  const fromConfig = own ? '' : getConfigGeminiKey();
-  let model = getStoredGeminiModel();
-  if (!model) {
-    // Config's main model, when it is a Gemini one, so the whole app talks to the same model.
-    let configModel = '';
-    try {
-      configModel = defaultAIRequestFields().model || '';
-    } catch {
-      configModel = '';
-    }
-    model =
-      configModel.startsWith('gemini') && !RETIRED_MODEL.test(configModel)
-        ? configModel
-        : DEFAULT_GEMINI_MODEL;
+  let configModel = '';
+  try {
+    configModel = defaultAIRequestFields().model || '';
+  } catch {
+    configModel = '';
   }
-  return {
-    apiKey: own || fromConfig,
-    source: own ? 'swipelearn' : fromConfig ? 'config' : 'none',
-    model,
-  };
+
+  let geminiModel = getStoredGeminiModel();
+  if (!geminiModel) {
+    // Config's main model, when it is a Gemini one, so the whole app talks to the same model.
+    geminiModel =
+      configModel.startsWith('gemini') && !RETIRED_MODEL.test(configModel) ? configModel : DEFAULT_GEMINI_MODEL;
+  }
+
+  if (own) return { apiKey: own, source: 'swipelearn', model: geminiModel, label: `Gemini · ${geminiModel}` };
+  if (isLoggedIn()) {
+    return {
+      apiKey: '',
+      source: 'server',
+      model: configModel,
+      label: `${configModelLabel(configModel)} · from Config`,
+    };
+  }
+  const fromConfig = getConfigGeminiKey();
+  if (fromConfig) {
+    return { apiKey: fromConfig, source: 'config', model: geminiModel, label: `Gemini · ${geminiModel} · key from Config` };
+  }
+  return { apiKey: '', source: 'none', model: geminiModel, label: '' };
 }
 
 export function hasGeminiKey(): boolean {
   return resolveGemini().source !== 'none';
 }
 
+/** Logged in: pulls the model choice saved to the account, so a new browser follows Config too. */
+export async function refreshConfigFromAccount(): Promise<void> {
+  try {
+    await settingsService.getSettings();
+  } catch {
+    /* offline: local settings stay as they are */
+  }
+}
+
 // ── Errors ──────────────────────────────────────────────────────────────────
 
 export type GenerateErrorKind =
-  'no-key' | 'auth' | 'quota' | 'model' | 'network' | 'bad-output' | 'api';
+  | 'no-key'
+  /** The server found no key for the Config model: the fix is on the Config page. */
+  | 'no-config-key'
+  | 'auth'
+  | 'quota'
+  | 'model'
+  | 'network'
+  | 'bad-output'
+  | 'api';
 
 export class SwipeGenerateError extends Error {
   readonly kind: GenerateErrorKind;
@@ -145,6 +216,11 @@ export class SwipeGenerateError extends Error {
 /** Errors whose fix is in the Settings sheet (the UI offers a button for it). */
 export function isSettingsFixable(error: unknown): boolean {
   return error instanceof SwipeGenerateError && ['no-key', 'auth', 'model'].includes(error.kind);
+}
+
+/** Errors whose fix is on the Config page (no key there for the chosen model). */
+export function isConfigFixable(error: unknown): boolean {
+  return error instanceof SwipeGenerateError && error.kind === 'no-config-key';
 }
 
 // ── The Gemini call ─────────────────────────────────────────────────────────
@@ -262,7 +338,7 @@ export async function testGeminiConnection(
   }
 }
 
-// ── Prompt ──────────────────────────────────────────────────────────────────
+// ── Request ─────────────────────────────────────────────────────────────────
 
 export interface TopicRef {
   id: string;
@@ -287,108 +363,91 @@ export interface GenerateCardsRequest {
     ContentCard,
     'title' | 'hook' | 'content' | 'code' | 'depth' | 'topic' | 'subCategory'
   >;
-  /** Titles already in the deck, so the batch doesn't repeat them. */
+  /** Titles already in the deck, newest first, so the batch doesn't repeat them. */
   avoidTitles: string[];
 }
 
 export const MAX_GENERATE_COUNT = 10;
 
-const FORMAT_INSTRUCTIONS: Record<GenerateFormat, string> = {
-  'quick-concept':
-    'Concept cards (type "concept"): one crisp idea each, with the intuition behind it and a filled-in depth section.',
-  'code-example':
-    'Code cards (type "code"): a short, practical, runnable snippet in the language that fits the topic (Python unless the topic implies another), plus a one-line explanation of why it works.',
-  'interview-question':
-    'Interview cards (type "case-study"): the title is a realistic interview question; the content is the gist of a strong answer with the key trade-off; depth.interviewQuestion is a likely follow-up.',
-  quiz: 'Quiz cards (type "quiz"): the content sets the question up in one line; the quiz has 4 plausible options with exactly one correct, and the correct position varies across the batch.',
-  'advanced-concept':
-    'Advanced cards: internals, performance gotchas and edge cases that experienced engineers still get wrong. Difficulty is "advanced".',
-  'recent-dev':
-    'What\'s-new cards (type "fact"): notable releases, standards or shifts from the last two years that you are certain are real; name the year. Leave out anything you are unsure happened.',
-  random:
-    'A mix of card types (concept, code, quiz, tip, case-study), whichever teaches each idea best. Include at least one quiz when the batch has 3 or more cards.',
-};
-
-function buildPrompt(req: GenerateCardsRequest, count: number): string {
-  const lines: string[] = [
-    'You write cards for SwipeLearn, a mobile micro-learning feed: each card teaches one specific, accurate, useful idea in under 30 seconds of reading.',
-    '',
-  ];
-
-  if (req.topic.id === 'mixed' && req.mixedTopics?.length) {
-    lines.push(
-      `Topics: spread the cards across these, and set each card's "topic" to the id: ${req.mixedTopics
-        .map((t) => `${t.id} (${t.label})`)
-        .join(', ')}.`
-    );
-  } else if (req.topic.id === 'quiz') {
-    lines.push(
-      'Topic: a cross-topic quiz deck. Draw on Python, computer vision, finance, AI and interview prep unless a focus is given below.'
-    );
-  } else {
-    lines.push(`Topic: ${req.topic.label}`);
+/** `n` different angles, picked at random for this batch. */
+function pickAngles(n: number): string[] {
+  const pool = [...CARD_ANGLES];
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  if (req.subCategory) {
-    lines.push(
-      `Sub-category: ${req.subCategory.label} (set every card's "subCategory" to "${req.subCategory.id}")`
-    );
-  } else if (req.subCategories?.length) {
-    lines.push(
-      `Sub-categories: set each card's "subCategory" to one of ${req.subCategories.map((s) => `"${s.id}"`).join(', ')}.`
-    );
-  }
-  if (req.focus?.trim()) lines.push(`Focus: ${req.focus.trim().slice(0, 300)}`);
-  lines.push(
-    `Difficulty: ${
-      req.format === 'advanced-concept'
-        ? 'advanced'
-        : req.difficulty && req.difficulty !== 'any'
-          ? req.difficulty
-          : 'a mix of beginner, intermediate and advanced'
-    }`
-  );
-  lines.push(`Number of cards: exactly ${count}`);
-  lines.push('');
+  return pool.slice(0, Math.min(Math.max(n, 1), pool.length));
+}
 
-  if (req.aboutCard) {
-    const c = req.aboutCard;
-    lines.push(
-      'The learner just read the card below. Write quiz cards (type "quiz") that check they understood it: test application and reasoning, not word-for-word recall, and never ask something the card does not support.',
-      `Card title: ${c.title}`,
-      `Card text: ${[c.hook, c.content].filter(Boolean).join(' ')}`
-    );
-    if (c.code?.code) lines.push(`Card code:\n${c.code.code}`);
-    const depth = c.depth
-      ? Object.values(c.depth)
-          .filter((v): v is string => typeof v === 'string' && !!v.trim())
-          .join(' ')
-      : '';
-    if (depth) lines.push(`Card details: ${depth}`);
-  } else {
-    lines.push(`Card style: ${FORMAT_INSTRUCTIONS[req.format] || FORMAT_INSTRUCTIONS.random}`);
+/** The wire/prompt request for one round. */
+function promptRequest(req: GenerateCardsRequest, count: number, avoid: string[]): CardPromptRequest {
+  return normalizeCardRequest({
+    topic: req.topic,
+    mixedTopics: req.mixedTopics,
+    subCategories: req.subCategories,
+    subCategory: req.subCategory,
+    format: req.aboutCard ? 'quiz' : req.format,
+    count,
+    focus: req.focus,
+    difficulty: req.difficulty,
+    aboutCard: req.aboutCard,
+    avoidTitles: avoid.slice(0, MAX_AVOID_TITLES),
+    angles: req.aboutCard ? [] : pickAngles(count),
+    seed: Math.floor(Math.random() * 1_000_000),
+  });
+}
+
+// ── Near-duplicates ─────────────────────────────────────────────────────────
+
+const STOPWORDS = new Set(
+  'a an the of in on for to and or with vs versus is are be how what why when which your you it its using use from by at as into this that do does not no about'.split(
+    ' '
+  )
+);
+
+/** The meaningful words of a title (lowercase, light plural folding). */
+function titleWords(title: string): Set<string> {
+  const words = title
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}+#]+/gu, ' ')
+    .split(' ')
+    .filter((w) => w && !STOPWORDS.has(w))
+    .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w));
+  return new Set(words);
+}
+
+/** True when two titles name the same idea: mostly the same words, or one's words almost all inside the other's. */
+function sameIdea(a: Set<string>, b: Set<string>): boolean {
+  if (!a.size || !b.size) return false;
+  let shared = 0;
+  a.forEach((w) => {
+    if (b.has(w)) shared += 1;
+  });
+  const smaller = Math.min(a.size, b.size);
+  const union = a.size + b.size - shared;
+  return shared / union >= 0.6 || (smaller >= 2 && shared / smaller >= 0.8);
+}
+
+class TitleIndex {
+  private exact = new Set<string>();
+  private words: Set<string>[] = [];
+
+  /** `fuzzy` off: only identical titles count (quiz cards about one card naturally share its words). */
+  constructor(titles: string[], private readonly fuzzy = true) {
+    titles.forEach((t) => this.add(t));
   }
 
-  const avoid = req.avoidTitles.filter(Boolean).slice(0, 40);
-  if (avoid.length) {
-    lines.push('', `Already in the deck, so cover different ideas: ${avoid.join('; ')}`);
+  add(title: string): void {
+    this.exact.add(title.trim().toLowerCase());
+    this.words.push(titleWords(title));
   }
 
-  lines.push(
-    '',
-    'Rules:',
-    '- Be correct. No invented statistics, versions, APIs or quotes; if unsure about an idea, pick another.',
-    '- title: at most 60 characters and specific (never "Python Concept").',
-    '- hook: at most 90 characters, a punchy line that makes someone stop scrolling.',
-    '- content: at most 280 characters, the core insight in plain language.',
-    '- code: only on code cards (at most 12 lines, idiomatic); otherwise null.',
-    '- quiz: required on quiz cards, otherwise null. Exactly 4 options, one correct; correctAnswer is its 0-based index; explanation says why it is right.',
-    '- depth: howItWorks, example, commonMistakes and interviewQuestion in one or two sentences each; architecture only when a flow or pipeline helps, else null.',
-    '- Every card in the batch covers a different idea.',
-    '',
-    'Return JSON only, in this shape:',
-    '{"cards":[{"title":"","hook":"","content":"","type":"concept|code|quiz|fact|tip|case-study","topic":"","subCategory":"","code":{"language":"","code":"","explanation":""},"quiz":{"question":"","options":["","","",""],"correctAnswer":0,"explanation":""},"depth":{"howItWorks":"","architecture":"","example":"","commonMistakes":"","interviewQuestion":""},"difficulty":"beginner|intermediate|advanced","estimatedReadTime":20,"tags":["",""]}]}'
-  );
-  return lines.join('\n');
+  has(title: string): boolean {
+    if (this.exact.has(title.trim().toLowerCase())) return true;
+    if (!this.fuzzy) return false;
+    const w = titleWords(title);
+    return this.words.some((other) => sameIdea(w, other));
+  }
 }
 
 // ── Parsing the answer ─────────────────────────────────────────────────────
@@ -559,6 +618,7 @@ function normalizeCard(
   };
 }
 
+/** Every usable card in the model's answer (ids are assigned once the batch is complete). */
 function parseCards(text: string, req: GenerateCardsRequest, model: string): ContentCard[] {
   const parsed = extractJson(text) as any;
   const list: unknown[] = Array.isArray(parsed)
@@ -568,53 +628,146 @@ function parseCards(text: string, req: GenerateCardsRequest, model: string): Con
       : parsed && typeof parsed === 'object'
         ? [parsed]
         : [];
-  const batchId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const createdAt = new Date().toISOString();
-  const seen = new Set(req.avoidTitles.map((t) => t.toLowerCase()));
   const cards: ContentCard[] = [];
   list.forEach((raw) => {
-    const card = normalizeCard(raw, req, cards.length, batchId, createdAt, model);
-    if (!card || seen.has(card.title.toLowerCase())) return;
-    seen.add(card.title.toLowerCase());
-    cards.push(card);
+    const card = normalizeCard(raw, req, cards.length, 'tmp', createdAt, model);
+    if (card) cards.push(card);
   });
   return cards;
 }
 
+// ── The server path (the model chosen in Config) ───────────────────────────
+
+/** 5 minutes: a slow model writing ten cards can take a while (the server allows up to 240s for the AI call). */
+const SERVER_TIMEOUT_MS = 5 * 60_000;
+
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal | undefined {
+  if (typeof AbortSignal === 'undefined' || typeof AbortSignal.timeout !== 'function') return signal;
+  const timeout = AbortSignal.timeout(ms);
+  if (!signal) return timeout;
+  return typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timeout]) : signal;
+}
+
+async function callServer(
+  promptReq: CardPromptRequest,
+  signal?: AbortSignal
+): Promise<{ text: string; model: string }> {
+  let res: Response;
+  try {
+    res = await apiFetch('/swipe-learn/generate', {
+      method: 'POST',
+      body: JSON.stringify({ ...promptReq, ...defaultAIRequestFields() }),
+      signal: withTimeout(signal, SERVER_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // The caller's Stop button: pass the AbortError through. Our own timeout: say so.
+    if (signal?.aborted) throw error;
+    if ((error as Error)?.name === 'TimeoutError' || (error as Error)?.name === 'AbortError') {
+      throw new SwipeGenerateError('The AI took too long to answer. Try fewer cards or a faster model.', 'api');
+    }
+    throw new SwipeGenerateError('Could not reach the server. Check your connection and try again.', 'network');
+  }
+  if (!res.ok) {
+    const detail = await parseApiError(res);
+    if (res.status === 401) throw new SwipeGenerateError('Your login expired. Log in again to generate cards.', 'api');
+    if (isMissingKeyError(detail)) {
+      throw new SwipeGenerateError(
+        'No AI key is set up for your Config model. Add one in Config to generate cards.',
+        'no-config-key'
+      );
+    }
+    if (/\b429\b|rate limit|quota/i.test(detail)) {
+      throw new SwipeGenerateError(`The AI provider's rate limit or quota was reached. Wait a minute and try again. (${detail})`, 'quota');
+    }
+    throw new SwipeGenerateError(detail, 'api');
+  }
+  const data = await res.json().catch(() => null);
+  const text = typeof data?.text === 'string' ? data.text : '';
+  if (!text.trim()) throw new SwipeGenerateError('The AI returned an empty answer. Try again.', 'bad-output');
+  return { text, model: typeof data?.model === 'string' && data.model ? data.model : 'config-model' };
+}
+
 // ── Public entry point ─────────────────────────────────────────────────────
 
+/** Extra rounds, after the first, to replace cards dropped as repeats or to retry a busy / unparseable answer. */
+const MAX_EXTRA_ROUNDS = 2;
+
 /**
- * Generates `req.count` cards (1-10) in one call. Retries once when Gemini is busy or its answer can't be
- * parsed. Throws SwipeGenerateError (or an AbortError when `signal` fires).
+ * Generates `req.count` cards (1-10). Cards that repeat one already in the deck (or each other) are dropped and
+ * replaced in up to two more rounds; a busy or unparseable answer is retried the same way. Returns what it has when a
+ * later round fails. Throws SwipeGenerateError (or an AbortError when `signal` fires).
  */
 export async function generateCards(
   req: GenerateCardsRequest,
   signal?: AbortSignal
 ): Promise<ContentCard[]> {
-  const { apiKey, model, source } = resolveGemini();
-  if (source === 'none') {
-    throw new SwipeGenerateError('Add a Gemini API key to generate cards.', 'no-key');
+  const ai = resolveGemini();
+  if (ai.source === 'none') {
+    throw new SwipeGenerateError('Add an AI key to generate cards.', 'no-key');
   }
   const count = Math.min(Math.max(Math.round(req.count) || 1, 1), MAX_GENERATE_COUNT);
-  const prompt = buildPrompt(req, count);
-
+  const known = new TitleIndex(req.avoidTitles, !req.aboutCard);
+  const cards: ContentCard[] = [];
+  const repeats: string[] = [];
   let lastError: unknown = null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+
+  for (let round = 0; round <= MAX_EXTRA_ROUNDS && cards.length < count; round += 1) {
+    const want = count - cards.length;
+    // Newest first: this batch, then the repeats we just dropped, then the deck.
+    const avoid = [...cards.map((c) => c.title), ...repeats, ...req.avoidTitles];
+    const promptReq = promptRequest(req, want, avoid);
     try {
-      const text = await callGemini(apiKey, model, prompt, signal);
-      const cards = parseCards(text, req, model);
-      if (cards.length) return cards.slice(0, count);
-      lastError = new SwipeGenerateError(
-        "Gemini's answer had no usable cards. Try again.",
-        'bad-output'
-      );
+      let text: string;
+      let model: string;
+      if (ai.source === 'server') {
+        ({ text, model } = await callServer(promptReq, signal));
+      } else {
+        text = await callGemini(ai.apiKey, ai.model, buildCardPrompt(promptReq), signal);
+        model = ai.model;
+      }
+      const parsed = parseCards(text, req, model);
+      if (!parsed.length) {
+        lastError = new SwipeGenerateError("The AI's answer had no usable cards. Try again.", 'bad-output');
+        continue;
+      }
+      parsed.forEach((card) => {
+        if (cards.length >= count) return;
+        if (known.has(card.title)) {
+          repeats.push(card.title);
+          return;
+        }
+        known.add(card.title);
+        cards.push(card);
+      });
     } catch (error) {
+      if ((error as Error)?.name === 'AbortError') throw error;
       lastError = error;
       const retryable =
         error instanceof SwipeGenerateError &&
-        (error.kind === 'bad-output' || /busy/.test(error.message));
-      if (!retryable) throw error;
+        (error.kind === 'bad-output' || /busy|took too long/.test(error.message));
+      if (!retryable || cards.length) break;
     }
   }
-  throw lastError;
+
+  if (!cards.length) {
+    if (repeats.length) {
+      throw new SwipeGenerateError(
+        'The AI only came up with cards you already have. Try a focus or another card type.',
+        'bad-output'
+      );
+    }
+    throw lastError ?? new SwipeGenerateError('Generation failed. Try again.', 'api');
+  }
+
+  // One batch: shared id prefix and timestamp, zero-padded index (IndexedDB returns rows by id, so a batch reloads in
+  // the order it was written).
+  const batchId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const createdAt = new Date().toISOString();
+  return cards.map((card, i) => ({
+    ...card,
+    id: `gen-${batchId}-${String(i).padStart(2, '0')}`,
+    generatedAt: createdAt,
+    createdAt,
+  }));
 }

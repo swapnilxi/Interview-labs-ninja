@@ -397,9 +397,9 @@ export default function PdfDeckReaderView({
 
       {/* ── Resume Banner ─────────────────────────────────────────────────── */}
       {resumeBanner && (
-        <div className="fixed top-[60px] left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-3 animate-slideInUp">
-          <div className="flex items-center gap-3 bg-card border border-blue-500/30 shadow-xl rounded-2xl px-4 py-3">
-            <Icon name="ClockIcon" size={16} className="text-blue-500 shrink-0" />
+        <div className="fixed top-[calc(var(--chrome-top)+0.5rem)] left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-3 animate-slideInUp">
+          <div className="flex items-center gap-3 bg-card border mix-border-primary/30 shadow-xl rounded-2xl px-4 py-3">
+            <Icon name="ClockIcon" size={16} className="lab-ink shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-foreground">
                 Resumed at Chunk {resumeBanner.chunkIndex + 1}
@@ -433,12 +433,12 @@ export default function PdfDeckReaderView({
         </div>
       )}
       {bookmarkedFlash && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-full shadow-lg animate-fadeIn flex items-center gap-1.5">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-full shadow-lg animate-fadeIn flex items-center gap-1.5">
           <Icon name="BookmarkIcon" size={14} /> Bookmarked!
         </div>
       )}
       {sharedFlash && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-full shadow-lg animate-fadeIn flex items-center gap-1.5">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-full shadow-lg animate-fadeIn flex items-center gap-1.5">
           <Icon name="ShareIcon" size={14} /> Shared!
         </div>
       )}
@@ -455,10 +455,10 @@ export default function PdfDeckReaderView({
           <div className="w-full max-w-xs bg-card border-l border-border flex flex-col shadow-2xl animate-slideInRight overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
-                <Icon name="BookmarkIcon" size={18} className="text-blue-500" />
+                <Icon name="BookmarkIcon" size={18} className="lab-ink" />
                 <h3 className="text-sm font-bold text-foreground">Bookmarks</h3>
                 {docBookmarks.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
+                  <span className="px-1.5 py-0.5 rounded-full mix-bg-primary/15 lab-ink text-[10px] font-bold">
                     {docBookmarks.length}
                   </span>
                 )}
@@ -483,13 +483,13 @@ export default function PdfDeckReaderView({
                 docBookmarks.map((bm) => (
                   <div
                     key={bm.id}
-                    className="group relative p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/60 transition-all cursor-pointer"
+                    className="group relative p-3 rounded-xl border border-border mix-bg-muted/30 hover:mix-bg-muted/60 transition-all cursor-pointer"
                     onClick={() => handleJumpToBookmark(bm)}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] font-bold lab-ink mix-bg-primary/10 px-1.5 py-0.5 rounded">
                             Chunk {bm.chunkIndex}
                           </span>
                           {bm.pageNumber && (
@@ -529,7 +529,7 @@ export default function PdfDeckReaderView({
       )}
 
       {/* ── Top Header ────────────────────────────────────────────────────── */}
-      <div className="w-full flex items-center justify-between gap-2 py-2 border-b border-border/60">
+      <div className="w-full flex items-center justify-between gap-2 py-2 border-b mix-border-border/60">
         {routed ? (
           // Arrow only on phones (the header row is full there, as before); the word shows from `sm` up.
           <BackButton
@@ -561,9 +561,9 @@ export default function PdfDeckReaderView({
                 value={jumpValue}
                 onChange={(e) => setJumpValue(e.target.value)}
                 placeholder={`1–${chunks.length}`}
-                className="w-20 text-center text-base sm:text-xs px-2 py-0.5 rounded-lg border border-blue-500/50 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-20 text-center text-base sm:text-xs px-2 py-0.5 rounded-lg border mix-border-primary/50 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
-              <button type="submit" className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">
+              <button type="submit" className="text-[10px] font-bold lab-ink hover:underline">
                 Go
               </button>
               <button type="button" onClick={() => setShowJumpInput(false)} className="text-[10px] text-muted-foreground hover:text-foreground">
@@ -581,7 +581,7 @@ export default function PdfDeckReaderView({
                 {isFinished ? 'Finished' : `Chunk ${currentIndex + 1} / ${chunks.length}`}
               </span>
               {currentChunk?.pageNumber && !isFinished && (
-                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 rounded">
+                <span className="text-[10px] font-bold lab-ink mix-bg-primary/10 px-1.5 rounded">
                   Page {currentChunk.pageNumber}
                 </span>
               )}
@@ -607,7 +607,7 @@ export default function PdfDeckReaderView({
             onClick={() => setShowBookmarksPanel(true)}
             className={`p-2 rounded-xl border transition-all ${
               docBookmarks.length > 0
-                ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                ? 'mix-border-primary/40 mix-bg-primary/10 lab-ink'
                 : 'border-border bg-card text-muted-foreground hover:text-foreground'
             }`}
             title="Bookmarks"
@@ -636,9 +636,9 @@ export default function PdfDeckReaderView({
       </div>
 
       {/* ── Overall Progress Bar ──────────────────────────────────────────── */}
-      <div className="w-full h-1 bg-muted/60 rounded-full overflow-hidden -mt-1 mb-1">
+      <div className="w-full h-1 mix-bg-muted/60 rounded-full overflow-hidden -mt-1 mb-1">
         <div
-          className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-[width] duration-500 ease-out"
+          className="h-full bg-primary rounded-full transition-[width] duration-500 ease-out"
           style={{ width: `${isFinished ? 100 : progressPct}%` }}
         />
       </div>
@@ -648,7 +648,7 @@ export default function PdfDeckReaderView({
         {isFinished ? (
           /* Finished Screen */
           <div className="w-full p-8 rounded-3xl bg-card border border-border shadow-xl text-center space-y-5 animate-fadeIn">
-            <div className="w-16 h-16 mx-auto rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/10">
+            <div className="w-16 h-16 mx-auto rounded-full mix-bg-primary/15 lab-ink flex items-center justify-center shadow-lg">
               <Icon name="SparklesIcon" size={36} />
             </div>
             <div>
@@ -657,25 +657,25 @@ export default function PdfDeckReaderView({
                 You swiped through all {chunks.length} chunks of &quot;{document.name}&quot;.
               </p>
             </div>
-            <div className="p-4 rounded-2xl bg-muted/40 border border-border/60 flex items-center justify-around">
+            <div className="p-4 rounded-2xl mix-bg-muted/40 border mix-border-border/60 flex items-center justify-around">
               <div>
-                <span className="text-[10px] uppercase font-bold text-muted-foreground">Total Chunks</span>
+                <span className="text-xs font-semibold text-muted-foreground">Total Chunks</span>
                 <p className="text-lg font-bold text-foreground">{chunks.length}</p>
               </div>
               {document.totalPages && (
                 <>
-                  <div className="h-8 w-px bg-border/80" />
+                  <div className="h-8 w-px mix-bg-border/80" />
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Pages</span>
-                    <p className="text-lg font-bold text-blue-500">{document.totalPages}</p>
+                    <span className="text-xs font-semibold text-muted-foreground">Pages</span>
+                    <p className="text-lg font-bold lab-ink">{document.totalPages}</p>
                   </div>
                 </>
               )}
               {docBookmarks.length > 0 && (
                 <>
-                  <div className="h-8 w-px bg-border/80" />
+                  <div className="h-8 w-px mix-bg-border/80" />
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Bookmarks</span>
+                    <span className="text-xs font-semibold text-muted-foreground">Bookmarks</span>
                     <p className="text-lg font-bold text-amber-500">{docBookmarks.length}</p>
                   </div>
                 </>
@@ -685,7 +685,7 @@ export default function PdfDeckReaderView({
               <button
                 type="button"
                 onClick={() => setCurrentIndex(0)}
-                className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-all shadow-md shadow-blue-500/20"
+                className="w-full py-3 px-4 rounded-xl bg-primary hover:mix-bg-primary/90 text-primary-foreground font-semibold text-sm transition-all shadow-md"
               >
                 Re-read Document
               </button>
@@ -693,7 +693,7 @@ export default function PdfDeckReaderView({
                 <button
                   type="button"
                   onClick={() => setShowBookmarksPanel(true)}
-                  className="w-full py-2.5 px-4 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-semibold hover:bg-blue-500/15 transition-all"
+                  className="w-full py-2.5 px-4 rounded-xl border mix-border-primary/30 mix-bg-primary/10 lab-ink text-xs font-semibold hover:mix-bg-primary/15 transition-all"
                 >
                   Review {docBookmarks.length} Saved Bookmarks
                 </button>
@@ -750,7 +750,7 @@ export default function PdfDeckReaderView({
                 <div
                   ref={hintNextRef}
                   aria-hidden
-                  className="pointer-events-none absolute top-4 right-4 z-20 flex items-center gap-1 rounded-full bg-blue-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg"
+                  className="pointer-events-none absolute top-4 right-4 z-20 flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary-foreground shadow-lg"
                   style={{ opacity: 0 }}
                 >
                   {currentIndex === chunks.length - 1 ? 'Finish' : 'Next'} <Icon name="ArrowRightIcon" size={12} />
@@ -804,7 +804,7 @@ export default function PdfDeckReaderView({
             type="button"
             onClick={handleNext}
             title="Next chunk (→)"
-            className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-all shadow-md shadow-blue-500/20 active:scale-95"
+            className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-primary hover:mix-bg-primary/90 text-primary-foreground text-xs font-semibold transition-all shadow-md active:scale-95"
           >
             <span className="hidden sm:inline">Next</span>
             <Icon name="ArrowRightIcon" size={15} />
@@ -817,8 +817,8 @@ export default function PdfDeckReaderView({
             title="Bookmark chunk (↑)"
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border text-xs font-semibold transition-all shadow-sm active:scale-95 ${
               isCurrentBookmarked || bookmarkedFlash
-                ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                : 'border-border bg-card text-muted-foreground hover:text-blue-500 hover:border-blue-500/30'
+                ? 'mix-border-primary/40 mix-bg-primary/10 lab-ink'
+                : 'border-border bg-card text-muted-foreground hover:lab-ink hover:mix-border-primary/30'
             }`}
           >
             <Icon name="BookmarkIcon" size={15} />
@@ -841,7 +841,7 @@ export default function PdfDeckReaderView({
       )}
 
       {/* ── Keyboard hint (desktop only) ─────────────────────────────────── */}
-      <div className="hidden sm:flex items-center gap-3 pb-1 text-[10px] text-muted-foreground/50 font-medium">
+      <div className="hidden sm:flex items-center gap-3 pb-1 text-[10px] mix-text-muted-foreground/50 font-medium">
         <span>← → navigate</span>
         <span>↑ bookmark</span>
         <span>C copy</span>

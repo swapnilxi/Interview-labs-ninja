@@ -396,6 +396,47 @@ def register(cursor) -> None:
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_fcm_user_id ON fcm_tokens(user_id);")
 
+    # Scheduler: reminders and AI jobs that run on a rule (schedules/db.py). `rule` is canonical JSON from
+    # normalize_rule; one run row per occurrence (UNIQUE) so a phone and an open tab never run the same one twice.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS todo_schedules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'reminder',
+            message TEXT DEFAULT NULL,
+            rule TEXT NOT NULL,
+            timezone TEXT DEFAULT NULL,
+            agent_context TEXT NOT NULL DEFAULT 'tasks',
+            add_tasks INTEGER NOT NULL DEFAULT 0,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            source_text TEXT DEFAULT NULL,
+            last_run_at TEXT DEFAULT NULL,
+            last_status TEXT DEFAULT NULL,
+            last_output TEXT DEFAULT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_todo_schedules_user_id ON todo_schedules(user_id);")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS todo_schedule_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            schedule_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            scheduled_for TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'web',
+            status TEXT NOT NULL DEFAULT 'running',
+            title TEXT DEFAULT NULL,
+            output TEXT DEFAULT NULL,
+            created_task_ids TEXT DEFAULT NULL,
+            started_at TEXT NOT NULL DEFAULT (datetime('now')),
+            finished_at TEXT DEFAULT NULL,
+            UNIQUE (schedule_id, scheduled_for)
+        );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_todo_schedule_runs_schedule ON todo_schedule_runs(schedule_id);")
+
     # 2. quick_tasks table
     cursor.execute("PRAGMA table_info(quick_tasks);")
     qt_cols = [row[1] for row in cursor.fetchall()]

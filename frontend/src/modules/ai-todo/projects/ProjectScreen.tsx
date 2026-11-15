@@ -51,7 +51,7 @@ export default function ProjectScreen({ project, model }: ProjectScreenProps) {
                 )}
               </h2>
               <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                <span className="font-bold uppercase text-emerald-600 dark:text-emerald-400">{project.status}</span>
+                <span className="font-semibold capitalize text-emerald-600 dark:text-emerald-400">{project.status}</span>
                 <span aria-hidden="true">•</span>
                 <span>{project.priority.toUpperCase()}</span>
                 {project.due_date && (

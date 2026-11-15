@@ -4,6 +4,7 @@ import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import FlatIcon from '@/components/ui/FlatIcon';
 import { toast } from '@/lib/ui/toast';
+import { getNativeReminderStatus, isNativeApp } from '@/lib/reminders/nativeReminders';
 import {
   browserPermission,
   enableBrowserNotifications,
@@ -38,15 +39,24 @@ export default function ReminderStatusCard() {
   const [permission, setPermission] = useState<ReturnType<typeof browserPermission>>('default');
   const [device, setDevice] = useState<DeviceKind>('desktop');
   const [busy, setBusy] = useState(false);
+  const [native, setNative] = useState<{ notifications: boolean; exactAlarms: boolean } | null>(null);
 
   useEffect(() => {
     setPermission(browserPermission());
     setDevice(detectDevice());
+    if (isNativeApp()) void getNativeReminderStatus().then(setNative);
   }, []);
 
-  const on = prefs.browser && permission === 'granted';
+  const on = native ? native.notifications : prefs.browser && permission === 'granted';
 
   const turnOn = async () => {
+    if (native) {
+      setBusy(true);
+      await sendTestNotification(); // asks for the permissions, then schedules a test
+      setNative(await getNativeReminderStatus());
+      setBusy(false);
+      return;
+    }
     setBusy(true);
     const result = await enableBrowserNotifications();
     setPermission(result);
@@ -66,7 +76,17 @@ export default function ReminderStatusCard() {
   };
 
   let state: { tone: 'on' | 'off' | 'warn'; title: string; body: string };
-  if (device === 'iphone-browser') {
+  if (native) {
+    state = native.notifications
+      ? {
+          tone: native.exactAlarms ? 'on' : 'warn',
+          title: native.exactAlarms ? 'On: phone alarms' : 'On, but alarms may be late',
+          body: native.exactAlarms
+            ? 'Each reminder is set as an alarm on this phone, so it rings at its time even with the app closed.'
+            : 'Allow “Alarms & reminders” for LabNinja in the phone’s app settings so reminders fire on time.',
+        }
+      : { tone: 'off', title: 'Off on this device', body: 'Allow notifications for LabNinja in the phone’s app settings.' };
+  } else if (device === 'iphone-browser') {
     state = {
       tone: 'warn',
       title: 'Add to Home Screen first',
@@ -89,7 +109,7 @@ export default function ReminderStatusCard() {
           <FlatIcon name="clock" size={22} />
         </span>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Reminders</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">Reminders</p>
           <p className="mt-0.5 text-sm font-semibold text-foreground">{state.title}</p>
         </div>
         <span className="rem-status-dot ml-auto" aria-hidden />
@@ -97,7 +117,7 @@ export default function ReminderStatusCard() {
       <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{state.body}</p>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {!on && permission !== 'denied' && permission !== 'unsupported' && device !== 'iphone-browser' && (
+        {!on && (native || (permission !== 'denied' && permission !== 'unsupported')) && device !== 'iphone-browser' && (
           <button type="button" onClick={() => void turnOn()} disabled={busy} className="todo-btn todo-btn-primary h-10 px-3.5 text-sm">
             <Icon name="BellAlertIcon" size={16} />
             Turn on notifications

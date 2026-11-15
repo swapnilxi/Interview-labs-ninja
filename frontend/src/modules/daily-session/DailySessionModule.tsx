@@ -18,11 +18,23 @@ import AnswerWorkspace from './coach/AnswerWorkspace';
 import RichText from './coach/RichText';
 import { Bar, DifficultyChip, Ring, WeekStrip, dayKey, difficultyTone, isTypingTarget, readPracticeDays, relativeDay, toneClass, uniqueByText } from './components/ds';
 import { useCompanionStats } from './companion/useCompanion';
-import { defaultAIRequestFields } from '@/lib/services/settingsService';
-import { backendFetch, isBackendKnownDown, isNetworkFailure, checkBackendHealth } from '@/lib/http/backendAvailability';
+import TopicPicker from './components/TopicPicker';
+import { readFocusTopics } from './topics';
+import { useAuth } from '@/contexts/AuthContext';
+import { defaultAIRequestFields, isMissingKeyError } from '@/lib/services/settingsService';
+import { AI_TIMEOUT_MS, backendFetch, isBackendKnownDown, isNetworkFailure, checkBackendHealth } from '@/lib/http/backendAvailability';
 import { parseApiError } from '@/lib/http/apiClient';
 import { localDailySessionAdapter } from '@/lib/services/local/localDailySessionAdapter';
 
+/** No AI key is configured (in this browser or on the server), so no questions were written. */
+class NeedsKeyError extends Error {
+  constructor() {
+    super('Add an AI key in Config to generate questions.');
+    this.name = 'NeedsKeyError';
+  }
+}
+
+/** Built-in questions, used only for an offline session (the backend can't be reached at all). */
 const DEFAULT_QUESTIONS: Omit<Question, 'id'>[] = [
   {
     questionText: 'Implement a LRU Cache with O(1) time complexity for both get and put operations.',
@@ -163,11 +175,20 @@ export default function DailySessionInteractive() {
   const [recentSessions, setRecentSessions] = useState<RecentRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [genWarning, setGenWarning] = useState<string | null>(null);
+  // The last Start found no AI key anywhere (browser or server): the setup screen asks for one.
+  const [needsKey, setNeedsKey] = useState(false);
   const [isOfflineSession, setIsOfflineSession] = useState(false);
   const [backendOffline, setBackendOffline] = useState(false);
 
   // Setup form fields
   const [difficulty, setDifficulty] = useState('Mixed');
+  // Topics to focus this session on (empty = balanced mix). Seeded once from the My Space focus areas.
+  const { user } = useAuth();
+  const topicUserKey = user ? user.id || user.email?.toLowerCase() || 'authenticated' : 'guest';
+  const [topics, setTopics] = useState<string[]>([]);
+  useEffect(() => {
+    setTopics(readFocusTopics(String(topicUserKey)));
+  }, [topicUserKey]);
   const [cvText, setCvText] = useState('');
   const [jdText, setJdText] = useState('');
   const [uploadingResume, setUploadingResume] = useState(false);
@@ -450,10 +471,48 @@ export default function DailySessionInteractive() {
       view: null,
     });
 
-  /** Tries the real backend first; on a network failure (backend unreachable), falls back to a local session. */
-  const resolveNewSession = async (): Promise<{ session_id: number; session_date: string; session_code: string; offline: boolean }> => {
+  /**
+   * Writes the questions first, then saves the session, so a failed or keyless generation leaves no empty session
+   * behind. No AI key -> NeedsKeyError (the setup screen asks for one). Only a backend that can't be reached at all
+   * falls back to a local session of built-in questions; any other failure is shown. (Papering over failures with the
+   * built-in questions is what kept handing out the same ten questions.)
+   */
+  const resolveNewSession = async (): Promise<{
+    session_id: number;
+    session_date: string;
+    session_code: string;
+    offline: boolean;
+    warning: string | null;
+  }> => {
     if (!isBackendKnownDown()) {
       try {
+        const genRes = await backendFetch('/sessions/generate-session-questions', {
+          method: 'POST',
+          // Several AI rounds: give it up to 5 minutes, not the 5-second default.
+          timeoutMs: AI_TIMEOUT_MS,
+          body: JSON.stringify({
+            difficulty,
+            cv_present: !!cvText,
+            jd_present: !!jdText,
+            cv_text: cvText || undefined,
+            jd_text: jdText || undefined,
+            topics: topics.length ? topics : undefined,
+            ...defaultAIRequestFields(),
+          }),
+        });
+        if (!genRes.ok) {
+          const detail = await parseApiError(genRes);
+          if (isMissingKeyError(detail)) throw new NeedsKeyError();
+          throw new Error(`Couldn't generate questions: ${detail}`);
+        }
+        const genData = await genRes.json();
+        if (genData?.needs_key) throw new NeedsKeyError();
+        const payloadQuestions: unknown[] = Array.isArray(genData?.questions) ? genData.questions : [];
+        if (!payloadQuestions.length) {
+          // Every question we could find is already in the bank: say so instead of repeating old ones.
+          throw new Error(genData?.warning || 'No new questions are available right now. Try other topics.');
+        }
+
         const res = await backendFetch('/sessions', {
           method: 'POST',
           body: JSON.stringify({
@@ -462,49 +521,8 @@ export default function DailySessionInteractive() {
             jd_present: !!jdText,
           }),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(await parseApiError(res));
         const data = await res.json();
-
-        let payloadQuestions: any[] = [];
-        try {
-          const genRes = await backendFetch('/sessions/generate-session-questions', {
-            method: 'POST',
-            body: JSON.stringify({
-              difficulty,
-              cv_present: !!cvText,
-              jd_present: !!jdText,
-              cv_text: cvText || undefined,
-              jd_text: jdText || undefined,
-              ...defaultAIRequestFields(),
-            }),
-          });
-          if (genRes.ok) {
-            const genData = await genRes.json();
-            if (Array.isArray(genData.questions)) {
-              if (genData.questions.length === 0) {
-                // Every question we know has already been used: say so instead of repeating old ones.
-                throw Object.assign(new Error(genData.warning || 'No new questions are available right now.'), { noNewQuestions: true });
-              }
-              payloadQuestions = genData.questions;
-              setGenWarning(genData.warning || null);
-            }
-          }
-        } catch (e) {
-          if ((e as { noNewQuestions?: boolean })?.noNewQuestions) throw e;
-          console.warn('AI question generator unavailable, using base questions:', e);
-        }
-
-        if (!payloadQuestions.length) {
-          payloadQuestions = DEFAULT_QUESTIONS.map((q, idx) => ({
-            section: idx < 5 ? 'A' : 'B',
-            number: (idx % 5) + 1,
-            category: q.category === 'Interview' ? 'interview' : 'cv_skill',
-            sub_type: q.subType,
-            difficulty: difficulty !== 'Mixed' ? difficulty.toLowerCase() : q.difficulty.toLowerCase(),
-            topics: [q.questionType || q.subType],
-            question_text: q.questionText,
-          }));
-        }
 
         const qRes = await backendFetch('/sessions/questions', {
           method: 'POST',
@@ -513,13 +531,14 @@ export default function DailySessionInteractive() {
             questions: payloadQuestions,
           }),
         });
-        if (!qRes.ok) throw new Error(`HTTP ${qRes.status}`);
+        if (!qRes.ok) throw new Error(await parseApiError(qRes));
 
         return {
           session_id: data.session_id,
           session_date: data.session_date,
           session_code: data.session_code || `W${data.session_id}/${data.session_date}`,
           offline: false,
+          warning: genData?.warning || null,
         };
       } catch (err) {
         if (!isNetworkFailure(err)) throw err;
@@ -527,7 +546,11 @@ export default function DailySessionInteractive() {
       }
     }
     const local = localDailySessionAdapter.createSessionWithQuestions(difficulty, DEFAULT_QUESTIONS);
-    return { ...local, offline: true };
+    return {
+      ...local,
+      offline: true,
+      warning: 'Backend unreachable: these are built-in sample questions, saved only in this browser.',
+    };
   };
 
   const handleStartSession = async (e: React.FormEvent) => {
@@ -535,10 +558,11 @@ export default function DailySessionInteractive() {
     setLoading(true);
     setGenWarning(null);
     setLoadError(null);
+    setNeedsKey(false);
     try {
-      const { session_id, session_date, offline } = await resolveNewSession();
+      const { session_id, session_date, offline, warning } = await resolveNewSession();
 
-      if (offline) setGenWarning('Backend unreachable: these are built-in sample questions, saved only in this browser.');
+      setGenWarning(warning);
       try {
         localStorage.setItem('ninja_active_session_date', session_date);
       } catch {
@@ -547,6 +571,10 @@ export default function DailySessionInteractive() {
       // The new session is a new screen: it gets its own URL, and the URL's loader fills it in.
       openSession(offline ? `${OFFLINE_PREFIX}${session_date}` : String(session_id), true);
     } catch (err) {
+      if (err instanceof NeedsKeyError) {
+        setNeedsKey(true);
+        return;
+      }
       console.error('Failed to initialize session:', err);
       setLoadError(err instanceof Error ? err.message : 'Could not start a session. Try again.');
     } finally {
@@ -899,7 +927,9 @@ export default function DailySessionInteractive() {
                       {todaySession.answered}/{todaySession.total}
                     </span>
                   </Ring>
-                  <div className="min-w-0 flex-1">
+                  {/* min width: below it the button wraps to its own full-width row instead of squeezing this text
+                      into a one-word column. */}
+                  <div className="min-w-[9.5rem] flex-1">
                     <p className="ds-h3">
                       {todaySession.answered >= todaySession.total ? "Today's session is done" : "Today's session is waiting"}
                     </p>
@@ -909,7 +939,12 @@ export default function DailySessionInteractive() {
                         : `${todaySession.answered} of ${todaySession.total} answered. Pick up where you left off.`}
                     </p>
                   </div>
-                  <Link href={recentHref(todaySession)} prefetch={false} scroll={false} className="ds-btn ds-btn-primary">
+                  <Link
+                    href={recentHref(todaySession)}
+                    prefetch={false}
+                    scroll={false}
+                    className="ds-btn ds-btn-primary w-full justify-center sm:w-auto"
+                  >
                     {todaySession.answered >= todaySession.total ? 'Review' : 'Continue'}
                     <Icon name="ArrowRightIcon" size={16} />
                   </Link>
@@ -950,6 +985,8 @@ export default function DailySessionInteractive() {
                     ))}
                   </div>
                 </div>
+
+                <TopicPicker value={topics} onChange={setTopics} />
 
                 <details className="ds-disclosure ds-inset">
                   <summary className="flex items-center gap-3 px-4 py-3">
@@ -1025,12 +1062,29 @@ export default function DailySessionInteractive() {
                     {todaySession ? 'Generate a new session' : "Start today's session"}
                   </button>
                   <span className="text-sm ds-faint">
-                    10 questions · about 25 min{tailored ? ' · tailored to you' : ''}
+                    10 questions · about 25 min{topics.length ? ` · ${topics.length} topic${topics.length === 1 ? '' : 's'}` : ''}{tailored ? ' · tailored to you' : ''}
                   </span>
                 </div>
               </form>
             </div>
           </section>
+
+          {needsKey && (
+            <div role="alert" className="ds-banner ds-tone-gold flex-wrap">
+              <Icon name="KeyIcon" size={18} />
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">Add an AI key to generate questions</span>
+                <span className="block text-sm">
+                  Every session is written fresh by the model you pick in Config, so questions don&apos;t repeat. Keys stay in
+                  this browser.
+                </span>
+              </span>
+              <Link href="/config" className="ds-btn ds-btn-primary ds-btn-sm">
+                <Icon name="Cog6ToothIcon" size={15} />
+                Open Config
+              </Link>
+            </div>
+          )}
 
           {loadError && (
             <div role="alert" className="ds-banner ds-tone-rose">

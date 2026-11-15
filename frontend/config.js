@@ -1,10 +1,13 @@
 /**
- * LabNinja frontend design system.
+ * LabNinja frontend design system — "Graphite & Fern".
  *
  * Keep shared visual decisions here first, then consume them from Tailwind and
- * global CSS. The UI is set in Montserrat — a clean, geometric sans — everywhere:
- * headings, body text, labels, numbers (use `tabular-nums` where digits must line
- * up), badges and form fields. Monospace (`code`) is reserved for real code: <code>,
+ * global CSS (the live tokens are the CSS variables in src/styles/tailwind.css).
+ * iOS-inspired on every platform: the UI is set in one neo-grotesque family —
+ * SF Pro on Apple devices (-apple-system), Inter everywhere else (Android,
+ * Windows, Linux), so an Android phone gets the same look as an iPhone —
+ * for headings, body text, labels, numbers (use `tabular-nums` where digits must
+ * line up), badges and form fields. Monospace (`code`) is reserved for real code: <code>,
  * <pre>, and editors for code / JSON / HTML. Never use mono or script faces for
  * UI text. The AI LMS has its own editorial pairing (ab-theme) and the career-studio
  * templates ship their own fonts; both are left alone.
@@ -16,77 +19,77 @@
 
 const designSystem = {
   fonts: {
-    sans: ['Montserrat', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-    display: ['Montserrat', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+    sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', 'Inter', '"Segoe UI"', 'Roboto', 'system-ui', 'sans-serif'],
+    display: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', 'Inter', '"Segoe UI"', 'Roboto', 'system-ui', 'sans-serif'],
     code: ['Fira Code', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
   },
 
   /** Light mode colour tokens — also set as CSS vars in :root */
   light: {
-    background:           '#f7f3ec',
-    foreground:           '#24201b',
-    card:                 '#fffaf2',
-    cardForeground:       '#24201b',
-    popover:              '#fffaf2',
-    popoverForeground:    '#24201b',
-    primary:              '#5b5bd6',
+    background:           '#f5f6fa',
+    foreground:           '#111827',
+    card:                 '#ffffff',
+    cardForeground:       '#111827',
+    popover:              '#ffffff',
+    popoverForeground:    '#111827',
+    primary:              '#357316',
     primaryForeground:    '#ffffff',
-    secondary:            '#127c7a',
+    secondary:            '#0e7490',
     secondaryForeground:  '#ffffff',
-    accent:               '#b36b17',
-    accentForeground:     '#fffaf2',
-    muted:                '#eee6da',
-    mutedForeground:      '#71695f',
-    border:               'rgba(64, 55, 45, 0.18)',
-    input:                '#fffdf8',
-    ring:                 '#6d6be8',
-    success:              '#14845f',
+    accent:               '#b45309',
+    accentForeground:     '#ffffff',
+    muted:                '#eceef3',
+    mutedForeground:      '#5c6679',
+    border:               'rgba(17, 24, 39, 0.10)',
+    input:                '#ffffff',
+    ring:                 '#4c9a26',
+    success:              '#0b7f55',
     successForeground:    '#ffffff',
-    warning:              '#a45d12',
-    warningForeground:    '#fffaf2',
-    error:                '#c24151',
+    warning:              '#a65a00',
+    warningForeground:    '#ffffff',
+    error:                '#d1344a',
     errorForeground:      '#ffffff',
-    destructive:          '#c24151',
+    destructive:          '#d1344a',
     destructiveForeground:'#ffffff',
-    sidebar:              '#f0e8dc',
-    surface:              '#fbf4ea',
+    sidebar:              '#eef0f5',
+    surface:              '#ffffff',
     elevated:             '#ffffff',
-    subtle:               '#e7dfd2',
-    glow:                 'rgba(91, 91, 214, 0.16)',
+    subtle:               '#e3e6ed',
+    glow:                 'rgba(53, 115, 22, 0.14)',
   },
 
   /** Dark mode colour tokens — set as CSS vars inside .dark */
   dark: {
-    background:           '#181511',
-    foreground:           '#f4efe7',
-    card:                 '#211d18',
-    cardForeground:       '#f4efe7',
-    popover:              '#252019',
-    popoverForeground:    '#f4efe7',
-    primary:              '#8f8cf7',
-    primaryForeground:    '#17131f',
-    secondary:            '#5fc6bd',
-    secondaryForeground:  '#10201f',
-    accent:               '#f1ad55',
-    accentForeground:     '#25190b',
-    muted:                '#302a22',
-    mutedForeground:      '#b9ad9f',
-    border:               'rgba(255, 246, 235, 0.17)',
-    input:                '#29231c',
-    ring:                 '#a9a5ff',
-    success:              '#54c79a',
-    successForeground:    '#0e2119',
-    warning:              '#f4b75e',
-    warningForeground:    '#25190b',
-    error:                '#fb7185',
-    errorForeground:      '#2b1015',
-    destructive:          '#fb7185',
-    destructiveForeground:'#2b1015',
-    sidebar:              '#1d1914',
-    surface:              '#211d18',
-    elevated:             '#29231c',
-    subtle:               '#383026',
-    glow:                 'rgba(143, 140, 247, 0.22)',
+    background:           '#080b12',
+    foreground:           '#f5f7fa',
+    card:                 '#151b27',
+    cardForeground:       '#f5f7fa',
+    popover:              '#202938',
+    popoverForeground:    '#f5f7fa',
+    primary:              '#a6f36a',
+    primaryForeground:    '#0a1104',
+    secondary:            '#5cc8d7',
+    secondaryForeground:  '#04161a',
+    accent:               '#f6b654',
+    accentForeground:     '#1f1405',
+    muted:                '#1e2533',
+    mutedForeground:      '#929aaa',
+    border:               'rgba(255, 255, 255, 0.08)',
+    input:                '#1a2130',
+    ring:                 '#b9f68a',
+    success:              '#3ddc97',
+    successForeground:    '#04170e',
+    warning:              '#ffb547',
+    warningForeground:    '#1f1405',
+    error:                '#ff6b73',
+    errorForeground:      '#2b0a0e',
+    destructive:          '#ff6b73',
+    destructiveForeground:'#2b0a0e',
+    sidebar:              '#0c1019',
+    surface:              '#151b27',
+    elevated:             '#202938',
+    subtle:               '#2a3344',
+    glow:                 'rgba(166, 243, 106, 0.16)',
   },
 
   /**
@@ -167,19 +170,21 @@ const designSystem = {
     topicCardCols:       { sm: 1, md: 2, xl: 3 },
   },
 
+  /** Radius grows with hierarchy: chips are pills, controls md/lg, cards lg/xl, sheets 28px (--radius-sheet). */
   radius: {
-    sm: '6px',
-    md: '8px',
-    lg: '12px',
-    xl: '16px',
+    sm: '8px',
+    md: '10px',
+    lg: '14px',
+    xl: '20px',
   },
 
+  /** Restrained and theme-aware: `card` / `lg` read the per-theme CSS variables (dark mode leans on surface tone). */
   shadow: {
-    sm:   '0 1px 2px rgba(15, 12, 8, 0.08)',
-    md:   '0 10px 26px rgba(15, 12, 8, 0.10)',
-    lg:   '0 20px 48px rgba(15, 12, 8, 0.14)',
+    sm:   '0 1px 2px rgba(16, 24, 40, 0.06)',
+    md:   '0 4px 12px -2px rgba(16, 24, 40, 0.10)',
+    lg:   'var(--shadow-float)',
     glow: '0 0 0 1px var(--color-border), 0 12px 32px var(--color-glow)',
-    card: '0 1px 3px rgba(15, 12, 8, 0.07), 0 10px 28px rgba(15, 12, 8, 0.07)',
+    card: 'var(--shadow-card)',
   },
 
   layout: {

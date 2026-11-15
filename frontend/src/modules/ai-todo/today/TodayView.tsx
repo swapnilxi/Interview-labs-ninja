@@ -254,10 +254,10 @@ export default function TodayView({ model }: TodayViewProps) {
         {/* Greeting: the day at a glance */}
         <div className="mb-[1rem] flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="text-[13px] font-semibold text-muted-foreground">
               {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
-            <h2 className="font-heading mt-1 text-[1.6rem] font-semibold leading-tight tracking-tight text-foreground sm:text-[1.85rem]">
+            <h2 className="font-heading mt-0.5 text-[1.625rem] font-bold leading-tight tracking-[-0.022em] text-foreground sm:text-[1.85rem]">
               {greeting(now)}
             </h2>
           </div>

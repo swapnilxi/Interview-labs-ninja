@@ -65,12 +65,12 @@ export default function GoalCard({
   return (
     <div
       onClick={() => onSelect(isSelected ? null : node.id)}
-      className={`todo-task-card cursor-pointer p-4 ${
-        isSelected ? 'border-primary shadow-md ring-1 ring-primary' : ''
-      } ${isDimmed ? 'opacity-35' : ''}`}
+      className={`todo-task-card goal-card cursor-pointer p-4 ${isSelected ? 'goal-card-selected' : ''} ${
+        isDimmed ? 'opacity-40' : ''
+      }`}
     >
       {breadcrumb.length > 0 && (
-        <div className="mb-1.5 truncate text-xs text-muted-foreground" title={breadcrumb.map((b) => b.title).join(' › ')}>
+        <div className="mb-1.5 truncate text-[12px] text-muted-foreground" title={breadcrumb.map((b) => b.title).join(' › ')}>
           ↳ {breadcrumb.map((b) => b.title).join(' › ')}
         </div>
       )}
@@ -81,7 +81,7 @@ export default function GoalCard({
         <button
           type="button"
           aria-pressed={isSelected}
-          className="todo-focus -m-0.5 flex-1 rounded p-0.5 text-left text-sm font-semibold leading-snug text-foreground"
+          className="todo-focus -m-0.5 flex-1 rounded p-0.5 text-left text-[15px] font-semibold leading-snug text-foreground"
         >
           {node.title}
         </button>
@@ -90,124 +90,109 @@ export default function GoalCard({
             e.stopPropagation();
             setActionsExpanded((v) => !v);
           }}
-          className={`shrink-0 rounded-md p-1 transition-colors ${
+          aria-expanded={actionsExpanded}
+          aria-label={actionsExpanded ? 'Hide goal actions' : 'Show goal actions'}
+          className={`-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
             actionsExpanded ? 'copilot-tint' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           }`}
           title={actionsExpanded ? 'Hide actions' : 'Show actions (breakdown, chunk, move, delete)'}
         >
           <Icon
             name="ChevronDownIcon"
-            size={12}
+            size={16}
             className={`transition-transform duration-200 ${actionsExpanded ? 'rotate-180' : ''}`}
           />
         </button>
       </div>
 
       {node.description && (
-        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{node.description}</p>
+        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">{node.description}</p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${statusCfg.bgClass}`}>{statusCfg.label}</span>
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <div className={`w-1.5 h-1.5 rounded-full ${priorityCfg.dotClass}`} />
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className={`rounded-full px-2 py-0.5 text-[12px] font-semibold ${statusCfg.bgClass}`}>{statusCfg.label}</span>
+        <span className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
+          <span className={`h-2 w-2 rounded-full ${priorityCfg.dotClass}`} aria-hidden="true" />
           {node.priority.toUpperCase()}
         </span>
         {node.due_date && (
-          <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-            <Icon name="CalendarIcon" size={9} /> {node.due_date}
+          <span className="flex items-center gap-1 text-[12px] text-muted-foreground tabular-nums">
+            <Icon name="CalendarIcon" size={13} /> {node.due_date}
           </span>
         )}
         {node.generation_type !== 'manual' && (
-          <span className="text-[11px] uppercase tracking-wider font-semibold text-blue-500 bg-blue-500/10 px-1 rounded-sm">
+          <span className="rounded-full px-2 py-0.5 text-xs font-semibold copilot-tint">
             AI {node.generation_type.replace('_', ' ')}
           </span>
         )}
       </div>
 
       {hasExports && (
-        <div className="flex items-center gap-1.5 flex-wrap mt-1.5 text-xs font-bold">
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] font-semibold">
           {node.exported_to_smart_todo && (
-            <span className="text-emerald-500 flex items-center gap-0.5">
-              <Icon name="CpuChipIcon" size={10} /> Smart
+            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+              <Icon name="CpuChipIcon" size={13} /> Smart
             </span>
           )}
           {node.exported_to_quick && (
-            <span className="text-amber-500 flex items-center gap-0.5">
-              <Icon name="BoltIcon" size={10} /> Quick
+            <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+              <Icon name="BoltIcon" size={13} /> Quick
             </span>
           )}
           {node.exported_to_plan && (
-            <span className="text-blue-500 flex items-center gap-0.5">
-              <Icon name="MapIcon" size={10} /> Plan
+            <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+              <Icon name="MapIcon" size={13} /> Plan
             </span>
           )}
         </div>
       )}
 
       {actionsExpanded && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3" onClick={(e) => e.stopPropagation()}>
+        <div className="goal-card-actions mt-3 flex flex-wrap items-center gap-2 pt-3" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => onDiveDeeper(node)}
             disabled={!!busy}
-            className="text-xs font-semibold px-2 py-1 rounded-md bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
+            className="todo-btn todo-btn-quiet"
             title="AI: break into strategic sub-goals at the next level down"
           >
             {busy === 'dive-deeper' ? (
-              <span className="w-2.5 h-2.5 border border-blue-500/40 border-t-blue-500 rounded-full animate-spin" />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 mix-border-primary/30 border-t-primary" />
             ) : (
-              <Icon name="MagnifyingGlassIcon" size={10} />
-            )}{' '}
+              <Icon name="MagnifyingGlassIcon" size={14} className="lab-ink" />
+            )}
             Breakdown
           </button>
           <button
             onClick={() => onChunk(node)}
             disabled={!!busy}
-            className="text-xs font-semibold px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
+            className="todo-btn todo-btn-quiet"
             title="AI: break into small, concrete daily action steps"
           >
             {busy === 'chunk' ? (
-              <span className="w-2.5 h-2.5 border border-purple-500/40 border-t-purple-500 rounded-full animate-spin" />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 mix-border-primary/30 border-t-primary" />
             ) : (
-              <Icon name="BoltIcon" size={10} />
-            )}{' '}
+              <Icon name="BoltIcon" size={14} className="lab-ink" />
+            )}
             Chunk
           </button>
-          <button
-            onClick={() => onEdit(node)}
-            className="text-xs font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground hover:text-foreground hover:mix-bg-muted/80 transition-smooth flex items-center gap-0.5"
-            title="Edit"
-          >
-            <Icon name="PencilSquareIcon" size={10} />
-          </button>
 
-          {!node.parent_id && (
-            <button
-              onClick={() => exportGoalTreeToCsv(node, byId)}
-              className="text-xs font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground hover:text-foreground hover:mix-bg-muted/80 transition-smooth flex items-center gap-0.5"
-              title="Export this goal's full breakdown (all levels) as CSV — opens in Excel or Google Sheets"
-            >
-              <Icon name="ArrowDownTrayIcon" size={10} /> Export
-            </button>
-          )}
-
-          <div className="ml-auto">
+          <div>
             <button
               ref={moveBtnRef}
               onClick={() => setShowMoveMenu((v) => !v)}
               disabled={!!busy}
               aria-haspopup="menu"
               aria-expanded={showMoveMenu}
-              className="todo-focus text-xs font-semibold px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-smooth disabled:opacity-50 flex items-center gap-0.5"
+              className="todo-btn todo-btn-quiet"
             >
-              Move to <Icon name="ChevronDownIcon" size={9} />
+              Move to <Icon name="ChevronDownIcon" size={13} />
             </button>
             <Popover
               open={showMoveMenu}
               anchorRef={moveBtnRef}
               onClose={() => setShowMoveMenu(false)}
               label="Move goal to"
-              className="todo-popover overflow-hidden w-[9rem]"
+              className="todo-popover overflow-hidden w-[11rem] py-1"
             >
               <button
                 role="menuitem"
@@ -215,9 +200,9 @@ export default function GoalCard({
                   setShowMoveMenu(false);
                   onMove(node, 'smart');
                 }}
-                className="w-full text-left px-2.5 py-1.5 text-xs font-medium hover:bg-muted focus:outline-none focus-visible:bg-muted transition-smooth flex items-center gap-1.5"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[14px] font-medium transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
               >
-                <Icon name="CpuChipIcon" size={11} className="text-emerald-500" /> Smart To-Do
+                <Icon name="CpuChipIcon" size={16} className="text-emerald-500" /> Smart To-Do
               </button>
               <button
                 role="menuitem"
@@ -225,9 +210,9 @@ export default function GoalCard({
                   setShowMoveMenu(false);
                   onMove(node, 'quick');
                 }}
-                className="w-full text-left px-2.5 py-1.5 text-xs font-medium hover:bg-muted focus:outline-none focus-visible:bg-muted transition-smooth flex items-center gap-1.5"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[14px] font-medium transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
               >
-                <Icon name="BoltIcon" size={11} className="text-amber-500" /> Quick Daily
+                <Icon name="BoltIcon" size={16} className="text-amber-500" /> Quick Daily
               </button>
               <button
                 role="menuitem"
@@ -235,21 +220,42 @@ export default function GoalCard({
                   setShowMoveMenu(false);
                   onMove(node, 'plan');
                 }}
-                className="w-full text-left px-2.5 py-1.5 text-xs font-medium hover:bg-muted focus:outline-none focus-visible:bg-muted transition-smooth flex items-center gap-1.5"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[14px] font-medium transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
               >
-                <Icon name="MapIcon" size={11} className="text-blue-500" /> Plan & Project
+                <Icon name="MapIcon" size={16} className="text-blue-500" /> Plan & Project
               </button>
             </Popover>
           </div>
 
-          <button
-            onClick={() => onDelete(node)}
-            aria-label="Delete goal"
-            title="Delete goal"
-            className="text-xs font-semibold px-2 py-1 rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-smooth"
-          >
-            <Icon name="TrashIcon" size={10} />
-          </button>
+          {/* Secondary actions: icon buttons at the trailing edge. */}
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={() => onEdit(node)}
+              aria-label="Edit goal"
+              title="Edit"
+              className="todo-btn todo-btn-ghost h-9 w-9 px-0"
+            >
+              <Icon name="PencilSquareIcon" size={16} />
+            </button>
+            {!node.parent_id && (
+              <button
+                onClick={() => exportGoalTreeToCsv(node, byId)}
+                aria-label="Export goal breakdown as CSV"
+                title="Export this goal's full breakdown (all levels) as CSV — opens in Excel or Google Sheets"
+                className="todo-btn todo-btn-ghost h-9 w-9 px-0"
+              >
+                <Icon name="ArrowDownTrayIcon" size={16} />
+              </button>
+            )}
+            <button
+              onClick={() => onDelete(node)}
+              aria-label="Delete goal"
+              title="Delete goal"
+              className="todo-btn todo-btn-ghost h-9 w-9 px-0 text-error hover:text-error"
+            >
+              <Icon name="TrashIcon" size={16} />
+            </button>
+          </div>
         </div>
       )}
     </div>

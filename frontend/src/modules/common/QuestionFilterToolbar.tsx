@@ -79,8 +79,9 @@ export default function QuestionFilterToolbar({
     filters.searchQuery !== '';
 
   return (
-    <div className="bg-card rounded-lg p-24 shadow-md border border-border">
-      <div className="flex items-center justify-between mb-18 lg:mb-0">
+    <div className="rounded-[20px] border mix-border-foreground/[0.07] bg-card p-4 shadow-card sm:p-24">
+      {/* No gap under the title while the filters are folded away (phones / tablets). */}
+      <div className={`flex items-center justify-between lg:mb-0 ${isExpanded ? 'mb-18' : ''}`}>
         <div className="flex items-center gap-12">
           <Icon name="FunnelIcon" size={20} variant="outline" />
           <h3 className="font-heading text-lg font-medium text-foreground">

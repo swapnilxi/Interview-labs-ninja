@@ -143,35 +143,34 @@ export default function Goals({ model }: GoalsProps) {
   };
 
   return (
-    <div className="flex flex-col gap-[1.75rem] relative">
-      {/* Header */}
-      <div className="todo-glass todo-lit flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-[1.5rem]">
-        <div className="flex items-center gap-4">
-          <span className="todo-icon-chip h-[2.75rem] w-[2.75rem] shrink-0">
-            <Icon name="ViewfinderCircleIcon" size={22} />
-          </span>
-          <div>
-          <h2 className="font-heading text-base font-bold text-foreground">Goals</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+    <div className="relative flex flex-col gap-[1.25rem] sm:gap-[1.75rem]">
+      {/* Section header: what this tab is, and its one primary action. */}
+      <div className="todo-section-head">
+        <div className="min-w-0">
+          <h2 className="todo-section-title">Goals</h2>
+          <p className="todo-section-sub">
             Set a goal at any time horizon and chunk it down — no fixed flow required.
           </p>
-          </div>
         </div>
         <button
           onClick={() => handleAddAtLevel('main')}
-          className="todo-btn todo-btn-primary shrink-0 px-4 py-2.5"
+          className="todo-btn todo-btn-primary shrink-0 px-4"
         >
-          <Icon name="PlusIcon" size={14} variant="solid" /> New Goal
+          <Icon name="PlusIcon" size={16} /> New Goal
         </button>
       </div>
 
       {/* AI/action error */}
       {aiError && (
-        <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-          <Icon name="ExclamationTriangleIcon" size={14} className="text-red-500 shrink-0 mt-0.5" />
-          <p className="text-xs text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
-          <button onClick={() => setAiError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
-            <Icon name="XMarkIcon" size={12} />
+        <div className="todo-alert todo-alert-error" role="alert">
+          <Icon name="ExclamationTriangleIcon" size={16} className="mt-0.5 shrink-0" />
+          <p className="flex-1 text-[13px] leading-relaxed text-inherit">{aiError}</p>
+          <button
+            onClick={() => setAiError(null)}
+            aria-label="Dismiss"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full opacity-70 hover:opacity-100"
+          >
+            <Icon name="XMarkIcon" size={14} />
           </button>
         </div>
       )}
@@ -179,8 +178,14 @@ export default function Goals({ model }: GoalsProps) {
       {/* Board */}
       <div>
         {loading ? (
-          <div className="flex flex-col items-center justify-center text-muted-foreground py-16">
-            <span className="w-[1.5rem] h-[1.5rem] border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
+          <div className="flex gap-4 overflow-hidden" aria-busy="true" aria-label="Loading goals">
+            {[0, 1].map((i) => (
+              <div key={i} className="goal-column w-[82vw] shrink-0 p-4 sm:w-[260px]">
+                <div className="skeleton mb-4 h-4 w-[6rem] rounded-full" />
+                <div className="skeleton mb-3 h-20 rounded-[14px]" />
+                <div className="skeleton h-20 rounded-[14px]" />
+              </div>
+            ))}
           </div>
         ) : (
           <GoalTimelineBoard

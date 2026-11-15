@@ -96,7 +96,7 @@ function ProjectNodeMatrixCard({ node }: { node: ProjectNodeFlat }) {
 
       {/* Footer Badges */}
       <div className="flex items-center gap-1.5 flex-wrap text-xs font-medium text-muted-foreground pt-1.5 border-t mix-border-border/40">
-        <span className="uppercase tracking-wider font-bold bg-muted px-1.5 py-0.5 rounded text-[11px]">
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold capitalize">
           {node.node_type}
         </span>
         <span className="mix-bg-muted/70 px-1.5 py-0.5 rounded text-xs">
@@ -260,10 +260,10 @@ export default function PlanProject({ model }: PlanProjectProps) {
   const guide = TAB_GUIDE[activeSubView];
 
   return (
-    <div className="flex flex-col h-full gap-[1.75rem] relative">
-      {/* Header & Sub-view Switcher */}
-      <div className="todo-glass todo-lit flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-[1.25rem]">
-        <div className="todo-segmented shrink-0 p-1">
+    <div className="relative flex h-full flex-col gap-[1.25rem] sm:gap-[1.75rem]">
+      {/* Header & Sub-view Switcher: unboxed — a full-width segmented control on phones, actions under it. */}
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="todo-segmented w-full shrink-0 sm:w-auto">
           {(['projects', 'matrix', 'roadmap'] as PlanSubView[]).map((view) => {
             const icons: Record<PlanSubView, string> = { projects: 'FolderIcon', matrix: 'Squares2X2Icon', roadmap: 'MapIcon' };
             const labels: Record<PlanSubView, string> = { projects: 'Projects', matrix: 'Matrix', roadmap: 'Roadmap' };
@@ -272,7 +272,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
                 key={view}
                 onClick={() => setActiveSubView(view)}
                 aria-pressed={activeSubView === view}
-                className="todo-segment gap-2 px-4 py-2 text-sm font-semibold"
+                className="todo-segment flex-1 gap-1.5 px-2 py-2 text-sm font-semibold sm:flex-none sm:px-4"
               >
                 <Icon name={icons[view]} size={15} variant={activeSubView === view ? 'solid' : 'outline'} /> {labels[view]}
               </button>
@@ -280,11 +280,11 @@ export default function PlanProject({ model }: PlanProjectProps) {
           })}
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           <button
             onClick={handleAnalyze}
             disabled={analyzeLoading}
-            className="todo-btn todo-btn-secondary px-4 py-2.5"
+            className="todo-btn todo-btn-quiet px-4 py-2.5"
             title="Run AI 80/20 analysis on all projects"
           >
             {analyzeLoading ? (
@@ -292,52 +292,57 @@ export default function PlanProject({ model }: PlanProjectProps) {
             ) : (
               <Icon name="StarIcon" size={14} variant="solid" className="text-primary" />
             )}
-            <span className="hidden sm:inline">80/20 Analyze</span>
+            <span>80/20 Analyze</span>
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="todo-btn todo-btn-primary px-4 py-2.5"
+            className="todo-btn todo-btn-primary flex-1 px-4 py-2.5 sm:flex-none"
           >
-            <Icon name="PlusIcon" size={14} variant="solid" /> New Project
+            <Icon name="PlusIcon" size={16} /> New Project
           </button>
         </div>
       </div>
 
       {/* AI action error */}
       {aiError && (
-        <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+        <div className="todo-alert todo-alert-error" role="alert">
           <FlatIcon name="warning" size={16} className="mt-px" />
-          <p className="text-xs text-red-600 dark:text-red-400 flex-1 leading-relaxed">{aiError}</p>
-          <button onClick={() => setAiError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
-            <Icon name="XMarkIcon" size={12} />
+          <p className="flex-1 text-[13px] leading-relaxed text-inherit">{aiError}</p>
+          <button
+            onClick={() => setAiError(null)}
+            aria-label="Dismiss"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full opacity-70 hover:opacity-100"
+          >
+            <Icon name="XMarkIcon" size={14} />
           </button>
         </div>
       )}
 
       {/* ── How-to guide banner ─────────────────────────────────────────── */}
       {showGuide && (
-        <div className="todo-glass relative px-[1.5rem] py-[1.25rem] animate-fade-in">
+        <div className="todo-glass relative animate-fade-in px-4 py-4 sm:px-[1.5rem] sm:py-[1.25rem]">
           <button
             onClick={() => setShowGuide(false)}
-            className="todo-focus absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="todo-focus absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title="Dismiss"
+            aria-label="Dismiss guide"
           >
-            <Icon name="XMarkIcon" size={13} />
+            <Icon name="XMarkIcon" size={16} />
           </button>
-          <div className="flex items-start gap-4 pr-8">
-            <span className="todo-icon-chip h-9 w-9 shrink-0">
+          <div className="flex items-start gap-3 pr-8 sm:gap-4">
+            <span className="todo-icon-chip h-9 w-9 shrink-0 rounded-[10px]">
               <Icon name="LightBulbIcon" size={18} />
             </span>
             <div>
-              <p className="mb-2 text-sm font-bold text-foreground">{guide.title}</p>
-              <ul className="space-y-1.5">
+              <p className="mb-2 text-[15px] font-semibold text-foreground">{guide.title}</p>
+              <ol className="space-y-2">
                 {guide.steps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-                    <span className="text-primary font-bold shrink-0 mt-px">{i + 1}.</span>
+                  <li key={i} className="flex items-start gap-2 text-[13px] leading-relaxed text-muted-foreground">
+                    <span className="lab-ink mt-px shrink-0 font-semibold tabular-nums">{i + 1}.</span>
                     <span>{step}</span>
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
           </div>
         </div>

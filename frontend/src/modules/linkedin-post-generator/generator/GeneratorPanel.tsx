@@ -39,8 +39,10 @@ const POST_TYPE_OPTIONS = [
   'Thought Leadership',
 ];
 
+// py-[0.625rem]: `py-9` is Tailwind's 2.25rem here (9 is not one of this repo's pixel keys), which made every field
+// ~90px tall. 16px text on phones keeps iOS from zooming into the field.
 const inputClass =
-  'w-full rounded-md border border-border bg-input px-12 py-9 text-sm text-foreground focus-ring transition-smooth';
+  'w-full rounded-[12px] border border-border bg-input px-12 py-[0.625rem] text-base text-foreground focus-ring transition-smooth sm:text-sm';
 
 const REFINE_LABELS: Record<RefineAction, string> = {
   improve_hook: 'Improve Hook',
@@ -446,7 +448,7 @@ export default function GeneratorPanel({ templates, onTemplatesChanged, onManage
           type="button"
           onClick={() => runGenerate(false)}
           disabled={generating || !topic.trim()}
-          className="w-full rounded-md bg-gradient-to-r from-violet-600 to-primary px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-smooth hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-smooth hover:mix-bg-primary/90 active:scale-[0.99] disabled:opacity-50"
         >
           <Icon name="SparklesIcon" size={18} variant="outline" />
           {generating ? 'Generating…' : 'Generate Post'}
@@ -530,7 +532,7 @@ export default function GeneratorPanel({ templates, onTemplatesChanged, onManage
             ) : (
               <div className="rounded-lg border border-border bg-card overflow-hidden">
                 <div className="flex items-center gap-2.5 p-3.5 pb-2.5">
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-primary text-sm font-semibold text-white">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
                     <Icon name="UserIcon" size={20} variant="solid" />
                   </div>
                   <div className="min-w-0">

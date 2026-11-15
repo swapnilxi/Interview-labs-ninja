@@ -35,7 +35,7 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
   return (
     <div className="fixed inset-0 z-[1000] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Companion settings">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative max-h-[88vh] w-full overflow-y-auto rounded-t-3xl bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:max-w-lg sm:rounded-3xl">
+      <div className="relative max-h-[88vh] w-full overflow-y-auto rounded-t-3xl bg-card p-5 pb-[calc(1.25rem+var(--safe-bottom))] shadow-2xl sm:max-w-lg sm:rounded-3xl">
         <div className="mx-auto mb-4 h-1.5 w-[3rem] rounded-full bg-border sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-heading text-lg font-extrabold text-foreground">Sound & Companion</h2>
@@ -46,7 +46,7 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
           Show Deepu (off hides him and his voice)
           <input type="checkbox" checked={settings.mascotOn} onChange={(e) => { update({ mascotOn: e.target.checked }); if (!e.target.checked) stopSpeaking(); }} className="h-5 w-5 accent-primary" />
         </label>
-        <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Focus sound</h3>
+        <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">Focus sound</h3>
         <div className="grid grid-cols-2 gap-2">
           {SOUNDSCAPES.map((s) => (
             <button
@@ -86,7 +86,7 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
           Honest note: research on binaural beats is mixed. Think of these as calming focus aids, not a guaranteed brain boost. 🎧 presets work best with stereo headphones.
         </p>
 
-        <h3 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Companion voice</h3>
+        <h3 className="mb-2 mt-5 text-[13px] font-semibold text-muted-foreground">Companion voice</h3>
         <label className="mb-2 flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
           Deepu talks
           <input type="checkbox" checked={settings.voiceOn} onChange={(e) => update({ voiceOn: e.target.checked })} className="h-5 w-5 accent-primary" />
@@ -126,7 +126,7 @@ export default function CompanionSettings({ open, onClose, settings, update }: P
         )}
         <p className="mt-2 text-[11px] text-muted-foreground">The cute pitch comes from your device&apos;s own voices; some phones ignore pitch, so try a different voice if it sounds too normal.</p>
 
-        <h3 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Extras</h3>
+        <h3 className="mb-2 mt-5 text-[13px] font-semibold text-muted-foreground">Extras</h3>
         <label className="mb-2 flex items-center justify-between rounded-2xl border-2 border-border px-3 py-3 text-sm font-bold text-foreground">
           Spiritual touches (mantras & Gita verses)
           <input type="checkbox" checked={settings.spiritual} onChange={(e) => update({ spiritual: e.target.checked })} className="h-5 w-5 accent-primary" />

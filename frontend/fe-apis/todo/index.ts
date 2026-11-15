@@ -15,6 +15,7 @@ import { routes as quickRoutes } from './quick/handlers';
 import { routes as projectRoutes } from './projects/handlers';
 import { routes as projectPlanRoutes } from './projects/planHandlers';
 import { routes as goalRoutes } from './goals/handlers';
+import { routes as scheduleRoutes } from './schedules/handlers';
 import { routes as importRoutes } from './importData/handlers';
 import { routes as paretoRoutes } from './pareto/handlers';
 
@@ -25,6 +26,7 @@ const TODO_ROUTES = compileRoutes([
   ...projectRoutes,
   ...projectPlanRoutes,
   ...goalRoutes,
+  ...scheduleRoutes,
   ...importRoutes,
 ]);
 

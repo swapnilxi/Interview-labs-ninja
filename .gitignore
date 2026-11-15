@@ -118,3 +118,6 @@ tests/e2e/**/test-results/
 playwright-report/
 test-results/
 mobile-reader-check.png
+
+# Android app: per-machine install fingerprint written by app/install_app.sh
+app/.install-state

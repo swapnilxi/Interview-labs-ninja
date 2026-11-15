@@ -50,20 +50,22 @@ function LabsSheet({
       isOpen={isOpen}
       onClose={onClose}
       labelledBy="labs-sheet-title"
-      backdropClassName="bg-black/40 backdrop-blur-[2px]"
+      backdropClassName="ios-sheet-backdrop"
       overlayClassName="flex items-end justify-center"
-      className="notif-sheet flex w-full flex-col overflow-hidden border border-border bg-card shadow-2xl"
+      className="notif-sheet ios-sheet flex w-full flex-col overflow-hidden"
     >
-      <div className="flex justify-center pt-2.5" aria-hidden="true">
-        <span className="h-1.5 w-10 rounded-full mix-bg-muted-foreground/30" />
+      <div className="ios-sheet-grabber" data-sheet-grabber="" aria-hidden="true">
+        <span />
       </div>
-      <h2
-        id="labs-sheet-title"
-        className="font-heading px-5 pb-2 pt-3 text-lg font-semibold text-foreground"
-      >
-        Practice labs
-      </h2>
-      <ul className="px-3 pb-4">
+      <div className="ios-sheet-head">
+        <h2 id="labs-sheet-title" className="ios-sheet-title">
+          Practice labs
+        </h2>
+        <button type="button" onClick={onClose} className="sheet-done">
+          Done
+        </button>
+      </div>
+      <ul className="drawer-group mx-4 mb-4">
         {LABS.map((lab) => {
           const active = pathname === lab.path;
           return (
@@ -72,18 +74,16 @@ function LabsSheet({
                 href={lab.path}
                 onClick={onClose}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-[56px] items-center gap-3 rounded-xl px-3 py-2 transition-colors active:bg-muted ${
-                  active ? 'mix-bg-primary/10 text-primary' : 'text-foreground hover:mix-bg-muted/60'
-                }`}
+                className={`drawer-row drawer-row-tall ${active ? 'drawer-row-active' : ''}`}
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                  <Icon name={lab.icon} size={20} />
+                <span className="drawer-icon drawer-icon-lg" aria-hidden="true">
+                  <Icon name={lab.icon} size={20} variant={active ? 'solid' : 'outline'} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-semibold">{lab.label}</span>
-                  <span className="block text-xs text-muted-foreground">{lab.hint}</span>
+                  <span className="block text-[16px] font-semibold">{lab.label}</span>
+                  <span className="block text-[13px] font-normal text-muted-foreground">{lab.hint}</span>
                 </span>
-                <Icon name="ChevronRightIcon" size={16} className="text-muted-foreground" />
+                <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
               </Link>
             </li>
           );
@@ -104,20 +104,53 @@ export default function MobileTabBar() {
     return () => document.documentElement.classList.remove('has-mobile-tabs');
   }, [hidden]);
 
+  // On-screen keyboard: `html.keyboard-open` while a text field has focus and the visible height has dropped well
+  // below the full height. Chrome / iOS shrink the visual viewport; the Android app's WebView (adjustResize) shrinks
+  // the window itself — both are measured against the height seen while nothing was being typed.
+  React.useEffect(() => {
+    if (hidden) return;
+    const root = document.documentElement;
+    const vv = window.visualViewport;
+    let baseline = window.innerHeight;
+    const editing = () => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return false;
+      if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+      return el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|range|color|file|image)$/i.test((el as HTMLInputElement).type);
+    };
+    const update = () => {
+      const isEditing = editing();
+      if (!isEditing) baseline = Math.max(window.innerHeight, vv?.height ?? 0);
+      const visible = Math.min(window.innerHeight, vv?.height ?? window.innerHeight);
+      root.classList.toggle('keyboard-open', isEditing && baseline - visible > 150);
+    };
+    const later = () => window.setTimeout(update, 60);
+    vv?.addEventListener('resize', update);
+    window.addEventListener('resize', update);
+    document.addEventListener('focusin', later);
+    document.addEventListener('focusout', later);
+    return () => {
+      vv?.removeEventListener('resize', update);
+      window.removeEventListener('resize', update);
+      document.removeEventListener('focusin', later);
+      document.removeEventListener('focusout', later);
+      root.classList.remove('keyboard-open');
+    };
+  }, [hidden]);
+
   if (hidden) return null;
 
   const onLabs = LABS.some((l) => pathname === l.path);
   const tab = (active: boolean) => `mobile-tab ${active ? 'mobile-tab-active' : ''}`;
 
+  const daily = pathname === '/daily-session';
+  const todo = pathname.startsWith('/ai-todo');
+
   return (
     <>
       <nav className="mobile-tabbar md:hidden" aria-label="Primary">
-        <Link
-          href="/daily-session"
-          className={tab(pathname === '/daily-session')}
-          aria-current={pathname === '/daily-session' ? 'page' : undefined}
-        >
-          <Icon name="AcademicCapIcon" size={22} />
+        <Link href="/daily-session" className={tab(daily)} aria-current={daily ? 'page' : undefined}>
+          <Icon name="AcademicCapIcon" size={24} variant={daily ? 'solid' : 'outline'} />
           <span>Daily</span>
         </Link>
         <button
@@ -127,15 +160,11 @@ export default function MobileTabBar() {
           aria-haspopup="dialog"
           aria-current={onLabs ? 'page' : undefined}
         >
-          <Icon name="BeakerIcon" size={22} />
+          <Icon name="BeakerIcon" size={24} variant={onLabs ? 'solid' : 'outline'} />
           <span>Labs</span>
         </button>
-        <Link
-          href="/ai-todo"
-          className={tab(pathname.startsWith('/ai-todo'))}
-          aria-current={pathname.startsWith('/ai-todo') ? 'page' : undefined}
-        >
-          <Icon name="ClipboardDocumentCheckIcon" size={22} />
+        <Link href="/ai-todo" className={tab(todo)} aria-current={todo ? 'page' : undefined}>
+          <Icon name="CheckCircleIcon" size={24} variant={todo ? 'solid' : 'outline'} />
           <span>To-Do</span>
         </Link>
         <NotificationBell variant="tab" />
@@ -145,7 +174,7 @@ export default function MobileTabBar() {
           className="mobile-tab"
           aria-label="More navigation"
         >
-          <Icon name="Bars3Icon" size={22} />
+          <Icon name="Squares2X2Icon" size={24} />
           <span>More</span>
         </button>
       </nav>

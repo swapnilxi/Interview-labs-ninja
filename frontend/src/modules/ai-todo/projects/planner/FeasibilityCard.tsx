@@ -75,7 +75,7 @@ export default function FeasibilityCard({ feasibility, startDate, endDate, onUse
 
         {feasibility.concerns.length > 0 && (
           <div className="mt-3">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Concerns</p>
+            <p className="text-[13px] font-semibold text-muted-foreground">Concerns</p>
             <ul className="mt-1.5 flex flex-col gap-1">
               {feasibility.concerns.map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-foreground">
@@ -89,7 +89,7 @@ export default function FeasibilityCard({ feasibility, startDate, endDate, onUse
 
         {feasibility.recommendations.length > 0 && (
           <div className="mt-3">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">What the AI would do</p>
+            <p className="text-[13px] font-semibold text-muted-foreground">What the AI would do</p>
             <ul className="mt-1.5 flex flex-col gap-1">
               {feasibility.recommendations.map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-foreground">

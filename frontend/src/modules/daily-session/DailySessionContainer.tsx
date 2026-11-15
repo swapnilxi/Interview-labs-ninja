@@ -117,14 +117,14 @@ function DailySessionContent() {
     <div className="lab-page ds-skin min-h-screen pt-[60px]" data-accent-exempt="">
       {!focused && (
         <header className="ds-header">
-          <div className="mx-auto max-w-[1200px] px-4 pt-[1.75rem] sm:px-[2rem] sm:pt-[2.25rem]">
-            <div className="flex flex-col gap-5 pb-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="min-w-0 ds-enter">
-                <p className="ds-eyebrow min-h-[1rem]">{greeting}</p>
+          <div className="mx-auto max-w-[1200px] px-4 pt-[1.1rem] sm:px-[2rem] sm:pt-[2.25rem]">
+            <div className="flex items-end justify-between gap-3 pb-2 sm:gap-5 sm:pb-4">
+              <div className="min-w-0 flex-1 ds-enter">
+                <p className="ds-eyebrow min-h-[1rem] truncate">{greeting}</p>
                 <h1 className="ds-display mt-2">{meta.title}</h1>
-                <p className="ds-body mt-1.5 max-w-[56ch]">{meta.subtitle}</p>
+                <p className="ds-body mt-1.5 hidden max-w-[56ch] sm:block">{meta.subtitle}</p>
               </div>
-              <div className="flex flex-shrink-0 items-center gap-2 ds-enter-2">
+              <div className="ds-stats flex flex-shrink-0 items-center gap-1.5 sm:gap-2 ds-enter-2">
                 <span className="ds-stat ds-tone-gold" title="Days in a row with a finished drill">
                   <Icon name="FireIcon" variant="solid" size={18} />
                   {stats.streak}

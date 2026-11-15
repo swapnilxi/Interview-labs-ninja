@@ -12,12 +12,14 @@ const STORAGE_KEY = 'labninja.appearance.v1';
 export interface AccentPreset {
   key: string;
   label: string;
-  /** null = the app's built-in default indigo, i.e. no override applied. */
+  /** null = the app's built-in default (lime on dark, fern on light: --accent-default in tailwind.css), i.e. no override. */
   hex: string | null;
 }
 
 export const ACCENT_PRESETS: AccentPreset[] = [
   { key: 'default', label: 'Default', hex: null },
+  // The pre-2026-11 built-in indigo, kept selectable after the default moved to lime / fern.
+  { key: 'classic', label: 'Classic', hex: '#7C7AF0' },
   { key: 'orange', label: 'Orange', hex: '#F97316' },
   { key: 'indigo-purple', label: 'Indigo', hex: '#7131CC' },
   { key: 'violet', label: 'Violet', hex: '#6B4F8A' },
@@ -61,25 +63,75 @@ export interface DerivedAccentTokens {
   glow: string;
 }
 
+const WHITE: RGB = [255, 255, 255];
+const BLACK: RGB = [0, 0, 0];
+const INK: RGB = [11, 16, 32]; // #0b1020: the dark text used on light accent fills
+/** The surface accent TEXT is hardest to read on: the light page background, and the lightest dark surface (elevated). */
+const LIGHT_SURFACE: RGB = [245, 246, 250]; // --color-background (light)
+const DARK_SURFACE: RGB = [32, 41, 56]; // --color-elevated (dark)
+/** `text-primary` is used as running text in ~450 places, so the accent must read as small text (WCAG AA). */
+const MIN_TEXT_CONTRAST = 4.5;
+
+function channel(v: number): number {
+  const c = v / 255;
+  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function luminance([r, g, b]: RGB): number {
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+export function contrastRatio(a: RGB, b: RGB): number {
+  const x = luminance(a);
+  const y = luminance(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
 /**
- * Derives the four CSS custom properties an accent color drives, adjusted
- * for light vs. dark mode the same way the app's built-in default tokens
- * are (a darker shade on the light cream background, a brighter shade and
- * lighter ring on the dark background).
+ * Derives the four CSS custom properties an accent colour drives, per theme. The hue is kept; the shade is stepped
+ * until the accent reads as text (>= 4.5:1) on that theme's hardest surface: toward black on light (at least the old
+ * 12% darker shade, so a deep preset looks as before), toward white on dark. The foreground on an accent fill is
+ * whichever of white / ink contrasts more. KEEP IN SYNC with the pre-paint script in app/layout.tsx (same steps), or
+ * the page would flash a different shade before hydration.
  */
 export function deriveAccentTokens(hex: string, isDark: boolean): DerivedAccentTokens {
   const base = hexToRgb(hex);
-  const primaryRgb = isDark ? base : mixRgb(base, [0, 0, 0], 0.12);
-  const ringRgb = mixRgb(primaryRgb, [255, 255, 255], isDark ? 0.14 : 0.08);
-  const luminance =
-    (0.2126 * primaryRgb[0] + 0.7152 * primaryRgb[1] + 0.0722 * primaryRgb[2]) / 255;
+  const surface = isDark ? DARK_SURFACE : LIGHT_SURFACE;
+  const toward = isDark ? WHITE : BLACK;
+  let step = isDark ? 0 : 0.12;
+  let primaryRgb = mixRgb(base, toward, step);
+  while (step < 0.7 && contrastRatio(primaryRgb, surface) < MIN_TEXT_CONTRAST) {
+    step += 0.04;
+    primaryRgb = mixRgb(base, toward, step);
+  }
+  const ringRgb = mixRgb(primaryRgb, WHITE, isDark ? 0.14 : 0.08);
   const glowAlpha = isDark ? 0.22 : 0.16;
   return {
     primary: rgbToHex(primaryRgb),
-    primaryForeground: luminance > 0.55 ? '#17131f' : '#ffffff',
+    primaryForeground: contrastRatio(primaryRgb, WHITE) >= contrastRatio(primaryRgb, INK) ? '#ffffff' : '#0b1020',
     ring: rgbToHex(ringRgb),
-    glow: `rgba(${Math.round(primaryRgb[0])}, ${Math.round(primaryRgb[1])}, ${Math.round(primaryRgb[2])}, ${glowAlpha})`,
+    glow: `rgba(${Math.round(primaryRgb[0])},${Math.round(primaryRgb[1])},${Math.round(primaryRgb[2])},${glowAlpha})`,
   };
+}
+
+let colorTransitionTimer: number | undefined;
+
+/**
+ * Runs a colour change (accent or theme) with a short cross-fade: `html.color-transition` (tailwind.css) eases colour,
+ * background, border, fill and shadow for ~0.35s, then is removed. Skipped for reduced motion.
+ */
+export function withColorTransition(run: () => void): void {
+  if (typeof document === 'undefined') {
+    run();
+    return;
+  }
+  const root = document.documentElement;
+  if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    root.classList.add('color-transition');
+    window.clearTimeout(colorTransitionTimer);
+    colorTransitionTimer = window.setTimeout(() => root.classList.remove('color-transition'), 420);
+  }
+  run();
 }
 
 /** Applies (or clears, for hex === null) the accent to the live document. */
@@ -134,6 +186,7 @@ export const appearanceService = {
   ACCENT_PRESETS,
   isValidHex,
   deriveAccentTokens,
+  withColorTransition,
   applyAccent,
   getStoredAccent,
   setStoredAccent,

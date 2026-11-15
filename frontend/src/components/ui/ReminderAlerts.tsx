@@ -15,18 +15,28 @@ import {
   type ReminderAlert,
 } from '@/lib/reminders/reminderEngine';
 import { formatClock, formatReminder, snoozeOptions } from '@/lib/reminders/reminderTime';
+import { ScheduleCard, useScheduleAlerts } from '@/components/ui/ScheduleAlerts';
 
 /**
  * The reminder that goes off while the app is open: a card on top of whatever page you are on, with Done, Snooze and
- * Open. (In the background the same reminder is a device notification; see reminderEngine.ts.)
+ * Open. (In the background the same reminder is a device notification; see reminderEngine.ts.) Scheduler cards
+ * (scheduled reminders and AI jobs, ScheduleAlerts.tsx) share the stack so the two never overlap.
  */
 export default function ReminderAlerts() {
-  const alerts = useSyncExternalStore(subscribeReminderAlerts, getReminderAlerts, getServerReminderAlerts);
-  if (!alerts.length) return null;
+  const alerts = useSyncExternalStore(
+    subscribeReminderAlerts,
+    getReminderAlerts,
+    getServerReminderAlerts
+  );
+  const scheduleAlerts = useScheduleAlerts();
+  if (!alerts.length && !scheduleAlerts.length) return null;
   return (
     <div className="rem-alerts" role="region" aria-label="Reminders">
       {alerts.map((alert) => (
         <ReminderCard key={alert.key} alert={alert} />
+      ))}
+      {scheduleAlerts.map((alert) => (
+        <ScheduleCard key={alert.key} alert={alert} />
       ))}
     </div>
   );
@@ -58,16 +68,24 @@ function ReminderCard({ alert }: { alert: ReminderAlert }) {
   };
 
   return (
-    <div className="rem-alert" role="alertdialog" aria-labelledby={`rem-${alert.key}`} aria-describedby={`rem-when-${alert.key}`}>
+    <div
+      className="rem-alert"
+      role="alertdialog"
+      aria-labelledby={`rem-${alert.key}`}
+      aria-describedby={`rem-when-${alert.key}`}
+    >
       <div className="flex items-start gap-3">
         <span className="rem-alert-icon" aria-hidden>
-          <FlatIcon name="clock" size={22} />
+          <FlatIcon name="clock" size={20} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
+          <p className={`text-[12px] font-semibold ${alert.missed ? 'text-warning' : 'lab-ink'}`}>
             {alert.missed ? 'Missed reminder' : 'Reminder'}
           </p>
-          <p id={`rem-${alert.key}`} className="mt-0.5 break-words text-[15px] font-semibold leading-snug text-foreground">
+          <p
+            id={`rem-${alert.key}`}
+            className="mt-0.5 break-words text-[15px] font-semibold leading-snug text-foreground"
+          >
             {alert.title}
           </p>
           <p id={`rem-when-${alert.key}`} className="mt-0.5 text-xs text-muted-foreground">
@@ -101,11 +119,21 @@ function ReminderCard({ alert }: { alert: ReminderAlert }) {
         </div>
       ) : (
         <div className="mt-3 flex gap-1.5">
-          <button type="button" disabled={busy} onClick={() => void done()} className="todo-btn todo-btn-primary h-10 flex-1 text-sm">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void done()}
+            className="todo-btn todo-btn-primary h-10 flex-1 text-sm"
+          >
             <Icon name="CheckIcon" size={16} />
             Done
           </button>
-          <button type="button" disabled={busy} onClick={() => setSnoozing(true)} className="todo-btn todo-btn-quiet h-10 flex-1 text-sm">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setSnoozing(true)}
+            className="todo-btn todo-btn-quiet h-10 flex-1 text-sm"
+          >
             <Icon name="ClockIcon" size={16} />
             Snooze
           </button>

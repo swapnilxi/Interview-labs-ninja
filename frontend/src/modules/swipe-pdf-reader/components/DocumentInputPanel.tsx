@@ -301,13 +301,13 @@ export default function DocumentInputPanel({
 
   return (
     <div className="w-full max-w-xl mx-auto px-4 py-4">
-      {/* Header */}
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-semibold mb-2">
+      {/* Header: a left-aligned large title on phones, like every other screen; centred from sm. */}
+      <div className="mb-[1.25rem] text-left sm:text-center">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mix-bg-primary/10 lab-ink text-xs font-semibold mb-2">
           <Icon name="DocumentTextIcon" size={16} />
           <span>Swipe PDF &amp; Document Reader</span>
         </div>
-        <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
+        <h1 className="font-heading text-[1.75rem] font-bold leading-tight tracking-[-0.024em] text-foreground sm:text-3xl">
           Turn Long Documents Into Swipe Cards
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1">
@@ -353,26 +353,26 @@ export default function DocumentInputPanel({
             </div>
 
             {/* Metrics grid */}
-            <div className="grid grid-cols-3 gap-3 p-4 rounded-xl bg-muted/40 border border-border/60">
+            <div className="grid grid-cols-3 gap-3 p-4 rounded-xl mix-bg-muted/40 border mix-border-border/60">
               <div className="flex flex-col items-center justify-center p-2">
-                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Source</span>
+                <span className="text-xs font-medium text-muted-foreground">Source</span>
                 <span className="text-sm font-bold text-foreground capitalize mt-0.5 flex items-center gap-1">
                   {doc.sourceType === 'pdf' ? (
                     <><Icon name="DocumentIcon" size={14} className="text-rose-500" /> PDF</>
                   ) : (
-                    <><Icon name="ClipboardDocumentTextIcon" size={14} className="text-blue-500" /> Paste</>
+                    <><Icon name="ClipboardDocumentTextIcon" size={14} className="lab-ink" /> Paste</>
                   )}
                 </span>
               </div>
-              <div className="flex flex-col items-center justify-center p-2 border-x border-border/60">
-                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Pages</span>
+              <div className="flex flex-col items-center justify-center p-2 border-x mix-border-border/60">
+                <span className="text-xs font-medium text-muted-foreground">Pages</span>
                 <span className="text-sm font-bold text-foreground mt-0.5">
                   {doc.totalPages ? `${doc.totalPages}` : 'N/A'}
                 </span>
               </div>
               <div className="flex flex-col items-center justify-center p-2">
-                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Chunks</span>
-                <span className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+                <span className="text-xs font-medium text-muted-foreground">Chunks</span>
+                <span className="text-sm font-bold lab-ink mt-0.5">
                   {doc.totalChunks} Cards
                 </span>
               </div>
@@ -380,9 +380,9 @@ export default function DocumentInputPanel({
 
             {/* Save for offline toggle */}
             {doc.sourceType === 'pdf' && pendingFile && (
-              <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/30">
+              <div className="flex items-center justify-between p-3 rounded-xl border border-border mix-bg-muted/30">
                 <div className="flex items-center gap-2.5">
-                  <Icon name="ArrowDownTrayIcon" size={16} className="text-blue-500" />
+                  <Icon name="ArrowDownTrayIcon" size={16} className="lab-ink" />
                   <div className="text-left">
                     <p className="text-xs font-semibold text-foreground">Save PDF for offline reading</p>
                     <p className="text-[10px] text-muted-foreground">
@@ -405,8 +405,8 @@ export default function DocumentInputPanel({
                       storage.saveFullDocument(doc).catch(() => setQuotaError(true));
                     }
                   }}
-                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
-                    keepOffline ? 'bg-blue-600' : 'bg-muted-foreground/30'
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:mix-ring-primary/50 ${
+                    keepOffline ? 'bg-primary' : 'mix-bg-muted-foreground/30'
                   }`}
                 >
                   <span
@@ -430,7 +430,7 @@ export default function DocumentInputPanel({
               <button
                 type="button"
                 onClick={() => onDocumentReady(doc)}
-                className="w-full sm:w-2/3 py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2"
+                className="w-full sm:w-2/3 py-3 px-6 rounded-xl bg-primary hover:mix-bg-primary/90 text-primary-foreground font-semibold text-sm shadow-lg transition-all flex items-center justify-center gap-2"
               >
                 <span>Start Reading</span>
                 <Icon name="ArrowRightIcon" size={18} />
@@ -441,7 +441,7 @@ export default function DocumentInputPanel({
         ) : isProcessing ? (
           /* ── Processing / loading state ───────────────────────────────── */
           <div className="p-8 text-center space-y-4">
-            <div className="w-12 h-12 mx-auto rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center animate-spin">
+            <div className="w-12 h-12 mx-auto rounded-full mix-bg-primary/10 lab-ink flex items-center justify-center animate-spin">
               <Icon name="ArrowPathIcon" size={24} />
             </div>
             <div>
@@ -455,7 +455,7 @@ export default function DocumentInputPanel({
             {/* Progress bar */}
             <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
               <div
-                className="bg-blue-600 h-full transition-all duration-300 rounded-full"
+                className="bg-primary h-full transition-all duration-300 rounded-full"
                 style={{ width: `${processingState.progress}%` }}
               />
             </div>
@@ -472,13 +472,13 @@ export default function DocumentInputPanel({
           /* ── Input tabs (idle / error state) ─────────────────────────── */
           <div>
             {/* Tab bar */}
-            <div className="flex border-b border-border bg-muted/30">
+            <div className="flex border-b border-border mix-bg-muted/30">
               <button
                 type="button"
                 onClick={() => setActiveTab('upload')}
                 className={`flex-1 py-3 px-4 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all ${
                   activeTab === 'upload'
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-card'
+                    ? 'border-primary lab-ink bg-card'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -490,7 +490,7 @@ export default function DocumentInputPanel({
                 onClick={() => setActiveTab('paste')}
                 className={`flex-1 py-3 px-4 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all ${
                   activeTab === 'paste'
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-card'
+                    ? 'border-primary lab-ink bg-card'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -511,7 +511,7 @@ export default function DocumentInputPanel({
               {activeTab === 'upload' ? (
                 <div className="space-y-3">
                   {/* Mode Selector: Local vs Cloud */}
-                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-muted/60 rounded-xl border border-border text-xs">
+                  <div className="grid grid-cols-2 gap-1.5 p-1 mix-bg-muted/60 rounded-xl border border-border text-xs">
                     <button
                       type="button"
                       onClick={() => setStorageMode('local')}
@@ -535,7 +535,7 @@ export default function DocumentInputPanel({
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
-                      <Icon name="CloudArrowUpIcon" size={14} className="text-blue-500" />
+                      <Icon name="CloudArrowUpIcon" size={14} className="lab-ink" />
                       <span>Upload to Cloud</span>
                     </button>
                   </div>
@@ -547,7 +547,7 @@ export default function DocumentInputPanel({
                       <span>Processed on this device — file stays local &amp; 100% private.</span>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+                    <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium lab-ink">
                       <Icon name="CloudIcon" size={12} />
                       <span>Uploaded to server — saved to SQLite &amp; synced across devices.</span>
                     </div>
@@ -573,8 +573,8 @@ export default function DocumentInputPanel({
                     onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all select-none ${
                       dragActive
-                        ? 'border-blue-500 bg-blue-500/5 scale-[0.99]'
-                        : 'border-border hover:border-blue-500/50 hover:bg-muted/40'
+                        ? 'border-primary mix-bg-primary/5 scale-[0.99]'
+                        : 'border-border hover:mix-border-primary/50 hover:mix-bg-muted/40'
                     }`}
                   >
                     {/* Hidden file input — no capture attr so Android uses file picker (not camera) */}
@@ -591,7 +591,7 @@ export default function DocumentInputPanel({
                       }}
                     />
 
-                    <div className="w-14 h-14 mx-auto rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3">
+                    <div className="w-14 h-14 mx-auto rounded-full mix-bg-primary/10 lab-ink flex items-center justify-center mb-3">
                       <Icon name="DocumentArrowUpIcon" size={28} />
                     </div>
 
@@ -601,7 +601,7 @@ export default function DocumentInputPanel({
                     <p className="text-xs text-muted-foreground mt-1">
                       Tap to open file picker · or drag &amp; drop · up to 50 MB
                     </p>
-                    <p className="text-[10px] text-muted-foreground/70 mt-2">
+                    <p className="text-[10px] mix-text-muted-foreground/70 mt-2">
                       Works with Downloads, Files, Drive &amp; other apps on Android
                     </p>
                   </div>
@@ -617,8 +617,8 @@ export default function DocumentInputPanel({
                       role="switch"
                       aria-checked={keepOffline}
                       onClick={() => setKeepOffline((v) => !v)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
-                        keepOffline ? 'bg-blue-600' : 'bg-muted-foreground/30'
+                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:mix-ring-primary/50 ${
+                        keepOffline ? 'bg-primary' : 'mix-bg-muted-foreground/30'
                       }`}
                     >
                       <span
@@ -642,7 +642,7 @@ export default function DocumentInputPanel({
                       placeholder="e.g. System Design Interview Notes"
                       value={docTitleInput}
                       onChange={(e) => setDocTitleInput(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:mix-ring-primary/50"
                     />
                   </div>
                   <div>
@@ -654,14 +654,14 @@ export default function DocumentInputPanel({
                       placeholder="Paste your raw text, study notes, or document content here…"
                       value={pastedText}
                       onChange={(e) => setPastedText(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:mix-ring-primary/50 resize-none"
                     />
                   </div>
                   <button
                     type="button"
                     onClick={handleProcessPastedText}
                     disabled={!pastedText.trim()}
-                    className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20"
+                    className="w-full py-3 px-4 rounded-xl bg-primary hover:mix-bg-primary/90 disabled:opacity-50 text-primary-foreground font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-md"
                   >
                     <Icon name="SparklesIcon" size={18} />
                     <span>Process Text &amp; Create Cards</span>

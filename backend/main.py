@@ -67,6 +67,7 @@ from modules.ai_todo.quick.router import router as quick_router
 from modules.ai_todo.projects.router import router as projects_router
 from modules.ai_todo.projects.plan_router import router as project_plan_router
 from modules.ai_todo.goals.router import router as goals_router
+from modules.ai_todo.schedules.router import router as schedules_router
 from modules.ai_todo.pareto.router import router as pareto_router
 from modules.ai_todo.import_data.router import router as import_router
 
@@ -80,6 +81,7 @@ from modules.auth.db import promote_admins_from_env, promote_superadmins_from_en
 # Swipe PDF Reader module
 from modules.swipe_pdf_reader.db import init_pdf_db
 from modules.swipe_pdf_reader.router import router as pdf_router
+from modules.swipe_learn.router import router as swipe_learn_router
 
 # AI LMS module
 from modules.ai_lms.db import init_lms_db
@@ -181,9 +183,11 @@ app.include_router(quick_router)
 app.include_router(projects_router)
 app.include_router(project_plan_router)
 app.include_router(goals_router)
+app.include_router(schedules_router)
 app.include_router(pareto_router)
 app.include_router(import_router)
 app.include_router(pdf_router)
+app.include_router(swipe_learn_router)
 app.include_router(lms_router)
 app.include_router(voice_router)
 

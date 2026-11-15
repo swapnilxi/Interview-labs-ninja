@@ -66,6 +66,70 @@ export function findUserById(id: number): UserRecord | null {
   }
 }
 
+// ── Permissions: twin of backend/modules/auth/dependencies.py (DEFAULT_PERMISSIONS, has_permission,
+// effective_permissions). Keep the keys and role defaults in step with the Python ones.
+const ADMIN_EQUIVALENT_PERMISSIONS = ['users:manage', 'users:delete'];
+const KNOWN_PERMISSIONS = ['ai_lms:edit', ...ADMIN_EQUIVALENT_PERMISSIONS];
+const DEFAULT_PERMISSIONS: Record<string, string[]> = {
+  editor: ['ai_lms:edit'],
+  admin: ['ai_lms:edit', ...ADMIN_EQUIVALENT_PERMISSIONS],
+  superadmin: ['ai_lms:edit', ...ADMIN_EQUIVALENT_PERMISSIONS],
+};
+
+export type AccountStatus = 'pending' | 'approved' | 'rejected';
+
+export interface PublicUser {
+  id: number;
+  email: string;
+  display_name: string | null;
+  role: UserRecord['role'];
+  status: AccountStatus;
+  created_at: string;
+  permissions: string[];
+}
+
+/**
+ * Twin of `_public_user` in backend/modules/auth/router.py: the user object /auth/me, login and signup return.
+ * The client gates the admin portal on `permissions` ('users:manage') and shows the pending banner from `status`,
+ * so leaving either out made a superadmin look like a plain user in nextjs-api mode.
+ */
+export function publicUser(user: UserRecord): PublicUser {
+  let status: AccountStatus = 'approved';
+  const overrides: Record<string, boolean> = {};
+  const db = getSqliteConn();
+  if (db) {
+    try {
+      const row = db.prepare('SELECT status FROM users WHERE id = ?').get(user.id) as { status?: string } | undefined;
+      if (row?.status === 'pending' || row?.status === 'rejected' || row?.status === 'approved') status = row.status;
+    } catch {
+      /* an older database without the status column: every account counts as approved, like Python's default */
+    }
+    try {
+      const rows = db.prepare('SELECT permission, allowed FROM user_permissions WHERE user_id = ?').all(user.id) as Array<{
+        permission: string;
+        allowed: number;
+      }>;
+      for (const r of rows) overrides[r.permission] = !!r.allowed;
+    } catch {
+      /* no user_permissions table yet: role defaults only */
+    } finally {
+      try { db.close(); } catch {}
+    }
+  }
+  const role = user.role || 'user';
+  const defaults = DEFAULT_PERMISSIONS[role] ?? [];
+  const permissions = KNOWN_PERMISSIONS.filter((p) => (p in overrides ? overrides[p] : defaults.includes(p))).sort();
+  return {
+    id: user.id,
+    email: user.email,
+    display_name: user.display_name,
+    role,
+    status,
+    created_at: user.created_at,
+    permissions,
+  };
+}
+
 export function createUser(email: string, passwordHash: string, displayName?: string | null): UserRecord | null {
   const db = getSqliteConn();
   if (!db) return null;

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { findUserByEmail, verifyPassword, createAccessToken } from '../_shared/db';
+import { findUserByEmail, verifyPassword, createAccessToken, publicUser } from '../_shared/db';
 
 export async function handleLogin(req: NextRequest): Promise<NextResponse> {
   try {
@@ -33,12 +33,7 @@ export async function handleLogin(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       access_token: token,
       token_type: 'bearer',
-      user: {
-        id: user.id,
-        email: user.email,
-        display_name: user.display_name,
-        role: user.role,
-      },
+      user: publicUser(user),
     });
   } catch (err) {
     console.error('[fe-api/auth/login] Unexpected error:', err);

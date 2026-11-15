@@ -146,7 +146,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
                 <div key={key}>
                   {/* The tab's name only matters when more than one tab has results */}
                   {groups.length > 1 && (
-                    <div className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{TAB_LABELS[key]}</div>
+                    <div className="mb-0.5 text-[12px] font-semibold text-muted-foreground">{TAB_LABELS[key]}</div>
                   )}
                   <div className="-mx-2 space-y-px">
                     {data![key].map(t => (

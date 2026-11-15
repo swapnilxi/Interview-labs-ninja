@@ -78,7 +78,7 @@ export default function RequireAuth({ children, feature }: { children: React.Rea
               <button
                 type="button"
                 onClick={() => openLoginModal({ feature })}
-                className="inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-gradient-to-r from-primary to-violet-600 hover:opacity-95 text-white font-bold transition-smooth shadow-md shadow-primary/25"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground transition-smooth hover:mix-bg-primary/90"
               >
                 <Icon name="LockClosedIcon" size={16} />
                 Open Login Popup

@@ -292,7 +292,7 @@ export default function TaskDetailModal({
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mix-bg-muted/20 p-3 rounded-xl border mix-border-border/60">
             {/* Status */}
             <div>
-              <label htmlFor="task-detail-status" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+              <label htmlFor="task-detail-status" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
                 Status
               </label>
               <select
@@ -311,7 +311,7 @@ export default function TaskDetailModal({
 
             {/* Priority */}
             <div>
-              <label htmlFor="task-detail-priority" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+              <label htmlFor="task-detail-priority" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
                 Priority
               </label>
               <select
@@ -330,7 +330,7 @@ export default function TaskDetailModal({
 
             {/* Due Date */}
             <div>
-              <label htmlFor="task-detail-due" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+              <label htmlFor="task-detail-due" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
                 Due Date
               </label>
               <input
@@ -344,7 +344,7 @@ export default function TaskDetailModal({
 
             {/* Time Estimate */}
             <div>
-              <label htmlFor="task-detail-estimate" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+              <label htmlFor="task-detail-estimate" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
                 Time Estimate
               </label>
               <input
@@ -361,7 +361,7 @@ export default function TaskDetailModal({
 
           {/* Reminder: fires on this device at that time; the calendar copy reminds you even with the app closed */}
           <div className="todo-surface flex flex-wrap items-center gap-2 p-2.5">
-            <span className="mr-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Reminder</span>
+            <span className="mr-1 text-[13px] font-medium text-muted-foreground">Reminder</span>
             <ReminderPicker value={remindAt} onChange={onReminderChange} variant="field" taskTitle={title} />
             {task && canAddToCalendar({ ...task, remind_at: remindAt }) && (
               <>
@@ -482,7 +482,7 @@ export default function TaskDetailModal({
                     <span className={sub.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'}>
                       {sub.title}
                     </span>
-                    <span className="text-[11px] uppercase font-bold text-muted-foreground">
+                    <span className="text-[12px] font-semibold capitalize text-muted-foreground">
                       {sub.status}
                     </span>
                   </div>

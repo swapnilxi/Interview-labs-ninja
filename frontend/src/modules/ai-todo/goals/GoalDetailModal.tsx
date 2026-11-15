@@ -132,7 +132,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
 
       <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-clean">
         <div>
-          <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+          <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
             Goal Title *
           </label>
           <input
@@ -146,12 +146,12 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
 
         <div>
           {isLoggedIn() ? (
-            <div className="grid grid-cols-2 gap-1 p-1 bg-muted rounded-lg mb-2">
+            <div className="ios-segmented mb-2 grid w-full grid-cols-2">
               <button
                 type="button"
                 onClick={() => setContextTab('description')}
-                className={`rounded-md py-1.5 text-[11px] font-bold uppercase tracking-wider transition-smooth ${
-                  contextTab === 'description' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                className={`ios-segment w-full ${
+                  contextTab === 'description' ? 'ios-segment-active' : ''
                 }`}
               >
                 Description
@@ -159,15 +159,15 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
               <button
                 type="button"
                 onClick={() => setContextTab('attachments')}
-                className={`rounded-md py-1.5 text-[11px] font-bold uppercase tracking-wider transition-smooth ${
-                  contextTab === 'attachments' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                className={`ios-segment w-full ${
+                  contextTab === 'attachments' ? 'ios-segment-active' : ''
                 }`}
               >
                 Attachments{attachments.length > 0 ? ` (${attachments.length})` : ''}
               </button>
             </div>
           ) : (
-            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
               Description
             </label>
           )}
@@ -222,7 +222,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
               Time Horizon
             </label>
             <select
@@ -238,7 +238,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
             </select>
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
               Status
             </label>
             <select
@@ -257,7 +257,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
               Priority
             </label>
             <select
@@ -272,7 +272,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
             </select>
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
               Due Date
             </label>
             <input
@@ -285,7 +285,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
         </div>
 
         <div>
-          <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+          <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
             Parent Goal
           </label>
           <select

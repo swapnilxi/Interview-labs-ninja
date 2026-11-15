@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and below. Everything is backed up except the native scheduler's store, which holds the login token
+     and the AI provider keys handed over for closed-app AI jobs (scheduler/SchedulerStore.java). -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="labninja_scheduler.xml" />
+</full-backup-content>

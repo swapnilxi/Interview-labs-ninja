@@ -239,7 +239,7 @@ export default function SwipePdfReaderModule() {
     <div className="w-full min-h-[calc(100dvh-60px)] bg-background text-foreground py-0 sm:py-4">
       {/* Storage Manager Modal */}
       {showStorageManager && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center overflow-y-auto py-6 px-4">
+        <div className="fixed inset-0 z-50 mix-bg-background/80 backdrop-blur-sm flex items-start justify-center overflow-y-auto py-6 px-4">
           <div className="w-full max-w-2xl">
             <StorageManagerPanel
               onClose={() => {
@@ -286,11 +286,11 @@ export default function SwipePdfReaderModule() {
             <div className="max-w-xl mx-auto px-4 space-y-3">
               {/* Quick demo links */}
               <div className="flex items-center gap-2">
-                <div className="flex-1 h-px bg-border/50" />
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <div className="flex-1 h-px mix-bg-border/50" />
+                <span className="text-[13px] font-semibold text-muted-foreground">
                   Or try a sample
                 </span>
-                <div className="flex-1 h-px bg-border/50" />
+                <div className="flex-1 h-px mix-bg-border/50" />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -299,17 +299,17 @@ export default function SwipePdfReaderModule() {
                     key={doc.id}
                     type="button"
                     onClick={() => handleLoadDemoDoc(doc)}
-                    className="group text-left p-3 rounded-2xl border border-border bg-card hover:bg-muted hover:border-blue-500/30 transition-all shadow-sm"
+                    className="group text-left p-3 rounded-2xl border border-border bg-card hover:bg-muted hover:mix-border-primary/30 transition-all shadow-sm"
                   >
                     <div className="flex items-start gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-8 h-8 rounded-xl mix-bg-primary/10 lab-ink flex items-center justify-center shrink-0 mt-0.5">
                         <Icon
                           name={doc.sourceType === 'pdf' ? 'DocumentIcon' : 'ClipboardDocumentTextIcon'}
                           size={16}
                         />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-foreground leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        <p className="text-xs font-bold text-foreground leading-snug group-hover:lab-ink transition-colors">
                           {doc.name}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -326,11 +326,11 @@ export default function SwipePdfReaderModule() {
               {recentDocs.length > 0 && (
                 <>
                   <div className="flex items-center gap-2 pt-2">
-                    <div className="flex-1 h-px bg-border/50" />
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    <div className="flex-1 h-px mix-bg-border/50" />
+                    <span className="text-[13px] font-semibold text-muted-foreground">
                       Recent
                     </span>
-                    <div className="flex-1 h-px bg-border/50" />
+                    <div className="flex-1 h-px mix-bg-border/50" />
                     {/* Storage manager shortcut */}
                     <button
                       type="button"
@@ -360,7 +360,7 @@ export default function SwipePdfReaderModule() {
                           onKeyDown={isClickable ? (e) => e.key === 'Enter' && handleLoadRecentDoc(recent) : undefined}
                           className={`group flex items-center gap-3 p-3 rounded-2xl border border-border bg-card transition-all ${
                             isClickable
-                              ? 'hover:bg-muted hover:border-blue-500/20 cursor-pointer'
+                              ? 'hover:bg-muted hover:mix-border-primary/20 cursor-pointer'
                               : 'opacity-60'
                           }`}
                         >
@@ -378,7 +378,7 @@ export default function SwipePdfReaderModule() {
                             <div className="flex items-center gap-1.5">
                               <p className="text-xs font-semibold text-foreground truncate">{recent.name}</p>
                               {isCloudDoc ? (
-                                <span className="shrink-0 px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[9px] font-semibold">
+                                <span className="shrink-0 px-1.5 py-0.5 rounded mix-bg-primary/10 lab-ink text-[9px] font-semibold">
                                   ☁️ Cloud
                                 </span>
                               ) : (
@@ -397,7 +397,7 @@ export default function SwipePdfReaderModule() {
                                 </span>
                               )}
                               {!isClickable && (
-                                <span className="text-[10px] text-muted-foreground/60">
+                                <span className="text-[10px] mix-text-muted-foreground/60">
                                   (re-upload to continue)
                                 </span>
                               )}
@@ -405,7 +405,7 @@ export default function SwipePdfReaderModule() {
                             {pct !== undefined && (
                               <div className="w-full h-0.5 bg-muted mt-1.5 rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-gradient-to-r from-emerald-500 to-blue-500 rounded-full transition-all"
+                                  className="h-full bg-primary rounded-full transition-all"
                                   style={{ width: `${pct}%` }}
                                 />
                               </div>
@@ -421,7 +421,7 @@ export default function SwipePdfReaderModule() {
                               <Icon name="TrashIcon" size={13} />
                             </button>
                             {isClickable && (
-                              <Icon name="ChevronRightIcon" size={14} className="text-muted-foreground/50" />
+                              <Icon name="ChevronRightIcon" size={14} className="mix-text-muted-foreground/50" />
                             )}
                           </div>
                         </div>

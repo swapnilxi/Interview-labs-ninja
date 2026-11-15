@@ -14,7 +14,7 @@ function PhaseTimeline({ phases, start, end }: { phases: PlanPhase[]; start: str
   const total = daysBetween(start, end) || 1;
   return (
     <div className="todo-glass p-[1.25rem]">
-      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Timeline</h4>
+      <h4 className="text-[13px] font-semibold text-muted-foreground">Timeline</h4>
       <ol className="mt-3 flex flex-col gap-2">
         {phases.map((phase, index) => {
           const from = Math.max(0, daysBetween(start, phase.start_date) - 1);
@@ -47,7 +47,7 @@ function Bullets({ title, items, check = false }: { title: string; items: string
   if (!items.length) return null;
   return (
     <div>
-      <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{title}</h5>
+      <h5 className="text-[13px] font-semibold text-muted-foreground">{title}</h5>
       <ul className="mt-1.5 flex flex-col gap-1">
         {items.map((item, i) => (
           <li key={`${i}-${item}`} className="flex items-start gap-2 text-sm leading-snug text-foreground">
@@ -197,7 +197,7 @@ export default function PlanView({ state, busy, appliedLabel, onCheck, onApply, 
           <Bullets title="Assumptions" items={plan.assumptions} />
           {plan.risks.length > 0 && (
             <div>
-              <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Risks and how to handle them</h5>
+              <h5 className="text-[13px] font-semibold text-muted-foreground">Risks and how to handle them</h5>
               <ul className="mt-1.5 flex flex-col gap-2">
                 {plan.risks.map((risk, i) => (
                   <li key={`${i}-${risk.risk}`} className="text-sm leading-snug text-foreground">

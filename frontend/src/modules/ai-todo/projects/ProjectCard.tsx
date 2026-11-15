@@ -90,7 +90,7 @@ export default function ProjectCard({ project, onDelete, isCompact = false }: Pr
                 {project.title}
               </h3>
               <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-                <span className={`text-[11px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${statusColors[project.status] || 'bg-muted text-muted-foreground'}`}>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusColors[project.status] || 'bg-muted text-muted-foreground'}`}>
                   {project.status}
                 </span>
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">

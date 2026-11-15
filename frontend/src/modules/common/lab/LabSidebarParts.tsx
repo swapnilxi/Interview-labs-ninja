@@ -97,7 +97,7 @@ export function LabSidebarHeader({
               onClick={onOpenGuide}
               aria-label={`Guide: How to use ${title}`}
               title={`Guide: How to use ${title}`}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/70 transition-colors flex-shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium mix-bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border mix-border-border/70 transition-colors flex-shrink-0 cursor-pointer"
             >
               <Icon name="BookOpenIcon" size={11} className="text-primary flex-shrink-0" />
               <span>Guide</span>
