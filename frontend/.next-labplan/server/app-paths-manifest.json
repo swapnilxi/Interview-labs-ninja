@@ -1,10 +1,10 @@
 {
-  "/api/auth/me/route": "app/api/auth/me/route.js",
   "/api/lab-sections/[[...path]]/route": "app/api/lab-sections/[[...path]]/route.js",
+  "/api/auth/me/route": "app/api/auth/me/route.js",
   "/api/todo/[...path]/route": "app/api/todo/[...path]/route.js",
-  "/api/health/route": "app/api/health/route.js",
-  "/api/pareto/[...path]/route": "app/api/pareto/[...path]/route.js",
   "/api/auth/login/route": "app/api/auth/login/route.js",
-  "/api/finance/[...path]/route": "app/api/finance/[...path]/route.js",
+  "/api/communication/[...path]/route": "app/api/communication/[...path]/route.js",
+  "/api/pareto/[...path]/route": "app/api/pareto/[...path]/route.js",
+  "/api/health/route": "app/api/health/route.js",
   "/ai-todo/page": "app/ai-todo/page.js"
 }

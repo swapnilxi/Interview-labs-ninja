@@ -74,7 +74,7 @@ export default function LabPlanView({ projects, onProjectCreated }: LabPlanViewP
               // Its own line on phones, so the phrase never breaks in the middle.
               <span className="block text-[13px] text-muted-foreground sm:inline sm:text-[14px]">
                 <span className="hidden sm:inline"> · </span>
-                {items} tasks with lessons
+                {items} tasks<span className="hidden sm:inline"> with lessons</span>
               </span>
             )}
           </p>
