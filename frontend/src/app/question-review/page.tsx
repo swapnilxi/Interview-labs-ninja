@@ -4,15 +4,18 @@ import QuestionReviewInteractive from '@/modules/question-review/QuestionReviewM
 import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
-  title: 'Question Review - InterviewNinja',
-  description: 'Review individual questions with detailed feedback, improvement recommendations, and performance metrics for targeted skill development and interview preparation.',
+  title: 'Question review - Lab-Ninja',
+  description:
+    'Work on one interview question: write and dictate your answer, get it evaluated, learn it with an AI tutor, quiz yourself and keep notes.',
 };
 
 export default function QuestionReviewPage() {
   return (
     <>
       <Header />
-      <QuestionReviewInteractive />
+      <RequireAuth feature="Question Review">
+        <QuestionReviewInteractive />
+      </RequireAuth>
     </>
   );
 }

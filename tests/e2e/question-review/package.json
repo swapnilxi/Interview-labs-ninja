@@ -1,0 +1,14 @@
+{
+  "name": "question-review-e2e",
+  "private": true,
+  "description": "Playwright end-to-end checks for /question-review (answer, tutor, quiz, notes, mastery, review list, keyboard, layout, study sheets, errors, SwipeLearn hand-off, phone width). See README.md.",
+  "scripts": {
+    "mock": "node mock_llm.js",
+    "test": "node run_all.js",
+    "test:guards": "node guards.e2e.js",
+    "test:workspace": "node workspace.e2e.js",
+    "test:navigation": "node navigation.e2e.js",
+    "test:study": "node study.e2e.js"
+  },
+  "dependencies": { "playwright": "1.65.0" }
+}

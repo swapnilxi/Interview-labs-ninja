@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { savePushSubscription, removePushSubscription } from '@/lib/server/webPush';
+import { userIdOrAuthError } from 'fe-apis/todo/_shared';
+
+// Login required (the app is login-only). The subscription is saved under the caller's own user id.
 
 export async function POST(req: Request) {
+  const userId = userIdOrAuthError(req);
+  if (userId instanceof Response) return userId;
   try {
     const body = await req.json();
-    const { endpoint, keys, userId } = body;
+    const { endpoint, keys } = body;
 
     if (!endpoint || !keys?.p256dh || !keys?.auth) {
       return NextResponse.json({ error: 'Missing endpoint or keys' }, { status: 400 });
@@ -15,7 +20,7 @@ export async function POST(req: Request) {
     await savePushSubscription({
       endpoint,
       keys,
-      userId: typeof userId === 'number' ? userId : 0,
+      userId,
       userAgent,
     });
 
@@ -27,6 +32,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const auth = userIdOrAuthError(req);
+  if (auth instanceof Response) return auth;
   try {
     const body = await req.json();
     const { endpoint } = body;

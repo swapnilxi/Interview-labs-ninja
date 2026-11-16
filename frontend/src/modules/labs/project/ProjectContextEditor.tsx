@@ -78,32 +78,31 @@ export default function ProjectContextEditor({ project }: { project: LabProject 
 
   return (
     <form
-      className="space-y-5 rounded-lg border border-border bg-card p-4 sm:p-5"
+      className="space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-5"
       onSubmit={(e) => {
         e.preventDefault();
         void save();
       }}
       aria-labelledby={`${contextId}-heading`}
     >
-      <div>
+      <div className="border-b border-border pb-4">
         <h2
           id={`${contextId}-heading`}
-          className="font-heading text-base font-semibold text-foreground"
+          className="font-heading text-[0.9375rem] font-semibold text-foreground"
         >
           Project context
         </h2>
-        <p className="mt-1 text-sm mix-text-foreground/[0.74]">
-          The labs read this every time they generate for the project, so be specific: background,
-          objectives, requirements, constraints, technical decisions and anything else a
-          collaborator would need. Say what is still undecided too; the labs are told not to invent
-          what you leave out.
+        <p className="mt-1 text-[0.8125rem] leading-relaxed mix-text-foreground/[0.65]">
+          The labs read this every time they generate. Be specific: background, objectives,
+          requirements, constraints and technical decisions. Say what&apos;s undecided too — the
+          labs won&apos;t invent what you leave out.
         </p>
       </div>
 
       <div>
-        <div className="mb-1 flex items-baseline justify-between gap-2">
-          <label htmlFor={nameId} className="text-xs font-semibold text-foreground">
-            Name
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+          <label htmlFor={nameId} className="text-[0.75rem] font-semibold text-foreground">
+            Name <span className="text-error">*</span>
           </label>
           {counter(name, NAME_MAX)}
         </div>
@@ -119,9 +118,9 @@ export default function ProjectContextEditor({ project }: { project: LabProject 
       </div>
 
       <div>
-        <div className="mb-1 flex items-baseline justify-between gap-2">
-          <label htmlFor={descId} className="text-xs font-semibold text-foreground">
-            Description
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+          <label htmlFor={descId} className="text-[0.75rem] font-semibold text-foreground">
+            Short description
           </label>
           {counter(description, DESCRIPTION_MAX)}
         </div>
@@ -130,14 +129,15 @@ export default function ProjectContextEditor({ project }: { project: LabProject 
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={DESCRIPTION_MAX}
+          placeholder="One line on what the project is"
           className={fieldClass}
           disabled={busy}
         />
       </div>
 
       <div>
-        <div className="mb-1 flex items-baseline justify-between gap-2">
-          <label htmlFor={contextId} className="text-xs font-semibold text-foreground">
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+          <label htmlFor={contextId} className="text-[0.75rem] font-semibold text-foreground">
             Context
           </label>
           {counter(context, CONTEXT_MAX)}
@@ -151,19 +151,21 @@ export default function ProjectContextEditor({ project }: { project: LabProject 
           placeholder={
             'Objectives:\n- …\n\nRequirements & constraints:\n- …\n\nTechnical decisions so far:\n- …'
           }
-          className={`${fieldClass} min-h-[12rem] resize-y font-mono leading-relaxed`}
+          className={`${fieldClass} min-h-[12rem] resize-y font-mono text-[0.8125rem] leading-relaxed`}
           disabled={busy}
         />
       </div>
 
       {error && (
-        <p role="alert" className="text-sm text-error">
+        <p role="alert" className="text-[0.8125rem] text-error">
           {error}
         </p>
       )}
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {dirty && <span className="mr-auto text-xs font-medium text-warning">Unsaved changes</span>}
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+        {dirty && (
+          <span className="mr-auto text-[0.75rem] font-medium text-warning">Unsaved changes</span>
+        )}
         <button type="button" onClick={discard} disabled={!dirty || busy} className={quietButton}>
           Discard
         </button>

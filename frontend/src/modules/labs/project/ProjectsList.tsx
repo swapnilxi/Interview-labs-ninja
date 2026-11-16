@@ -85,15 +85,17 @@ export default function ProjectsList({
     );
   }
 
-  const iconButton =
-    'todo-focus inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground disabled:opacity-50';
+  const actionBtn =
+    'todo-focus inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground disabled:opacity-50';
+  const dangerActionBtn =
+    'todo-focus inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors text-muted-foreground hover:mix-bg-error/10 hover:text-[color:color-mix(in_srgb,var(--color-error)_85%,var(--color-foreground))] disabled:opacity-50';
 
   return (
     <section aria-labelledby="projects-heading">
       <h2 id="projects-heading" className="sr-only">
         Projects
       </h2>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div
           role="group"
           aria-label="Filter projects by status"
@@ -107,14 +109,15 @@ export default function ProjectsList({
               onClick={() => onStatusChange(f.id)}
               className="todo-segment text-sm"
             >
-              {f.label} <span className="font-normal tabular-nums">{counts[f.id]}</span>
+              {f.label}
+              <span className="font-normal tabular-nums opacity-70">{counts[f.id]}</span>
             </button>
           ))}
         </div>
         <div className="relative sm:w-[18rem]">
           <Icon
             name="MagnifyingGlassIcon"
-            size={16}
+            size={15}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <input
@@ -139,65 +142,67 @@ export default function ProjectsList({
           </p>
         </EmptyState>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid gap-[1rem] sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((p) => {
             const inUse = p.id === selectedId;
             const busy = busyId === p.id;
             return (
               <li
                 key={p.id}
-                className={`flex flex-col rounded-lg border bg-card transition-colors ${
+                className={`group flex flex-col rounded-2xl border bg-card transition-all ${
                   inUse
-                    ? 'mix-border-primary/50 ring-1 mix-ring-primary/30'
-                    : 'border-border hover:mix-border-foreground/25'
+                    ? 'mix-border-primary/50 shadow-sm mix-ring-primary/20 ring-1'
+                    : 'border-border hover:mix-border-foreground/20 hover:shadow-sm'
                 }`}
               >
-                <Link href={projectHref(p.id)} className="todo-focus flex-1 rounded-t-lg p-4">
-                  <div className="flex flex-wrap items-center gap-2">
+                <Link href={projectHref(p.id)} className="todo-focus flex-1 rounded-t-2xl p-4">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <StatusBadge status={p.status} />
                     {inUse && <UsedBadge />}
                   </div>
-                  <h3 className="mt-2 break-words font-heading text-base font-semibold text-foreground">
+                  <h3 className="mt-2.5 break-words font-heading text-[0.9375rem] font-semibold leading-snug text-foreground">
                     {p.name}
                   </h3>
-                  <p className="mt-1 line-clamp-2 text-sm mix-text-foreground/[0.74]">
+                  <p className="mt-1 line-clamp-2 text-sm leading-relaxed mix-text-foreground/[0.68]">
                     {p.description || (p.context ? p.context : 'No description yet.')}
                   </p>
-                  <p className="mt-3 text-xs font-medium text-muted-foreground">
-                    {p.sectionCount} saved section{p.sectionCount === 1 ? '' : 's'} · updated{' '}
+                  <div className="mt-3 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Icon name="BookmarkIcon" size={11} className="flex-shrink-0" />
+                    {p.sectionCount} section{p.sectionCount === 1 ? '' : 's'}
+                    <span className="opacity-50">·</span>
                     {formatServerDate(p.updatedAt)}
-                  </p>
+                  </div>
                 </Link>
-                <div className="flex flex-wrap items-center gap-1 px-2 pb-2">
+                <div className="flex flex-wrap items-center gap-0.5 border-t border-border px-2.5 py-2">
                   {p.status === 'active' && (
                     <button
                       type="button"
-                      className={iconButton}
+                      className={actionBtn}
                       onClick={() => toggleUseInLabs(p, inUse)}
                     >
-                      <Icon name={inUse ? 'XMarkIcon' : 'FolderOpenIcon'} size={14} />
+                      <Icon name={inUse ? 'XMarkIcon' : 'BoltIcon'} size={12} />
                       {inUse ? 'Stop using' : 'Use in labs'}
                     </button>
                   )}
                   <button
                     type="button"
-                    className={iconButton}
+                    className={actionBtn}
                     disabled={busy}
                     onClick={() => run(p.id, () => setArchived(p, p.status === 'active'))}
                   >
                     <Icon
                       name={p.status === 'active' ? 'ArchiveBoxIcon' : 'ArrowUturnLeftIcon'}
-                      size={14}
+                      size={12}
                     />
                     {p.status === 'active' ? 'Archive' : 'Restore'}
                   </button>
                   <button
                     type="button"
-                    className={`${iconButton} ml-auto hover:!text-error`}
+                    className={`${dangerActionBtn} ml-auto`}
                     disabled={busy}
                     onClick={() => run(p.id, () => deleteWithConfirm(p))}
                   >
-                    <Icon name="TrashIcon" size={14} />
+                    <Icon name="TrashIcon" size={12} />
                     Delete
                   </button>
                 </div>

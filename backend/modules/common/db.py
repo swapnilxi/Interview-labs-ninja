@@ -243,6 +243,7 @@ def init_db() -> None:
         from modules.ai_todo.shared.schema import register as todo_register
         from modules.common.rag.storage import register as rag_register
         from modules.memory.schema import register as memory_register
+        from modules.daily_session.schema import register as daily_session_register
 
         sd_register(cursor)
         cv_register(cursor)
@@ -259,6 +260,8 @@ def init_db() -> None:
         # first (currently ai_lms; see modules/ai_lms/router.py's thin wrapper).
         rag_register(cursor)
         memory_register(cursor)
+        # Per-user workspace (answer + notes) and concept quiz for a Daily Session question.
+        daily_session_register(cursor)
 
         from modules.ai_lms.db import init_lms_db
         init_lms_db(conn)
@@ -777,29 +780,32 @@ def fetch_questions(
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.cursor()
+        # Rating and last-reviewed are the caller's own (question_user_state); a guest (user_id None) matches no
+        # row and gets the unrated defaults, never another user's values.
         query = """
-            SELECT id, session_id, question_date, section, number,
-                   category, sub_type, difficulty, topics, question_text,
-                   user_performance, last_reviewed, question_type
-            FROM questions
+            SELECT q.id, q.session_id, q.question_date, q.section, q.number,
+                   q.category, q.sub_type, q.difficulty, q.topics, q.question_text,
+                   s.performance, s.last_reviewed, q.question_type
+            FROM questions q
+            LEFT JOIN question_user_state s ON s.question_id = q.id AND s.user_id = ?
             WHERE 1=1
         """
-        params = []
+        params: list = [user_id]
         if user_id is not None:
-            query += " AND (user_id = ? OR user_id = 8 OR user_id IS NULL)"
+            query += " AND (q.user_id = ? OR q.user_id = 8 OR q.user_id IS NULL)"
             params.append(user_id)
         if category is not None:
             category_str = category.value if hasattr(category, "value") else str(category)
-            query += " AND category = ?"
+            query += " AND q.category = ?"
             params.append(category_str)
         if session_date is not None:
-            query += " AND question_date = ?"
+            query += " AND q.question_date = ?"
             params.append(session_date)
         if topic is not None:
-            query += " AND (topics = ? OR topics LIKE ? OR topics LIKE ? OR topics LIKE ?)"
+            query += " AND (q.topics = ? OR q.topics LIKE ? OR q.topics LIKE ? OR q.topics LIKE ?)"
             params.extend([topic, f"{topic},%", f"%,{topic}", f"%,{topic},%"])
 
-        query += " ORDER BY session_id DESC, section ASC, number ASC"
+        query += " ORDER BY q.session_id DESC, q.section ASC, q.number ASC"
         cursor.execute(query, params)
         rows = cursor.fetchall()
 
@@ -833,20 +839,21 @@ def fetch_questions(
         conn.close()
 
 
-def fetch_question_by_id(question_id: int) -> Optional[QuestionRecord]:
-    """Fetch a single question by primary key ID."""
+def fetch_question_by_id(question_id: int, user_id: Optional[int] = None) -> Optional[QuestionRecord]:
+    """Fetch a single question by primary key ID, with `user_id`'s own rating and last-reviewed date (None = unrated)."""
     db_path = get_db_path()
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.cursor()
         query = """
-            SELECT id, session_id, question_date, section, number,
-                   category, sub_type, difficulty, topics, question_text,
-                   user_performance, last_reviewed, question_type
-            FROM questions
-            WHERE id = ?
+            SELECT q.id, q.session_id, q.question_date, q.section, q.number,
+                   q.category, q.sub_type, q.difficulty, q.topics, q.question_text,
+                   s.performance, s.last_reviewed, q.question_type
+            FROM questions q
+            LEFT JOIN question_user_state s ON s.question_id = q.id AND s.user_id = ?
+            WHERE q.id = ?
         """
-        cursor.execute(query, (question_id,))
+        cursor.execute(query, (user_id, question_id))
         row = cursor.fetchone()
         if not row:
             return None
@@ -876,23 +883,28 @@ def fetch_question_by_id(question_id: int) -> Optional[QuestionRecord]:
 
 
 def update_question_performance(user_id: int, question_id: int, user_performance: int, last_reviewed: str) -> bool:
-    """Update user performance and last reviewed date for a specific question.
-
-    Returns False if the question doesn't exist or isn't owned by user_id.
+    """Save user_id's own rating and last-reviewed date for a question (question_user_state; questions are shared,
+    so anyone who can see one can rate it). The shared questions.user_performance / last_reviewed columns are no
+    longer written. Returns False if the question doesn't exist.
     """
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
+        if cursor.execute("SELECT 1 FROM questions WHERE id = ?", (question_id,)).fetchone() is None:
+            return False
         cursor.execute(
             """
-            UPDATE questions
-            SET user_performance = ?, last_reviewed = ?
-            WHERE id = ? AND user_id = ?
+            INSERT INTO question_user_state (user_id, question_id, performance, last_reviewed, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(user_id, question_id) DO UPDATE SET
+                performance = excluded.performance,
+                last_reviewed = excluded.last_reviewed,
+                updated_at = excluded.updated_at
             """,
-            (user_performance, last_reviewed, question_id, user_id),
+            (user_id, question_id, user_performance, last_reviewed),
         )
         conn.commit()
-        return cursor.rowcount > 0
+        return True
     finally:
         conn.close()
 

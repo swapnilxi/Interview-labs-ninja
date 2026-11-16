@@ -133,8 +133,8 @@ export default function SectionDetail({
   const remove = async () => {
     if (!section) return;
     const ok = await confirmDialog({
-      title: `Delete “${section.title}”?`,
-      message: `This permanently removes the section from “${project.name}”. The lab page it came from is not affected. This can't be undone.`,
+      title: `Delete "${section.title}"?`,
+      message: `This permanently removes the section from "${project.name}". The lab page it came from is not affected. This can't be undone.`,
       confirmLabel: 'Delete section',
       tone: 'danger',
     });
@@ -155,7 +155,7 @@ export default function SectionDetail({
 
   return (
     <div className="max-w-[880px]">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
         <BackButton href={back} label={project.name} />
       </div>
 
@@ -164,13 +164,13 @@ export default function SectionDetail({
       ) : !section ? (
         <LoadingBlock label="Loading section…" />
       ) : (
-        <article className="rounded-lg border border-border bg-card">
+        <article className="rounded-2xl border border-border bg-card">
           <header className="border-b border-border p-4 sm:p-5">
             {editing ? (
               <div>
                 <label
                   htmlFor={titleId}
-                  className="mb-1 block text-xs font-semibold text-foreground"
+                  className="mb-1.5 block text-[0.75rem] font-semibold text-foreground"
                 >
                   Title
                 </label>
@@ -185,13 +185,13 @@ export default function SectionDetail({
                 />
               </div>
             ) : (
-              <h2 className="break-words font-heading text-xl font-semibold text-foreground">
+              <h2 className="break-words font-heading text-[1.125rem] font-semibold leading-snug tracking-[-0.015em] text-foreground">
                 {section.title}
               </h2>
             )}
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-medium text-muted-foreground">
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[0.75rem] font-medium text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
-                Generated in <LabBadge name={section.sourceLabName} />
+                <LabBadge name={section.sourceLabName} />
               </span>
               <span>Saved {formatServerDate(section.createdAt)}</span>
               {section.updatedAt !== section.createdAt && (
@@ -199,7 +199,7 @@ export default function SectionDetail({
               )}
             </div>
             {!editing && (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => startEdit('rename')}
@@ -216,7 +216,7 @@ export default function SectionDetail({
                   className={quietButton}
                 >
                   <Icon name="PencilSquareIcon" size={14} />
-                  Edit
+                  Edit content
                 </button>
                 <button
                   type="button"
@@ -234,8 +234,8 @@ export default function SectionDetail({
           <div className="p-4 sm:p-5">
             {editing === 'edit' ? (
               <div>
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <label htmlFor={contentId} className="text-xs font-semibold text-foreground">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <label htmlFor={contentId} className="text-[0.75rem] font-semibold text-foreground">
                     Content (Markdown)
                   </label>
                   <div
@@ -252,7 +252,7 @@ export default function SectionDetail({
                         type="button"
                         aria-pressed={preview === value}
                         onClick={() => setPreview(value as boolean)}
-                        className="todo-segment"
+                        className="todo-segment text-[12px]"
                       >
                         {label as string}
                       </button>
@@ -260,7 +260,7 @@ export default function SectionDetail({
                   </div>
                 </div>
                 {preview ? (
-                  <div className="min-h-[16rem] rounded-md border border-border p-3">
+                  <div className="min-h-[16rem] rounded-xl border border-border p-4">
                     <Markdown content={content} />
                   </div>
                 ) : (
@@ -270,7 +270,7 @@ export default function SectionDetail({
                     onChange={(e) => setContent(e.target.value)}
                     maxLength={CONTENT_MAX}
                     rows={20}
-                    className={`${fieldClass} min-h-[16rem] resize-y font-mono leading-relaxed`}
+                    className={`${fieldClass} min-h-[16rem] resize-y font-mono text-[0.8125rem] leading-relaxed`}
                     disabled={busy}
                   />
                 )}
@@ -280,15 +280,15 @@ export default function SectionDetail({
             )}
 
             {editing && (
-              <div className="mt-4">
+              <div className="mt-4 border-t border-border pt-4">
                 {saveError && (
-                  <p role="alert" className="mb-3 text-sm text-error">
+                  <p role="alert" className="mb-3 text-[0.8125rem] text-error">
                     {saveError}
                   </p>
                 )}
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {dirty && (
-                    <span className="mr-auto text-xs font-medium text-warning">
+                    <span className="mr-auto text-[0.75rem] font-medium text-warning">
                       Unsaved changes
                     </span>
                   )}

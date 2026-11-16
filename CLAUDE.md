@@ -98,6 +98,14 @@ further down in `README.md` — check there before assuming a module's shape.
 - **Frontend dev port is 4028.** Backend CORS defaults to `http://localhost:4028`
   (`backend/main.py`) — if you ever see CORS errors in local dev, check that default
   before assuming something else is wrong.
+- **The app is login-only (since 2026-11-16).** Every page and every API endpoint on both
+  backends needs a logged-in user. Public: login/signup/logout, the health checks (`/`,
+  `/health`, `/api/health`), the published Career Studio pages (`/p/*`, `/r/*`) with their
+  `/career/public/*` endpoints, and static files. Pages are guarded in one place,
+  `AuthGate` in the root layout (`frontend/src/modules/auth/AuthGate.tsx`,
+  `PUBLIC_PATH_PREFIXES`): a guest goes to `/login?next=<page>`. Backend: FastAPI uses
+  `Depends(get_current_user_id)` (router-level where possible); fe-apis routes outside the
+  shared dispatcher use `requireTodoUserId` / `userIdOrAuthError` (`fe-apis/todo/_shared.ts`).
 - Every `/todo/*`, `/pareto/*`, `/dsa/*`, `/cv/*`, `/system-design/*`, and
   `daily_session` router endpoint requires a Bearer JWT
   (`Depends(get_current_user_id)` from `modules/auth/dependencies.py`).
@@ -106,18 +114,18 @@ further down in `README.md` — check there before assuming a module's shape.
   of these silently 401s (this already happened once: `GenerateQuestionsPanel.tsx`, the
   three lab modules' topic/section/subtopic CRUD, and `paretoService`/`questionsService`/
   `sessionService` all shipped with bare `fetch()` calls when auth was rolled out, and
-  had to be fixed after the fact). `linkedin_post_generator` is the one module
-  deliberately left unauthenticated/global — don't "fix" that without checking with the
-  user first, it was an explicit scope decision. `GET /settings/ollama-models` lives on
-  `daily_session.py`'s `public_router` (no auth) rather than its main `router`, since
-  it's a local-Ollama proxy with no user data, used from the guest-accessible Config
-  page — don't move it back onto the authenticated router.
-- Guests never call the backend for Todo/Project/Quick-Task data — that lives in
-  browser IndexedDB (`frontend/src/lib/services/local/`). Data services
+  had to be fixed after the fact). `linkedin_post_generator`, `/config/*` and
+  `/api/pdf/*` were public until 2026-11-16 and need a login now too (`linkedin_post_generator`
+  and the PDF documents are still global, not scoped per user). `GET /settings/ollama-models`
+  (a local-Ollama proxy, no user data) is on the authenticated `daily_session` router now;
+  its `public_router` is empty. The Config page is login-only like every other page.
+- Guest mode for Todo/Project/Quick-Task data (browser IndexedDB,
+  `frontend/src/lib/services/local/`) still exists in code: the data services
   (`todoService`/`projectService`/`quickTaskService`) dispatch to local vs. remote based
-  on `isLoggedIn()` from `frontend/src/lib/auth/tokenStore.ts`. When adding a new
-  manual-CRUD method to one of these services, add the guest-mode branch too — don't
-  let it silently become login-required.
+  on `isLoggedIn()` from `frontend/src/lib/auth/tokenStore.ts`. Since the app went
+  login-only (2026-11-16) no guest reaches those pages, so the guest branch is unreachable
+  (kept, not deleted; the first login still imports old guest data via `POST /todo/import`).
+  Don't add guest branches to new methods.
 - **To-Do Scheduler** (`/ai-todo?tab=schedule`): `backend/modules/ai_todo/schedules/` ↔ `frontend/fe-apis/todo/schedules/`
   (prompts byte-identical), and rule validation `frontend/src/lib/schedules/scheduleRules.ts` (`normalizeRule`) ↔
   `schedules/rules.py` (same error texts, same stored JSON). Runs happen on the device (web engine + the native Android
@@ -235,8 +243,8 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   `/finance/*`, `/python/*`, which seed from the same `backend/modules/<lab>_lab/topics.json` FastAPI reads); `fe-apis/dailySession` = sessions,
   questions, session progress and stats, plus the answer coach (`fe-apis/dailySession/coach.ts` ↔ `daily_session.py` / `evaluation.py`: generate-answer, evaluate-answer, expand-answer, learn-chat; prompts and rubrics verbatim, change both) and the labs' Generate Practice panel (`fe-apis/dailySession/labGenerate.ts` ↔ `daily_session.py`: `POST /lab/generate-questions`
   and `/lab/generate-from-youtube`, prompts verbatim; the twin never downloads captions, it always asks for a pasted transcript)
-  (not convert-flashcards, upload-resume, deck import, export, or the unauthenticated
-  `POST /questions/clear-duplicates`); `fe-apis/account` = `GET/PUT /auth/profile` and `/access-requests`. Each has a
+  (not convert-flashcards, upload-resume, deck import, export, or
+  `POST /questions/clear-duplicates`, login-only since 2026-11-16); `fe-apis/account` = `GET/PUT /auth/profile` and `/access-requests`. Each has a
   `next.config.mjs` rewrite and an `outputFileTracingIncludes` entry — every `/api/**` route that opens the database
   needs one, or a Vercel function ships without the file and serves an empty DB. Verified the twin way (same requests
   to both on DB copies, bodies diffed).

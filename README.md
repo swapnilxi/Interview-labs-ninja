@@ -82,12 +82,23 @@ By default the app runs at `http://localhost:4028`.
 You can then wire the frontend to call the FastAPI endpoints under
 `http://localhost:8082` for sessions, questions, and exports.
 
-## Authentication & Multi-User Data (guest-first, login-optional)
+## Authentication & Multi-User Data (login-only since 2026-11-16)
 
 **Status: implemented and browser-tested (2026-08-02). Read this before continuing the work.**
 
+**Since 2026-11-16 the app is login-only:** every page and every API endpoint on both backends
+needs a logged-in user. Still public: `/login` (log in and sign up; a FastAPI signup starts as
+`pending` until an admin approves it), the health checks (`/`, `/health`, `/api/health`), the
+published Career Studio pages `/p/*` and `/r/*` with their `/career/public/*` endpoints (incl. the
+visitor testimonial form), and static files (`/_next`, `/icons`, `/downloads` with the APK
+metadata). Pages: `AuthGate` (`frontend/src/modules/auth/AuthGate.tsx`, mounted once in
+`app/layout.tsx`, allowlist `PUBLIC_PATH_PREFIXES`) renders a neutral skeleton until the login
+state is known and sends a guest to `/login?next=<page>`; `/login` (`modules/auth/AuthModule.tsx`,
+form in `components/auth/LoginForm.tsx`) sends them back after logging in. The guest-mode notes
+below describe the code as it still exists, but no guest reaches it any more.
+
 ### The model
-- **Guests (default, no login)** get full manual CRUD on the Todo app (tasks, quick-tasks,
+- **Guests (until 2026-11-16; the code is still there but unreachable)** got full manual CRUD on the Todo app (tasks, quick-tasks,
   projects) with data stored **only in the browser** (IndexedDB) — nothing touches the
   backend. AI-powered features (dive deeper, brain dump, copilot, auto-prioritize, etc.)
   require login.
@@ -132,8 +143,8 @@ You can then wire the frontend to call the FastAPI endpoints under
   applied to the live DB) and every `/todo/*`, `/pareto/*`, `/dsa/*`, `/cv/*`,
   `/system-design/*`, `/daily-session*` endpoint now requires
   `Depends(get_current_user_id)` and scopes its queries accordingly. `linkedin_post_generator`
-  was **intentionally left out of scope** (still global/unauthenticated) — flagged as a
-  follow-up below.
+  was left out of scope at first; since 2026-11-16 it needs a login like `/config/*` and
+  `/api/pdf/*`, but its data (and the PDF documents) are still global, not per user.
 - CORS origin defaults to `http://localhost:4028` (this repo's actual frontend dev port —
   **not** Next.js's generic 3000 default; don't "fix" this back to 3000). Override via
   `LABNINJA_CORS_ORIGINS` (comma-separated) in production.
@@ -169,7 +180,8 @@ You can then wire the frontend to call the FastAPI endpoints under
   calls `/todo/import` on first login/signup.
 - `frontend/src/modules/auth/AuthModule.tsx` + `app/login/page.tsx` — login/signup UI.
   `frontend/src/modules/auth/RequireAuth.tsx` — wraps the 7 gated interview-prep pages
-  with a "log in to use this feature" screen for guests.
+  with a "log in to use this feature" screen for guests (since 2026-11-16 a fallback that
+  never shows: `AuthGate` in the root layout handles every page).
 - Removed unused `@supabase/supabase-js` / `@supabase/ssr` (were installed but never
   wired up — dead code from an earlier direction).
 - **2026-08-02 follow-up fix:** when auth was added to the CV/DSA/System-Design lab and
@@ -183,7 +195,8 @@ You can then wire the frontend to call the FastAPI endpoints under
   was moved off the authenticated `daily_session` router onto a new unauthenticated
   `public_router` in the same file — it's a pure local-Ollama-server proxy with no user
   data involved, used from the guest-accessible Config page, so it shouldn't have
-  required login in the first place. **If you add a new frontend call to any endpoint
+  required login in the first place. (2026-11-16: it is back behind auth, like the
+  whole app; `public_router` is empty.) **If you add a new frontend call to any endpoint
   under `/todo`, `/pareto`, `/dsa`, `/cv`, `/system-design`, or the `daily_session`
   router, use `apiFetch` from `frontend/src/lib/http/apiClient.ts` — plain `fetch()` to
   these will 401.**
@@ -202,11 +215,9 @@ You can then wire the frontend to call the FastAPI endpoints under
   with the browser's key; an endpoint is `endpoint::<id>`. No backend AI-layer change was needed.
 
 ### Known follow-ups (not done — pick up here)
-- `linkedin_post_generator` module is **not** scoped to `user_id` and its page is **not**
-  gated behind login — it still works exactly as it did before (global/shared), which is
-  inconsistent with "everything else requires login." Decide whether to bring it in line.
-- `ai-lms` page is a static "coming soon" placeholder with no backend calls — deliberately
-  left ungated since there's nothing to protect yet.
+- `linkedin_post_generator` module is **not** scoped to `user_id` (global/shared). Since
+  2026-11-16 its page and endpoints need a login, but every user still sees the same data.
+- `ai-lms` is a full module now and login-required like everything else (2026-11-16).
 - No formal automated test suite was added for the auth flow — verification so far is a
   one-off Playwright smoke script (guest CRUD → signup → migration → gated-module check,
   12/12 passing) plus manual backend `TestClient` checks. Consider turning either into a

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { callAnthropicText, callGeminiText, callOpenAiCompatible } from 'fe-apis/ai/providers';
+import { userIdOrAuthError } from 'fe-apis/todo/_shared';
 
 /**
  * POST /api/config/test-key (rewritten from /config/test-key)
@@ -34,6 +35,8 @@ async function probeCompatible(baseUrl: string, apiKey: string, model: string): 
 }
 
 export async function POST(request: Request) {
+  const auth = userIdOrAuthError(request);
+  if (auth instanceof Response) return auth;
   const body = (await request.json().catch(() => null)) as { provider?: string; api_key?: string; base_url?: string } | null;
   const provider = body?.provider ?? '';
   const apiKey = (body?.api_key ?? '').trim();

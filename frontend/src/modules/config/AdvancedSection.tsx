@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { API_BASE_URL } from '@/lib/http/apiClient';
+import { getToken } from '@/lib/auth/tokenStore';
 import { USE_ENV_DEFAULT_MODEL, type UserSettings } from '@/lib/services/settingsService';
 import { describeEnvDefault, envDefaultText, type AiDefaultState } from './catalog';
 import { useConfig } from './ConfigContext';
@@ -187,7 +188,11 @@ function EnvImport({
     setMessage(null);
     setState((s) => ({ ...s, loading: true, imported: false }));
     try {
-      const res = await fetch('/api/config/env-prefill');
+      // Always the Next.js route (FastAPI has no twin), so a plain fetch with the login token.
+      const token = getToken();
+      const res = await fetch('/api/config/env-prefill', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setState((s) => ({

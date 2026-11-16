@@ -7,6 +7,7 @@ import { extractPdfTextBestEffort, processDocumentChunks } from '../utils/pdfPro
 import { useReaderStorage } from '../utils/useReaderStorage';
 import { QuotaError } from '../utils/readerDb';
 import { useUrlState } from '@/lib/navigation/urlState';
+import { apiFetch } from '@/lib/http/apiClient';
 
 /** Keeps in-memory extraction inside what a phone browser can handle. */
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
@@ -110,7 +111,7 @@ export default function DocumentInputPanel({
           message: 'Uploading document to cloud server…',
         });
 
-        const res = await fetch('/api/pdf/upload', {
+        const res = await apiFetch('/api/pdf/upload', {
           method: 'POST',
           body: formData,
         });

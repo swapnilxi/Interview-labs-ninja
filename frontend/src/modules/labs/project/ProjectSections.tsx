@@ -88,8 +88,7 @@ export default function ProjectSections({ project }: { project: LabProject }) {
         <p>
           Open any lab, pick this project in its project menu, generate something and choose{' '}
           <span className="font-semibold text-foreground">Save to Project</span>. It will show up
-          here, labelled with the lab it came from, and later generations in this project can build
-          on it.
+          here, labelled with the lab it came from, and later generations can build on it.
         </p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {LAB_CATALOG.map((lab) => (
@@ -108,7 +107,7 @@ export default function ProjectSections({ project }: { project: LabProject }) {
         <div className="relative flex-1">
           <Icon
             name="MagnifyingGlassIcon"
-            size={16}
+            size={15}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <input
@@ -120,25 +119,26 @@ export default function ProjectSections({ project }: { project: LabProject }) {
             className={`${fieldClass} pl-9`}
           />
         </div>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="sr-only sm:not-sr-only">Source lab</span>
-          <select
-            value={lab}
-            onChange={(e) => setLab(e.target.value)}
-            className={`${fieldClass} sm:w-[12rem]`}
-            aria-label="Filter by source lab"
-          >
-            <option value="">All labs</option>
-            {labs.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <select
+          value={lab}
+          onChange={(e) => setLab(e.target.value)}
+          className={`${fieldClass} sm:w-[14rem]`}
+          aria-label="Filter by source lab"
+        >
+          <option value="">All labs</option>
+          {labs.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <p className="mb-3 text-xs text-muted-foreground" role="status" aria-live="polite">
+      <p
+        className="mb-3 text-[0.75rem] font-medium text-muted-foreground"
+        role="status"
+        aria-live="polite"
+      >
         {searching
           ? 'Searching…'
           : `${shown.length} of ${all.length} section${all.length === 1 ? '' : 's'}`}
@@ -152,26 +152,26 @@ export default function ProjectSections({ project }: { project: LabProject }) {
 
       {shown.length === 0 && !searching ? (
         <EmptyState icon="MagnifyingGlassIcon" title="No sections match">
-          <p>Try a different search or choose “All labs”.</p>
+          <p>Try a different search or choose "All labs".</p>
         </EmptyState>
       ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
           {shown.map((s) => (
             <li key={s.id}>
               <Link
                 href={sectionHref(project.id, s.id)}
-                className="todo-focus block px-4 py-3 transition-colors hover:mix-bg-foreground/[0.05] focus-visible:ring-inset focus-visible:ring-offset-0"
+                className="todo-focus block px-4 py-3.5 transition-colors hover:mix-bg-foreground/[0.04] focus-visible:ring-inset focus-visible:ring-offset-0"
               >
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                  <h3 className="min-w-0 break-words font-heading text-base font-semibold text-foreground">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                  <h3 className="min-w-0 break-words font-heading text-[0.9375rem] font-semibold text-foreground">
                     {s.title}
                   </h3>
                   <LabBadge name={s.sourceLabName} />
-                  <span className="text-xs font-medium text-muted-foreground sm:ml-auto">
-                    Updated {formatServerDate(s.updatedAt)}
+                  <span className="text-[0.75rem] font-medium text-muted-foreground sm:ml-auto">
+                    {formatServerDate(s.updatedAt)}
                   </span>
                 </div>
-                <p className="mt-2 line-clamp-2 break-words text-sm mix-text-foreground/[0.74]">
+                <p className="mt-1.5 line-clamp-2 break-words text-[0.8125rem] leading-relaxed mix-text-foreground/[0.65]">
                   {s.excerpt}
                 </p>
               </Link>

@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { sweepDueReminders } from '@/lib/server/webPush';
+import { userIdOrAuthError } from 'fe-apis/todo/_shared';
 
-export async function GET() {
+// Login required (the app is login-only). Nothing in the repo calls this yet; a scheduled caller (cron) would
+// need its own credential.
+export async function GET(req: Request) {
+  const auth = userIdOrAuthError(req);
+  if (auth instanceof Response) return auth;
   try {
     const result = await sweepDueReminders();
     return NextResponse.json({ ok: true, ...result });
@@ -11,7 +16,7 @@ export async function GET() {
   }
 }
 
-export async function POST() {
-  return GET();
+export async function POST(req: Request) {
+  return GET(req);
 }
 

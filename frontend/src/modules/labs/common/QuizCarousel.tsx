@@ -27,9 +27,11 @@ interface QuizCarouselProps {
   /** With `lab` and `topicName`, each explanation gets an "Expand with AI" button (repeatable, deeper each time). */
   lab?: LabName;
   topicName?: string;
+  /** Told about every answer, e.g. to send the questions got wrong back with the next generate. */
+  onAnswer?: (question: QuizQuestion, correct: boolean) => void;
 }
 
-export default function QuizCarousel({ questions, onGenerateMore, generateMore, hasMore = true, lab, topicName }: QuizCarouselProps) {
+export default function QuizCarousel({ questions, onGenerateMore, generateMore, hasMore = true, lab, topicName, onAnswer }: QuizCarouselProps) {
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [showExplanation, setShowExplanation] = useState<Record<number, boolean>>({});
@@ -56,6 +58,7 @@ export default function QuizCarousel({ questions, onGenerateMore, generateMore, 
 
   const handleAnswer = (optIdx: number) => {
     if (hasAnswered) return;
+    onAnswer?.(current, optIdx === current.answer);
     setAnswers(prev => ({ ...prev, [idx]: optIdx }));
     setShowExplanation(prev => ({ ...prev, [idx]: true }));
   };

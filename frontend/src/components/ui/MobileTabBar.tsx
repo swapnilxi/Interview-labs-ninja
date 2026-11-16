@@ -172,8 +172,15 @@ export default function MobileTabBar() {
           <Icon name="BeakerIcon" size={24} variant={onLabs ? 'solid' : 'outline'} />
           <span>Labs</span>
         </button>
-        <Link href="/ai-todo" className={tab(todo)} aria-current={todo ? 'page' : undefined}>
-          <Icon name="CheckCircleIcon" size={24} variant={todo ? 'solid' : 'outline'} />
+        {/* The centre tab is the raised accent orb (`.mobile-tab-orb` in tailwind.css). */}
+        <Link
+          href="/ai-todo"
+          className={`${tab(todo)} mobile-tab-orb`}
+          aria-current={todo ? 'page' : undefined}
+        >
+          <span className="mobile-tab-orb-disc" aria-hidden="true">
+            <Icon name="CheckIcon" size={26} strokeWidth={2.4} />
+          </span>
           <span>To-Do</span>
         </Link>
         <NotificationBell variant="tab" />

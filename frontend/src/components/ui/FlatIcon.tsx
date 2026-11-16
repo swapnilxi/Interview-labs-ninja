@@ -30,6 +30,7 @@ import {
   MoonIcon,
   QuestionMarkCircleIcon,
   QueueListIcon,
+  RectangleStackIcon,
   SparklesIcon,
   StarIcon,
   EyeIcon,
@@ -140,6 +141,7 @@ const ICONS = {
   design: [CubeTransparentIcon, 'text-teal-600 dark:text-teal-400'], // system design sketch
   sun: [SunIcon, 'text-amber-500 dark:text-amber-400'],
   key: [KeyIcon, 'text-amber-600 dark:text-amber-400'],
+  cards: [RectangleStackIcon, 'text-violet-500 dark:text-violet-400'], // a deck of quick-read cards (SwipeLearn)
 } as const satisfies Record<string, readonly [Glyph, string]>;
 
 export type FlatIconName = keyof typeof ICONS;

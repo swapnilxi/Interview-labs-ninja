@@ -2,6 +2,7 @@ import React from 'react';
 import type { Metadata, Viewport } from 'next';
 import '../styles/index.css';
 import { AuthProvider } from '@/contexts/AuthContext';
+import AuthGate from '@/modules/auth/AuthGate';
 import PendingStatusBanner from '@/modules/common/PendingStatusBanner';
 import NotificationHost from '@/components/ui/NotificationHost';
 import MobileTabBar from '@/components/ui/MobileTabBar';
@@ -57,9 +58,12 @@ window.addEventListener('beforeinstallprompt',function(e){window.__labninjaInsta
         />
         <AuthProvider>
           <PendingStatusBanner />
-          {children}
+          {/* Login-only app: a guest sees only /login and the published /p, /r pages (AuthGate's allowlist). */}
+          <AuthGate>
+            {children}
+            <MobileTabBar />
+          </AuthGate>
           <NotificationHost />
-          <MobileTabBar />
           <LoginModal />
           <GlobalVoiceInput />
           <SystemChromeSync />

@@ -62,7 +62,7 @@ export default function ProjectFormDialog({
       labelledBy={headingId}
       closeOnBackdrop={false}
       closeOnEscape={!busy}
-      className="lab-page w-full max-w-lg rounded-xl border border-border bg-card shadow-lg"
+      className="lab-page w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl"
     >
       <form
         className="p-5"
@@ -71,12 +71,12 @@ export default function ProjectFormDialog({
           void submit();
         }}
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
           <div>
             <h2 id={headingId} className="font-heading text-base font-semibold text-foreground">
               New project
             </h2>
-            <p className="mt-0.5 text-sm mix-text-foreground/[0.74]">
+            <p className="mt-0.5 text-[0.8125rem] mix-text-foreground/[0.65]">
               Every lab can generate for it, using what you write here.
             </p>
           </div>
@@ -85,15 +85,15 @@ export default function ProjectFormDialog({
             onClick={onClose}
             disabled={busy}
             aria-label="Close"
-            className="todo-focus rounded-md p-1.5 text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground"
+            className="todo-focus -mt-0.5 rounded-full p-1.5 text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground"
           >
-            <Icon name="XMarkIcon" size={16} />
+            <Icon name="XMarkIcon" size={18} />
           </button>
         </div>
 
         <div className="mt-4 space-y-4">
           <div>
-            <label htmlFor={nameId} className="mb-1 block text-xs font-semibold text-foreground">
+            <label htmlFor={nameId} className="mb-1.5 block text-[0.75rem] font-semibold text-foreground">
               Name <span className="text-error">*</span>
             </label>
             <input
@@ -109,8 +109,8 @@ export default function ProjectFormDialog({
             />
           </div>
           <div>
-            <label htmlFor={descId} className="mb-1 block text-xs font-semibold text-foreground">
-              Description
+            <label htmlFor={descId} className="mb-1.5 block text-[0.75rem] font-semibold text-foreground">
+              Short description
             </label>
             <input
               id={descId}
@@ -123,11 +123,9 @@ export default function ProjectFormDialog({
             />
           </div>
           <div>
-            <label htmlFor={contextId} className="mb-1 block text-xs font-semibold text-foreground">
+            <label htmlFor={contextId} className="mb-1.5 block text-[0.75rem] font-semibold text-foreground">
               Context{' '}
-              <span className="font-normal text-muted-foreground">
-                (optional, you can add it later)
-              </span>
+              <span className="font-normal text-muted-foreground">— add it later if you like</span>
             </label>
             <textarea
               id={contextId}
@@ -136,23 +134,23 @@ export default function ProjectFormDialog({
               maxLength={CONTEXT_MAX}
               rows={5}
               placeholder="Background, objectives, requirements, constraints, technical decisions…"
-              className={`${fieldClass} resize-y`}
+              className={`${fieldClass} resize-y text-[0.8125rem]`}
               disabled={busy}
             />
           </div>
           {error && (
-            <p role="alert" className="text-sm text-error">
+            <p role="alert" className="text-[0.8125rem] text-error">
               {error}
             </p>
           )}
         </div>
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-5 flex justify-end gap-2 border-t border-border pt-4">
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="todo-focus rounded-md px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground disabled:opacity-50"
+            className="todo-btn todo-btn-secondary disabled:opacity-50"
           >
             Cancel
           </button>

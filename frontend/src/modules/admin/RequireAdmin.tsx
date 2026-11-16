@@ -25,7 +25,7 @@ export default function RequireAdmin({ children }: { children: React.ReactNode }
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="w-[40px] h-[40px] border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <div className="w-[40px] h-[40px] border-4 mix-border-primary/30 border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
@@ -76,7 +76,7 @@ function RequestAdminAccess() {
 
   if (requests === null) {
     return (
-      <div className="w-[24px] h-[24px] border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      <div className="w-[24px] h-[24px] border-2 mix-border-primary/30 border-t-primary rounded-full animate-spin" />
     );
   }
 
@@ -129,7 +129,7 @@ function RequestAdminAccess() {
         type="button"
         onClick={submit}
         disabled={submitting}
-        className="inline-flex items-center justify-center gap-6 py-12 px-24 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-smooth focus-ring disabled:opacity-50"
+        className="inline-flex items-center justify-center gap-6 py-12 px-24 rounded-md bg-primary hover:mix-bg-primary/90 text-primary-foreground font-medium transition-smooth focus-ring disabled:opacity-50"
       >
         {submitting ? 'Sending…' : 'Request admin access'}
       </button>

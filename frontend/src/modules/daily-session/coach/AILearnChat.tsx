@@ -26,22 +26,46 @@ interface Props {
   question: WorkspaceQuestion;
   /** Called when the session ends and a review is produced. */
   onEvaluated?: (ev: Evaluation) => void;
+  /**
+   * Keep the conversation for this key while the page is open, so a chat shown in a sheet that is closed and opened
+   * again (the session run bar's tutor) picks up where it left off. Memory only: a reload starts afresh.
+   */
+  persistKey?: string;
 }
 
+interface ChatSnapshot {
+  turns: ChatTurn[];
+  meta: LearnReply | null;
+  ev: Evaluation | null;
+  input: string;
+  showCode: boolean;
+  code: string;
+  language: string;
+}
+
+const chatMemory = new Map<string, ChatSnapshot>();
+
 /** AI Learn Chat: a Socratic AI tutor that teaches one topic in depth, step by step, then reviews what you learned. */
-export default function AILearnChat({ question, onEvaluated }: Props) {
+export default function AILearnChat({ question, onEvaluated, persistKey }: Props) {
   const kind = detectKind(question.subType, question.category, question.questionText);
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [meta, setMeta] = useState<LearnReply | null>(null);
-  const [input, setInput] = useState('');
+  const [saved] = useState(() => (persistKey ? chatMemory.get(persistKey) : undefined));
+  const [turns, setTurns] = useState<ChatTurn[]>(saved?.turns ?? []);
+  const [meta, setMeta] = useState<LearnReply | null>(saved?.meta ?? null);
+  const [input, setInput] = useState(saved?.input ?? '');
   const [busy, setBusy] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ev, setEv] = useState<Evaluation | null>(null);
+  const [ev, setEv] = useState<Evaluation | null>(saved?.ev ?? null);
   const [voiceOn, setVoiceOn] = useState(false);
-  const [showCode, setShowCode] = useState(false);
-  const [code, setCode] = useState('');
-  const [language, setLanguage] = useState(kind === 'system_design' ? 'Pseudo-code' : 'Python');
+  const [showCode, setShowCode] = useState(saved?.showCode ?? false);
+  const [code, setCode] = useState(saved?.code ?? '');
+  const [language, setLanguage] = useState(
+    saved?.language ?? (kind === 'system_design' ? 'Pseudo-code' : 'Python')
+  );
+  useEffect(() => {
+    if (persistKey)
+      chatMemory.set(persistKey, { turns, meta, ev, input, showCode, code, language });
+  }, [persistKey, turns, meta, ev, input, showCode, code, language]);
   const scroller = useRef<HTMLDivElement>(null);
   const inputRef = useRef(input);
   inputRef.current = input;
@@ -63,8 +87,13 @@ export default function AILearnChat({ question, onEvaluated }: Props) {
     setError(null);
     try {
       const reply = await answerCoachService.learnTurn(question, next);
+      const withReply: ChatTurn[] = [...next, { role: 'tutor', content: reply.message }];
       setMeta(reply);
-      setTurns([...next, { role: 'tutor', content: reply.message }]);
+      setTurns(withReply);
+      // A reply that lands after the sheet was closed is kept for when it opens again.
+      const kept = persistKey ? chatMemory.get(persistKey) : undefined;
+      if (persistKey && kept)
+        chatMemory.set(persistKey, { ...kept, turns: withReply, meta: reply });
       if (voiceOn) speak(reply.message, 'calm', null, 1);
     } catch (e: unknown) {
       setTurns(next); // keep the learner's message so they can retry

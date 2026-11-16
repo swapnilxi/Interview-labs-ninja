@@ -441,7 +441,8 @@
        --mobile-tab-h is the whole band it occupies, plus breathing room, and is what pages reserve. */
     html.has-mobile-tabs {
       --tabbar-gap: max(0.625rem, calc(var(--safe-bottom) - 0.25rem));
-      --mobile-tab-h: calc(var(--tabbar-h) + var(--tabbar-gap) + 0.75rem);
+      /* + 1.25rem: room for the To-Do orb, which rises ~1rem above the capsule. */
+      --mobile-tab-h: calc(var(--tabbar-h) + var(--tabbar-gap) + 1.25rem);
     }
 
     html.has-mobile-tabs body {
@@ -1789,6 +1790,74 @@
     color: var(--lab-accent-ink);
   }
 
+  /* The centre tab (To-Do): a raised accent orb, label underneath. The tab bottom-aligns its content, so the 50px orb
+     overflows upwards and rises ~16px above the capsule; its page-coloured ring makes it read as cut out of the bar.
+     Accent + its paired foreground (appearanceService sets both), so any accent chosen in Settings keeps contrast. */
+  .mobile-tab-orb {
+    justify-content: flex-end;
+    gap: 2px;
+    padding-bottom: 1px;
+  }
+
+  .mobile-tab-orb,
+  .mobile-tab-orb.mobile-tab-active,
+  .mobile-tab-orb:active {
+    background: transparent;
+    transform: none;
+  }
+
+  .mobile-tab-orb-disc {
+    @apply flex flex-shrink-0 items-center justify-center rounded-full;
+    height: 50px;
+    width: 50px;
+    color: var(--color-primary-foreground);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 86%, #fff) 0%, var(--color-primary) 100%);
+    box-shadow:
+      0 0 0 4px var(--color-background),
+      0 6px 14px -4px rgba(16, 24, 40, 0.35);
+    transition:
+      transform var(--dur-press) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+
+  .dark .mobile-tab-orb-disc {
+    box-shadow:
+      0 0 0 4px var(--color-background),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 6px 16px -4px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Current page: a thin accent halo outside the ring. */
+  .mobile-tab-orb.mobile-tab-active .mobile-tab-orb-disc {
+    box-shadow:
+      0 0 0 4px var(--color-background),
+      0 0 0 6px color-mix(in srgb, var(--color-primary) 55%, transparent),
+      0 6px 14px -4px rgba(16, 24, 40, 0.35);
+  }
+
+  .mobile-tab-orb:active .mobile-tab-orb-disc {
+    transform: scale(0.92);
+  }
+
+  .mobile-tab-orb:focus-visible {
+    outline: none;
+  }
+
+  .mobile-tab-orb:focus-visible .mobile-tab-orb-disc {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 6px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-tab-orb-disc {
+      transition: none;
+    }
+
+    .mobile-tab-orb:active .mobile-tab-orb-disc {
+      transform: none;
+    }
+  }
+
   /* Unread count on a bell. */
   .notif-badge {
     @apply absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-error-foreground;
@@ -2291,6 +2360,238 @@
   .drawer-badge-warm {
     color: var(--color-warning);
     background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  }
+
+  /* ── Sidebar icons: iOS app-icon tiles (modules/common/Sidebar.tsx) ─────────────────────────────────────────────────
+     Every destination has its own system colour (data-tint), drawn as a rounded square with a white filled glyph, as in
+     iOS Settings. Second-level items use the soft variant (tinted fill, coloured glyph) and turn solid when current.
+     Scoped classes: .drawer-icon stays the plain grey icon used by Config, the lab picker and the tab bar. */
+  .nav-tile {
+    --tile: #8e8e93;
+    @apply inline-flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center;
+    border-radius: 8px;
+    color: #fff;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--tile) 84%, #fff) 0%, var(--tile) 100%);
+    box-shadow:
+      inset 0 0 0 0.5px rgba(0, 0, 0, 0.06),
+      0 1px 1.5px rgba(16, 24, 40, 0.12);
+    transition:
+      transform var(--dur-press) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+
+  .dark .nav-tile {
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .nav-tile-sm {
+    @apply h-[28px] w-[28px];
+    border-radius: 7px;
+  }
+
+  .nav-tile-rail {
+    @apply h-[38px] w-[38px];
+    border-radius: 10px;
+  }
+
+  .nav-tile-rail-sub {
+    @apply h-[32px] w-[32px];
+    border-radius: 8px;
+  }
+
+  .nav-tile-soft {
+    color: color-mix(in srgb, var(--tile) 74%, #000);
+    background: color-mix(in srgb, var(--tile) 15%, transparent);
+    box-shadow: none;
+  }
+
+  .dark .nav-tile-soft {
+    color: color-mix(in srgb, var(--tile) 82%, #fff);
+    background: color-mix(in srgb, var(--tile) 24%, transparent);
+    box-shadow: none;
+  }
+
+  /* iOS system colours, light then dark. The light ones (orange, green, teal, cyan, gray, brown) are deepened so the
+     white glyph keeps 3:1 against the tile (WCAG non-text contrast): in the icon rail the glyph is the only label. */
+  .nav-tile[data-tint='blue'] { --tile: #007aff; }
+  .nav-tile[data-tint='indigo'] { --tile: #5856d6; }
+  .nav-tile[data-tint='purple'] { --tile: #af52de; }
+  .nav-tile[data-tint='pink'] { --tile: #ff2d55; }
+  .nav-tile[data-tint='red'] { --tile: #ff3b30; }
+  .nav-tile[data-tint='orange'] { --tile: #e56a00; }
+  .nav-tile[data-tint='green'] { --tile: #299d46; }
+  .nav-tile[data-tint='teal'] { --tile: #2996a9; }
+  .nav-tile[data-tint='cyan'] { --tile: #2a93c3; }
+  .nav-tile[data-tint='brown'] { --tile: #a2845e; }
+  .nav-tile[data-tint='gray'] { --tile: #88888d; }
+
+  .dark .nav-tile[data-tint='blue'] { --tile: #0a84ff; }
+  .dark .nav-tile[data-tint='indigo'] { --tile: #5e5ce6; }
+  .dark .nav-tile[data-tint='purple'] { --tile: #bf5af2; }
+  .dark .nav-tile[data-tint='pink'] { --tile: #ff375f; }
+  .dark .nav-tile[data-tint='red'] { --tile: #ff453a; }
+  .dark .nav-tile[data-tint='orange'] { --tile: #e56a00; }
+  .dark .nav-tile[data-tint='green'] { --tile: #249f43; }
+  .dark .nav-tile[data-tint='teal'] { --tile: #3096a8; }
+  .dark .nav-tile[data-tint='cyan'] { --tile: #4591b0; }
+  .dark .nav-tile[data-tint='brown'] { --tile: #a08461; }
+  .dark .nav-tile[data-tint='gray'] { --tile: #87878c; }
+
+  /* Menu drawer: the tiles are coloured already, so the current row is marked by a tinted row (iPadOS sidebar), and
+     the hairlines start at the text again (32px / 28px tiles). */
+  .app-drawer .drawer-row.drawer-row-active:not(.drawer-row-head) {
+    background: color-mix(in srgb, var(--color-primary) 11%, transparent);
+  }
+
+  .app-drawer .drawer-row + .drawer-row::before {
+    left: 3.625rem;
+  }
+
+  .app-drawer .drawer-row-sub + .drawer-row-sub::before,
+  .app-drawer .drawer-row-head + .drawer-row-sub::before {
+    left: 4rem;
+  }
+
+  .drawer-row:is(a, button):active .nav-tile {
+    transform: scale(0.94);
+  }
+
+  /* Icon rail (md+): the same glass material as the nav bar, so header and rail read as one piece of chrome. */
+  .app-rail {
+    border-color: var(--color-separator);
+    background: var(--material);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  /* A 48px platter (hover / current) around each 38px tile; the rail is 60px wide. */
+  .rail-item {
+    @apply relative flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center focus-ring;
+    border-radius: 14px;
+    color: var(--color-muted-foreground);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      transform var(--dur-press) var(--ease-out);
+  }
+
+  .rail-item:hover {
+    color: var(--color-foreground);
+    background: var(--color-fill);
+  }
+
+  .rail-item-active,
+  .rail-item-active:hover {
+    background: var(--color-fill-strong);
+  }
+
+  .rail-item:active .nav-tile {
+    transform: scale(0.92);
+  }
+
+  .rail-item-sub {
+    @apply h-[40px] w-[40px];
+    border-radius: 11px;
+  }
+
+  /* Utility buttons (expand, theme, account, hide): a round, quiet glyph, no tile. */
+  .rail-item-quiet {
+    @apply h-[40px] w-[40px] rounded-full;
+  }
+
+  .rail-item-quiet:active {
+    transform: scale(0.92);
+  }
+
+  .rail-item-danger:hover {
+    color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  }
+
+  /* Current-section marker on the rail's left edge (the platter starts 6px in). */
+  .rail-indicator {
+    position: absolute;
+    top: 50%;
+    left: -6px;
+    height: 20px;
+    width: 3px;
+    transform: translateY(-50%);
+    border-radius: 0 3px 3px 0;
+    background: var(--color-primary);
+  }
+
+  /* "Feed" / "New" dot on a tile's corner, ringed in the rail colour like an iOS badge. */
+  .rail-dot {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    height: 10px;
+    width: 10px;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 2px var(--color-background);
+  }
+
+  /* The expand/collapse badge on a group tile's bottom-right corner. */
+  .rail-chevron {
+    @apply absolute flex items-center justify-center rounded-full focus-ring;
+    right: 1px;
+    bottom: 1px;
+    height: 17px;
+    width: 17px;
+    color: var(--color-muted-foreground);
+    background: var(--color-card);
+    box-shadow:
+      0 0 0 1.5px var(--color-background),
+      0 1px 2px rgba(16, 24, 40, 0.18);
+  }
+
+  .rail-chevron:hover {
+    color: var(--color-foreground);
+  }
+
+  /* Touch screens (tablets get the rail too): a finger-sized hit area around the small badge, no visual change. */
+  @media (pointer: coarse) {
+    .rail-chevron::after {
+      content: '';
+      position: absolute;
+      inset: -9px;
+      border-radius: 9999px;
+    }
+  }
+
+  /* An open group: its items sit on one quiet rounded cell under the group tile. */
+  .rail-subgroup {
+    @apply flex w-[48px] flex-col items-center gap-0.5 py-1;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--color-foreground) 4.5%, transparent);
+  }
+
+  .rail-subgroup-divider {
+    @apply my-0.5 h-px w-[20px];
+    background: var(--color-separator);
+  }
+
+  .rail-tooltip {
+    border-radius: 9px;
+    border: 1px solid var(--color-separator);
+    background: var(--material-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: 0 6px 20px -6px rgba(16, 24, 40, 0.25);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nav-tile,
+    .rail-item {
+      transition: none;
+    }
+
+    .rail-item:active .nav-tile,
+    .rail-item-quiet:active,
+    .drawer-row:is(a, button):active .nav-tile {
+      transform: none;
+    }
   }
 
   /* ── Labs on phones: topics + copilot become slide-over sheets ──────────────────────── */

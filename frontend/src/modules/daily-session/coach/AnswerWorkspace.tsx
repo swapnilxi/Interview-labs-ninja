@@ -22,6 +22,8 @@ interface Props {
   onCodeChange: (v: string) => void;
   /** Rows for the written-answer box. */
   rows?: number;
+  /** Passed to the coach: an "Add to To-Do" on each point of an evaluation. */
+  onAddTodo?: (text: string) => void;
 }
 
 /** Written answer + (for DSA / System Design) a code space + the AI coach. */
@@ -32,6 +34,7 @@ export default function AnswerWorkspace({
   code,
   onCodeChange,
   rows = 7,
+  onAddTodo,
 }: Props) {
   const kind = detectKind(question.subType, question.category, question.questionText);
   const [language, setLanguage] = useState(kind === 'system_design' ? 'Pseudo-code' : 'Python');
@@ -105,6 +108,7 @@ export default function AnswerWorkspace({
           difficulty: question.difficulty,
         }}
         onUseExpanded={onAnswerChange}
+        onAddTodo={onAddTodo}
       />
     </div>
   );

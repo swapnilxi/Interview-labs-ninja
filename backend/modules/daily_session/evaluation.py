@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel
 
 from modules.common.ai import AISettings, call_ai_text, extract_json_array, extract_json_object
+from modules.daily_session.tutor_memory import memory_block
 
 # kind -> [(criterion key, label, weight, what a 5/5 looks like)]. Weights sum to 100.
 RUBRICS: Dict[str, List[tuple]] = {
@@ -315,7 +316,10 @@ class LearnChatRequest(AISettings):
     max_turns: int = MAX_LEARNER_TURNS
 
 
-def build_learn_prompt(req: LearnChatRequest, kind: str, learner_turns: int, force_wrap: bool) -> str:
+def build_learn_prompt(
+    req: LearnChatRequest, kind: str, learner_turns: int, force_wrap: bool, memory: List[str] = ()
+) -> str:
+    # `memory`: memory_lines() for this user and the question's sub_type (tutor_memory.py); empty = left out.
     name, role = TUTORS[kind]
     convo = "\n".join(
         f"{'Tutor' if m.role == 'tutor' else 'Learner'}: {m.content.strip()[:4000]}" for m in req.messages[-24:]
@@ -344,7 +348,7 @@ def build_learn_prompt(req: LearnChatRequest, kind: str, learner_turns: int, for
         )
     return f"""You are {name}, a patient, encouraging and rigorous {role} helping someone learn a topic in depth through conversation. This is for learning, not assessment: never grade, rank or pressure the learner.
 Topic being explored ({KIND_TITLES[kind]}, level {req.difficulty or 'unspecified'}), starting from this question:
-{req.question_text}
+{req.question_text}{memory_block(list(memory), "learn")}
 
 Conversation so far:
 {convo}
@@ -362,11 +366,11 @@ STYLE RULES:
 Return ONLY one JSON object: {{"message": "what you say", "depth": 1-5, "focus": "2-4 word concept you are exploring", "wrap_up": true|false}}"""
 
 
-def learn_turn(req: LearnChatRequest) -> dict:
+def learn_turn(req: LearnChatRequest, memory: List[str] = ()) -> dict:
     kind = detect_kind(req.sub_type, req.category, req.question_text)
     learner_turns = sum(1 for m in req.messages if m.role == "learner")
     force_wrap = learner_turns >= req.max_turns
-    raw = call_ai_text(build_learn_prompt(req, kind, learner_turns, force_wrap), req, max_tokens=1536)
+    raw = call_ai_text(build_learn_prompt(req, kind, learner_turns, force_wrap, memory), req, max_tokens=1536)
     try:
         data = extract_json_object(raw)
         message = _s(data.get("message"))

@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { sendWebPush } from '@/lib/server/webPush';
-import { withTodoDb } from 'fe-apis/todo/_shared';
+import { userIdOrAuthError, withTodoDb } from 'fe-apis/todo/_shared';
 
+// Login required (the app is login-only); without a full subscription in the body it only looks among the
+// caller's own subscriptions.
 export async function POST(req: Request) {
+  const userId = userIdOrAuthError(req);
+  if (userId instanceof Response) return userId;
   try {
     const body = await req.json().catch(() => ({}));
     const { endpoint, keys } = body;
@@ -15,8 +19,9 @@ export async function POST(req: Request) {
       subToSend = withTodoDb((db) => {
         return (
           db.get<{ endpoint: string; p256dh: string; auth: string }>(
-            'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE endpoint = ? LIMIT 1;',
-            endpoint
+            'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE endpoint = ? AND user_id = ? LIMIT 1;',
+            endpoint,
+            userId
           ) || null
         );
       });
@@ -25,7 +30,8 @@ export async function POST(req: Request) {
       subToSend = withTodoDb((db) => {
         return (
           db.get<{ endpoint: string; p256dh: string; auth: string }>(
-            'SELECT endpoint, p256dh, auth FROM push_subscriptions ORDER BY updated_at DESC LIMIT 1;'
+            'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1;',
+            userId
           ) || null
         );
       });

@@ -1,116 +1,195 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import RichText from '@/modules/daily-session/coach/RichText';
-import { answerCoachService, type Expansion } from '@/modules/daily-session/coach/answerCoachService';
-import { toast } from '@/lib/ui/toast';
+import {
+  answerCoachService,
+  type Expansion,
+} from '@/modules/daily-session/coach/answerCoachService';
+import { isLoggedIn } from '@/lib/auth/tokenStore';
+import { openLoginModal } from '@/components/auth/LoginModal';
+import { isMissingKeyError } from '@/lib/services/settingsService';
 
 interface StarExplainerProps {
   questionText: string;
+  /** Backend category code: `interview` or `cv_skill`. */
   category: string;
   subType: string;
   difficulty: string;
-  /** The user's current written answer (may be empty). */
+  /** The answer as it is in the box right now (may be empty). */
   answerText: string;
+  /** Put the STAR version into the answer box. */
+  onUse?: (text: string) => void;
 }
 
-export default function StarExplainer({ questionText, category, subType, difficulty, answerText }: StarExplainerProps) {
+/** "Shape it as a STAR story": the coach's expand-answer in Situation / Task / Action / Result form. */
+export default function StarExplainer({
+  questionText,
+  category,
+  subType,
+  difficulty,
+  answerText,
+  onUse,
+}: StarExplainerProps) {
   const [open, setOpen] = useState(false);
   const [context, setContext] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Expansion | null>(null);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+  const panelId = useId();
+  const contextId = useId();
 
   const run = async () => {
+    if (!isLoggedIn()) {
+      openLoginModal({
+        feature: 'the STAR answer coach',
+        redirectTo: `${window.location.pathname}${window.location.search}`,
+      });
+      return;
+    }
     setLoading(true);
     setError('');
     try {
-      setResult(
-        await answerCoachService.expand({
-          questionText,
-          answerText,
-          category,
-          subType,
-          difficulty,
-          style: 'star',
-          context,
-        }),
-      );
+      const out = await answerCoachService.expand({
+        questionText,
+        answerText,
+        category,
+        subType,
+        difficulty,
+        style: 'star',
+        context,
+      });
+      // An empty reply must never replace the answer through "Use as my answer".
+      if (!out.expanded_answer?.trim()) throw new Error('The AI came back empty. Try again.');
+      setResult(out);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not generate the answer.');
+      setError(e instanceof Error ? e.message : 'Could not write the STAR version. Try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-card rounded-lg p-24 shadow-md border border-border">
-      <div className="flex items-center justify-between gap-12 flex-wrap">
-        <div>
-          <h3 className="font-heading text-lg font-medium text-foreground">Explain answer in STAR pattern</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Situation, Task, Action, Result. Built from your answer and, optionally, your own context.
-          </p>
+    <section className="bs-coach" aria-labelledby={`${panelId}-title`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span className="ds-icon-tile ds-icon-tile-sm ds-tone-gold">
+            <Icon name="StarIcon" variant="solid" size={16} />
+          </span>
+          <div className="min-w-0">
+            <h3 id={`${panelId}-title`} className="text-sm font-semibold ds-ink">
+              Shape it as a STAR story
+            </h3>
+            <p className="mt-0.5 text-[13px] leading-snug ds-muted">
+              Situation, task, action, result. Built from your answer and, if you add it, your real
+              context.
+            </p>
+          </div>
         </div>
         <button
+          type="button"
           onClick={() => setOpen((o) => !o)}
-          className="h-[2.5rem] px-18 rounded-md bg-primary text-primary-foreground font-medium text-sm transition-smooth focus-ring flex items-center gap-6"
+          aria-expanded={open}
+          aria-controls={panelId}
+          className="ds-btn ds-btn-secondary ds-btn-sm flex-shrink-0"
         >
-          <Icon name="SparklesIcon" size={18} variant="outline" />
-          {open ? 'Hide' : 'Explain in STAR'}
+          <Icon name={open ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={15} />
+          {open ? 'Hide' : 'Open'}
         </button>
       </div>
 
-      {open && (
-        <div className="mt-18 space-y-12">
-          <label className="block text-sm font-medium text-foreground" htmlFor="star-context">
-            Add context (optional)
+      <div id={panelId} hidden={!open} className="mt-4 space-y-3">
+        <div>
+          <label htmlFor={contextId} className="bs-label">
+            Your context (optional)
           </label>
           <textarea
-            id="star-context"
+            id={contextId}
             value={context}
             onChange={(e) => setContext(e.target.value)}
-            rows={4}
-            placeholder="Your real project, role, team size, numbers, tools... The answer will be grounded in this instead of invented details."
-            className="w-full rounded-md border border-border bg-background p-12 text-sm text-foreground focus-ring"
+            rows={3}
+            placeholder="Your real project, role, team size, numbers, tools. The story is grounded in this instead of invented details."
+            className="ds-field resize-y"
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="bs-footnote">
             {answerText.trim()
-              ? 'Your current answer above is used as the draft.'
-              : 'No answer written yet, so a model answer is written from scratch.'}
+              ? 'Your answer above is used as the draft.'
+              : 'No answer yet, so a model STAR answer is written from scratch.'}
           </p>
-          <button
-            onClick={run}
-            disabled={loading}
-            className="h-[2.5rem] px-18 rounded-md bg-muted text-foreground font-medium text-sm transition-smooth focus-ring disabled:opacity-60"
-          >
-            {loading ? 'Generating...' : result ? 'Regenerate' : context.trim() ? 'Generate with my context' : 'Generate'}
-          </button>
-          {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
-      )}
-
-      {result && (
-        <div className="mt-18 pt-18 border-t border-border space-y-12">
-          {result.summary && <p className="text-sm text-muted-foreground">{result.summary}</p>}
-          <RichText text={result.expanded_answer} />
-          <button
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(result.expanded_answer);
-                toast.success('Copied');
-              } catch {
-                toast.error('Copy failed');
-              }
-            }}
-            className="h-[2.25rem] px-12 rounded-md bg-muted text-foreground text-sm focus-ring"
-          >
-            Copy
-          </button>
-          {result.confidence_notes && <p className="text-xs text-muted-foreground">{result.confidence_notes}</p>}
-        </div>
-      )}
-    </div>
+        <button
+          type="button"
+          onClick={run}
+          disabled={loading}
+          className="ds-btn ds-btn-soft ds-tone-indigo ds-btn-sm"
+        >
+          {loading ? (
+            <span
+              className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+              aria-hidden="true"
+            />
+          ) : (
+            <Icon name="SparklesIcon" size={15} />
+          )}
+          {loading ? 'Writing…' : result ? 'Write it again' : 'Write the STAR version'}
+        </button>
+        {error && (
+          <p className="ds-banner ds-tone-rose text-sm" role="alert">
+            <Icon name="ExclamationTriangleIcon" variant="solid" size={16} />
+            <span>
+              {error}
+              {isMissingKeyError(error) && (
+                <>
+                  {' '}
+                  <Link href="/config" className="font-semibold underline underline-offset-2">
+                    Open Config
+                  </Link>
+                </>
+              )}
+            </span>
+          </p>
+        )}
+        {result && (
+          <div className="ds-panel ds-enter space-y-3" aria-live="polite">
+            {result.summary && <p className="text-[13px] ds-muted">{result.summary}</p>}
+            <RichText text={result.expanded_answer} className="ds-ink" />
+            <div className="flex flex-wrap gap-2">
+              {onUse && (
+                <button
+                  type="button"
+                  onClick={() => onUse(result.expanded_answer)}
+                  className="ds-btn ds-btn-soft ds-btn-sm ds-tone-indigo"
+                >
+                  <Icon name="ArrowDownOnSquareIcon" size={15} />
+                  Use as my answer
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(result.expanded_answer);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  } catch {
+                    /* clipboard unavailable */
+                  }
+                }}
+                className="ds-btn ds-btn-secondary ds-btn-sm"
+              >
+                <Icon name={copied ? 'CheckIcon' : 'ClipboardDocumentIcon'} size={14} />
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            {result.confidence_notes && (
+              <p className="text-xs ds-faint">Worth double-checking: {result.confidence_notes}</p>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

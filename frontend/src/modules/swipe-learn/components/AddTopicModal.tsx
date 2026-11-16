@@ -38,7 +38,8 @@ const EMOJI_OPTIONS = [
   '🌍',
 ]; // emoji-ok
 
-const slugify = (name: string) =>
+/** A topic's id from its name (also used by the "Send to SwipeLearn" import in SwipeLearnModule). */
+export const slugify = (name: string) =>
   name
     .trim()
     .toLowerCase()

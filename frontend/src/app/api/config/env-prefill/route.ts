@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { userIdOrAuthError } from 'fe-apis/todo/_shared';
 
 /**
  * GET /api/config/env-prefill
@@ -8,7 +9,8 @@ import { NextResponse } from 'next/server';
  * the Config UI can pre-fill the matching fields.
  *
  * Security: only whitelisted env var names are exposed — this route
- * never dumps the full process.env.
+ * never dumps the full process.env. Login required (the app is login-only), but
+ * any approved account gets the raw values of the keys that are set.
  */
 
 /** Map of env var → the UserSettings key it maps to in the frontend. */
@@ -39,7 +41,10 @@ const ENV_MAP = [
 
 export const dynamic = 'force-dynamic'; // never cache — env can change at deploy time
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = userIdOrAuthError(req);
+  if (auth instanceof Response) return auth;
+
   const found: { setting: string; label: string; env: string; masked: string }[] = [];
   const missing: { setting: string; label: string; env: string }[] = [];
 

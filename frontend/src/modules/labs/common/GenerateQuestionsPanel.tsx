@@ -28,7 +28,8 @@ interface Props {
   onAddSubtopic?: (subtopic: GeneratedSubtopic) => void;
 }
 
-type GenQ = { id: string; text: string; difficulty: string; subType: string; deleted: boolean };
+type GenQ = { id: string; text: string; difficulty: string; subType: string; deleted: boolean; saved?: boolean };
+type ExplainEntry = { loading: boolean; text: string | null };
 type Mode = 'questions' | 'youtube';
 
 function questionListToGenQ(questions: { text: string; difficulty: string; sub_type: string }[]): GenQ[] {
@@ -49,10 +50,11 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
   const [error,      setError]      = useState<string | null>(null);
 
   // ── "Generate Questions" mode state ──
-  const [generating, setGenerating] = useState(false);
-  const [questions,  setQuestions]  = useState<GenQ[]>([]);
-  const [saving,     setSaving]     = useState(false);
-  const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [generating,   setGenerating]   = useState(false);
+  const [questions,    setQuestions]    = useState<GenQ[]>([]);
+  const [saving,       setSaving]       = useState(false);
+  const [savedCount,   setSavedCount]   = useState<number | null>(null);
+  const [explainState, setExplainState] = useState<Record<string, ExplainEntry>>({});
 
   // ── "From YouTube Video" mode state ──
   const [youtubeUrl,          setYoutubeUrl]          = useState('');
@@ -70,7 +72,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
   // Text drawn in the accent uses its ink (>= 4.5:1 on its own tint for every preset); icons, borders and fills use the raw accent.
   const accentInk = `var(${tokenVar}-ink, color-mix(in srgb, var(${tokenVar}) 55%, var(--color-foreground)))`;
 
-  const activeCount = questions.filter(q => !q.deleted).length;
+  const activeCount = questions.filter(q => !q.deleted && !q.saved).length;
   const ytActiveCount = ytResult ? ytResult.questions.filter(q => !q.deleted).length : 0;
 
   function switchMode(next: Mode) {
@@ -116,6 +118,28 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
     }
   }
 
+  async function explainAnswer(q: GenQ) {
+    setExplainState(prev => ({ ...prev, [q.id]: { loading: true, text: null } }));
+    try {
+      const res = await apiFetch('/sessions/generate-answer', {
+        method: 'POST',
+        body: JSON.stringify({
+          question_text: q.text,
+          category: 'Interview',
+          sub_type: subtopicName || topicName,
+          action: 'explain',
+          ...defaultAIRequestFields(),
+        }),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+      setExplainState(prev => ({ ...prev, [q.id]: { loading: false, text: data.answer } }));
+    } catch (e: any) {
+      setExplainState(prev => ({ ...prev, [q.id]: { loading: false, text: null } }));
+      notify({ source: 'labs', tone: 'error', title: 'Could not explain answer', body: e?.message ?? 'Check API key in Config.' });
+    }
+  }
+
   async function saveToBank() {
     const toSave = questions.filter(q => !q.deleted);
     if (!toSave.length) return;
@@ -134,7 +158,7 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
         }))
       );
       setSavedCount(toSave.length);
-      setQuestions([]);
+      setQuestions(prev => prev.map(q => (!q.deleted ? { ...q, saved: true } : q)));
       notify({
         source: 'labs',
         tone: 'success',
@@ -317,52 +341,80 @@ export default function GenerateQuestionsPanel({ topicName, subtopicName, labNam
               {questions.length > 0 && (
                 <div className="space-y-2">
                   <p className="lab-caption">
-                    Generated — {activeCount} remaining
+                    Generated — {activeCount > 0 ? `${activeCount} to save` : 'all saved'}
                   </p>
                   {questions.map((q, idx) =>
                     q.deleted ? null : (
                       <div
                         key={q.id}
-                        className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg mix-bg-foreground/[0.04] group"
+                        className="px-3 py-2.5 rounded-lg mix-bg-foreground/[0.04] group"
                       >
-                        <span className="flex-shrink-0 text-xs font-medium tabular-nums text-muted-foreground mt-0.5 w-5 text-right leading-5">
-                          {idx + 1}
-                        </span>
-                        <p className="flex-1 text-sm text-foreground leading-relaxed min-w-0">{q.text}</p>
-                        <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-                          <DifficultyTag difficulty={q.difficulty} />
-                          <button
-                            onClick={() => setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, deleted: true } : p))}
-                            title="Remove question"
-                            aria-label="Remove question"
-                            className={`todo-focus p-1 rounded-md text-muted-foreground hover:text-error hover:mix-bg-error/10 ${LAB_REVEAL}`}
-                          >
-                            <Icon name="XMarkIcon" size={13} />
-                          </button>
+                        <div className="flex items-start gap-2.5">
+                          <span className="flex-shrink-0 text-xs font-medium tabular-nums mt-0.5 w-5 text-right leading-5" style={{ color: q.saved ? 'var(--color-success)' : undefined }}>
+                            {q.saved ? <Icon name="CheckIcon" size={13} /> : idx + 1}
+                          </span>
+                          <p className="flex-1 text-sm text-foreground leading-relaxed min-w-0">{q.text}</p>
+                          <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                            <DifficultyTag difficulty={q.difficulty} />
+                            <button
+                              onClick={() => explainAnswer(q)}
+                              disabled={explainState[q.id]?.loading}
+                              title="Explain answer"
+                              aria-label="Explain answer"
+                              className="todo-focus p-1 rounded-md text-muted-foreground hover:text-warning hover:mix-bg-warning/10 transition-colors"
+                            >
+                              {explainState[q.id]?.loading ? (
+                                <span className="w-3.5 h-3.5 border-[1.5px] border-current border-t-transparent rounded-full animate-spin inline-block" />
+                              ) : (
+                                <Icon name="SparklesIcon" size={13} />
+                              )}
+                            </button>
+                            {!q.saved && (
+                              <button
+                                onClick={() => setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, deleted: true } : p))}
+                                title="Remove question"
+                                aria-label="Remove question"
+                                className={`todo-focus p-1 rounded-md text-muted-foreground hover:text-error hover:mix-bg-error/10 ${LAB_REVEAL}`}
+                              >
+                                <Icon name="XMarkIcon" size={13} />
+                              </button>
+                            )}
+                          </div>
                         </div>
+                        {explainState[q.id]?.text && (
+                          <div className="mt-2 ml-7 px-3 py-2.5 rounded-lg text-xs leading-relaxed" style={{ background: 'color-mix(in srgb, var(--color-warning) 8%, transparent)', borderLeft: '2px solid color-mix(in srgb, var(--color-warning) 40%, transparent)' }}>
+                            <p className="font-semibold mb-1.5 flex items-center gap-1 text-foreground">
+                              <Icon name="SparklesIcon" size={11} style={{ color: 'var(--color-warning)' }} />
+                              Answer Explanation
+                            </p>
+                            <div className="text-foreground whitespace-pre-wrap">{explainState[q.id].text}</div>
+                          </div>
+                        )}
                       </div>
                     )
                   )}
 
                   <div className="flex items-center gap-3 pt-1">
+                    {activeCount > 0 && (
+                      <button
+                        onClick={saveToBank}
+                        disabled={saving}
+                        className="todo-btn gap-2 border px-4 py-2 text-sm hover:mix-bg-foreground/[0.04]"
+                        style={{ borderColor: accent, color: accentInk }}
+                      >
+                        {saving ? (
+                          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Icon name="BookmarkIcon" size={14} />
+                        )}
+                        {saving ? 'Saving…' : `Save ${activeCount} to Question Bank`}
+                      </button>
+                    )}
                     <button
-                      onClick={saveToBank}
-                      disabled={saving || activeCount === 0}
-                      className="todo-btn gap-2 border px-4 py-2 text-sm hover:mix-bg-foreground/[0.04]"
-                      style={{ borderColor: accent, color: accentInk }}
-                    >
-                      {saving ? (
-                        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Icon name="BookmarkIcon" size={14} />
-                      )}
-                      {saving ? 'Saving…' : `Save ${activeCount} to Question Bank`}
-                    </button>
-                    <button
-                      onClick={() => setQuestions([])}
+                      onClick={() => { setQuestions([]); setSavedCount(null); setExplainState({}); }}
                       className="todo-btn todo-btn-ghost"
                     >
-                      Clear
+                      Clear all
                     </button>
                   </div>
                 </div>

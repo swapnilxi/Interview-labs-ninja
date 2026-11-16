@@ -10,8 +10,11 @@ import SortControls from './SortControls';
 import EmptyState from './EmptyState';
 import Icon from '@/components/ui/AppIcon';
 import { questionsService, Question } from '@/lib/services/questionsService';
+import { questionReviewService } from '@/modules/question-review/questionReviewService';
 
 interface FilterOptions {
+  /** 'Review List': only the questions on the user's review list (bookmarked on the review page). */
+  list: string;
   category: string;
   difficulty: string;
   dateRange: string;
@@ -19,6 +22,7 @@ interface FilterOptions {
 }
 
 const DEFAULT_FILTERS: FilterOptions = {
+  list: 'All Questions',
   category: 'All Categories',
   difficulty: 'All Levels',
   dateRange: 'All Time',
@@ -26,6 +30,10 @@ const DEFAULT_FILTERS: FilterOptions = {
 };
 
 // Values are what the filter compares against (unchanged); labels are what the menus show.
+const LIST_OPTIONS = [
+  { value: 'All Questions', label: 'All questions' },
+  { value: 'Review List', label: 'Review list' },
+];
 const CATEGORY_OPTIONS = [
   { value: 'All Categories', label: 'All categories' },
   { value: 'Interview', label: 'Interview' },
@@ -63,6 +71,8 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
   };
 
   const [questions, setQuestions] = useState<Question[]>([]);
+  // Ids on the user's review list (null until loaded; a failed load leaves it empty).
+  const [reviewIds, setReviewIds] = useState<Set<string> | null>(null);
   const [loading, setLoading] = useState(true);
   const [clearingDuplicates, setClearingDuplicates] = useState(false);
   const [clearStatus, setClearStatus] = useState<{
@@ -127,10 +137,18 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
       }
     }
     loadQuestions();
+    questionReviewService
+      .getReviewList()
+      .then((items) => setReviewIds(new Set(items.map((i) => String(i.question_id)))))
+      .catch(() => setReviewIds(new Set()));
   }, []);
 
   const filteredQuestions = useMemo(() => {
     let filtered = [...questions];
+
+    if (filters.list === 'Review List') {
+      filtered = filtered.filter((q) => reviewIds?.has(q.id));
+    }
 
     if (filters.category !== 'All Categories') {
       filtered = filtered.filter((q) => q.category === filters.category);
@@ -191,7 +209,7 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
     });
 
     return filtered;
-  }, [questions, filters, sortBy, sortOrder]);
+  }, [questions, filters, sortBy, sortOrder, reviewIds]);
 
   const stats = useMemo(() => {
     const total = questions.length;
@@ -259,7 +277,9 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
   };
 
   const handleReview = (questionId: string) => {
-    router.push(`/question-review?id=${questionId}`);
+    // `from` sets the order the review page's previous / next follow: the review list, or the bank's default order.
+    const from = filters.list === 'Review List' ? 'review' : 'bank';
+    router.push(`/question-review?id=${questionId}&from=${from}`);
   };
 
   const handlePractice = (questionId: string) => {
@@ -313,6 +333,7 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
   };
 
   const hasActiveFilters =
+    filters.list !== 'All Questions' ||
     filters.category !== 'All Categories' ||
     filters.difficulty !== 'All Levels' ||
     filters.dateRange !== 'All Time' ||
@@ -335,10 +356,15 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
   }
 
   const filterMenus: {
-    key: 'category' | 'difficulty' | 'dateRange';
+    key: 'list' | 'category' | 'difficulty' | 'dateRange';
     label: string;
     options: { value: string; label: string }[];
   }[] = [
+    {
+      key: 'list',
+      label: 'Show',
+      options: LIST_OPTIONS,
+    },
     {
       key: 'category',
       label: 'Category',

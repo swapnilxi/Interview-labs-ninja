@@ -7,9 +7,20 @@
  *   POST /sessions                      create_session_endpoint        (login)
  *   GET  /sessions/recent?limit=        recent_sessions_endpoint       (login)
  *   POST /sessions/questions            persist_questions              (login)
- *   GET  /questions?category=&session_date=&topic=   list_questions   (public; a token narrows it to "yours")
- *   GET  /questions/{id}                get_question_detail            (public)
+ *   GET  /questions?category=&session_date=&topic=   list_questions   (login; the caller's + shared ones)
+ *     Both question reads return the CALLER's own user_performance / last_reviewed (question_user_state, written by
+ *     PATCH .../performance); a guest gets the unrated defaults (null), never another user's values.
+ *   GET  /questions/{id}                get_question_detail            (login)
+ *   GET  /questions/review-list         get_review_list                (login; the user's "Add to review" list)
+ *   PUT|DELETE /questions/{id}/review   add_question_to_review / remove_question_from_review  (login)
  *   PATCH /questions/{id}/performance   update_performance_endpoint    (login)
+ *   GET|PUT /questions/{id}/workspace   get/save_question_workspace    (login; questionStore.ts, the user's answer + notes)
+ *   GET|DELETE /questions/{id}/quiz     get_question_quiz / clear_question_quiz          (login; questionStore.ts)
+ *   POST /questions/{id}/quiz/generate  generate_question_quiz         (login; questionQuiz.ts + ../labSections/quiz)
+ *   GET  /questions/{id}/study          get_question_study             (login; questionStore.ts, quick/breakdown/deep)
+ *   POST /questions/{id}/study/{kind}   generate_question_study        (login; questionStudy.ts)
+ *   POST /questions/{id}/study/deep/expand        expand_question_deep_dive  (login; questionStudy.ts)
+ *   PUT  /questions/{id}/study/breakdown/progress save_breakdown_progress    (login)
  *   POST /session-progress              save_session_progress_endpoint (login)
  *   GET  /session-progress?session_date=  get_session_progress_endpoint (login)
  *   GET  /session-progress/stats        get_progress_stats_endpoint    (login)
@@ -18,20 +29,67 @@
  *   POST /lab/generate-questions        generate_lab_questions         (login; labGenerate.ts, the labs' Generate Practice)
  *   POST /lab/generate-from-youtube     generate_lab_from_youtube      (login; labGenerate.ts + youtube.ts)
  *
+ * Every route needs a login (401 without a token), like every FastAPI daily_session route.
+ * evaluate-answer and quiz/generate also record weak spots in the shared AI memory, and learn-chat, quiz and study
+ * prompts recall them (tutorMemory.ts).
+ *
  * Not ported yet (FastAPI only): flashcards, resume upload, deck import, export, the local-Ollama model list,
- * and POST /questions/clear-duplicates (unauthenticated and destructive in FastAPI — deliberately not copied onto a
- * public deployment). Keep in sync with the Python code (CLAUDE.md, "Dual deployment modes").
+ * and POST /questions/clear-duplicates (global and destructive: it deletes any user's duplicate rows; FastAPI now
+ * requires a login for it, but it is still deliberately not copied onto the deployment). Keep in sync with the
+ * Python code (CLAUDE.md, "Dual deployment modes").
  */
 
 import { withNeonSync } from '@/lib/server/neonSync';
-import { getUserFromAuthHeader } from '@/lib/server/authHelper';
 import { compileRoutes, dispatch, type TodoRoute } from '../todo/router';
 import { evaluateAnswer, expandAnswer, generateAnswer, learnChat } from './coach';
-import { HttpError, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
+import { HttpError, aiSettings, callAi, extractJsonArray, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
 import { hashesFor } from './dedup';
 import { generateSessionQuestions } from './generate';
 import { generateLabFromYoutube, generateLabQuestions } from './labGenerate';
 import { memoryLines, record as recordMemory } from '../memory/db';
+import { normalizeQuestions } from '../labSections/quiz';
+import {
+  MAX_QUIZ_ANSWER_CHARS,
+  MAX_QUIZ_PER_QUESTION,
+  MAX_WORKSPACE_FIELD_CHARS,
+  QUIZ_MAX_TOKENS,
+  buildQuestionQuizPrompt,
+  longerThan,
+} from './questionQuiz';
+import {
+  addQuestionQuiz,
+  clearQuestionQuiz,
+  ensureQuestionStoreSchema,
+  fetchQuestionForQuiz,
+  fetchQuestionQuiz,
+  fetchStudy,
+  fetchStudyItem,
+  fetchWorkspace,
+  questionExists,
+  saveStudy,
+  saveUserState,
+  saveWorkspace,
+  addToReview,
+  removeFromReview,
+  fetchReviewList,
+  type QuizQuestionFields,
+} from './questionStore';
+import { MAX_MISSED, MAX_MISSED_CHARS, MEMORY_MODULE, missedQuizFacts, weakSpotFacts } from './tutorMemory';
+import {
+  EXPAND_MAX_TOKENS,
+  MAX_DEPTH,
+  STUDY_KINDS,
+  STUDY_LABELS,
+  STUDY_MAX_TOKENS,
+  asIndex,
+  buildExpandPrompt,
+  buildStudyPrompt,
+  cleanLayer,
+  normalizeStudy,
+  parseStudyReply,
+  type StudyKind,
+  type StudyQuestion,
+} from './questionStudy';
 
 // ── Schema (copies of common/db.py; the git-tracked database already has these) ──────────────────────────────
 
@@ -97,6 +155,8 @@ function ensureSessionSchema(db: TodoDb) {
     )`);
   if (!columnsOf(db, 'session_progress').includes('user_id'))
     db.exec('ALTER TABLE session_progress ADD COLUMN user_id INTEGER DEFAULT NULL;');
+  // Per-user workspace and concept quiz for a question (backend/modules/daily_session/schema.py).
+  ensureQuestionStoreSchema(db);
   schemaReady = true;
 }
 
@@ -181,17 +241,14 @@ function category(v: unknown, loc: string): string {
   return v;
 }
 
-/** get_optional_user_id: a valid token identifies the caller (whatever their status); anything else is a guest. */
-function optionalUserId(req: Request): number | null {
-  const header = req.headers.get('authorization');
-  if (!header || !/^Bearer\s+\S/i.test(header)) return null;
-  return getUserFromAuthHeader(header)?.id ?? null;
-}
 
 // ── Questions ────────────────────────────────────────────────────────────────────────────────────────────────
 
-const QUESTION_COLS = `id, session_id, question_date, section, number, category, sub_type, difficulty, topics, question_text,
-  user_performance, last_reviewed, question_type`;
+// Rating and last-reviewed are the caller's own: `s` is their question_user_state row (LEFT JOIN ... s.user_id = ?;
+// a guest binds NULL, matches nothing and gets the unrated defaults).
+const QUESTION_COLS = `q.id, q.session_id, q.question_date, q.section, q.number, q.category, q.sub_type, q.difficulty, q.topics,
+  q.question_text, s.performance AS user_performance, s.last_reviewed AS last_reviewed, q.question_type`;
+const QUESTION_FROM = 'FROM questions q LEFT JOIN question_user_state s ON s.question_id = q.id AND s.user_id = ?';
 
 /** QuestionOut (same key order as the Pydantic model). */
 function questionOut(r: Row): Row {
@@ -212,35 +269,31 @@ function questionOut(r: Row): Row {
   };
 }
 
-function listQuestions(req: Request, query: URLSearchParams): Row[] {
-  const userId = optionalUserId(req);
+function listQuestions(userId: number, query: URLSearchParams): Row[] {
   const cat = query.get('category');
   const sessionDate = query.get('session_date');
   const topic = query.get('topic');
-  let sql = `SELECT ${QUESTION_COLS} FROM questions WHERE 1=1`;
-  const params: unknown[] = [];
-  if (userId !== null) {
-    sql += ' AND (user_id = ? OR user_id = 8 OR user_id IS NULL)';
-    params.push(userId);
-  }
+  let sql = `SELECT ${QUESTION_COLS} ${QUESTION_FROM} WHERE 1=1`;
+  const params: unknown[] = [userId, userId];
+  sql += ' AND (q.user_id = ? OR q.user_id = 8 OR q.user_id IS NULL)';
   if (cat !== null) {
-    sql += ' AND category = ?';
+    sql += ' AND q.category = ?';
     params.push(category(cat, 'query.category'));
   }
   if (sessionDate !== null) {
-    sql += ' AND question_date = ?';
+    sql += ' AND q.question_date = ?';
     params.push(sessionDate);
   }
   if (topic !== null) {
-    sql += ' AND (topics = ? OR topics LIKE ? OR topics LIKE ? OR topics LIKE ?)';
+    sql += ' AND (q.topics = ? OR q.topics LIKE ? OR q.topics LIKE ? OR q.topics LIKE ?)';
     params.push(topic, `${topic},%`, `%,${topic}`, `%,${topic},%`);
   }
-  sql += ' ORDER BY session_id DESC, section ASC, number ASC';
+  sql += ' ORDER BY q.session_id DESC, q.section ASC, q.number ASC';
   return withSessionDb((db) => db.all(sql, ...params).map(questionOut));
 }
 
-function getQuestion(id: number): Row {
-  const row = withSessionDb((db) => db.get(`SELECT ${QUESTION_COLS} FROM questions WHERE id = ?`, id));
+function getQuestion(userId: number, id: number): Row {
+  const row = withSessionDb((db) => db.get(`SELECT ${QUESTION_COLS} ${QUESTION_FROM} WHERE q.id = ?`, userId, id));
   if (!row) throw new HttpError(404, 'Question not found');
   return questionOut(row);
 }
@@ -248,12 +301,10 @@ function getQuestion(id: number): Row {
 function updatePerformance(userId: number, id: number, body: unknown): Row {
   if (!isDict(body)) throw new HttpError(422, 'Input should be a valid dictionary');
   const perf = reqInt(body, 'user_performance');
-  const changes = withSessionDb(
-    (db) =>
-      db.run('UPDATE questions SET user_performance = ?, last_reviewed = ? WHERE id = ? AND user_id = ?', perf, todayIso(), id, userId)
-        .changes
-  );
-  if (changes === 0) throw new HttpError(404, 'Question not found');
+  // The caller's own rating (question_user_state): anyone who can see a question can rate it; the shared
+  // questions.user_performance / last_reviewed columns are no longer written.
+  const saved = withSessionDb((db) => saveUserState(db, userId, id, perf, todayIso()));
+  if (!saved) throw new HttpError(404, 'Question not found');
   rememberPerformance(userId, id, perf);
   return { status: 'success' };
 }
@@ -265,8 +316,9 @@ function updatePerformance(userId: number, id: number, body: unknown): Row {
 function rememberPerformance(userId: number, questionId: number, rating: number): void {
   if (rating === 3 || rating < 1 || rating > 5) return;
   try {
+    // Any user can rate any question now (ratings are per user), so not only the owner's.
     const row = withSessionDb((db) =>
-      db.get<{ sub_type: string; question_text: string }>('SELECT sub_type, question_text FROM questions WHERE id = ? AND user_id = ?', questionId, userId)
+      db.get<{ sub_type: string; question_text: string }>('SELECT sub_type, question_text FROM questions WHERE id = ?', questionId)
     );
     if (!row) return;
     const verb = rating <= 2 ? 'Rated itself low on' : 'Rated itself high on';
@@ -335,6 +387,234 @@ function persistQuestions(userId: number, body: unknown): Row {
   });
 }
 
+// ── Question Review: per-user workspace and concept quiz ─────────────────────────────────────────────────────
+// Twin of the /questions/{id}/workspace and /questions/{id}/quiz routes in daily_session.py: statuses, limits and
+// error texts match, and the quiz prompt (questionQuiz.ts) is byte-identical to question_quiz.py.
+
+function getWorkspace(userId: number, questionId: number): Row {
+  return withSessionDb((db) => {
+    if (!questionExists(db, questionId)) throw new HttpError(404, 'Question not found');
+    return { ...fetchWorkspace(db, userId, questionId) };
+  });
+}
+
+function reviewToggle(userId: number, questionId: number, add: boolean): Row {
+  return withSessionDb((db) => {
+    if (!questionExists(db, questionId)) throw new HttpError(404, 'Question not found');
+    return add ? addToReview(db, userId, questionId) : removeFromReview(db, userId, questionId);
+  });
+}
+
+/**
+ * What the shared AI memory knows about this learner for Daily Session, best effort ([] on any error).
+ * Twin: _memory_lines() in daily_session.py.
+ */
+function memoryLinesSafe(userId: number, topic: string): string[] {
+  try {
+    return memoryLines(userId, MEMORY_MODULE, topic);
+  } catch (err) {
+    console.warn('[memory] could not read memory:', err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
+/** Record weak spots ("struggle" facts) for the tutor memory. Best effort. Twin: _remember_facts() in daily_session.py. */
+function rememberFacts(userId: number, topic: string, facts: string[]): void {
+  for (const fact of facts) {
+    try {
+      recordMemory(userId, MEMORY_MODULE, topic, 'struggle', fact);
+    } catch (err) {
+      console.warn('[memory] could not record a weak spot:', err instanceof Error ? err.message : err);
+    }
+  }
+}
+
+function putWorkspace(userId: number, questionId: number, body: unknown): Row {
+  if (!isDict(body)) throw new HttpError(422, 'Input should be a valid dictionary');
+  // QuestionWorkspaceIn: null (or left out) = keep the saved value.
+  const answer = optStr(body, 'answer');
+  const notes = optStr(body, 'notes');
+  for (const [field, value] of [['answer', answer], ['notes', notes]] as const) {
+    if (value !== null && longerThan(value, MAX_WORKSPACE_FIELD_CHARS))
+      throw new HttpError(400, `${field} is too long (max ${MAX_WORKSPACE_FIELD_CHARS} characters).`);
+  }
+  return withSessionDb((db) => {
+    if (!questionExists(db, questionId)) throw new HttpError(404, 'Question not found');
+    return { ...saveWorkspace(db, userId, questionId, answer, notes) };
+  });
+}
+
+/** Generate up to `count` more items about the concepts behind the question. Returns the FULL list after adding. */
+async function generateQuestionQuiz(userId: number, questionId: number, body: unknown): Promise<Row> {
+  if (!isDict(body)) throw new HttpError(422, 'Input should be a valid dictionary');
+  // GenerateQuestionQuizRequest(AISettings): count 1-8 (default 5), optional written answer.
+  const rawCount = body.count === undefined || body.count === null ? 5 : body.count;
+  if (typeof rawCount !== 'number' || !Number.isInteger(rawCount) || rawCount < 1 || rawCount > 8)
+    throw new HttpError(422, "Field 'count' must be an integer from 1 to 8");
+  const answer = optStr(body, 'answer') ?? '';
+  // missed: stems of quiz questions the user got wrong (<= 8, each <= 300 chars), recorded as weak spots.
+  let missed: string[] = [];
+  if (body.missed !== undefined && body.missed !== null) {
+    if (!Array.isArray(body.missed) || !body.missed.every((m) => typeof m === 'string'))
+      fail('missed', 'Input should be a valid list of strings');
+    missed = body.missed as string[];
+  }
+  if (longerThan(answer, MAX_QUIZ_ANSWER_CHARS))
+    throw new HttpError(400, `answer is too long (max ${MAX_QUIZ_ANSWER_CHARS} characters).`);
+  if (missed.length > MAX_MISSED || missed.some((m) => longerThan(m, MAX_MISSED_CHARS)))
+    throw new HttpError(400, `missed takes at most ${MAX_MISSED} question stems of up to ${MAX_MISSED_CHARS} characters each.`);
+
+  const question = withSessionDb((db) => fetchQuestionForQuiz(db, questionId));
+  if (!question) throw new HttpError(404, 'Question not found');
+  // Tutor memory: record what they missed first, so this quiz (and other questions of the type) can aim at it.
+  rememberFacts(userId, question.sub_type, missedQuizFacts(missed));
+  const existing = withSessionDb((db) => fetchQuestionQuiz(db, userId, questionId));
+  const room = MAX_QUIZ_PER_QUESTION - existing.length;
+  if (room <= 0)
+    throw new HttpError(
+      400,
+      `This question already has ${MAX_QUIZ_PER_QUESTION} quiz questions, the most it keeps. ` +
+        'Clear the quiz to generate new ones.'
+    );
+  const count = Math.min(rawCount, room);
+  const prompt = buildQuestionQuizPrompt({
+    questionText: question.question_text,
+    category: question.category,
+    subType: question.sub_type,
+    topics: question.topics,
+    difficulty: question.difficulty,
+    answer,
+    previousQuestions: existing.map((q) => q.q),
+    count,
+    memory: memoryLinesSafe(userId, question.sub_type),
+  });
+
+  let text: string;
+  try {
+    text = await callAi(prompt, aiSettings(body), QUIZ_MAX_TOKENS);
+  } catch (err) {
+    const last = err instanceof Error ? err.message : String(err);
+    throw new HttpError(400, `No API key configured or all providers failed. Add a key in Config. Last error: ${last}`);
+  }
+  let questions;
+  try {
+    questions = normalizeQuestions(extractJsonArray(text));
+  } catch (err) {
+    const last = err instanceof Error ? err.message : String(err);
+    throw new HttpError(502, `The AI response couldn't be parsed. Try again. (${last})`);
+  }
+  if (!questions.length) throw new HttpError(502, "The AI didn't return any usable questions. Try again.");
+
+  return withSessionDb((db) => {
+    const added = addQuestionQuiz(db, userId, questionId, questions.slice(0, count), MAX_QUIZ_PER_QUESTION);
+    if (!added.length) throw new HttpError(502, 'The AI only repeated questions you already have. Try again.');
+    return { questions: fetchQuestionQuiz(db, userId, questionId) };
+  });
+}
+
+// Study content: quick review, breakdown, deep dive (questionStudy.ts). Same twin as above.
+
+async function askAi(prompt: string, body: Row, maxTokens: number): Promise<string> {
+  try {
+    return await callAi(prompt, aiSettings(body), maxTokens);
+  } catch (err) {
+    const last = err instanceof Error ? err.message : String(err);
+    throw new HttpError(400, `No API key configured or all providers failed. Add a key in Config. Last error: ${last}`);
+  }
+}
+
+function studyQuestion(db: TodoDb, questionId: number): StudyQuestion {
+  const q: QuizQuestionFields | null = fetchQuestionForQuiz(db, questionId);
+  if (!q) throw new HttpError(404, 'Question not found');
+  return { questionText: q.question_text, category: q.category, subType: q.sub_type, topics: q.topics, difficulty: q.difficulty };
+}
+
+function getStudy(userId: number, questionId: number): Row {
+  return withSessionDb((db) => {
+    studyQuestion(db, questionId);
+    return fetchStudy(db, userId, questionId, STUDY_KINDS);
+  });
+}
+
+/** The stored item of `kind`; generated (and stored) when there is none yet or `refresh` is true. */
+async function generateStudy(userId: number, questionId: number, kindParam: string, body: unknown): Promise<Row> {
+  if (!isDict(body)) throw new HttpError(422, 'Input should be a valid dictionary');
+  // QuestionStudyRequest(AISettings): refresh (bool, default false), optional written answer.
+  const refresh = body.refresh === undefined ? false : toBool(body.refresh, 'refresh');
+  const answer = optStr(body, 'answer') ?? '';
+  if (!(STUDY_KINDS as readonly string[]).includes(kindParam))
+    throw new HttpError(400, 'kind must be one of: quick, breakdown, deep.');
+  const kind = kindParam as StudyKind;
+  if (longerThan(answer, MAX_QUIZ_ANSWER_CHARS))
+    throw new HttpError(400, `answer is too long (max ${MAX_QUIZ_ANSWER_CHARS} characters).`);
+  const { question, stored } = withSessionDb((db) => ({
+    question: studyQuestion(db, questionId),
+    stored: refresh ? null : fetchStudyItem(db, userId, questionId, kind),
+  }));
+  if (stored) return stored;
+  const memory = memoryLinesSafe(userId, question.subType);
+  const text = await askAi(buildStudyPrompt(kind, question, answer, memory), body, STUDY_MAX_TOKENS[kind]);
+  let raw: unknown;
+  try {
+    raw = parseStudyReply(text);
+  } catch (err) {
+    const last = err instanceof Error ? err.message : String(err);
+    throw new HttpError(502, `The AI response couldn't be parsed. Try again. (${last})`);
+  }
+  const content = normalizeStudy(kind, raw);
+  if (content === null) throw new HttpError(502, `The AI didn't return a usable ${STUDY_LABELS[kind]}. Try again.`);
+  return withSessionDb((db) => saveStudy(db, userId, questionId, kind, content));
+}
+
+/** Extend one deep-dive section by a deeper layer (appended; what is there stays) and bump its depth. */
+async function expandDeepDive(userId: number, questionId: number, body: unknown): Promise<Row> {
+  if (!isDict(body)) throw new HttpError(422, 'Input should be a valid dictionary');
+  const { question, deep } = withSessionDb((db) => ({
+    question: studyQuestion(db, questionId),
+    deep: fetchStudyItem(db, userId, questionId, 'deep'),
+  }));
+  if (!deep) throw new HttpError(404, 'No deep dive saved for this question yet. Generate one first.');
+  const sections = deep.sections as { heading: string; body: string; depth: number }[];
+  const index = asIndex(body.section);
+  if (index === null || !(index >= 0 && index < sections.length))
+    throw new HttpError(400, `section must be the index of one of the deep dive's sections (0-${sections.length - 1}).`);
+  const target = sections[index];
+  if (target.depth >= MAX_DEPTH) throw new HttpError(400, `This section is already at the deepest level (${MAX_DEPTH}).`);
+  const prompt = buildExpandPrompt(
+    question,
+    sections.map((s) => s.heading),
+    index,
+    target.body,
+    target.depth + 1
+  );
+  const layer = cleanLayer(await askAi(prompt, body, EXPAND_MAX_TOKENS));
+  if (!layer) throw new HttpError(502, 'The model returned an empty answer. Try again.');
+  target.body = target.body.trimEnd() + '\n\n' + layer;
+  target.depth = target.depth + 1;
+  return withSessionDb((db) => saveStudy(db, userId, questionId, 'deep', { sections, further: deep.further }));
+}
+
+/** Which breakdown chunks the user has read (stored sorted). */
+function saveBreakdownProgress(userId: number, questionId: number, body: unknown): Row {
+  if (!isDict(body)) throw new HttpError(422, 'Input should be a valid dictionary');
+  return withSessionDb((db) => {
+    studyQuestion(db, questionId);
+    const breakdown = fetchStudyItem(db, userId, questionId, 'breakdown');
+    if (!breakdown) throw new HttpError(404, 'No breakdown saved for this question yet. Generate one first.');
+    const n = (breakdown.chunks as unknown[]).length;
+    const indices = Array.isArray(body.done) ? body.done.map(asIndex) : null;
+    if (
+      indices === null ||
+      indices.some((i) => i === null || !(i >= 0 && i < n)) ||
+      new Set(indices).size !== indices.length
+    )
+      throw new HttpError(400, `done must be a list of unique chunk indices (0-${n - 1}).`);
+    const done = (indices as number[]).slice().sort((a, b) => a - b);
+    return saveStudy(db, userId, questionId, 'breakdown', { chunks: breakdown.chunks, done });
+  });
+}
+
+// ── Sessions ─────────────────────────────────────────────────────────────────────────────────────────────────
 // ── Sessions ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 function createSession(userId: number, body: unknown): Row {
@@ -495,10 +775,68 @@ const PRIVATE: TodoRoute[] = [
   { method: 'POST', path: '/sessions', handler: async (ctx) => createSession(ctx.userId, await ctx.json()) },
   { method: 'GET', path: '/sessions/recent', handler: (ctx) => recentSessions(ctx.userId, ctx.query) },
   { method: 'POST', path: '/sessions/questions', handler: async (ctx) => persistQuestions(ctx.userId, await ctx.json()) },
+  // Login required since the per-user ratings (401 without a token, like FastAPI's router).
+  { method: 'GET', path: '/questions/:question_id', handler: (ctx) => getQuestion(ctx.userId, ctx.intParam('question_id')) },
   {
     method: 'PATCH',
     path: '/questions/:question_id/performance',
     handler: async (ctx) => updatePerformance(ctx.userId, ctx.intParam('question_id'), await ctx.json()),
+  },
+  { method: 'GET', path: '/questions', handler: (ctx) => listQuestions(ctx.userId, ctx.query) },
+  // Review list ("Add to review"). compileRoutes puts this static path before '/questions/:question_id', the same
+  // precedence FastAPI gets from declaring it first.
+  { method: 'GET', path: '/questions/review-list', handler: (ctx) => ({ items: withSessionDb((db) => fetchReviewList(db, ctx.userId)) }) },
+  {
+    method: 'PUT',
+    path: '/questions/:question_id/review',
+    handler: (ctx) => reviewToggle(ctx.userId, ctx.intParam('question_id'), true),
+  },
+  {
+    method: 'DELETE',
+    path: '/questions/:question_id/review',
+    handler: (ctx) => reviewToggle(ctx.userId, ctx.intParam('question_id'), false),
+  },
+  // Question Review: the user's own answer + notes and concept quiz for one (shared) question.
+  { method: 'GET', path: '/questions/:question_id/workspace', handler: (ctx) => getWorkspace(ctx.userId, ctx.intParam('question_id')) },
+  {
+    method: 'PUT',
+    path: '/questions/:question_id/workspace',
+    handler: async (ctx) => putWorkspace(ctx.userId, ctx.intParam('question_id'), await ctx.json()),
+  },
+  {
+    method: 'GET',
+    path: '/questions/:question_id/quiz',
+    handler: (ctx) => ({ questions: withSessionDb((db) => fetchQuestionQuiz(db, ctx.userId, ctx.intParam('question_id'))) }),
+  },
+  {
+    method: 'POST',
+    path: '/questions/:question_id/quiz/generate',
+    handler: async (ctx) => generateQuestionQuiz(ctx.userId, ctx.intParam('question_id'), await ctx.json()),
+  },
+  { method: 'GET', path: '/questions/:question_id/study', handler: (ctx) => getStudy(ctx.userId, ctx.intParam('question_id')) },
+  {
+    method: 'POST',
+    path: '/questions/:question_id/study/:kind',
+    handler: async (ctx) => generateStudy(ctx.userId, ctx.intParam('question_id'), ctx.params.kind, await ctx.json()),
+  },
+  {
+    method: 'POST',
+    path: '/questions/:question_id/study/deep/expand',
+    handler: async (ctx) => expandDeepDive(ctx.userId, ctx.intParam('question_id'), await ctx.json()),
+  },
+  {
+    method: 'PUT',
+    path: '/questions/:question_id/study/breakdown/progress',
+    handler: async (ctx) => saveBreakdownProgress(ctx.userId, ctx.intParam('question_id'), await ctx.json()),
+  },
+  {
+    method: 'DELETE',
+    path: '/questions/:question_id/quiz',
+    handler: (ctx) => {
+      const questionId = ctx.intParam('question_id');
+      withSessionDb((db) => clearQuestionQuiz(db, ctx.userId, questionId));
+      return { questions: [] };
+    },
   },
   {
     method: 'POST',
@@ -510,9 +848,28 @@ const PRIVATE: TodoRoute[] = [
   { method: 'GET', path: '/session-progress/stats', handler: (ctx) => progressStats(ctx.userId) },
   // The answer coach (hint, evaluation, deep dive, learn chat): AI only, nothing is read or written in the database.
   { method: 'POST', path: '/sessions/generate-answer', handler: async (ctx) => generateAnswer(await ctx.json()) },
-  { method: 'POST', path: '/sessions/evaluate-answer', handler: async (ctx) => evaluateAnswer(await ctx.json()) },
+  {
+    method: 'POST',
+    path: '/sessions/evaluate-answer',
+    handler: async (ctx) => {
+      const body = await ctx.json();
+      const result = await evaluateAnswer(body);
+      // Tutor memory: the 1-2 weak spots it found, keyed by the question type so other questions of it see them.
+      rememberFacts(ctx.userId, typeof body.sub_type === 'string' ? body.sub_type : '', weakSpotFacts(result));
+      return result;
+    },
+  },
   { method: 'POST', path: '/sessions/expand-answer', handler: async (ctx) => expandAnswer(await ctx.json()) },
-  { method: 'POST', path: '/sessions/learn-chat', handler: async (ctx) => learnChat(await ctx.json()) },
+  {
+    method: 'POST',
+    path: '/sessions/learn-chat',
+    handler: async (ctx) => {
+      const body = await ctx.json();
+      // Tutor memory: weak spots remembered from earlier questions of this type (and the strongest others).
+      const topic = body && typeof body.sub_type === 'string' ? body.sub_type : '';
+      return learnChat(body, memoryLinesSafe(ctx.userId, topic));
+    },
+  },
   {
     method: 'POST',
     path: '/sessions/generate-session-questions',
@@ -530,28 +887,8 @@ const PRIVATE: TodoRoute[] = [
 ];
 const PRIVATE_ROUTES = compileRoutes(PRIVATE);
 
-function json(data: unknown, status = 200): Response {
-  return Response.json(data, { status });
-}
-
-/** Public routes (FastAPI's `public_router`: no login needed; a token, when sent, scopes the list). */
-async function dispatchPublic(req: Request, segments: string[]): Promise<Response | null> {
-  if (req.method !== 'GET' || segments[0] !== 'questions' || segments.length > 2) return null;
-  try {
-    if (segments.length === 1) return json(listQuestions(req, new URL(req.url).searchParams));
-    const raw = segments[1];
-    if (!/^-?\d+$/.test(raw)) throw new HttpError(422, "Invalid integer for 'question_id'");
-    return json(getQuestion(parseInt(raw, 10)));
-  } catch (err) {
-    if (err instanceof HttpError) return json({ detail: err.message }, err.status);
-    console.error('[dailySession] public route failed:', err);
-    return json({ detail: 'Internal Server Error' }, 500);
-  }
-}
-
+// Every route needs a login (the app is login-only, like FastAPI's daily_session router): there are no public ones.
 async function dispatchSession(req: Request, segments: string[]): Promise<Response> {
-  const pub = await dispatchPublic(req, segments);
-  if (pub) return pub;
   return dispatch(PRIVATE_ROUTES, req, segments);
 }
 
@@ -565,7 +902,8 @@ const writeSession = withNeonSync(dispatchSession);
 export function handleDailySession(req: Request, segments: string[]): Promise<Response> {
   // Generating questions only reads the bank (the session is saved by the POST /sessions/questions that follows),
   // so it skips the Neon snapshot push that wraps the other writes.
-  const AI_ONLY = ['generate-session-questions', 'generate-answer', 'evaluate-answer', 'expand-answer', 'learn-chat'];
+  // (evaluate-answer is not one of them any more: it records weak spots in the AI memory, a write.)
+  const AI_ONLY = ['generate-session-questions', 'generate-answer', 'expand-answer', 'learn-chat'];
   const readOnly =
     req.method === 'GET' || segments[0] === 'lab' || (segments[0] === 'sessions' && AI_ONLY.includes(segments[1]));
   return readOnly ? dispatchSession(req, segments) : writeSession(req, segments);

@@ -11,3 +11,6 @@ async function handle(req: Request, { params }: Ctx) {
 export const GET = handle;
 export const POST = handle;
 export const PATCH = handle;
+// PUT /questions/{id}/workspace and DELETE /questions/{id}/quiz (Question Review).
+export const PUT = handle;
+export const DELETE = handle;

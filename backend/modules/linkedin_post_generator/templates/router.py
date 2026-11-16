@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from modules.auth.dependencies import get_current_user_id
 from modules.common.db import delete_lab_section, fetch_lab_sections, save_lab_section
 
 from .schema import CATEGORY_LAB
@@ -17,7 +18,8 @@ from .db import (
     save_template,
 )
 
-router = APIRouter(prefix="/linkedin", tags=["linkedin-post-generator"])
+# Login required (the app is login-only since 2026-11-16). The data itself is still global, not per-user.
+router = APIRouter(prefix="/linkedin", tags=["linkedin-post-generator"], dependencies=[Depends(get_current_user_id)])
 
 TemplateType = Literal["prompt", "reference_post", "creator_post", "writing_style", "post_structure", "custom"]
 

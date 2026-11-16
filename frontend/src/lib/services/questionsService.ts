@@ -1,6 +1,6 @@
 'use client';
 
-import { apiFetch } from '../http/apiClient';
+import { apiFetch, parseApiError } from '../http/apiClient';
 
 export interface Question {
   id: string;
@@ -14,6 +14,8 @@ export interface Question {
   sessionId?: string;
   lastReviewed: string | null;
   userPerformance?: number;
+  /** The question's topics (e.g. ["System Design", "Rate Limiter"]). */
+  topics?: string[];
 }
 
 function mapBackendQuestion(q: any): Question {
@@ -43,6 +45,9 @@ function mapBackendQuestion(q: any): Question {
     sessionId: q.session_id != null ? String(q.session_id) : undefined,
     lastReviewed: q.last_reviewed || null,
     userPerformance: q.user_performance ?? undefined,
+    topics: Array.isArray(q.topics)
+      ? q.topics.filter((t: unknown) => typeof t === 'string' && t)
+      : [],
   };
 }
 
@@ -131,10 +136,12 @@ export const questionsService = {
         }),
       });
       if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
+        throw new Error(await parseApiError(res));
       }
     } catch (error) {
       console.error(`Failed to update performance for question ${id}:`, error);
+      // Callers show the failure; a swallowed error used to report "Mastered" after a 401 / 404.
+      throw error;
     }
   },
 

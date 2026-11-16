@@ -15,6 +15,8 @@ import { questionsService, Question } from '@/lib/services/questionsService';
 import { sessionService, SessionAnswer } from '@/lib/services/sessionService';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
 import AnswerWorkspace from './coach/AnswerWorkspace';
+import AILearnChat from './coach/AILearnChat';
+import Modal from '@/components/ui/Modal';
 import RichText from './coach/RichText';
 import {
   Bar,
@@ -213,6 +215,8 @@ export default function DailySessionInteractive() {
   // AI Hint & Answer state
   const [isGeneratingHint, setIsGeneratingHint] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  // The run bar's AI tutor sheet.
+  const [tutorOpen, setTutorOpen] = useState(false);
   const [showExplain, setShowExplain] = useState(false);
   const [dynamicExplain, setDynamicExplain] = useState<string | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
@@ -801,8 +805,7 @@ export default function DailySessionInteractive() {
     try {
       const all = uniqueByText(await questionsService.getAll());
       setDbQuestions(all);
-      const shuffled = [...all].sort(() => Math.random() - 0.5);
-      setDisplayedDbQuestions(shuffled.slice(0, 6));
+      setDisplayedDbQuestions(all.slice(0, 10));
     } catch (err) {
       console.error(err);
     } finally {
@@ -813,7 +816,7 @@ export default function DailySessionInteractive() {
   const pickQuestionsForFilter = (filter: CategoryFilter, pool: Question[]) => {
     const filtered = filter === 'All' ? pool : pool.filter((q) => q.category === filter);
     const shuffled = [...filtered].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 6);
+    return shuffled.slice(0, 10);
   };
 
   const handleCategoryFilterChange = (filter: CategoryFilter) => {
@@ -889,6 +892,7 @@ export default function DailySessionInteractive() {
     if (screen !== 'quiz') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
+      if (document.querySelector('[data-modal-root]')) return; // the tutor sheet (or another dialog) is open
       if (e.key === 'ArrowRight' && currentIndex < questions.length - 1) update({ q: currentIndex + 2 }, 'replace');
       if (e.key === 'ArrowLeft' && currentIndex > 0) update({ q: currentIndex }, 'replace');
     };
@@ -1255,7 +1259,12 @@ export default function DailySessionInteractive() {
               <ul className="ds-list">
                 {displayedDbQuestions.map((q) => (
                   <li key={q.id}>
-                    <Link href={`/question-review?id=${q.id}`} prefetch={false} className="ds-list-row ds-list-row-top" title="Open for a full AI review">
+                    <Link
+                      href={`/question-review?id=${q.id}`}
+                      prefetch={false}
+                      className="ds-list-row ds-list-row-top"
+                      title="Open the full review"
+                    >
                       <span className="min-w-0 flex-1">
                         <span className="ds-clamp-2 text-[0.9rem] font-semibold leading-snug ds-ink">{q.questionText}</span>
                         <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ds-faint">
@@ -1421,6 +1430,19 @@ export default function DailySessionInteractive() {
             <Icon name="ClockIcon" size={15} />
             {formatTime(elapsedSeconds)}
           </span>
+          {!viewAll && activeQuestion && (
+            <button
+              type="button"
+              onClick={() => setTutorOpen(true)}
+              className="ds-btn ds-btn-secondary ds-btn-sm ds-runbar-all"
+              aria-haspopup="dialog"
+              aria-label="AI tutor for this question"
+              title="Learn this question with the AI tutor"
+            >
+              <Icon name="ChatBubbleLeftRightIcon" size={17} />
+              <span className="hidden sm:inline">AI tutor</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => (viewAll ? goBack(quizUrl) : update({ view: 'all' }, 'push'))}
@@ -1440,6 +1462,43 @@ export default function DailySessionInteractive() {
           label={viewAll ? 'Session progress' : 'Questions'}
         />
       </div>
+
+      {/* The AI tutor for the question on screen: a sheet on phones, a panel on desktop. Each question keeps its own
+          conversation while the session is open (closing the sheet does not end it). */}
+      <Modal
+        isOpen={tutorOpen && !viewAll && !!activeQuestion}
+        onClose={() => setTutorOpen(false)}
+        labelledBy="ds-tutor-title"
+        className="lab-page ds-skin ios-sheet flex max-h-[90vh] w-full flex-col overflow-hidden rounded-[22px] sm:max-w-2xl"
+      >
+        <div className="ios-sheet-head sm:pt-4">
+          <h2 id="ds-tutor-title" className="ios-sheet-title">
+            AI tutor
+          </h2>
+          <button
+            type="button"
+            onClick={() => setTutorOpen(false)}
+            className="sheet-done ds-tone-indigo ds-tone-text"
+          >
+            Done
+          </button>
+        </div>
+        {activeQuestion && (
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-[1.25rem] sm:px-[1.5rem]">
+            <p className="ds-clamp-2 text-sm ds-muted">{activeQuestion.questionText}</p>
+            <AILearnChat
+              key={activeQuestion.questionText}
+              persistKey={`session:${sessionDate}:${activeQuestion.questionText}`}
+              question={{
+                questionText: activeQuestion.questionText,
+                category: activeQuestion.category === 'Interview' ? 'interview' : 'cv_skill',
+                subType: activeQuestion.subType,
+                difficulty: activeQuestion.difficulty,
+              }}
+            />
+          </div>
+        )}
+      </Modal>
 
       <div className="mt-4 space-y-3">
         {genWarning && (
@@ -1505,9 +1564,17 @@ export default function DailySessionInteractive() {
                   className="ds-field resize-y text-sm"
                 />
                 <div className="flex items-center justify-between gap-2">
-                  <Link href={`/question-review?id=${q.id || idx + 1}`} prefetch={false} className="ds-link text-xs">
-                    Full review
-                  </Link>
+                  {/^\d+$/.test(q.id) ? (
+                    <Link
+                      href={`/question-review?id=${q.id}`}
+                      prefetch={false}
+                      className="ds-link text-xs"
+                    >
+                      Full review
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
                   <button
                     type="button"
                     onClick={async () => {
@@ -1550,16 +1617,18 @@ export default function DailySessionInteractive() {
                     <DifficultyChip difficulty={activeQuestion.difficulty} />
                   )}
                 </div>
-                <Link
-                  href={`/question-review?id=${activeQuestion?.id || currentIndex + 1}`}
-                  prefetch={false}
-                  className="ds-reviewlink"
-                  aria-label="Full review of this question"
-                  title="Full review"
-                >
-                  <span className="hidden sm:inline">Full review</span>
-                  <Icon name="ArrowTopRightOnSquareIcon" size={16} />
-                </Link>
+                {activeQuestion && /^\d+$/.test(activeQuestion.id) && (
+                  <Link
+                    href={`/question-review?id=${activeQuestion.id}`}
+                    prefetch={false}
+                    className="ds-reviewlink"
+                    aria-label="Full review of this question"
+                    title="Full review"
+                  >
+                    <span className="hidden sm:inline">Full review</span>
+                    <Icon name="ArrowTopRightOnSquareIcon" size={16} />
+                  </Link>
+                )}
               </div>
               <h2 id="ds-q-text" className="ds-question">
                 {activeQuestion?.questionText}

@@ -8,8 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pypdf import PdfReader
+
+from modules.auth.dependencies import get_current_user_id
 
 from .db import (
     delete_pdf_document,
@@ -18,7 +20,8 @@ from .db import (
     save_pdf_document,
 )
 
-router = APIRouter(prefix="/api/pdf", tags=["Swipe PDF Reader"])
+# Login required (the app is login-only since 2026-11-16). Documents are still global, not per-user.
+router = APIRouter(prefix="/api/pdf", tags=["Swipe PDF Reader"], dependencies=[Depends(get_current_user_id)])
 
 MAX_PDF_BYTES = int(os.environ.get("LABNINJA_MAX_PDF_MB", "25")) * 1024 * 1024
 

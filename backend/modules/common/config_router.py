@@ -11,9 +11,9 @@ frontend/src/lib/services/settingsService.ts) and are sent with each AI
 request — never persisted server-side. That's what lets one deployment be
 shared by multiple people, each using their own keys. ai-default is read-only
 and reports only the provider/model names derived from the env (never keys),
-used when a request's model is left empty. test-key and ai-default are
-unauthenticated for the same reason the Config page itself is guest-accessible —
-the key being tested is the caller's own, supplied in the request body, never stored.
+used when a request's model is left empty. The key test-key checks is the caller's
+own, supplied in the request body, never stored. Every endpoint here needs a login:
+the app is login-only since 2026-11-16 (the Config page included).
 """
 
 from __future__ import annotations
@@ -23,12 +23,13 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from modules.auth.dependencies import get_current_user_id
 from modules.common.ai import ai_default_info, test_provider_key
 
-router = APIRouter(prefix="/config", tags=["config"])
+router = APIRouter(prefix="/config", tags=["config"], dependencies=[Depends(get_current_user_id)])
 
 
 class TestKeyRequest(BaseModel):

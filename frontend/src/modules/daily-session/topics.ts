@@ -22,6 +22,7 @@ export const COMPANY_OPTIONS = [
   'Amazon',
   'Apple',
   'Microsoft',
+  'Microsoft UK',
   'Netflix',
   'Uber',
   'Airbnb',

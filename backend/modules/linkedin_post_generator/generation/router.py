@@ -3,16 +3,18 @@ from __future__ import annotations
 import io
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from modules.auth.dependencies import get_current_user_id
 from modules.common.ai import AISettings
 
 from ..templates.db import fetch_templates_by_ids
 from .llm import generate_json, generate_text
 from .prompt_builder import build_analyze_prompt, build_generate_prompt, build_refine_prompt
 
-router = APIRouter(prefix="/linkedin", tags=["linkedin-post-generator"])
+# Login required (the app is login-only since 2026-11-16).
+router = APIRouter(prefix="/linkedin", tags=["linkedin-post-generator"], dependencies=[Depends(get_current_user_id)])
 
 _MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 

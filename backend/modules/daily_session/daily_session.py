@@ -10,12 +10,12 @@ import sqlite3
 import time
 import urllib.request
 from datetime import date
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from modules.auth.dependencies import get_current_user_id, get_optional_user_id
+from modules.auth.dependencies import get_current_user_id
 from modules.common.db import (
     Category,
     create_session,
@@ -32,6 +32,35 @@ from modules.common.db import (
     fetch_recent_sessions,
 )
 from modules.daily_session.dedup import QuestionIndex
+from modules.daily_session import question_store
+from modules.daily_session.question_quiz import (
+    MAX_QUIZ_ANSWER_CHARS,
+    MAX_QUIZ_PER_QUESTION,
+    MAX_WORKSPACE_FIELD_CHARS,
+    QUIZ_MAX_TOKENS,
+    build_question_quiz_prompt,
+)
+from modules.daily_session.question_study import (
+    EXPAND_MAX_TOKENS,
+    MAX_DEPTH,
+    STUDY_KINDS,
+    STUDY_LABELS,
+    STUDY_MAX_TOKENS,
+    as_index,
+    build_expand_prompt,
+    build_study_prompt,
+    clean_layer,
+    normalize_study,
+    parse_study_reply,
+)
+from modules.daily_session.tutor_memory import (
+    MAX_MISSED,
+    MAX_MISSED_CHARS,
+    MEMORY_MODULE,
+    missed_quiz_facts,
+    weak_spot_facts,
+)
+from modules.lab_sections.quiz import normalize_questions
 from modules.memory import store as memory_store
 from modules.common.export_md import render_markdown_for_day
 from modules.common.ai import AISettings, call_ai_text, extract_json_array, extract_json_object
@@ -52,10 +81,9 @@ from modules.common.youtube_client import extract_video_id, fetch_transcript, fe
 # frontend/fe-apis/dailySession/ (see its header for what is and isn't ported). Change both together.
 router = APIRouter(tags=["daily-session"], dependencies=[Depends(get_current_user_id)])
 
-# Utility endpoints that don't touch any user data (just proxy to a locally-running
-# Ollama server) and are used from the Config page, which guests can use without
-# logging in — kept off the `router` above so they aren't swept into its auth
-# requirement.
+# Every Daily Session endpoint requires login now (the app is login-only), including the question list/detail,
+# clear-duplicates, import-deck and the local-Ollama model list, which used to live here without auth. This router
+# is kept, empty, only because main.py still includes it; put new routes on `router`.
 public_router = APIRouter(tags=["daily-session"])
 
 
@@ -326,25 +354,29 @@ Provide:
 
 
 @router.post("/sessions/evaluate-answer")
-async def evaluate_answer_endpoint(payload: EvaluateRequest) -> dict:
+async def evaluate_answer_endpoint(payload: EvaluateRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """Score an answer against a per-question-type rubric and coach the candidate."""
     if not payload.answer_text.strip() and not (payload.code_text or "").strip():
         raise HTTPException(status_code=400, detail="Write an answer (or some code) first, then ask for an evaluation.")
     try:
-        return evaluate_answer(payload)
+        result = evaluate_answer(payload)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Evaluation failed: {exc}")
+    # Tutor memory: the 1-2 weak spots it found, keyed by the question type so other questions of it see them.
+    _remember_facts(user_id, payload.sub_type or "", weak_spot_facts(result))
+    return result
 
 
 @router.post("/sessions/learn-chat")
-async def learn_chat_endpoint(payload: LearnChatRequest) -> dict:
+async def learn_chat_endpoint(payload: LearnChatRequest, user_id: int = Depends(get_current_user_id)) -> dict:
     """One turn of AI Learn Chat: a Socratic tutor that teaches a topic in depth, then wraps up."""
     if not payload.question_text.strip():
         raise HTTPException(status_code=400, detail="question_text is required")
     if payload.messages and payload.messages[-1].role != "learner":
         raise HTTPException(status_code=400, detail="It is the learner's turn: the last message must be from the learner.")
     try:
-        return learn_turn(payload)
+        # Tutor memory: weak spots remembered from earlier questions of this type (and the strongest others).
+        return learn_turn(payload, _memory_lines(user_id, payload.sub_type or ""))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Tutor unavailable: {exc}")
 
@@ -787,7 +819,7 @@ async def generate_session_questions_endpoint(
     return result
 
 
-@public_router.post("/questions/clear-duplicates")
+@router.post("/questions/clear-duplicates")
 async def clear_duplicates_endpoint() -> dict:
     """Clear duplicate questions from the question bank using SQL."""
     cleared = clear_duplicate_questions()
@@ -797,10 +829,10 @@ async def clear_duplicates_endpoint() -> dict:
     }
 
 
-@public_router.post("/questions/import-deck")
+@router.post("/questions/import-deck")
 async def import_deck_endpoint(
     payload: dict,
-    user_id: Optional[int] = Depends(get_optional_user_id)
+    user_id: int = Depends(get_current_user_id)
 ) -> dict:
     """Import an uploaded deck (e.g. Quick Practice JSON) directly into the Question Bank.
     Uses SQL to deduplicate against existing questions.
@@ -847,12 +879,12 @@ async def persist_questions(
     return {"inserted_ids": ids}
 
 
-@public_router.get("/questions", response_model=List[QuestionOut])
+@router.get("/questions", response_model=List[QuestionOut])
 async def list_questions(
     category: Optional[Category] = Query(default=None),
     session_date: Optional[str] = Query(default=None),
     topic: Optional[str] = Query(default=None),
-    user_id: Optional[int] = Depends(get_optional_user_id),
+    user_id: int = Depends(get_current_user_id),
 ) -> List[QuestionOut]:
     records = list(fetch_questions(user_id=user_id, category=category, session_date=session_date, topic=topic))
 
@@ -879,9 +911,35 @@ async def list_questions(
     return out
 
 
-@public_router.get("/questions/{question_id}", response_model=QuestionOut)
-async def get_question_detail(question_id: int) -> QuestionOut:
-    r = fetch_question_by_id(question_id)
+# ── Review list ("Add to review"), per user ───────────────────────────────────
+# GET /questions/review-list is declared BEFORE /questions/{question_id}: FastAPI matches in order, and the param
+# route would take "review-list" and answer 422. Twin: the same routes in fe-apis/dailySession/index.ts.
+
+
+@router.get("/questions/review-list")
+async def get_review_list(user_id: int = Depends(get_current_user_id)) -> dict:
+    """This user's review list, newest first."""
+    return {"items": question_store.fetch_review_list(user_id)}
+
+
+@router.put("/questions/{question_id}/review")
+async def add_question_to_review(question_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    if not question_store.question_exists(question_id):
+        raise HTTPException(status_code=404, detail="Question not found")
+    return question_store.add_to_review(user_id, question_id)
+
+
+@router.delete("/questions/{question_id}/review")
+async def remove_question_from_review(question_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    if not question_store.question_exists(question_id):
+        raise HTTPException(status_code=404, detail="Question not found")
+    return question_store.remove_from_review(user_id, question_id)
+
+
+@router.get("/questions/{question_id}", response_model=QuestionOut)
+async def get_question_detail(question_id: int, user_id: int = Depends(get_current_user_id)) -> QuestionOut:
+    # Login required (401 without a token); user_performance / last_reviewed are the caller's own.
+    r = fetch_question_by_id(question_id, user_id)
     if not r:
         raise HTTPException(status_code=404, detail="Question not found")
     topics = [t for t in (r.topics or "").split(",") if t]
@@ -911,7 +969,8 @@ def _remember_performance(user_id: int, question_id: int, rating: int) -> None:
         conn = sqlite3.connect(get_db_path())
         try:
             row = conn.execute(
-                "SELECT sub_type, question_text FROM questions WHERE id = ? AND user_id = ?", (question_id, user_id)
+                # Any user can rate any question now (ratings are per user), so not only the owner's.
+                "SELECT sub_type, question_text FROM questions WHERE id = ?", (question_id,)
             ).fetchone()
         finally:
             conn.close()
@@ -922,6 +981,26 @@ def _remember_performance(user_id: int, question_id: int, rating: int) -> None:
         memory_store.record(user_id, "daily-session", row[0] or "", kind, f'{verb}: "{row[1][:90]}"')
     except Exception as exc:  # memory must never break saving a rating
         print(f"[memory] could not record performance: {exc}")
+
+
+def _memory_lines(user_id: int, topic: str) -> List[str]:
+    """What the shared AI memory knows about this learner for Daily Session, best effort ([] on any error).
+    Twin: memoryLinesSafe() in frontend/fe-apis/dailySession/index.ts."""
+    try:
+        return memory_store.memory_lines(user_id, MEMORY_MODULE, topic)
+    except Exception as exc:
+        print(f"[memory] could not read memory: {exc}")
+        return []
+
+
+def _remember_facts(user_id: int, topic: str, facts: List[str]) -> None:
+    """Record weak spots ("struggle" facts) for the tutor memory. Best effort: never breaks the request.
+    Twin: rememberFacts() in frontend/fe-apis/dailySession/index.ts."""
+    for fact in facts:
+        try:
+            memory_store.record(user_id, MEMORY_MODULE, topic, "struggle", fact)
+        except Exception as exc:
+            print(f"[memory] could not record a weak spot: {exc}")
 
 
 @router.patch("/questions/{question_id}/performance")
@@ -940,6 +1019,266 @@ async def update_performance_endpoint(
         raise HTTPException(status_code=404, detail="Question not found")
     _remember_performance(user_id, question_id, payload.user_performance)
     return {"status": "success"}
+
+
+# ── Question Review: per-user workspace and concept quiz ──────────────────────
+# A question row is shared, so the user's answer, notes and quiz live in their own tables (schema.py,
+# question_store.py). Twin: the /questions/:question_id/{workspace,quiz} routes in frontend/fe-apis/dailySession/
+# index.ts -- statuses, limits and error texts match, and the quiz prompt (question_quiz.py) is byte-identical.
+
+
+class QuestionWorkspaceIn(BaseModel):
+    # None (or left out) = keep the saved value.
+    answer: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class GenerateQuestionQuizRequest(AISettings):
+    count: int = Field(default=5, ge=1, le=8)
+    # The user's written answer, so some questions can target its gaps (optional).
+    answer: Optional[str] = None
+    # Stems of quiz questions the user got wrong (<= 8, each <= 300 chars): recorded as weak spots (tutor memory).
+    missed: Optional[List[str]] = None
+
+
+@router.get("/questions/{question_id}/workspace")
+async def get_question_workspace(question_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    if not question_store.question_exists(question_id):
+        raise HTTPException(status_code=404, detail="Question not found")
+    return question_store.fetch_workspace(user_id, question_id)
+
+
+@router.put("/questions/{question_id}/workspace")
+async def save_question_workspace(
+    question_id: int, payload: QuestionWorkspaceIn, user_id: int = Depends(get_current_user_id)
+) -> dict:
+    for field, value in (("answer", payload.answer), ("notes", payload.notes)):
+        if value is not None and len(value) > MAX_WORKSPACE_FIELD_CHARS:
+            raise HTTPException(
+                status_code=400, detail=f"{field} is too long (max {MAX_WORKSPACE_FIELD_CHARS} characters)."
+            )
+    if not question_store.question_exists(question_id):
+        raise HTTPException(status_code=404, detail="Question not found")
+    return question_store.save_workspace(user_id, question_id, payload.answer, payload.notes)
+
+
+@router.get("/questions/{question_id}/quiz")
+async def get_question_quiz(question_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    """This user's quiz items for the question, oldest first."""
+    return {"questions": question_store.fetch_question_quiz(user_id, question_id)}
+
+
+@router.post("/questions/{question_id}/quiz/generate")
+async def generate_question_quiz(
+    question_id: int, payload: GenerateQuestionQuizRequest, user_id: int = Depends(get_current_user_id)
+) -> dict:
+    """Generate up to `count` more items about the concepts behind the question. Returns the FULL list after adding.
+
+    Stems the user already has go into the prompt and are filtered out of the result, so repeated calls keep
+    producing new ones, up to MAX_QUIZ_PER_QUESTION stored items.
+    """
+    answer = payload.answer or ""
+    if len(answer) > MAX_QUIZ_ANSWER_CHARS:
+        raise HTTPException(status_code=400, detail=f"answer is too long (max {MAX_QUIZ_ANSWER_CHARS} characters).")
+    missed = payload.missed or []
+    if len(missed) > MAX_MISSED or any(len(m) > MAX_MISSED_CHARS for m in missed):
+        raise HTTPException(
+            status_code=400,
+            detail=f"missed takes at most {MAX_MISSED} question stems of up to {MAX_MISSED_CHARS} characters each.",
+        )
+    question = question_store.fetch_question_for_quiz(question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    # Tutor memory: record what they missed first, so this quiz (and other questions of the type) can aim at it.
+    _remember_facts(user_id, question["sub_type"], missed_quiz_facts(missed))
+    existing = question_store.fetch_question_quiz(user_id, question_id)
+    room = MAX_QUIZ_PER_QUESTION - len(existing)
+    if room <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This question already has {MAX_QUIZ_PER_QUESTION} quiz questions, the most it keeps. "
+            "Clear the quiz to generate new ones.",
+        )
+    count = min(payload.count, room)
+    prompt = build_question_quiz_prompt(
+        question_text=question["question_text"],
+        category=question["category"],
+        sub_type=question["sub_type"],
+        topics=question["topics"],
+        difficulty=question["difficulty"],
+        answer=answer,
+        previous_questions=[q["q"] for q in existing],
+        count=count,
+        memory=_memory_lines(user_id, question["sub_type"]),
+    )
+    try:
+        response_text = call_ai_text(prompt, payload, max_tokens=QUIZ_MAX_TOKENS)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No API key configured or all providers failed. Add a key in Config. Last error: {exc}",
+        )
+
+    try:
+        questions = normalize_questions(extract_json_array(response_text))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"The AI response couldn't be parsed. Try again. ({exc})")
+    if not questions:
+        raise HTTPException(status_code=502, detail="The AI didn't return any usable questions. Try again.")
+
+    added = question_store.add_question_quiz(user_id, question_id, questions[:count], MAX_QUIZ_PER_QUESTION)
+    if not added:
+        raise HTTPException(status_code=502, detail="The AI only repeated questions you already have. Try again.")
+    return {"questions": question_store.fetch_question_quiz(user_id, question_id)}
+
+
+@router.delete("/questions/{question_id}/quiz")
+async def clear_question_quiz(question_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    question_store.clear_question_quiz(user_id, question_id)
+    return {"questions": []}
+
+
+# Study content: quick review, breakdown, deep dive (question_study.py). Same twin as above.
+
+
+class QuestionStudyRequest(AISettings):
+    refresh: bool = False  # true = regenerate even when one is stored (a breakdown's progress resets)
+    answer: Optional[str] = None  # the user's written answer, so the content can lean on its gaps
+
+
+class DeepDiveExpandRequest(AISettings):
+    section: Any = None  # index into the deep dive's sections; checked by hand so a bad one is a 400
+
+
+class BreakdownProgressIn(BaseModel):
+    done: Any = None  # unique chunk indices; checked by hand so a bad list is a 400
+
+
+def _ai_failed(exc: Exception) -> HTTPException:
+    return HTTPException(
+        status_code=400,
+        detail=f"No API key configured or all providers failed. Add a key in Config. Last error: {exc}",
+    )
+
+
+def _study_question(question_id: int) -> dict:
+    question = question_store.fetch_question_for_quiz(question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return question
+
+
+@router.get("/questions/{question_id}/study")
+async def get_question_study(question_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    """This user's stored study content for the question: {quick, breakdown, deep}, each null until generated."""
+    _study_question(question_id)
+    return question_store.fetch_study(user_id, question_id, STUDY_KINDS)
+
+
+@router.post("/questions/{question_id}/study/deep/expand")
+async def expand_question_deep_dive(
+    question_id: int, payload: DeepDiveExpandRequest, user_id: int = Depends(get_current_user_id)
+) -> dict:
+    """Extend one deep-dive section by a deeper layer (appended; what is there stays) and bump its depth."""
+    question = _study_question(question_id)
+    deep = question_store.fetch_study_item(user_id, question_id, "deep")
+    if not deep:
+        raise HTTPException(status_code=404, detail="No deep dive saved for this question yet. Generate one first.")
+    sections = deep["sections"]
+    index = as_index(payload.section)
+    if index is None or not 0 <= index < len(sections):
+        raise HTTPException(
+            status_code=400, detail=f"section must be the index of one of the deep dive's sections (0-{len(sections) - 1})."
+        )
+    target = sections[index]
+    if target["depth"] >= MAX_DEPTH:
+        raise HTTPException(status_code=400, detail=f"This section is already at the deepest level ({MAX_DEPTH}).")
+    prompt = build_expand_prompt(
+        question_text=question["question_text"],
+        category=question["category"],
+        sub_type=question["sub_type"],
+        topics=question["topics"],
+        difficulty=question["difficulty"],
+        headings=[s["heading"] for s in sections],
+        section=index,
+        body=target["body"],
+        next_depth=target["depth"] + 1,
+    )
+    try:
+        text = call_ai_text(prompt, payload, max_tokens=EXPAND_MAX_TOKENS)
+    except Exception as exc:
+        raise _ai_failed(exc)
+    layer = clean_layer(text)
+    if not layer:
+        raise HTTPException(status_code=502, detail="The model returned an empty answer. Try again.")
+    target["body"] = target["body"].rstrip() + "\n\n" + layer
+    target["depth"] = target["depth"] + 1
+    return question_store.save_study(
+        user_id, question_id, "deep", {"sections": sections, "further": deep["further"]}
+    )
+
+
+@router.put("/questions/{question_id}/study/breakdown/progress")
+async def save_breakdown_progress(
+    question_id: int, payload: BreakdownProgressIn, user_id: int = Depends(get_current_user_id)
+) -> dict:
+    """Which breakdown chunks the user has read (stored sorted)."""
+    _study_question(question_id)
+    breakdown = question_store.fetch_study_item(user_id, question_id, "breakdown")
+    if not breakdown:
+        raise HTTPException(status_code=404, detail="No breakdown saved for this question yet. Generate one first.")
+    n = len(breakdown["chunks"])
+    indices = [as_index(v) for v in payload.done] if isinstance(payload.done, list) else None
+    if (
+        indices is None
+        or any(i is None or not 0 <= i < n for i in indices)
+        or len(set(indices)) != len(indices)
+    ):
+        raise HTTPException(
+            status_code=400, detail=f"done must be a list of unique chunk indices (0-{n - 1})."
+        )
+    return question_store.save_study(
+        user_id, question_id, "breakdown", {"chunks": breakdown["chunks"], "done": sorted(indices)}
+    )
+
+
+@router.post("/questions/{question_id}/study/{kind}")
+async def generate_question_study(
+    question_id: int, kind: str, payload: QuestionStudyRequest, user_id: int = Depends(get_current_user_id)
+) -> dict:
+    """The stored item of `kind`; generated (and stored) when there is none yet or `refresh` is true."""
+    if kind not in STUDY_KINDS:
+        raise HTTPException(status_code=400, detail="kind must be one of: quick, breakdown, deep.")
+    answer = payload.answer or ""
+    if len(answer) > MAX_QUIZ_ANSWER_CHARS:
+        raise HTTPException(status_code=400, detail=f"answer is too long (max {MAX_QUIZ_ANSWER_CHARS} characters).")
+    question = _study_question(question_id)
+    if not payload.refresh:
+        stored = question_store.fetch_study_item(user_id, question_id, kind)
+        if stored:
+            return stored
+    prompt = build_study_prompt(
+        kind=kind,
+        question_text=question["question_text"],
+        category=question["category"],
+        sub_type=question["sub_type"],
+        topics=question["topics"],
+        difficulty=question["difficulty"],
+        answer=answer,
+        memory=_memory_lines(user_id, question["sub_type"]),
+    )
+    try:
+        text = call_ai_text(prompt, payload, max_tokens=STUDY_MAX_TOKENS[kind])
+    except Exception as exc:
+        raise _ai_failed(exc)
+    try:
+        raw = parse_study_reply(text)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"The AI response couldn't be parsed. Try again. ({exc})")
+    content = normalize_study(kind, raw)
+    if content is None:
+        raise HTTPException(status_code=502, detail=f"The AI didn't return a usable {STUDY_LABELS[kind]}. Try again.")
+    return question_store.save_study(user_id, question_id, kind, content)
 
 
 @router.post("/session-progress")
@@ -962,7 +1301,7 @@ async def get_progress_stats_endpoint(user_id: int = Depends(get_current_user_id
     return fetch_progress_stats(user_id=user_id)
 
 
-@public_router.get("/settings/ollama-models")
+@router.get("/settings/ollama-models")
 async def list_ollama_models(url: str = Query(default="http://localhost:11434")) -> dict:
     req = urllib.request.Request(f"{url.rstrip('/')}/api/tags", method="GET")
     try:

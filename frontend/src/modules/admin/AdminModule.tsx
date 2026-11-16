@@ -78,10 +78,10 @@ function StatCard({
   tone?: 'primary' | 'secondary' | 'accent' | 'success';
 }) {
   const toneMap: Record<string, string> = {
-    primary: 'bg-primary/10 text-primary',
-    secondary: 'bg-secondary/10 text-secondary',
-    accent: 'bg-accent/10 text-accent',
-    success: 'bg-success/10 text-success',
+    primary: 'mix-bg-primary/10 text-primary',
+    secondary: 'mix-bg-secondary/10 text-secondary',
+    accent: 'mix-bg-accent/10 text-accent',
+    success: 'mix-bg-success/10 text-success',
   };
   return (
     <div className="bg-card border border-border rounded-lg p-18 flex items-center gap-12 shadow-sm">
@@ -103,13 +103,13 @@ function StatCard({
 function RoleBadge({ role }: { role: AppRole }) {
   if (role === 'editor') {
     return (
-      <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium bg-secondary/12 text-secondary border border-secondary/25">
+      <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium mix-bg-secondary/12 text-secondary border mix-border-secondary/25">
         <Icon name="PencilSquareIcon" size={12} /> Editor
       </span>
     );
   }
   return role === 'admin' || role === 'superadmin' ? (
-    <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium bg-primary/12 text-primary border border-primary/25">
+    <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium mix-bg-primary/12 text-primary border mix-border-primary/25">
       <Icon name="ShieldCheckIcon" size={12} variant="solid" />{' '}
       {role === 'superadmin' ? 'Superadmin' : 'Admin'}
     </span>
@@ -123,14 +123,14 @@ function RoleBadge({ role }: { role: AppRole }) {
 function StatusBadge({ status }: { status: AdminUser['status'] }) {
   if (status === 'pending') {
     return (
-      <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium bg-warning/12 text-warning border border-warning/25">
+      <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium mix-bg-warning/12 text-warning border mix-border-warning/25">
         <Icon name="ClockIcon" size={12} /> Pending
       </span>
     );
   }
   if (status === 'rejected') {
     return (
-      <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium bg-error/12 text-error border border-error/25">
+      <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium mix-bg-error/12 text-error border mix-border-error/25">
         <Icon name="XCircleIcon" size={12} /> Rejected
       </span>
     );
@@ -292,7 +292,7 @@ export default function AdminModule() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="w-[40px] h-[40px] border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <div className="w-[40px] h-[40px] border-4 mix-border-primary/30 border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
@@ -319,7 +319,7 @@ export default function AdminModule() {
       </div>
 
       {error && (
-        <div className="p-12 rounded-lg border bg-error/12 border-error/40 text-error flex items-center gap-12 text-sm">
+        <div className="p-12 rounded-lg border mix-bg-error/12 mix-border-error/40 text-error flex items-center gap-12 text-sm">
           <Icon name="ExclamationTriangleIcon" size={18} variant="solid" className="shrink-0" />
           <span>{error}</span>
         </div>
@@ -379,7 +379,7 @@ export default function AdminModule() {
                 </div>
                 <div className="flex-1 h-[8px] rounded-full bg-muted overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-primary/70 transition-all"
+                    className="h-full rounded-full mix-bg-primary/70 transition-all"
                     style={{ width: `${Math.max(2, (count / maxResource) * 100)}%` }}
                   />
                 </div>
@@ -406,7 +406,7 @@ export default function AdminModule() {
           <div className="flex flex-wrap items-center gap-12">
             <button
               onClick={() => setPending({ type: 'db-push' })}
-              className="inline-flex items-center gap-6 py-12 px-18 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-smooth focus-ring"
+              className="inline-flex items-center gap-6 py-12 px-18 rounded-md bg-primary hover:mix-bg-primary/90 text-primary-foreground text-sm font-medium transition-smooth focus-ring"
             >
               <Icon name="ArrowUpTrayIcon" size={16} /> Push to production
             </button>
@@ -452,7 +452,7 @@ export default function AdminModule() {
                 <div className="flex items-center gap-6 shrink-0">
                   <button
                     onClick={() => setPending({ type: 'approve-request', request: r })}
-                    className="py-6 px-12 rounded-md text-xs font-medium text-white bg-success hover:bg-success/90 transition-smooth focus-ring"
+                    className="py-6 px-12 rounded-md text-xs font-medium text-white bg-success hover:mix-bg-success/90 transition-smooth focus-ring"
                   >
                     Approve
                   </button>
@@ -495,7 +495,7 @@ export default function AdminModule() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-muted-foreground border-b border-border bg-muted/40">
+              <tr className="text-left text-xs text-muted-foreground border-b border-border mix-bg-muted/40">
                 <th className="px-18 py-12 font-medium">User</th>
                 <th className="px-18 py-12 font-medium">Role</th>
                 <th className="px-18 py-12 font-medium hidden md:table-cell">Resources</th>
@@ -515,10 +515,10 @@ export default function AdminModule() {
                 const isMe = u.id === me?.id;
                 return (
                   <Fragment key={u.id}>
-                    <tr className="border-b border-border last:border-0 hover:bg-muted/30 transition-smooth">
+                    <tr className="border-b border-border last:border-0 hover:mix-bg-muted/30 transition-smooth">
                       <td className="px-18 py-12">
                         <div className="flex items-center gap-12">
-                          <div className="w-36 h-36 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
+                          <div className="w-36 h-36 rounded-full mix-bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
                             {(u.display_name || u.email).charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
@@ -552,7 +552,7 @@ export default function AdminModule() {
                             <>
                               <button
                                 onClick={() => setPending({ type: 'approve-account', user: u })}
-                                className="py-6 px-12 rounded-md text-xs font-medium text-white bg-success hover:bg-success/90 transition-smooth focus-ring"
+                                className="py-6 px-12 rounded-md text-xs font-medium text-white bg-success hover:mix-bg-success/90 transition-smooth focus-ring"
                               >
                                 Approve
                               </button>
@@ -617,7 +617,7 @@ export default function AdminModule() {
                                   ? 'You do not have the users:delete permission'
                                   : 'Delete user'
                             }
-                            className="p-6 rounded-md hover:bg-error/10 text-muted-foreground hover:text-error transition-smooth focus-ring disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                            className="p-6 rounded-md hover:mix-bg-error/10 text-muted-foreground hover:text-error transition-smooth focus-ring disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                           >
                             <Icon name="TrashIcon" size={18} />
                           </button>
@@ -625,7 +625,7 @@ export default function AdminModule() {
                       </td>
                     </tr>
                     {expandedUserId === u.id && (
-                      <tr className="border-b border-border bg-muted/20">
+                      <tr className="border-b border-border mix-bg-muted/20">
                         <td colSpan={5} className="px-18 py-18">
                           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-12">
                             Permissions for {u.email}
@@ -702,7 +702,7 @@ export default function AdminModule() {
             {pending.type === 'delete' && (
               <>
                 <div className="flex items-center gap-12">
-                  <div className="w-48 h-48 rounded-full bg-error/10 flex items-center justify-center shrink-0">
+                  <div className="w-48 h-48 rounded-full mix-bg-error/10 flex items-center justify-center shrink-0">
                     <Icon name="TrashIcon" size={20} className="text-error" />
                   </div>
                   <h3 className="font-heading text-lg font-semibold text-foreground">
@@ -828,7 +828,7 @@ export default function AdminModule() {
             {pending.type === 'db-pull' && (
               <>
                 <div className="flex items-center gap-12">
-                  <div className="w-48 h-48 rounded-full bg-error/10 flex items-center justify-center shrink-0">
+                  <div className="w-48 h-48 rounded-full mix-bg-error/10 flex items-center justify-center shrink-0">
                     <Icon name="ExclamationTriangleIcon" size={20} className="text-error" />
                   </div>
                   <h3 className="font-heading text-lg font-semibold text-foreground">
@@ -856,8 +856,8 @@ export default function AdminModule() {
                 disabled={working || (pending.type === 'reset' && resetPw.length < 8)}
                 className={`py-12 px-18 rounded-md text-sm font-medium text-white transition-smooth focus-ring disabled:opacity-50 flex items-center gap-12 ${
                   DESTRUCTIVE_ACTION_TYPES.has(pending.type)
-                    ? 'bg-error hover:bg-error/90'
-                    : 'bg-primary hover:bg-primary/90'
+                    ? 'bg-error hover:mix-bg-error/90'
+                    : 'bg-primary hover:mix-bg-primary/90'
                 }`}
               >
                 {working && (

@@ -76,14 +76,13 @@ export default function LabsProjectModule() {
   } else {
     body = (
       <>
-        <div className="mb-[1.5rem] flex flex-wrap items-center justify-between gap-3">
-          <p className="max-w-2xl text-sm mix-text-foreground/[0.74]">
-            Projects give the labs something real to work on. Pick one in a lab and its answers are
-            written for it; save the ones you want to keep and they become knowledge the next lab
-            can build on.
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-xl text-[0.9375rem] leading-relaxed mix-text-foreground/[0.68]">
+            Pick a project in any lab — its context is woven into every answer. Save the answers
+            you want to keep; they become knowledge future generations can build on.
           </p>
           <button type="button" className={primaryButton} onClick={() => update({ new: 1 })}>
-            <Icon name="PlusIcon" size={16} />
+            <Icon name="PlusIcon" size={15} />
             New project
           </button>
         </div>

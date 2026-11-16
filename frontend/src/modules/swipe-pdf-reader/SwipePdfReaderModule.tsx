@@ -13,6 +13,7 @@ import type { ReaderDocMeta } from './utils/readerDb';
 import { buildUrl, useUrlState } from '@/lib/navigation/urlState';
 import { useSmartBack } from '@/lib/navigation/smartBack';
 import { toast } from '@/lib/ui/toast';
+import { apiFetch } from '@/lib/http/apiClient';
 
 export default function SwipePdfReaderModule() {
   const storage = useReaderStorage();
@@ -56,7 +57,7 @@ export default function SwipePdfReaderModule() {
     }
     if ((!doc || doc.chunks.length === 0) && source !== 'local') {
       try {
-        const res = await fetch(`/api/pdf/documents/${encodeURIComponent(id)}`);
+        const res = await apiFetch(`/api/pdf/documents/${encodeURIComponent(id)}`);
         if (res.ok) {
           doc = await res.json();
           if (doc) await storage.saveFullDocument(doc, undefined, 'cloud');
@@ -123,7 +124,7 @@ export default function SwipePdfReaderModule() {
 
       // 2. Fetch cloud documents from backend
       try {
-        const res = await fetch('/api/pdf/documents');
+        const res = await apiFetch('/api/pdf/documents');
         if (res.ok) {
           const cloudDocs: ReaderDocMeta[] = await res.json();
           const localIds = new Set(docs.map((d) => d.id));

@@ -176,6 +176,21 @@ export function requireTodoUserId(req: Request): number {
   return user.id;
 }
 
+/**
+ * requireTodoUserId for a route.ts outside the dispatcher (config, pdf, push): the caller's user id, or the
+ * 401/403 `{detail}` response to return as it is. The app is login-only (2026-11-16).
+ */
+export function userIdOrAuthError(req: Request): number | Response {
+  try {
+    return requireTodoUserId(req);
+  } catch (err) {
+    if (err instanceof HttpError) {
+      return Response.json({ detail: err.detail }, { status: err.status });
+    }
+    throw err;
+  }
+}
+
 // ── AI (mirrors modules/common/ai as used by ai_todo/shared/ai_helpers.py) ──
 
 const AI_SETTING_KEYS: (keyof AISettingsPayload)[] = [

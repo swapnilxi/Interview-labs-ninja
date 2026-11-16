@@ -39,6 +39,8 @@ const nextConfig = {
     '/api/access-requests/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/admin/db/pull': ['../backend/data/lab_ninja.sqlite3'],
     '/api/admin/db/push': ['../backend/data/lab_ninja.sqlite3'],
+    // Admin portal catch-all (stats, user management, permission overrides, access-request review).
+    '/api/admin/[...path]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/dsa/[...path]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/cv/[...path]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/system-design/[...path]': ['../backend/data/lab_ninja.sqlite3'],
@@ -62,6 +64,13 @@ const nextConfig = {
     '/api/push/fcm-token': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/fcm-test': ['../backend/data/lab_ninja.sqlite3'],
     '/api/push/sweep': ['../backend/data/lab_ninja.sqlite3'],
+    // Login-only since 2026-11-16: these check the account (users table) before answering.
+    '/api/config/ai-default': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/config/test-key': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/config/env-prefill': ['../backend/data/lab_ninja.sqlite3'],
+    // Text-to-speech / speech-to-text (Question review's Listen mode, AI LMS voice): auth reads the users table.
+    '/api/voice/stt': ['../backend/data/lab_ninja.sqlite3'],
+    '/api/voice/tts': ['../backend/data/lab_ninja.sqlite3'],
   },
   typescript: {
     ignoreBuildErrors: false,

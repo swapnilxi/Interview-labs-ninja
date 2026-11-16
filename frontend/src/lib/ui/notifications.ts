@@ -10,6 +10,15 @@
 
 import { toast } from '@/lib/ui/toast';
 import { isNativeApp, sendNativeTestNotification } from '@/lib/reminders/nativeReminders';
+import { getToken } from '@/lib/auth/tokenStore';
+
+/** The Web Push routes (Next.js only, no FastAPI twin) need the login token like every other API. */
+function pushHeaders(): Record<string, string> {
+  const token = getToken();
+  return token
+    ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+    : { 'Content-Type': 'application/json' };
+}
 
 export type NotificationSource = 'daily-session' | 'labs' | 'todo' | 'system';
 export type NotificationTone = 'info' | 'success' | 'warning' | 'error';
@@ -230,7 +239,7 @@ export async function subscribeToWebPush(): Promise<PushSubscription | null> {
     if (json.endpoint && json.keys?.p256dh && json.keys?.auth) {
       await fetch('/api/push/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: pushHeaders(),
         body: JSON.stringify({
           endpoint: json.endpoint,
           keys: json.keys,
@@ -337,7 +346,7 @@ export async function sendBrowserTestNotification(): Promise<boolean> {
     if (pushSub) {
       const res = await fetch('/api/push/test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: pushHeaders(),
         body: JSON.stringify({
           endpoint: pushSub.endpoint,
           keys: pushSub.toJSON().keys,
@@ -353,7 +362,7 @@ export async function sendBrowserTestNotification(): Promise<boolean> {
   }
 
   return showDeviceNotification({
-    title: 'LabNinja Android Push 🔔',
+    title: 'LabNinja Android Push',
     body: 'Mobile notifications are active and working! Tap to open.',
     tag: 'labninja-test',
     href: '/ai-todo?tab=today',

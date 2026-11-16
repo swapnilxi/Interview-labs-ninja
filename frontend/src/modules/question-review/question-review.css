@@ -1,0 +1,383 @@
+/*
+ * Question Review (/question-review?id=<n>): one question on the Daily Session skin (../daily-session/daily-session.css,
+ * scoped to .ds-skin). Prefix: qr-. Plain CSS on the app tokens, so it is free of the repo's Tailwind traps.
+ * Calm on purpose: one large title, rounded cards with a hairline, colour only where it carries meaning.
+ */
+
+/* ── Page column: one readable column (Focus), or two from 1024px (Split: the answer beside the AI tutor) ── */
+.ds-skin .qr-wrap {
+  width: 100%;
+  max-width: 50rem;
+  margin: 0 auto;
+}
+@media (min-width: 1024px) {
+  .ds-skin .qr-wrap[data-layout='split'] {
+    max-width: 78rem;
+  }
+}
+
+/* ── Hero: the question is the page's large title ── */
+.ds-skin .qr-hero {
+  padding: 1rem;
+}
+@media (min-width: 640px) {
+  .ds-skin .qr-hero {
+    padding: 1.5rem 1.75rem;
+  }
+}
+.ds-skin .qr-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.42;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+@media (min-width: 640px) {
+  .ds-skin .qr-title {
+    font-size: clamp(1.1875rem, 1.05rem + 0.45vw, 1.4375rem);
+    letter-spacing: -0.018em;
+    line-height: 1.38;
+  }
+}
+/* The chips: one line that scrolls sideways on a phone (so a long topic list never pushes the question down),
+   wrapping from 640px. */
+.ds-skin .qr-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.375rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -1rem;
+  padding: 0 1rem;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 1rem,
+    #000 calc(100% - 1.5rem),
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 1rem,
+    #000 calc(100% - 1.5rem),
+    transparent
+  );
+}
+.ds-skin .qr-chips::-webkit-scrollbar {
+  display: none;
+}
+@media (min-width: 640px) {
+  .ds-skin .qr-chips {
+    flex-wrap: wrap;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+.ds-skin .qr-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-ink-3);
+}
+.ds-skin .qr-status > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.ds-skin .qr-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+@media (min-width: 640px) {
+  .ds-skin .qr-actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}
+/* Phones: two equal columns; a long label wraps instead of spilling out of its button. */
+.ds-skin .qr-actions > :is(a, button) {
+  padding: 0 0.7rem;
+  white-space: normal;
+  line-height: 1.2;
+  text-align: center;
+}
+/* "Mastered" when on: a jade fill, the tick says it too (colour is never the only signal). */
+.ds-skin .qr-master[aria-pressed='true'] {
+  background: var(--ds-jade-soft);
+  color: var(--ds-jade-ink);
+}
+
+/* ── Study row: four small quiet buttons (a 2 x 2 grid on phones, one line from 640px) ── */
+.ds-skin .qr-study {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+@media (min-width: 640px) {
+  .ds-skin .qr-study {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}
+.ds-skin .qr-study > :is(a, button) {
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.2;
+  color: var(--ds-ink);
+  background: var(--color-fill);
+}
+.ds-skin .qr-study > :is(a, button):hover:not(:disabled) {
+  background: var(--color-fill-strong);
+}
+
+/* "Add to To-Do" inside an "Explore next" chip: a round + with a 44px reach on touch screens. */
+.ds-skin .qr-chip-add {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: -0.2rem -0.45rem -0.2rem 0.1rem;
+  border-radius: 999px;
+  color: var(--ds-ink-3);
+}
+.ds-skin .qr-chip-add:hover {
+  background: var(--color-fill-strong);
+  color: var(--ds-ink);
+}
+.ds-skin .qr-chip-add:focus-visible {
+  outline: 2px solid var(--ds-indigo);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .ds-skin .qr-chip-add {
+    position: relative;
+  }
+  .ds-skin .qr-chip-add::after {
+    content: '';
+    position: absolute;
+    inset: -0.5rem;
+  }
+}
+
+/* ── Workspace: the switcher and its panes. Split puts the AI tutor in a second, sticky column. ── */
+.ds-skin .qr-work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+@media (min-width: 1024px) {
+  .ds-skin .qr-wrap[data-layout='split'] .qr-work {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+    column-gap: 1.5rem;
+  }
+  .ds-skin .qr-wrap[data-layout='split'] .qr-work > * {
+    grid-column: 1;
+  }
+  .ds-skin .qr-wrap[data-layout='split'] .qr-work > .qr-pane-tutor {
+    grid-column: 2;
+    grid-row: 1 / span 6;
+    position: sticky;
+    top: calc(var(--chrome-top, 60px) + 1rem);
+    max-height: calc(100vh - var(--chrome-top, 60px) - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+.ds-skin .qr-pane {
+  padding: 1.25rem;
+}
+@media (min-width: 640px) {
+  .ds-skin .qr-pane {
+    padding: 1.5rem;
+  }
+}
+/* Phones: four segments share the width, so the icon steps aside below 400px (the label stays). */
+@media (max-width: 399px) {
+  .ds-skin .qr-seg > button {
+    padding: 0 0.25rem;
+    font-size: 0.82rem;
+  }
+  .ds-skin .qr-seg > button svg {
+    display: none;
+  }
+}
+@media (pointer: coarse) {
+  .ds-skin .qr-seg > button {
+    min-height: 2.75rem;
+  }
+  /* The dictation mic in the answer box: a full 44px target on touch screens. */
+  .ds-skin .qr-answer .bs-mic > button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+/* The sheet's Done keeps a 44px target. */
+.ds-skin .qr-done {
+  min-height: 2.75rem;
+}
+/* Phones and touch screens: the small buttons on this page and its sheets (the coach's, the quiz's, Save) grow to
+   44px tall; their look is unchanged. */
+@media (max-width: 639px), (pointer: coarse) {
+  .ds-skin :is(.qr-wrap, .qr-sheet) :is(.ds-btn-sm, .ds-btn-icon, .todo-btn) {
+    min-height: 2.75rem;
+  }
+  .ds-skin :is(.qr-wrap, .qr-sheet) .ds-btn-icon {
+    min-width: 2.75rem;
+  }
+}
+
+/* The keyboard shortcuts popover (portals to <body>): the card surface, not the page grey. */
+.ds-skin.qr-pop {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line);
+  box-shadow: var(--shadow-float);
+}
+
+/* ── Notes ── */
+.ds-skin .qr-notes {
+  min-height: 12rem;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+/* ── Loading: card-shaped placeholders ── */
+.ds-skin .qr-skel {
+  border-radius: 10px;
+  background: var(--color-fill);
+  animation: qr-pulse 1.6s ease-in-out infinite;
+}
+@keyframes qr-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ── Reading sheets (Quick review, Breakdown, Dive deep): one calm column, large type ── */
+/* A reading sheet is the card surface (white in light mode), not the page grey. */
+.ds-skin.qr-sheet {
+  background: var(--ds-surface);
+}
+.ds-skin .qr-sheet-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.25rem 1.25rem 1.5rem; /* the phone sheet itself adds the safe area */
+}
+@media (min-width: 640px) {
+  .ds-skin .qr-sheet-body {
+    padding: 0.25rem 2rem 2rem;
+  }
+}
+.ds-skin .qr-read {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--ds-ink);
+}
+.ds-skin .qr-read-lead {
+  font-size: 1.125rem;
+  line-height: 1.65;
+  color: var(--ds-ink);
+}
+/* RichText (the coach's markdown) sets text-sm on its root: in a reading sheet it follows the sheet's type. */
+.ds-skin .qr-prose > div {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--ds-ink);
+}
+.ds-skin .qr-prose > div > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.85rem;
+}
+.ds-skin .qr-prose h4 {
+  font-size: 1.0625rem;
+}
+.ds-skin .qr-read-list {
+  display: grid;
+  gap: 0.7rem;
+}
+.ds-skin .qr-read-list > li {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+.ds-skin .qr-read-list > li > svg {
+  margin-top: 0.3rem;
+}
+.ds-skin .qr-callout {
+  padding: 1rem 1.1rem;
+  border-radius: 16px;
+  background: var(--t-soft);
+  color: var(--ds-ink);
+}
+.ds-skin .qr-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--t-ink);
+}
+.ds-skin .qr-check {
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: var(--ds-surface-2);
+}
+.ds-skin .qr-section + .qr-section {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ds-line);
+}
+/* "Explore next": chips that wrap their text instead of running off a phone screen. */
+.ds-skin .qr-further > .ds-chip {
+  max-width: 100%;
+  padding: 0.3rem 0.75rem;
+  white-space: normal;
+  line-height: 1.35;
+}
+.ds-skin .qr-depth {
+  display: inline-flex;
+  gap: 3px;
+}
+.ds-skin .qr-depth > span {
+  width: 1.1rem;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-fill-strong);
+}
+.ds-skin .qr-depth > span[data-on='true'] {
+  background: var(--ds-indigo);
+}
+
+/* The sheet's own footer bar (Prev / Mark as read / Next). */
+.ds-skin .qr-sheet-foot {
+  flex-shrink: 0;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--ds-line);
+}
+@media (min-width: 640px) {
+  .ds-skin .qr-sheet-foot {
+    padding: 0.85rem 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-skin .qr-skel {
+    animation: none;
+  }
+}

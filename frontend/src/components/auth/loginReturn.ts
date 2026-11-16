@@ -2,9 +2,9 @@
  * Where to go after logging in.
  *
  * - Logging in from the popup keeps the user exactly where they are (no navigation at all).
- * - The /login URL has no screen of its own. It sends the user back to the page they came from
- *   (`?next=` first, then the last page this tab showed), and only when there is no such page does it
- *   fall back to the To-Do app, which is the app's landing page.
+ * - The /login screen (the app is login-only: AuthGate sends every guest there with `?next=`) sends the
+ *   user on to `?next=` first, then the last page this tab showed, and only when there is no such page
+ *   to the To-Do app, which is the app's landing page.
  *
  * Not `/`: next.config.mjs redirects `/` to /daily-session, so it is not the landing page.
  */

@@ -111,8 +111,13 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
 
   const allCompanyOptions = [...COMPANY_OPTIONS, ...customCompanies.filter((c) => !isPresetCompany(c))];
 
-  const filteredCompanyOptions = companyDraft.trim()
-    ? allCompanyOptions.filter((c) => c.toLowerCase().includes(companyDraft.toLowerCase().trim()))
+  const trimmedDraft = companyDraft.trim();
+  const canAddDraft = Boolean(
+    trimmedDraft && !allCompanyOptions.some((o) => o.toLowerCase() === trimmedDraft.toLowerCase())
+  );
+
+  const filteredCompanyOptions = trimmedDraft
+    ? allCompanyOptions.filter((c) => c.toLowerCase().includes(trimmedDraft.toLowerCase()))
     : allCompanyOptions;
 
   const hasC = (c: string) => companies.some((v) => v.toLowerCase() === c.toLowerCase());
@@ -145,10 +150,10 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
 
   const companyLabel =
     companies.length === 0
-      ? 'Any company'
+      ? 'Add or select companies…'
       : companies.length === 1
         ? companies[0]
-        : `${companies[0]} +${companies.length - 1}`;
+        : `${companies[0]} +${companies.length - 1} more`;
 
   return (
     <div className="space-y-[1.5rem]">
@@ -260,10 +265,13 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
           aria-expanded={companyOpen}
           aria-labelledby="ds-companies"
           onClick={() => setCompanyOpen((o) => !o)}
-          className="ds-field flex w-full items-center justify-between gap-2 py-2 text-left text-sm"
+          className="ds-dropdown-trigger flex flex-row items-center justify-between"
         >
-          <span className={companies.length === 0 ? 'ds-faint' : 'ds-ink'}>{companyLabel}</span>
-          <Icon name="ChevronDownIcon" size={16} className={`ds-faint flex-shrink-0 transition-transform ${companyOpen ? 'rotate-180' : ''}`} />
+          <span className={`inline-flex items-center gap-1.5 min-w-0 ${companies.length === 0 ? 'ds-faint' : 'ds-ink font-medium'}`}>
+            {companies.length === 0 && <Icon name="PlusIcon" size={13} className="ds-faint flex-shrink-0" />}
+            <span className="truncate">{companyLabel}</span>
+          </span>
+          <Icon name="ChevronDownIcon" size={15} className={`ds-faint flex-shrink-0 ml-2 transition-transform ${companyOpen ? 'rotate-180' : ''}`} />
         </button>
 
         {/* Dropdown panel */}
@@ -276,31 +284,49 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
           >
             {/* Search / add input */}
             <div className="ds-dropdown-header p-2">
-              <input
-                type="text"
-                value={companyDraft}
-                autoFocus
-                placeholder="Search or add company…"
-                aria-label="Search or add a company"
-                className="ds-field w-full py-1.5 text-sm"
-                onChange={(e) => setCompanyDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (filteredCompanyOptions.length === 1) {
-                      toggleCompany(filteredCompanyOptions[0]);
-                      setCompanyDraft('');
-                    } else if (companyDraft.trim() && !allCompanyOptions.some((o) => o.toLowerCase() === companyDraft.trim().toLowerCase())) {
-                      addCustomCompany();
-                    }
-                  }
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setCompanyOpen(false);
-                    setCompanyDraft('');
-                  }
-                }}
-              />
+              <div className="flex items-center gap-1.5">
+                <div className="ds-dropdown-search-wrap">
+                  <span className="ds-dropdown-search-icon">
+                    <Icon name="MagnifyingGlassIcon" size={15} />
+                  </span>
+                  <input
+                    type="text"
+                    value={companyDraft}
+                    autoFocus
+                    placeholder="Search or add company…"
+                    aria-label="Search or add a company"
+                    className="ds-dropdown-search-input"
+                    onChange={(e) => setCompanyDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (canAddDraft) {
+                          addCustomCompany();
+                        } else if (filteredCompanyOptions.length === 1) {
+                          toggleCompany(filteredCompanyOptions[0]);
+                          setCompanyDraft('');
+                        }
+                      }
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setCompanyOpen(false);
+                        setCompanyDraft('');
+                      }
+                    }}
+                  />
+                </div>
+                {canAddDraft && (
+                  <button
+                    type="button"
+                    onClick={addCustomCompany}
+                    className="ds-btn ds-btn-primary ds-btn-sm flex-shrink-0"
+                    title={`Add "${companyDraft.trim()}"`}
+                  >
+                    <Icon name="PlusIcon" size={14} />
+                    Add
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Option list */}
@@ -328,21 +354,21 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
               })}
 
               {/* Add custom company option when search doesn't match any existing */}
-              {companyDraft.trim() && !allCompanyOptions.some((o) => o.toLowerCase() === companyDraft.trim().toLowerCase()) && (
+              {canAddDraft && (
                 <li role="option" aria-selected={false}>
                   <button
                     type="button"
                     onClick={addCustomCompany}
-                    className="ds-dropdown-item flex w-full items-center gap-2 px-3 py-1.5 text-sm ds-faint"
+                    className="ds-dropdown-item flex w-full items-center gap-2 px-3 py-2 text-sm ds-indigo font-medium"
                   >
                     <Icon name="PlusIcon" size={14} />
-                    Add &ldquo;{companyDraft.trim()}&rdquo;
+                    Add &ldquo;{companyDraft.trim()}&rdquo; as new company
                   </button>
                 </li>
               )}
 
-              {filteredCompanyOptions.length === 0 && !companyDraft.trim() && (
-                <li className="px-3 py-2 text-xs ds-faint">No companies found</li>
+              {filteredCompanyOptions.length === 0 && !canAddDraft && (
+                <li className="px-3 py-2 text-xs ds-faint">No matching companies</li>
               )}
             </ul>
           </div>

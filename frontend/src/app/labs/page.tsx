@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     'Every lab in one place: DSA, System Design, Computer Vision, Communication, Finance and Python.',
 };
 
-// Public: it only links to the labs (each lab page asks for a login itself).
+// Login required like every page (AuthGate in the root layout); it only links to the labs.
 export default function LabsPage() {
   return (
     <>

@@ -82,7 +82,8 @@ export interface AnalyzePostResult {
   regeneratedPost: string;
 }
 
-import { API_BASE_URL } from '@/lib/http/apiClient';
+// Login required (the app is login-only since 2026-11-16), so every call goes through apiFetch.
+import { apiFetch } from '@/lib/http/apiClient';
 
 async function parseErrorDetail(res: Response): Promise<string> {
   try {
@@ -96,7 +97,7 @@ async function parseErrorDetail(res: Response): Promise<string> {
 export const linkedinService = {
   async getCategories(): Promise<LinkedInCategory[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/linkedin/categories`);
+      const res = await apiFetch('/linkedin/categories');
       if (!res.ok) throw new Error(await parseErrorDetail(res));
       return await res.json();
     } catch (error) {
@@ -106,16 +107,15 @@ export const linkedinService = {
   },
 
   async addCategory(name: string): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/linkedin/categories`, {
+    const res = await apiFetch('/linkedin/categories', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
   },
 
   async deleteCategory(id: number): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/linkedin/categories/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/linkedin/categories/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
   },
 
@@ -132,7 +132,7 @@ export const linkedinService = {
       if (opts?.favoritesOnly) params.set('favoritesOnly', 'true');
       if (opts?.category) params.set('category', opts.category);
       const query = params.toString();
-      const res = await fetch(`${API_BASE_URL}/linkedin/templates${query ? `?${query}` : ''}`);
+      const res = await apiFetch(`/linkedin/templates${query ? `?${query}` : ''}`);
       if (!res.ok) throw new Error(await parseErrorDetail(res));
       return await res.json();
     } catch (error) {
@@ -142,9 +142,8 @@ export const linkedinService = {
   },
 
   async addTemplate(payload: TemplateInput): Promise<number | null> {
-    const res = await fetch(`${API_BASE_URL}/linkedin/templates`, {
+    const res = await apiFetch('/linkedin/templates', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
@@ -153,30 +152,29 @@ export const linkedinService = {
   },
 
   async updateTemplate(id: number, payload: Partial<TemplateInput>): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/linkedin/templates/${id}`, {
+    const res = await apiFetch(`/linkedin/templates/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
   },
 
   async duplicateTemplate(id: number): Promise<number | null> {
-    const res = await fetch(`${API_BASE_URL}/linkedin/templates/${id}/duplicate`, { method: 'POST' });
+    const res = await apiFetch(`/linkedin/templates/${id}/duplicate`, { method: 'POST' });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
     const data = await res.json();
     return data.id ?? null;
   },
 
   async deleteTemplate(id: number): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/linkedin/templates/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/linkedin/templates/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
   },
 
   async extractPdf(file: File): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${API_BASE_URL}/linkedin/extract-pdf`, {
+    const res = await apiFetch('/linkedin/extract-pdf', {
       method: 'POST',
       body: formData,
     });
@@ -186,9 +184,8 @@ export const linkedinService = {
   },
 
   async generatePost(input: GeneratePostInput): Promise<string> {
-    const res = await fetch(`${API_BASE_URL}/linkedin/generate`, {
+    const res = await apiFetch('/linkedin/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...input, ...defaultAIRequestFields() }),
     });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
@@ -197,9 +194,8 @@ export const linkedinService = {
   },
 
   async refinePost(post: string, action: RefineAction, tone?: string): Promise<string> {
-    const res = await fetch(`${API_BASE_URL}/linkedin/refine`, {
+    const res = await apiFetch('/linkedin/refine', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ post, action, tone, ...defaultAIRequestFields() }),
     });
     if (!res.ok) throw new Error(await parseErrorDetail(res));
@@ -208,9 +204,8 @@ export const linkedinService = {
   },
 
   async analyzePost(postText: string): Promise<AnalyzePostResult> {
-    const res = await fetch(`${API_BASE_URL}/linkedin/analyze`, {
+    const res = await apiFetch('/linkedin/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ postText, ...defaultAIRequestFields() }),
     });
     if (!res.ok) throw new Error(await parseErrorDetail(res));

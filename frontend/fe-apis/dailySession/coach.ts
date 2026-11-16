@@ -12,6 +12,7 @@
 
 import { HttpError, aiSettings, callAi, type Row } from '../todo/_shared';
 import { resolveModel } from '../ai';
+import { memoryBlock } from './tutorMemory';
 
 type Rubric = [key: string, label: string, weight: number, desc: string];
 
@@ -387,7 +388,9 @@ function buildLearnPrompt(
   maxTurns: number,
   kind: string,
   learnerTurns: number,
-  forceWrap: boolean
+  forceWrap: boolean,
+  /** memoryLines() for this user and the question's sub_type (tutorMemory.ts); empty = left out. */
+  memory: string[] = []
 ): string {
   const [name, role] = TUTORS[kind];
   const convo =
@@ -418,7 +421,7 @@ function buildLearnPrompt(
   }
   return `You are ${name}, a patient, encouraging and rigorous ${role} helping someone learn a topic in depth through conversation. This is for learning, not assessment: never grade, rank or pressure the learner.
 Topic being explored (${KIND_TITLES[kind]}, level ${difficulty || 'unspecified'}), starting from this question:
-${questionText}
+${questionText}${memoryBlock(memory, 'learn')}
 
 Conversation so far:
 ${convo}
@@ -436,7 +439,8 @@ ${ACCURACY_RULES}
 Return ONLY one JSON object: {"message": "what you say", "depth": 1-5, "focus": "2-4 word concept you are exploring", "wrap_up": true|false}`;
 }
 
-export async function learnChat(raw: unknown): Promise<Row> {
+/** `memory`: memoryLines() for this user and the question's sub_type, read by the route (index.ts). */
+export async function learnChat(raw: unknown, memory: string[] = []): Promise<Row> {
   const b = bodyOf(raw);
   const questionText = requireString(b, 'question_text');
   const settings = aiSettings(b);
@@ -461,7 +465,7 @@ export async function learnChat(raw: unknown): Promise<Row> {
     const kind = detectKind(subType, category, questionText);
     const learnerTurns = messages.filter((m) => m.role === 'learner').length;
     const forceWrap = learnerTurns >= maxTurns;
-    const text = await callAi(buildLearnPrompt(questionText, messages, difficulty, maxTurns, kind, learnerTurns, forceWrap), settings, 1536);
+    const text = await callAi(buildLearnPrompt(questionText, messages, difficulty, maxTurns, kind, learnerTurns, forceWrap, memory), settings, 1536);
     let data: Row = {};
     let message: string;
     try {

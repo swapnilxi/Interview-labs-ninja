@@ -1,7 +1,8 @@
 'use client';
 
 import { openLoginModal } from '@/components/auth/LoginModal';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocationSearch } from '@/lib/navigation/useLocationSearch';
@@ -20,40 +21,88 @@ import {
   subscribeSidebarMode,
 } from '@/lib/services/sidebarService';
 
+/** iOS system colours for the icon tiles (`.nav-tile[data-tint]` in tailwind.css, light and dark values). */
+type Tint = 'blue' | 'indigo' | 'purple' | 'pink' | 'red' | 'orange' | 'green' | 'teal' | 'cyan' | 'brown' | 'gray';
+
 interface SidebarLink {
   label: string;
   path: string;
   icon: string;
+  tint: Tint;
 }
 
 const DAILY_SESSION_LINKS: SidebarLink[] = [
-  { label: 'Daily Session', path: '/daily-session?tab=session', icon: 'AcademicCapIcon' },
-  { label: 'Practice Mode', path: '/daily-session?tab=practice', icon: 'SparklesIcon' },
-  { label: 'Quick Practice', path: '/daily-session?tab=quick-practice', icon: 'BoltIcon' },
-  { label: 'Progress Dashboard', path: '/daily-session?tab=progress', icon: 'ChartBarIcon' },
-  { label: 'Question Bank', path: '/daily-session?tab=question-bank', icon: 'BookOpenIcon' },
+  { label: 'Daily Session', path: '/daily-session?tab=session', icon: 'AcademicCapIcon', tint: 'blue' },
+  { label: 'Practice Mode', path: '/daily-session?tab=practice', icon: 'SparklesIcon', tint: 'indigo' },
+  { label: 'Quick Practice', path: '/daily-session?tab=quick-practice', icon: 'BoltIcon', tint: 'orange' },
+  { label: 'Progress Dashboard', path: '/daily-session?tab=progress', icon: 'ChartBarIcon', tint: 'green' },
+  { label: 'Question Bank', path: '/daily-session?tab=question-bank', icon: 'BookOpenIcon', tint: 'teal' },
 ];
 
-// The Labs menu (labCatalog.ts): the Labs home, each group of labs, then Labs Project.
-const toLink = (l: { label: string; path: string; icon: string }): SidebarLink => ({ label: l.label, path: l.path, icon: l.icon });
+// The Labs menu (labCatalog.ts): the Labs home, each group of labs, then Labs Project. Each lab keeps one tile colour.
+const LAB_TINTS: Record<string, Tint> = {
+  '/labs': 'gray',
+  '/dsa-lab': 'blue',
+  '/system-design-lab': 'indigo',
+  '/cv-lab': 'teal',
+  '/communication-lab': 'green',
+  '/finance-lab': 'orange',
+  '/python-lab': 'purple',
+  '/labs-project': 'cyan',
+};
+const toLink = (l: { label: string; path: string; icon: string }): SidebarLink => ({
+  label: l.label,
+  path: l.path,
+  icon: l.icon,
+  tint: LAB_TINTS[l.path] ?? 'gray',
+});
 const LAB_GROUP_LINKS = LAB_GROUPS.map((g) => ({ ...g, links: labsInGroup(g.id).map(toLink) }));
 const LAB_LINKS: SidebarLink[] = [toLink(LABS_HOME), ...LAB_GROUP_LINKS.flatMap((g) => g.links), toLink(LABS_PROJECT_LINK)];
 /** Icon rail: a thin divider before each of these (between the groups of the Labs menu). */
 const LAB_RAIL_DIVIDERS = [...LAB_GROUP_LINKS.map((g) => g.links[0]?.path), LABS_PROJECT_LINK.path].filter(Boolean) as string[];
 
 const CAREER_LINKS: SidebarLink[] = [
-  { label: 'Profiles', path: '/career?tab=profiles', icon: 'IdentificationIcon' },
-  { label: 'Resumes', path: '/career?tab=resumes', icon: 'DocumentTextIcon' },
-  { label: 'Portfolios', path: '/career?tab=portfolios', icon: 'GlobeAltIcon' },
-  { label: 'Templates', path: '/career?tab=templates', icon: 'SwatchIcon' },
+  { label: 'Profiles', path: '/career?tab=profiles', icon: 'IdentificationIcon', tint: 'blue' },
+  { label: 'Resumes', path: '/career?tab=resumes', icon: 'DocumentTextIcon', tint: 'indigo' },
+  { label: 'Portfolios', path: '/career?tab=portfolios', icon: 'GlobeAltIcon', tint: 'teal' },
+  { label: 'Templates', path: '/career?tab=templates', icon: 'SwatchIcon', tint: 'pink' },
 ];
 
 const AI_TODO_LINKS: SidebarLink[] = [
-  { label: 'Quick Daily', path: '/ai-todo?tab=quick', icon: 'BoltIcon' },
-  { label: 'Smart To-Do', path: '/ai-todo?tab=smart', icon: 'CpuChipIcon' },
-  { label: 'Plan & Project', path: '/ai-todo?tab=plan', icon: 'MapIcon' },
-  { label: 'Goals', path: '/ai-todo?tab=goals', icon: 'ViewfinderCircleIcon' },
+  { label: 'Quick Daily', path: '/ai-todo?tab=quick', icon: 'BoltIcon', tint: 'orange' },
+  { label: 'Smart To-Do', path: '/ai-todo?tab=smart', icon: 'CpuChipIcon', tint: 'purple' },
+  { label: 'Plan & Project', path: '/ai-todo?tab=plan', icon: 'MapIcon', tint: 'green' },
+  { label: 'Goals', path: '/ai-todo?tab=goals', icon: 'ViewfinderCircleIcon', tint: 'red' },
 ];
+
+type TileSize = 'row' | 'sm' | 'rail' | 'railSub';
+const TILE_CLASS: Record<TileSize, string> = { row: '', sm: 'nav-tile-sm', rail: 'nav-tile-rail', railSub: 'nav-tile-rail-sub' };
+/** Glyph ≈ 58% of the tile, as in iOS Settings. */
+const TILE_GLYPH: Record<TileSize, number> = { row: 19, sm: 17, rail: 22, railSub: 18 };
+
+/**
+ * An iOS app-icon tile: a rounded square in the item's colour with a white filled glyph. `soft` is the tinted
+ * second-level look (coloured glyph on a light wash), used for sub-items that are not the current page.
+ */
+function NavTile({
+  icon,
+  tint,
+  size = 'row',
+  soft = false,
+  children,
+}: {
+  icon?: string;
+  tint: Tint;
+  size?: TileSize;
+  soft?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <span className={`nav-tile ${TILE_CLASS[size]} ${soft ? 'nav-tile-soft' : ''}`} data-tint={tint} aria-hidden="true">
+      {children ?? <Icon name={icon as any} size={TILE_GLYPH[size]} variant="solid" />}
+    </span>
+  );
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -125,7 +174,8 @@ export default function Sidebar({
     {
       label: mySpaceLabel,
       path: mySpacePath,
-      icon: isSwapnilxi ? 'ShieldCheckIcon' : 'SparklesIcon',
+      icon: isSwapnilxi ? 'ShieldCheckIcon' : 'UserCircleIcon',
+      tint: isSwapnilxi ? 'indigo' : 'pink',
     },
   ];
 
@@ -234,26 +284,36 @@ export default function Sidebar({
       aria-current={isActivePath(link.path) ? 'page' : undefined}
       className={`${drawerRowClass(isActivePath(link.path))} drawer-row-sub`}
     >
-      <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
-        <Icon name={link.icon as any} size={16} variant="outline" />
-      </span>
+      <NavTile icon={link.icon} tint={link.tint} size="sm" soft={!isActivePath(link.path)} />
       <span className="min-w-0 flex-1 truncate">{link.label}</span>
     </Link>
   );
 
-  const railItemClass = (active: boolean) =>
-    `relative group flex items-center justify-center w-9 h-9 rounded-lg transition-smooth ${
-      active
-        ? 'mix-bg-primary/15 text-primary border mix-border-primary/25 shadow-sm'
-        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-    }`;
+  /** Icon rail item: a 48px platter (hover / current) around the tile. `sub` = a 40px platter inside an open group. */
+  const railItemClass = (active: boolean, sub = false) =>
+    `rail-item ${sub ? 'rail-item-sub' : ''} ${active ? 'rail-item-active' : ''}`;
 
+  /** A single rail destination: its tile, the current-page marker on the rail edge, and an optional corner dot. */
+  const renderRailLink = (href: string, icon: string, tint: Tint, label: string, active: boolean, tipLabel = label, dot?: string) => (
+    <Link
+      href={href}
+      className={railItemClass(active)}
+      aria-label={label}
+      aria-current={active ? 'page' : undefined}
+      {...tip(tipLabel)}
+    >
+      <NavTile icon={icon} tint={tint} size="rail" />
+      {dot && <span aria-hidden="true" className={`rail-dot ${dot}`} />}
+      {active && <span aria-hidden="true" className="rail-indicator" />}
+    </Link>
+  );
 
-  /** A rail group: main icon (navigates + expands) with a chevron toggle; sub-icons sit directly below and push the rest down. */
+  /** A rail group: main tile (navigates + expands) with a chevron badge; sub-tiles sit directly below and push the rest down. */
   const renderRailGroup = (
     id: keyof typeof railOpen,
     href: string,
     icon: string,
+    tint: Tint,
     label: string,
     links: SidebarLink[],
     groupActive: boolean,
@@ -263,45 +323,46 @@ export default function Sidebar({
     const open = railOpen[id];
     return (
       <div className="relative flex w-full flex-col items-center gap-1">
-        <div className="relative h-9 w-9">
+        <div className="relative h-[48px] w-[48px]">
           <Link
             href={href}
             onClick={() => setRailGroup(id, true)}
-            className={`${railItemClass(groupActive)} !h-9 !w-9`}
+            className={railItemClass(groupActive)}
             aria-label={label}
             {...tip(label)}
           >
-            <Icon name={icon as any} size={19} variant={groupActive ? 'solid' : 'outline'} />
-            {groupActive && <span className="absolute -left-1 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />}
+            <NavTile icon={icon} tint={tint} size="rail" />
+            {groupActive && <span aria-hidden="true" className="rail-indicator" />}
           </Link>
           <button
             type="button"
             onClick={() => setRailGroup(id, !open)}
             aria-expanded={open}
             aria-label={`${open ? 'Collapse' : 'Expand'} ${label} sub-menu`}
-            className="absolute -bottom-0.5 -right-0.5 flex h-[0.9rem] w-[0.9rem] items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground"
+            className="rail-chevron"
           >
-            <Icon name="ChevronDownIcon" size={9} variant="solid" className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+            <Icon name="ChevronDownIcon" size={10} variant="solid" className={`transition-transform ${open ? 'rotate-180' : ''}`} />
           </button>
         </div>
         {open && (
-          <div
-            className="flex w-[44px] flex-col items-center gap-1 rounded-xl py-1"
-            style={{ background: 'color-mix(in srgb, var(--color-foreground) 5%, transparent)' }}
-          >
-            {links.map((link) => (
-              <div key={link.path} className="flex flex-col items-center gap-1">
-                {dividerBefore.includes(link.path) && <span aria-hidden="true" className="my-0.5 h-px w-5 bg-border" />}
-                <Link
-                  href={link.path}
-                  aria-label={link.label}
-                  className={railItemClass(isLinkActive(link.path))}
-                  {...tip(link.label)}
-                >
-                  <Icon name={link.icon as any} size={17} variant="outline" />
-                </Link>
-              </div>
-            ))}
+          <div className="rail-subgroup">
+            {links.map((link) => {
+              const active = isLinkActive(link.path);
+              return (
+                <Fragment key={link.path}>
+                  {dividerBefore.includes(link.path) && <span aria-hidden="true" className="rail-subgroup-divider" />}
+                  <Link
+                    href={link.path}
+                    aria-label={link.label}
+                    aria-current={active ? 'page' : undefined}
+                    className={railItemClass(active, true)}
+                    {...tip(link.label)}
+                  >
+                    <NavTile icon={link.icon} tint={link.tint} size="railSub" soft={!active} />
+                  </Link>
+                </Fragment>
+              );
+            })}
           </div>
         )}
       </div>
@@ -316,144 +377,92 @@ export default function Sidebar({
       {mode === 'icon-only' && (
         <aside
           aria-label="Icon Sidebar"
-          className="app-rail fixed top-0 bottom-0 z-[110] w-[60px] border-r border-border backdrop-blur-md hidden md:flex flex-col justify-between items-center shadow-sm transition-transform duration-200"
+          className="app-rail fixed top-0 bottom-0 z-[110] w-[60px] border-r hidden md:flex flex-col justify-between items-center transition-transform duration-200"
         >
           {/* Top header: 60px height to perfectly match app-header height end-to-end */}
-          <div className="flex items-center justify-center w-full h-[60px] border-b border-border flex-shrink-0">
+          <div className="flex items-center justify-center w-full h-[60px] border-b border-[color:var(--color-separator)] flex-shrink-0">
             <button
               type="button"
               onClick={onOpenDrawer ?? onClose}
-              className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
+              className="rail-item rail-item-quiet"
               aria-label="Expand full sidebar"
-            
-              {...tip('Expand sidebar')}>
-              <Icon name="ChevronRightIcon" size={19} variant="outline" />
+              {...tip('Expand sidebar')}
+            >
+              <Icon name="ChevronRightIcon" size={20} variant="outline" />
             </button>
           </div>
 
           {/* Middle navigation items */}
-          <nav className="flex-1 w-full overflow-y-auto overscroll-contain scrollbar-none flex flex-col items-center gap-1 pt-1.5 pb-[4rem] min-h-0">
-            {/* Daily Session Group */}
-            {renderRailGroup('daily', '/daily-session', 'AcademicCapIcon', 'Daily Session', dailySessionLinks, isDailySessionRoute, isDailySessionTabActive)}
+          <nav className="flex-1 w-full overflow-y-auto overscroll-contain scrollbar-none flex flex-col items-center gap-1 pt-2 pb-[4rem] min-h-0">
+            {renderRailGroup('daily', '/daily-session', 'AcademicCapIcon', 'blue', 'Daily Session', dailySessionLinks, isDailySessionRoute, isDailySessionTabActive)}
 
-            {/* SwipeLearn */}
-            <Link
-              href="/swipe-learn"
-              className={railItemClass(isActivePath('/swipe-learn'))}
-              aria-label="SwipeLearn"
-              {...tip('SwipeLearn · Feed')}
-            >
-              <Icon name="Square3Stack3DIcon" size={19} variant="outline" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
-            </Link>
+            {renderRailLink('/swipe-learn', 'Square3Stack3DIcon', 'pink', 'SwipeLearn', isActivePath('/swipe-learn'), 'SwipeLearn · Feed', 'bg-primary')}
 
-            {/* Swipe PDF Reader */}
-            <Link
-              href="/swipe-pdf-reader"
-              className={railItemClass(isActivePath('/swipe-pdf-reader'))}
-              aria-label="Swipe PDF Reader"
-              {...tip('Swipe PDF Reader · New')}
-            >
-              <Icon name="DocumentTextIcon" size={19} variant="outline" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500" />
-            </Link>
+            {renderRailLink('/swipe-pdf-reader', 'DocumentTextIcon', 'red', 'Swipe PDF Reader', isActivePath('/swipe-pdf-reader'), 'Swipe PDF Reader · New', 'bg-emerald-500')}
 
-            {/* Labs Popover Group */}
-            {renderRailGroup('labs', LABS_HOME.path, 'RectangleGroupIcon', 'Labs', LAB_LINKS, isLabRoute, (path) => pathname === path, LAB_RAIL_DIVIDERS)}
+            {renderRailGroup('labs', LABS_HOME.path, 'BeakerIcon', 'green', 'Labs', LAB_LINKS, isLabRoute, (path) => pathname === path, LAB_RAIL_DIVIDERS)}
 
-            <div className="w-[1.5rem] h-[1px] bg-border my-1" />
+            <span aria-hidden="true" className="my-1 h-px w-[24px] flex-shrink-0 bg-[color:var(--color-separator)]" />
 
-            {/* Personalised To-do Popover Group */}
-            {renderRailGroup('todo', '/ai-todo', 'ClipboardDocumentCheckIcon', 'Personalised To-Do', AI_TODO_LINKS, isAiTodoRoute, isAiTodoTabActive)}
+            {renderRailGroup('todo', '/ai-todo', 'ClipboardDocumentCheckIcon', 'orange', 'Personalised To-Do', AI_TODO_LINKS, isAiTodoRoute, isAiTodoTabActive)}
 
-            {/* AI LMS */}
-            <Link
-              href="/ai-lms"
-              className={railItemClass(pathname === '/ai-lms' || pathname.startsWith('/ai-lms/'))}
-              aria-label="AI LMS"
-              {...tip('AI LMS')}
-            >
-              <Icon name="SparklesIcon" size={19} variant="outline" />
-            </Link>
+            {renderRailLink('/ai-lms', 'SparklesIcon', 'purple', 'AI LMS', pathname === '/ai-lms' || pathname.startsWith('/ai-lms/'))}
 
-            {/* LinkedIn Post Generator */}
-            <Link
-              href="/linkedin-post-generator"
-              className={railItemClass(isActivePath('/linkedin-post-generator'))}
-              aria-label="LinkedIn Post Generator"
-              {...tip('LinkedIn Post Generator')}
-            >
-              <Icon name="PencilSquareIcon" size={19} variant="outline" />
-            </Link>
+            {renderRailLink('/linkedin-post-generator', 'PencilSquareIcon', 'cyan', 'LinkedIn Post Generator', isActivePath('/linkedin-post-generator'))}
 
-            {/* Career Studio Popover Group */}
-            {renderRailGroup('career', '/career', 'BriefcaseIcon', 'Career Studio', CAREER_LINKS, isCareerRoute, isCareerLinkActive)}
+            {renderRailGroup('career', '/career', 'BriefcaseIcon', 'brown', 'Career Studio', CAREER_LINKS, isCareerRoute, isCareerLinkActive)}
 
-            {/* Admin Portal */}
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className={railItemClass(isActivePath('/admin'))}
-                aria-label="Admin Portal"
-                {...tip('Admin Portal')}
-              >
-                <Icon name="ShieldCheckIcon" size={19} variant="outline" />
-              </Link>
-            )}
+            {isAdmin && renderRailLink('/admin', 'ShieldCheckIcon', 'gray', 'Admin Portal', isActivePath('/admin'))}
           </nav>
 
-          {/* Bottom actions */}
-          <div className="flex flex-col items-center gap-1 w-full py-1.5 border-t border-border flex-shrink-0">
-            {/* Settings */}
-            <Link
-              href="/config"
-              className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
-              aria-label="Settings"
-            
-              {...tip('Settings')}>
-              <Icon name="Cog6ToothIcon" size={18} variant="outline" />
-            </Link>
+          {/* Bottom actions: Install app and Settings are destinations (tiles); the rest are quiet round buttons. */}
+          <div className="flex flex-col items-center gap-0.5 w-full py-2 border-t border-[color:var(--color-separator)] flex-shrink-0">
+            {/* Settings ▸ Install app (the APK and the web app). Nothing to install from inside the Android app. */}
+            {!isNativeApp &&
+              renderRailLink('/config?section=install', 'ArrowDownTrayIcon', 'blue', 'Install app', pathname === '/config' && new URLSearchParams(search).get('section') === 'install')}
 
-            {/* Theme Toggle */}
+            {renderRailLink('/config', 'Cog6ToothIcon', 'gray', 'Settings', pathname === '/config' && new URLSearchParams(search).get('section') !== 'install')}
+
             <button
               type="button"
               onClick={onToggleTheme}
-              className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
+              className="rail-item rail-item-quiet"
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            
-              {...tip(theme === 'dark' ? 'Light Theme' : 'Dark Theme')}>
-              <ThemeToggleIcon theme={theme} size={18} variant="outline" />
+              {...tip(theme === 'dark' ? 'Light Theme' : 'Dark Theme')}
+            >
+              <ThemeToggleIcon theme={theme} size={20} variant="outline" />
             </button>
 
-            {/* Auth */}
             {isGuest ? (
-              <button type="button" onClick={() => openLoginModal()}
-                className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
+              <button
+                type="button"
+                onClick={() => openLoginModal()}
+                className="rail-item rail-item-quiet"
                 aria-label="Log in"
-              
-              {...tip('Log in')}>
-                <Icon name="UserCircleIcon" size={18} variant="outline" />
+                {...tip('Log in')}
+              >
+                <Icon name="UserCircleIcon" size={20} variant="outline" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={logout}
-                className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-smooth"
+                className="rail-item rail-item-quiet"
                 aria-label="Log out"
-              {...tip(`Log out (${user?.email})`)}>
-                <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
+                {...tip(`Log out (${user?.email})`)}
+              >
+                <Icon name="ArrowRightOnRectangleIcon" size={20} variant="outline" />
               </button>
             )}
 
-            {/* Quick Switch to Hide Mode */}
             <button
               type="button"
               onClick={() => setMode('hidden')}
-              className="relative group flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 transition-smooth"
+              className="rail-item rail-item-quiet rail-item-danger"
               aria-label="Hide sidebar menu completely"
-            
-              {...tip('Hide sidebar menu')}>
-              <Icon name="EyeSlashIcon" size={18} variant="outline" />
+              {...tip('Hide sidebar menu')}
+            >
+              <Icon name="EyeSlashIcon" size={20} variant="outline" />
             </button>
           </div>
         </aside>
@@ -464,7 +473,7 @@ export default function Sidebar({
         <div
           role="tooltip"
           style={{ top: railTip.top }}
-          className="pointer-events-none fixed left-[68px] z-[360] -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md animate-in fade-in-0 duration-100"
+          className="rail-tooltip pointer-events-none fixed left-[68px] z-[360] -translate-y-1/2 whitespace-nowrap px-2.5 py-1 text-[13px] font-medium text-popover-foreground animate-in fade-in-0 duration-100"
         >
           {railTip.label}
         </div>
@@ -561,9 +570,7 @@ export default function Sidebar({
               </div>
             )}
             <Link href="/config" onClick={onClose} className={drawerRowClass(pathname === '/config')}>
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="Cog6ToothIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="Cog6ToothIcon" tint="gray" />
               <span className="min-w-0 flex-1 truncate">Settings</span>
               <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
             </Link>
@@ -574,17 +581,15 @@ export default function Sidebar({
                 onClick={onClose}
                 className={drawerRowClass(false)}
               >
-                <span className="drawer-icon" aria-hidden="true">
-                  <Icon name="ArrowDownTrayIcon" size={18} variant="outline" />
-                </span>
+                <NavTile icon="ArrowDownTrayIcon" tint="blue" />
                 <span className="min-w-0 flex-1 truncate">Install app</span>
                 <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
               </Link>
             )}
             <div className="drawer-row">
-              <span className="drawer-icon" aria-hidden="true">
-                <ThemeToggleIcon theme={theme} size={18} variant="outline" />
-              </span>
+              <NavTile tint="indigo">
+                <ThemeToggleIcon theme={theme} size={19} variant="solid" />
+              </NavTile>
               <span className="min-w-0 flex-1 truncate">Appearance</span>
               <div className="ios-segmented" role="radiogroup" aria-label="Appearance">
                 {(['light', 'dark'] as const).map((option) => {
@@ -608,9 +613,7 @@ export default function Sidebar({
             </div>
             {/* A shortcut to the one accent selector (Settings ▸ Appearance), with the current colour: not a second picker. */}
             <Link href="/config#appearance" onClick={onClose} className="drawer-row">
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="SwatchIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="SwatchIcon" tint="pink" />
               <span className="min-w-0 flex-1 truncate">Accent colour</span>
               <span aria-hidden="true" className="h-[1.375rem] w-[1.375rem] flex-shrink-0 rounded-full bg-primary shadow-[inset_0_0_0_1px_rgba(0,0,0,0.12)]" />
               <Icon name="ChevronRightIcon" size={16} className="drawer-chevron" />
@@ -624,9 +627,7 @@ export default function Sidebar({
               className={drawerHeadClass(isDailySessionRoute)}
               aria-expanded={dailySessionOpen}
             >
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="AcademicCapIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="AcademicCapIcon" tint="blue" />
               <span className="min-w-0 flex-1 truncate">Daily Session</span>
               <Icon
                 name="ChevronDownIcon"
@@ -645,9 +646,7 @@ export default function Sidebar({
                   aria-current={isDailySessionTabActive(link.path) ? 'page' : undefined}
                   className={`${drawerRowClass(isDailySessionTabActive(link.path))} drawer-row-sub`}
                 >
-                  <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
-                    <Icon name={link.icon as any} size={16} variant="outline" />
-                  </span>
+                  <NavTile icon={link.icon} tint={link.tint} size="sm" soft={!isDailySessionTabActive(link.path)} />
                   <span className="min-w-0 flex-1 truncate">{link.label}</span>
                   {(link.label === 'swapnilxi space' || link.label === 'MySpace') && (
                     <span className={`drawer-badge ${link.label === 'swapnilxi space' ? 'drawer-badge-warm' : ''}`}>
@@ -665,9 +664,7 @@ export default function Sidebar({
               aria-current={isActivePath('/swipe-learn') ? 'page' : undefined}
               className={drawerRowClass(isActivePath('/swipe-learn'))}
             >
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="Square3Stack3DIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="Square3Stack3DIcon" tint="pink" />
               <span className="min-w-0 flex-1 truncate">SwipeLearn</span>
               <span className="drawer-badge">Feed</span>
             </Link>
@@ -677,9 +674,7 @@ export default function Sidebar({
               aria-current={isActivePath('/swipe-pdf-reader') ? 'page' : undefined}
               className={drawerRowClass(isActivePath('/swipe-pdf-reader'))}
             >
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="DocumentTextIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="DocumentTextIcon" tint="red" />
               <span className="min-w-0 flex-1 truncate">Swipe PDF Reader</span>
               <span className="drawer-badge drawer-badge-new">New</span>
             </Link>
@@ -689,9 +684,7 @@ export default function Sidebar({
               aria-current={isActivePath('/ai-lms') ? 'page' : undefined}
               className={drawerRowClass(isActivePath('/ai-lms'))}
             >
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="SparklesIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="SparklesIcon" tint="purple" />
               <span className="min-w-0 flex-1 truncate">AI LMS</span>
             </Link>
           </section>
@@ -703,9 +696,7 @@ export default function Sidebar({
               className={drawerHeadClass(isLabRoute)}
               aria-expanded={labsOpen}
             >
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="RectangleGroupIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="BeakerIcon" tint="green" />
               <span className="min-w-0 flex-1 truncate">Labs</span>
               <Icon
                 name="ChevronDownIcon"
@@ -739,9 +730,7 @@ export default function Sidebar({
               className={drawerHeadClass(isAiTodoRoute)}
               aria-expanded={todoOpen}
             >
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="ClipboardDocumentCheckIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="ClipboardDocumentCheckIcon" tint="orange" />
               <span className="min-w-0 flex-1 truncate">Personalised To-do</span>
               <Icon
                 name="ChevronDownIcon"
@@ -760,9 +749,7 @@ export default function Sidebar({
                   aria-current={isAiTodoTabActive(link.path) ? 'page' : undefined}
                   className={`${drawerRowClass(isAiTodoTabActive(link.path))} drawer-row-sub`}
                 >
-                  <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
-                    <Icon name={link.icon as any} size={16} variant="outline" />
-                  </span>
+                  <NavTile icon={link.icon} tint={link.tint} size="sm" soft={!isAiTodoTabActive(link.path)} />
                   <span className="min-w-0 flex-1 truncate">{link.label}</span>
                 </Link>
               ))}
@@ -776,9 +763,7 @@ export default function Sidebar({
               aria-current={isActivePath('/linkedin-post-generator') ? 'page' : undefined}
               className={drawerRowClass(isActivePath('/linkedin-post-generator'))}
             >
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="PencilSquareIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="PencilSquareIcon" tint="cyan" />
               <span className="min-w-0 flex-1 truncate">LinkedIn Post Generator</span>
             </Link>
             <button
@@ -787,9 +772,7 @@ export default function Sidebar({
               className={drawerHeadClass(isCareerRoute)}
               aria-expanded={careerOpen}
             >
-              <span className="drawer-icon" aria-hidden="true">
-                <Icon name="BriefcaseIcon" size={18} variant="outline" />
-              </span>
+              <NavTile icon="BriefcaseIcon" tint="brown" />
               <span className="min-w-0 flex-1 truncate">Career Studio</span>
               <Icon
                 name="ChevronDownIcon"
@@ -808,9 +791,7 @@ export default function Sidebar({
                   aria-current={isCareerLinkActive(link.path) ? 'page' : undefined}
                   className={`${drawerRowClass(isCareerLinkActive(link.path))} drawer-row-sub`}
                 >
-                  <span className="drawer-icon drawer-icon-sm" aria-hidden="true">
-                    <Icon name={link.icon as any} size={16} variant="outline" />
-                  </span>
+                  <NavTile icon={link.icon} tint={link.tint} size="sm" soft={!isCareerLinkActive(link.path)} />
                   <span className="min-w-0 flex-1 truncate">{link.label}</span>
                 </Link>
               ))}
@@ -824,9 +805,7 @@ export default function Sidebar({
                 aria-current={isActivePath('/admin') ? 'page' : undefined}
                 className={drawerRowClass(isActivePath('/admin'))}
               >
-                <span className="drawer-icon" aria-hidden="true">
-                  <Icon name="ShieldCheckIcon" size={18} variant="outline" />
-                </span>
+                <NavTile icon="ShieldCheckIcon" tint="gray" />
                 <span className="min-w-0 flex-1 truncate">Admin Portal</span>
               </Link>
             </section>
@@ -869,6 +848,17 @@ export default function Sidebar({
               <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
               <span className="truncate">Log out</span>
             </button>
+          )}
+          {!isNativeApp && (
+            <Link
+              href="/config?section=install"
+              onClick={onClose}
+              className="theme-toggle"
+              aria-label="Install app"
+              title="Install app"
+            >
+              <Icon name="ArrowDownTrayIcon" size={18} variant="outline" />
+            </Link>
           )}
           <Link
             href="/config"

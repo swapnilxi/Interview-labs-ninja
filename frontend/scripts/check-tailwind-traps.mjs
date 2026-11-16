@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Fails if an enforced area (TODO_ROOTS below: the To-Do module, the shared UI, the three labs (DSA, CV, System
- * Design), Daily Session, Labs Project, Config and the shared lab components) uses a Tailwind class that silently
+ * Design), Daily Session, Labs Project, Config, Question Review and the shared lab components) uses a Tailwind class that silently
  * does the wrong thing in this repo. Every rule below is a class that compiles to NOTHING (or to something other
  * than it says) with no warning:
  *
@@ -78,6 +78,8 @@ const TODO_ROOTS = [
   'src/modules/daily-session',
   'src/modules/swipe-learn',
   'src/app/swipe-learn',
+  'src/modules/question-review',
+  'src/app/question-review',
 ];
 const ALL_RULES = [
   'emoji',

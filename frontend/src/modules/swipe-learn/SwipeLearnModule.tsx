@@ -22,7 +22,7 @@ import SwipeDeckView, { type GeneratingState } from './components/SwipeDeckView'
 import ScrollFeedView from './components/ScrollFeedView';
 import SavedCardsView from './components/SavedCardsView';
 import SettingsModal from './components/SettingsModal';
-import AddTopicModal from './components/AddTopicModal';
+import AddTopicModal, { slugify } from './components/AddTopicModal';
 import GenerateSheet from './components/GenerateSheet';
 import Icon from '@/components/ui/AppIcon';
 import {
@@ -613,6 +613,51 @@ export default function SwipeLearnModule() {
     },
     [learnStorage, runGenerate, showToast, update, view]
   );
+
+  // ── "Send to SwipeLearn" from Question review ───────────────────────────
+  //   /swipe-learn?from=question&qid=<id>&label=<topic name>&focus=<question text>
+  // Reuses (or adds) the custom topic named `label`, then writes a batch of short quick-read cards about `focus`.
+  // Runs once, after the stored topics have loaded; the intent params then leave the URL (a reload doesn't re-run it).
+  const importHandledRef = useRef(false);
+  useEffect(() => {
+    if (!hydrated || importHandledRef.current || get('from') !== 'question') return;
+    importHandledRef.current = true;
+    const label = (get('label') ?? '').trim().slice(0, 40);
+    const focus = (get('focus') ?? '').trim().slice(0, 300);
+    const slug = slugify(label);
+    const clear = { from: null, qid: null, label: null, focus: null };
+    if (!label || !slug || slug === 'mixed' || !focus) {
+      update(clear, 'replace');
+      return;
+    }
+    const existing = allTopics.find((t) => t.id === slug);
+    const topic: TopicMeta = existing ?? {
+      id: slug,
+      label,
+      emoji: '🎯', // emoji-ok (topic pills show the topic's own emoji, as AddTopicModal stores them)
+      color: '#6366f1',
+      bgActive: 'bg-indigo-600',
+      textActive: 'text-white',
+      isCustom: true,
+    };
+    if (!existing) {
+      setCustomTopics((prev) => [...prev, topic]);
+      learnStorage.saveCustomTopic(topic as unknown as StoredCustomTopic);
+    }
+    setActiveSubTab('all');
+    update({ ...clear, tab: null, topic: topic.id }, 'replace');
+    feedModeRef.current = topic.id;
+    remember({
+      module: 'swipe-learn',
+      topic: slug,
+      kind: 'interest',
+      fact: `Sent a question to SwipeLearn: "${label}"`,
+    });
+    void runGenerate(
+      { format: 'quick-concept', count: QUICK_COUNT, difficulty: 'any', focus },
+      { topic }
+    );
+  }, [hydrated, get, update, allTopics, learnStorage, runGenerate]);
 
   const handleRemoveCustomTopic = useCallback(
     (topicId: string) => {

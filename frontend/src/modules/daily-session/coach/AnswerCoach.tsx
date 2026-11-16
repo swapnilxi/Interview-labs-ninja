@@ -17,6 +17,8 @@ interface Props {
   input: CoachInput;
   /** Put the AI-expanded answer into the answer box. */
   onUseExpanded?: (text: string) => void;
+  /** When set, each correction, gap and improvement in an evaluation gets an "Add to To-Do" button. */
+  onAddTodo?: (text: string) => void;
 }
 
 const levelTone: Record<Evaluation['level'], Tone> = {
@@ -53,10 +55,27 @@ const Section = ({
   </section>
 );
 
-const List = ({ items }: { items: string[] }) => (
+/** A small inline "Add to To-Do" for one item (a 44px target that does not make the line taller). */
+const AddTodo = ({ text, onAdd }: { text: string; onAdd?: (text: string) => void }) =>
+  onAdd ? (
+    <button
+      type="button"
+      onClick={() => onAdd(text)}
+      aria-label={`Add to To-Do: ${text.slice(0, 80)}`}
+      title="Add to To-Do"
+      className="-my-[0.875rem] ml-1 inline-flex h-[2.75rem] w-[2.75rem] items-center justify-center rounded-full align-middle ds-faint transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2"
+    >
+      <Icon name="PlusCircleIcon" size={17} />
+    </button>
+  ) : null;
+
+const List = ({ items, onAdd }: { items: string[]; onAdd?: (text: string) => void }) => (
   <ul className="bs-bullets text-sm leading-relaxed ds-ink">
     {items.map((t, i) => (
-      <li key={i}>{t}</li>
+      <li key={i}>
+        {t}
+        <AddTodo text={t} onAdd={onAdd} />
+      </li>
     ))}
   </ul>
 );
@@ -69,7 +88,7 @@ const DoubleCheck = ({ note }: { note: string }) => (
 );
 
 /** AI coach: rubric evaluation + "expand my answer", with the mascot reacting to the result. */
-export default function AnswerCoach({ input, onUseExpanded }: Props) {
+export default function AnswerCoach({ input, onUseExpanded, onAddTodo }: Props) {
   const [busy, setBusy] = useState<'eval' | 'expand' | null>(null);
   const [ev, setEv] = useState<Evaluation | null>(null);
   const [ex, setEx] = useState<Expansion | null>(null);
@@ -168,7 +187,7 @@ export default function AnswerCoach({ input, onUseExpanded }: Props) {
         </p>
       )}
 
-      {ev && <EvaluationView ev={ev} onUseExpanded={onUseExpanded} />}
+      {ev && <EvaluationView ev={ev} onUseExpanded={onUseExpanded} onAddTodo={onAddTodo} />}
 
       {ex && (
         <div className="space-y-3 ds-enter">
@@ -232,9 +251,11 @@ export default function AnswerCoach({ input, onUseExpanded }: Props) {
 export function EvaluationView({
   ev,
   onUseExpanded,
+  onAddTodo,
 }: {
   ev: Evaluation;
   onUseExpanded?: (text: string) => void;
+  onAddTodo?: (text: string) => void;
 }) {
   return (
     <div className="space-y-3 ds-enter">
@@ -301,7 +322,10 @@ export function EvaluationView({
                   {f.severity}
                 </span>
                 <span className="ds-muted line-through">{f.claim}</span>
-                <div className="mt-1 font-semibold ds-ink">{f.correction}</div>
+                <div className="mt-1 font-semibold ds-ink">
+                  {f.correction}
+                  <AddTodo text={f.correction} onAdd={onAddTodo} />
+                </div>
               </li>
             ))}
           </ul>
@@ -315,7 +339,7 @@ export function EvaluationView({
       )}
       {ev.missing.length > 0 && (
         <Section title="Missing" tone="gold" icon="PuzzlePieceIcon">
-          <List items={ev.missing} />
+          <List items={ev.missing} onAdd={onAddTodo} />
         </Section>
       )}
       {ev.improvements.length > 0 && (
@@ -326,7 +350,10 @@ export function EvaluationView({
         >
           <ol className="bs-bullets text-sm leading-relaxed ds-ink">
             {ev.improvements.map((t, i) => (
-              <li key={i}>{t}</li>
+              <li key={i}>
+                {t}
+                <AddTodo text={t} onAdd={onAddTodo} />
+              </li>
             ))}
           </ol>
         </Section>

@@ -49,29 +49,45 @@ export default function ProjectScreen({
 
   return (
     <div className="max-w-[880px]">
-      <div className="mb-4">
+      <div className="mb-5">
         <BackButton href="/labs-project" label="Projects" />
       </div>
 
-      <header className="mb-[1.5rem]">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={project.status} />
-          {inUse && <UsedBadge />}
+      <header className="mb-5 rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <StatusBadge status={project.status} />
+              {inUse && <UsedBadge />}
+            </div>
+            <h2 className="mt-2 break-words font-heading text-[1.25rem] font-bold leading-tight tracking-[-0.018em] text-foreground">
+              {project.name}
+            </h2>
+            {project.description && (
+              <p className="mt-1 text-sm leading-relaxed mix-text-foreground/[0.68]">
+                {project.description}
+              </p>
+            )}
+          </div>
         </div>
-        <h2 className="mt-2 break-words font-heading text-xl font-semibold text-foreground">
-          {project.name}
-        </h2>
-        {project.description && (
-          <p className="mt-1 text-sm mix-text-foreground/[0.74]">{project.description}</p>
+
+        {archived && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-500/10 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-200">
+            <Icon name="ArchiveBoxIcon" size={15} className="mt-0.5 flex-shrink-0" />
+            <span>
+              This project is archived. Restore it to use it in the labs and save new sections.
+            </span>
+          </div>
         )}
-        <div className="mt-4 flex flex-wrap gap-2">
+
+        <div className="mt-3 flex flex-wrap gap-2">
           {!archived && (
             <button
               type="button"
               className={quietButton}
               onClick={() => toggleUseInLabs(project, inUse)}
             >
-              <Icon name={inUse ? 'XMarkIcon' : 'FolderOpenIcon'} size={14} />
+              <Icon name={inUse ? 'XMarkIcon' : 'BoltIcon'} size={14} />
               {inUse ? 'Stop using in labs' : 'Use in labs'}
             </button>
           )}
@@ -98,18 +114,12 @@ export default function ProjectScreen({
             Delete
           </button>
         </div>
-        {archived && (
-          <p className="mt-4 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
-            This project is archived. The labs don&apos;t offer it and it takes no new sections;
-            everything in it is kept. Restore it to use it again.
-          </p>
-        )}
       </header>
 
       <div
         role="tablist"
         aria-label="Project areas"
-        className="mb-4 flex gap-1 border-b border-border"
+        className="mb-5 todo-segmented todo-segmented-accent self-start"
       >
         {tabs.map((t) => (
           <button
@@ -118,15 +128,12 @@ export default function ProjectScreen({
             role="tab"
             id={`project-tab-${t.id}`}
             aria-selected={tab === t.id}
+            aria-pressed={tab === t.id}
             aria-controls={`project-panel-${t.id}`}
             onClick={() => onTab(t.id)}
-            className={`todo-focus -mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              tab === t.id
-                ? 'border-primary lab-ink'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
+            className="todo-segment text-[13px]"
           >
-            <Icon name={t.icon} size={15} />
+            <Icon name={t.icon} size={14} />
             {t.label}
           </button>
         ))}

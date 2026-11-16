@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
@@ -14,10 +13,9 @@ const PERKS = [
 ];
 
 /**
- * Gates an interview-prep module behind login. These modules are AI-driven
- * and track per-user history, so — unlike the Todo app, which fully works
- * for guests — they require an account. Wrap a page's module render with
- * this; it opens an in-page login popup and shows a lightweight screen for guests.
+ * Per-page login gate from before the app went login-only. Since 2026-11-16 the root layout's AuthGate
+ * (src/modules/auth/AuthGate.tsx) sends every guest to /login before any page renders, so the guest screen
+ * below is a fallback that should never show. Still wrapped around the interview-prep and lab pages.
  */
 export default function RequireAuth({ children, feature }: { children: React.ReactNode; feature: string }) {
   const { isGuest, loading } = useAuth();
@@ -83,12 +81,6 @@ export default function RequireAuth({ children, feature }: { children: React.Rea
                 <Icon name="LockClosedIcon" size={16} />
                 Open Login Popup
               </button>
-              <Link
-                href="/ai-todo?tab=today"
-                className="text-center text-xs text-muted-foreground hover:text-foreground transition-smooth"
-              >
-                Your to-do lists stay fully usable as a guest →
-              </Link>
             </div>
           </div>
         </div>

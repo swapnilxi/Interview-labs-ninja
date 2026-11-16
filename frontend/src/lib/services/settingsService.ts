@@ -86,7 +86,7 @@ export interface AiDefaultInfo {
   warning: string | null;
 }
 
-import { API_BASE_URL } from '@/lib/http/apiClient';
+import { apiFetch } from '@/lib/http/apiClient';
 
 const STORAGE_KEY = 'labninja.ai-settings.v1';
 
@@ -223,25 +223,23 @@ export const settingsService = {
     }
   },
 
-  /** Probe the Ollama server and return running status + pulled model list. No key involved — safe to ask the backend to do the network probe. */
+  /** Probe the Ollama server and return running status + pulled model list. No key involved — safe to ask the backend to do the network probe. Login required, like every /config endpoint. */
   async getOllamaStatus(url?: string): Promise<OllamaStatus> {
     const params = url ? `?url=${encodeURIComponent(url)}` : '';
-    const res = await fetch(`${API_BASE_URL}/config/ollama-status${params}`);
+    const res = await apiFetch(`/config/ollama-status${params}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   },
 
-  /** Public endpoint (no secrets, guest-accessible Config page), so plain fetch rather than apiFetch. */
+  /** No secrets, but login required like the rest of the app (login-only since 2026-11-16). */
   async getAiDefault(): Promise<AiDefaultInfo> {
-    const res = await fetch(`${API_BASE_URL}/config/ai-default`);
+    const res = await apiFetch('/config/ai-default');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   },
 
   async getOllamaModels(url: string): Promise<string[]> {
-    const res = await fetch(
-      `${API_BASE_URL}/settings/ollama-models?url=${encodeURIComponent(url)}`
-    );
+    const res = await apiFetch(`/settings/ollama-models?url=${encodeURIComponent(url)}`);
     if (!res.ok) {
       const data = await res.json().catch(() => null);
       throw new Error(data?.detail || `HTTP error! status: ${res.status}`);
@@ -256,9 +254,8 @@ export const settingsService = {
     apiKey: string,
     baseUrl?: string
   ): Promise<{ ok: boolean; message: string }> {
-    const res = await fetch(`${API_BASE_URL}/config/test-key`, {
+    const res = await apiFetch('/config/test-key', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl }),
     });
     if (!res.ok) {
