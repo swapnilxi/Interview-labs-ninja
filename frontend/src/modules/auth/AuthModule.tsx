@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LoginForm from '@/components/auth/LoginForm';
-import { resolveLoginReturnPath } from '@/components/auth/loginReturn';
+import { describeReturnTarget, resolveLoginReturnPath } from '@/components/auth/loginReturn';
 import { useAuth } from '@/contexts/AuthContext';
 import { isLoggedIn } from '@/lib/auth/tokenStore';
 
@@ -20,6 +20,11 @@ export default function AuthModule() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const signedIn = !!user || (!loading && isLoggedIn());
+  // Read after mount (the server has no query string), so the sentence is the same on the first client render.
+  const [opening, setOpening] = useState<string | null>(null);
+  useEffect(() => {
+    setOpening(describeReturnTarget(new URLSearchParams(window.location.search).get('next')));
+  }, []);
 
   useEffect(() => {
     if (signedIn) router.replace(nextPath());
@@ -42,7 +47,11 @@ export default function AuthModule() {
           LabNinja
         </p>
         <div className="w-full max-w-md overflow-hidden rounded-[22px] border mix-border-foreground/10 bg-card shadow-2xl">
-          <LoginForm titleId="login-title" onSuccess={() => router.replace(nextPath())} />
+          <LoginForm
+            titleId="login-title"
+            opening={opening}
+            onSuccess={() => router.replace(nextPath())}
+          />
         </div>
       </div>
     </main>

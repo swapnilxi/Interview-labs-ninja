@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useId, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import {
   LAB_GUIDES,
@@ -23,6 +23,7 @@ export default function LabGuideModal({
   const [activeLabKey, setActiveLabKey] = useState<LabGuideKey>(initialLab);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'steps' | 'sections' | 'tips' | 'faq'>('steps');
+  const labTabsRef = useRef<HTMLDivElement>(null);
 
   // Update activeLabKey whenever initialLab changes or modal opens
   useEffect(() => {
@@ -31,6 +32,17 @@ export default function LabGuideModal({
       setSearchQuery('');
     }
   }, [isOpen, initialLab]);
+
+  // The lab tabs scroll sideways when they do not all fit (eight labs): bring the open lab's tab into view.
+  useEffect(() => {
+    if (!isOpen) return;
+    const list = labTabsRef.current;
+    const tab = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!list || !tab) return;
+    const listBox = list.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    list.scrollLeft += tabBox.left - listBox.left - (listBox.width - tabBox.width) / 2;
+  }, [isOpen, activeLabKey]);
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -92,6 +104,7 @@ export default function LabGuideModal({
     { key: 'communication', label: 'Communication', icon: 'ChatBubbleOvalLeftEllipsisIcon' },
     { key: 'finance', label: 'Finance', icon: 'BanknotesIcon' },
     { key: 'python', label: 'Python', icon: 'CommandLineIcon' },
+    { key: 'genai', label: 'GenAI & AI', icon: 'SparklesIcon' },
     { key: 'labs_project', label: 'Labs Project', icon: 'FolderOpenIcon' },
   ];
 
@@ -107,12 +120,13 @@ export default function LabGuideModal({
     >
       <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden animate-scale-in">
         {/* ── Top Bar: Lab Switcher & Close ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-border mix-bg-muted/40">
-          {/* Lab Switcher Tabs */}
+        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border mix-bg-muted/40">
+          {/* Lab Switcher Tabs: one row that scrolls, so the Close button stays beside it at any width */}
           <div
+            ref={labTabsRef}
             role="tablist"
             aria-label="Select lab guide"
-            className="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-clean"
+            className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-clean"
           >
             {labsList.map((l) => {
               const active = l.key === activeLabKey;
@@ -144,7 +158,7 @@ export default function LabGuideModal({
             onClick={onClose}
             aria-label="Close guide"
             title="Close (Esc)"
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:mix-bg-muted/80 transition-colors cursor-pointer"
+            className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:mix-bg-muted/80 transition-colors cursor-pointer"
           >
             <Icon name="XMarkIcon" size={18} />
           </button>

@@ -1,5 +1,6 @@
 'use client';
 
+import LmsVideos from './components/LmsVideos';
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
@@ -98,11 +99,11 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
 
   if (loading) {
     return (
-      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-6 animate-pulse">
-        <div className="h-4 w-48 bg-muted rounded" />
-        <div className="h-10 w-96 bg-muted rounded" />
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-[1.5rem] py-10 space-y-[1.5rem] animate-pulse">
+        <div className="h-4 w-[12rem] bg-muted rounded" />
+        <div className="h-10 w-[24rem] max-w-full bg-muted rounded" />
         <div className="h-4 w-64 bg-muted rounded" />
-        <div className="space-y-3 pt-6">
+        <div className="space-y-3 pt-[1.5rem]">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-16 rounded-xl bg-muted" />
           ))}
@@ -134,9 +135,9 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
 
   if (isProject) {
     return (
-      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 space-y-8">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-[1.5rem] py-8 md:py-[3rem] space-y-8">
         {/* Breadcrumbs & Header */}
-        <div className="space-y-4 pb-6 border-b border-border">
+        <div className="space-y-4 pb-[1.5rem] border-b border-border">
           <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
             {/* On the project editor Back returns to the module outline; on the outline it goes up to the class. */}
             <BackButton
@@ -145,13 +146,13 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
               className="-ml-2.5"
             />
             <div className="h-3.5 w-px bg-border/80" />
-            <Link href="/ai-lms" className="hover:text-foreground transition-colors">
+            <Link href="/ai-lms" className="lms-crumb hover:text-foreground transition-colors">
               AI LMS
             </Link>
             <span>/</span>
             <Link
               href={`/ai-lms/classes/${lmsClass.slug}`}
-              className="hover:text-foreground transition-colors font-medium"
+              className="lms-crumb hover:text-foreground transition-colors font-medium"
             >
               {lmsClass.name}
             </Link>
@@ -159,8 +160,8 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
             <span className="font-semibold text-foreground">{subject.name}</span>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-1.5">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-[1.5rem]">
+            <div className="min-w-0 space-y-1.5">
               <div className="flex items-center gap-2.5">
                 <div
                   className="flex h-[40px] w-[40px] items-center justify-center rounded-lg font-semibold text-xs border"
@@ -214,19 +215,19 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
   }
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 space-y-8">
+    <div className="w-full max-w-5xl mx-auto px-4 sm:px-[1.5rem] py-8 md:py-[3rem] space-y-8">
       {/* Breadcrumbs & Header */}
-      <div className="space-y-4 pb-6 border-b border-border">
+      <div className="space-y-4 pb-[1.5rem] border-b border-border">
         <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
           <BackButton href={`/ai-lms/classes/${lmsClass.slug}`} label="Back" className="-ml-2.5" />
           <div className="h-3.5 w-px bg-border/80" />
-          <Link href="/ai-lms" className="hover:text-foreground transition-colors">
+          <Link href="/ai-lms" className="lms-crumb hover:text-foreground transition-colors">
             AI LMS
           </Link>
           <span>/</span>
           <Link
             href={`/ai-lms/classes/${lmsClass.slug}`}
-            className="hover:text-foreground transition-colors font-medium"
+            className="lms-crumb hover:text-foreground transition-colors font-medium"
           >
             {lmsClass.name}
           </Link>
@@ -234,8 +235,8 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
           <span className="font-semibold text-foreground">{subject.name}</span>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1.5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-[1.5rem]">
+          <div className="min-w-0 space-y-1.5">
             <div className="flex items-center gap-2.5">
               <div
                 className="flex h-[40px] w-[40px] items-center justify-center rounded-lg font-semibold text-xs border"
@@ -316,9 +317,9 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
                   : 'No specific subject AI directives configured. Lesson generation will inherit class context. Click "Edit AI Context" to specify custom focus areas, frameworks, or depth.'}
               </p>
               {lmsClass.ai_context && (
-                <div className="pl-7 pt-1 text-[11px] text-muted-foreground/80 flex items-center gap-1.5">
-                  <span className="font-semibold text-primary">Inherits Class Guidance:</span>
-                  <span className="truncate max-w-md">{lmsClass.ai_context}</span>
+                <div className="pl-7 pt-1 text-[11px] text-muted-foreground/80 flex min-w-0 flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:gap-1.5">
+                  <span className="font-semibold text-primary whitespace-nowrap">Inherits Class Guidance:</span>
+                  <span className="max-w-full truncate sm:max-w-md">{lmsClass.ai_context}</span>
                 </div>
               )}
             </div>
@@ -335,6 +336,8 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
           </div>
         </div>
       </div>
+
+      <LmsVideos scope="subject" refId={subject.id} canEdit={canEdit} />
 
       {/* Quick AI Lesson Generator (One text box + One upload button) */}
       {canEdit && <QuickLessonGenerator

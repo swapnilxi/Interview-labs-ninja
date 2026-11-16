@@ -236,6 +236,7 @@ def init_db() -> None:
         from modules.communication_lab.schema import register as communication_register
         from modules.finance_lab.schema import register as finance_register
         from modules.python_lab.schema import register as python_register
+        from modules.genai_lab.schema import register as genai_register
         from modules.dsa_lab.schema import register as dsa_register
         from modules.lab_sections.schema import register as lab_sections_register
         from modules.lab_projects.schema import register as lab_projects_register
@@ -250,6 +251,7 @@ def init_db() -> None:
         communication_register(cursor)
         finance_register(cursor)
         python_register(cursor)
+        genai_register(cursor)
         dsa_register(cursor)
         lab_sections_register(cursor)
         lab_projects_register(cursor)
@@ -280,6 +282,7 @@ def init_db() -> None:
             ("communication", "communication_topics"),
             ("finance", "finance_topics"),
             ("python", "python_topics"),
+            ("genai", "genai_topics"),
         ]:
             cursor.execute(f"""
                 INSERT INTO lab_sections (lab_name, name, is_custom, user_id)

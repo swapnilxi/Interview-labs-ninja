@@ -268,7 +268,7 @@ export default function VisualizerPanel({
       {/* Visual Canvas / Frame */}
       <div className="w-full rounded-2xl border border-border bg-card shadow-lg overflow-hidden min-h-[580px] flex flex-col relative">
         {loading ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-4">
+          <div className="flex-1 flex flex-col items-center justify-center p-[1.5rem] sm:p-[3rem] text-center space-y-4">
             <div className="h-10 w-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
             <div className="space-y-1">
               <h4 className="font-heading text-base font-bold text-foreground">
@@ -288,7 +288,7 @@ export default function VisualizerPanel({
             className="w-full flex-1 border-0 min-h-[580px]"
           />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-3">
+          <div className="flex-1 flex flex-col items-center justify-center p-[1.5rem] sm:p-[3rem] text-center space-y-3">
             <div className="p-3 rounded-full bg-muted text-muted-foreground">
               <Icon name="PhotoIcon" size={28} />
             </div>

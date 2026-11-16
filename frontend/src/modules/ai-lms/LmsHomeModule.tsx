@@ -263,13 +263,13 @@ export default function LmsHomeModule() {
 
             {/* Classes Grid */}
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[1.5rem] lg:gap-8">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div key={i} className="lms-panel min-h-[260px] animate-pulse" />
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[1.5rem] lg:gap-8">
                 {classes.map((cls, idx) => (
                   <ClassCard
                     key={cls.id}

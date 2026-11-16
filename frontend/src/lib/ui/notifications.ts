@@ -20,7 +20,7 @@ function pushHeaders(): Record<string, string> {
     : { 'Content-Type': 'application/json' };
 }
 
-export type NotificationSource = 'daily-session' | 'labs' | 'todo' | 'system';
+export type NotificationSource = 'daily-session' | 'labs' | 'todo' | 'ai-lms' | 'system';
 export type NotificationTone = 'info' | 'success' | 'warning' | 'error';
 
 export interface NotificationItem {

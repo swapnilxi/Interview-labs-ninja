@@ -131,25 +131,28 @@ further down in `README.md` — check there before assuming a module's shape.
   `schedules/rules.py` (same error texts, same stored JSON). Runs happen on the device (web engine + the native Android
   plugin in `app/android/.../scheduler/`), never on a server cron. Details: README.md ("Scheduler").
 - **Labs: one page, config per lab (`frontend/src/modules/labs/`).** `common/` = everything labs share; one folder per lab
-  holds only what is specific to it. CV, System Design, Communication, Finance and Python are ALL rendered by
+  holds only what is specific to it. CV, System Design, Communication, Finance, Python and GenAI & AI are ALL rendered by
   `common/TopicLab.tsx` from their `<lab>/labConfig.ts` (`TopicLabConfig<T>`: `sectionDefs`, `defaultContent`, `fallbackTopics`,
   `customTopic`, `topicTags`/`wikiMetrics` for extra topic fields): extend the config, never copy the page. **DSA keeps its own
   page on purpose** (week plan, organizer, approaches) but uses the `common/` parts. A lab's section prompts have ONE source (its
   `sectionDefs.ts`/`labConfig.ts`, data only), which `common/labSectionDefaults.ts` imports for the Config page. Backend
   `modules/common/topic_lab.py` + thin `<lab>_lab/` wrappers; seed topics in `<lab>_lab/topics.json` (ASCII only). Every lab is
   listed once in `common/labCatalog.ts` (`/labs`, the sidebar Labs menu, the phone Labs sheet). `modules/common/copilot/CopilotChat.tsx`
-  stays shared with non-lab modules. README: "Lab code layout" and "Labs home and the Learning Labs".
+  stays shared with non-lab modules. Adding a lab = its two folders + a short list of registrations: README "Lab code layout" > "Adding a lab".
+  README: "Lab code layout" and "Labs home and the Learning Labs".
 - **AI LMS hierarchy:** Class > Subject (-> Lessons) or Project (-> Module/Step -> Sub-step,
   each generating one Lesson). A Project is an `lms_subjects` row with `kind='project'`; its
   outline lives in `project_plan` JSON. Both levels of outline items carry `{title, focus,
   context, lesson_id, sublessons}`. Project endpoints exist in both `backend/modules/ai_lms/router.py`
   and `frontend/fe-apis/lms/index.ts` -- change both. Details in `README.md` ("AI LMS Module").
+- **Video links** (labs: personal `lab_page_videos`; AI LMS: shared `lms_videos` + a `videos` list inside each project outline entry): URL rules are `frontend/src/lib/video/videoLinks.ts` <-> `backend/modules/common/video_links.py` (same accept/refuse and texts, change both), endpoints in both twins (`ai_lms/videos.py` <-> `fe-apis/lms/videos.ts`, `lab_sections/videos.py` <-> `fe-apis/labSections/videos.ts`). YouTube embeds use `www.youtube.com/embed` on purpose (private videos), created only after Play. README "Video links".
 - **Roles: user < editor < admin < superadmin.** Every non-GET `/api/lms/*` request needs editor+
   (`_require_editor_for_writes` in `ai_lms/router.py`; allowlist `_NON_EDIT_WRITES` for per-user progress and
   preview-only AI calls). A new LMS write endpoint is gated automatically; a new preview-only one must be added to
   the allowlist. Only a superadmin can grant/revoke admin-level roles. First superadmin: `LABNINJA_SUPERADMIN_EMAILS`.
   `fe-apis` has the same gate in `requireUserId` (`fe-apis/lms/index.ts`, same allowlist) — keep the two in sync.
   Role/landing-editor checks: `tests/e2e/ai-lms/` (Playwright, README there) and `backend/tests/lms_roles_test.py`.
+- **AI LMS class membership, updates and practice reminders:** `classes/<c>/membership` (PUT/DELETE, allowlisted for non-editors) and `classes/<c>/notifications` (POST, editor+, deliberately not allowlisted) + `GET /notifications` live in both twins (`ai_lms/updates.py` ↔ `fe-apis/lms/updates.ts`, same texts and codes; only the Next.js layer pushes). A class practice reminder is a Scheduler reminder marked `source_text = 'lms-class:<slug>'` (`lib/schedules/classReminders.ts`); never show the marker. README: "Class membership, updates and practice reminders".
 - AI-powered endpoints/methods are login-required everywhere, on purpose — don't add
   guest-mode fallbacks for them without checking with the user first.
 - **AI LMS class folders (`frontend/src/modules/ai-lms/classes/`) are synced both ways with

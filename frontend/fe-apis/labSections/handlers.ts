@@ -5,7 +5,7 @@
  * codes and error texts match the Python so both backends answer alike -- keep the two in sync.
  */
 
-import { aiSettings, callAi, extractJsonArray, HttpError, type Row } from '../todo/_shared';
+import { aiSettings, callAi, extractJsonItems, HttpError, type Row } from '../todo/_shared';
 import type { TodoRoute } from '../todo/router';
 import {
   addQuizQuestions,
@@ -21,6 +21,7 @@ import {
   setProgress,
 } from './db';
 import { buildQuizPrompt, normalizeQuestions } from './quiz';
+import { addPageVideo, deletePageVideo, listPageVideos } from './videos';
 import {
   generationRef,
   loadProjectContext,
@@ -30,7 +31,7 @@ import {
   type PromptProject,
 } from '../labProjects/knowledge';
 
-const LAB_NAMES = ['dsa', 'cv', 'system_design', 'communication', 'finance', 'python'] as const;
+const LAB_NAMES = ['dsa', 'cv', 'system_design', 'communication', 'finance', 'python', 'genai'] as const;
 const SECTION_MODES = ['generate', 'update', 'regenerate'] as const;
 
 const DOMAINS: Record<string, string> = {
@@ -40,6 +41,7 @@ const DOMAINS: Record<string, string> = {
   communication: 'Business Communication',
   finance: 'Finance',
   python: 'Python',
+  genai: 'Generative AI and AI engineering',
 };
 
 // Who a section (and the copilot) is written for; the three interview labs share the default. Same texts as
@@ -49,17 +51,19 @@ const AUDIENCE: Record<string, string> = {
   communication: 'a professional improving their business English, communication and leadership skills',
   finance: 'a beginner learning finance step by step, from the basics up to using AI in finance',
   python: 'a learner going from Python basics to writing professional Python for software, data and AI work',
+  genai: 'a learner going from AI and machine learning fundamentals to building, evaluating and shipping generative AI applications',
 };
 const DEFAULT_COPILOT_GOAL = 'helping someone prepare for technical interviews';
 const COPILOT_GOAL: Record<string, string> = {
   communication: 'helping a professional improve their business English, communication and leadership',
   finance: 'helping a beginner learn finance and how AI is used in it',
   python: 'helping someone learn Python, from the basics to professional, data and AI work',
+  genai: 'helping someone learn AI and generative AI, from the fundamentals to building and shipping LLM applications',
 };
 
 // A section is a long document; a small token budget would silently truncate it mid-output.
 const MAX_TOKENS = 6000;
-const QUIZ_MAX_TOKENS = 3500;
+const QUIZ_MAX_TOKENS = 6000;
 
 // ── Validation (Pydantic's 422s) ────────────────────────────────────────────
 
@@ -559,7 +563,7 @@ Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key
       const text = await askAi(prompt, body, QUIZ_MAX_TOKENS);
       let questions;
       try {
-        questions = normalizeQuestions(extractJsonArray(text));
+        questions = normalizeQuestions(extractJsonItems(text).items);
       } catch (err) {
         const last = err instanceof Error ? err.message : String(err);
         throw new HttpError(502, `The AI response couldn't be parsed. Try again. (${last})`);
@@ -632,5 +636,31 @@ Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key
       const sectionId = query.get('section_id') ?? 'all';
       return resetSettings(userId, lab, sectionId);
     },
+  },
+  // Personal video links on a lab page (videos.ts; Python: lab_sections/videos.py).
+  {
+    method: 'GET',
+    path: '/videos',
+    handler: ({ userId, query }) => {
+      const { lab, topicId, subtopicId } = queryPage(query);
+      return listPageVideos(userId, lab, topicId, subtopicId);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/videos',
+    status: 201,
+    handler: async ({ userId, json }) => {
+      const body = await json();
+      const lab = oneOf(body.lab, LAB_NAMES, 'lab');
+      const topicId = strField(body, 'topic_id', 200, { min: 1 });
+      const subtopicId = strField(body, 'subtopic_id', 200, { def: '' });
+      return addPageVideo(userId, lab, topicId, subtopicId, body.url, body.title);
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/videos/:video_id',
+    handler: ({ userId, intParam }) => deletePageVideo(userId, intParam('video_id')),
   },
 ];

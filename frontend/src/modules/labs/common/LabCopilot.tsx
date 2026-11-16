@@ -14,7 +14,7 @@ interface Message {
 
 interface LabCopilotProps {
   context: string;
-  labType?: 'dsa' | 'cv' | 'system-design' | 'communication' | 'finance' | 'python';
+  labType?: 'dsa' | 'cv' | 'system-design' | 'communication' | 'finance' | 'python' | 'genai';
   onCollapse?: () => void;
   /** Accessible name and tooltip of the collapse button: "Collapse" in the side column, "Close" when the copilot is a phone sheet. */
   collapseLabel?: string;
@@ -27,6 +27,7 @@ const LAB_KEY: Record<NonNullable<LabCopilotProps['labType']>, LabName> = {
   communication: 'communication',
   finance: 'finance',
   python: 'python',
+  genai: 'genai',
 };
 
 /** How many progressive hints there are. */

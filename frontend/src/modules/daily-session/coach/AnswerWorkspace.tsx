@@ -24,6 +24,8 @@ interface Props {
   rows?: number;
   /** Passed to the coach: an "Add to To-Do" on each point of an evaluation. */
   onAddTodo?: (text: string) => void;
+  /** false leaves out the AI coach (Practice scores the answer from its own dock). */
+  coach?: boolean;
 }
 
 /** Written answer + (for DSA / System Design) a code space + the AI coach. */
@@ -35,6 +37,7 @@ export default function AnswerWorkspace({
   onCodeChange,
   rows = 7,
   onAddTodo,
+  coach = true,
 }: Props) {
   const kind = detectKind(question.subType, question.category, question.questionText);
   const [language, setLanguage] = useState(kind === 'system_design' ? 'Pseudo-code' : 'Python');
@@ -96,20 +99,22 @@ export default function AnswerWorkspace({
         />
       )}
 
-      <AnswerCoach
-        key={question.questionText}
-        input={{
-          questionText: question.questionText,
-          answerText: answer,
-          codeText: code,
-          language: wantsCode(kind) ? language : undefined,
-          category: question.category,
-          subType: question.subType,
-          difficulty: question.difficulty,
-        }}
-        onUseExpanded={onAnswerChange}
-        onAddTodo={onAddTodo}
-      />
+      {coach && (
+        <AnswerCoach
+          key={question.questionText}
+          input={{
+            questionText: question.questionText,
+            answerText: answer,
+            codeText: code,
+            language: wantsCode(kind) ? language : undefined,
+            category: question.category,
+            subType: question.subType,
+            difficulty: question.difficulty,
+          }}
+          onUseExpanded={onAnswerChange}
+          onAddTodo={onAddTodo}
+        />
+      )}
     </div>
   );
 }

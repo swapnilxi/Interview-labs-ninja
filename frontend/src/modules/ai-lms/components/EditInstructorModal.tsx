@@ -112,8 +112,8 @@ export default function EditInstructorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-card border border-border rounded-xl shadow-2xl p-6 scrollbar-clean">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-y-auto p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-2xl max-h-[90dvh] overflow-y-auto bg-card border border-border rounded-xl shadow-2xl p-[1.5rem] scrollbar-clean">
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -417,7 +417,7 @@ export default function EditInstructorModal({
           </div>
 
           {/* Submit Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-6">
+          <div className="sticky bottom-0 z-10 -mx-[24px] -mb-[24px] flex items-center justify-end gap-3 border-t border-border bg-card px-[24px] pb-[24px] pt-4 mt-[1.5rem]">
             <button
               type="button"
               onClick={onClose}

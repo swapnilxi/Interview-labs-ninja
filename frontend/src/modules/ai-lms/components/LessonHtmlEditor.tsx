@@ -93,7 +93,7 @@ const LessonHtmlEditor = forwardRef<LessonHtmlEditorHandle, LessonHtmlEditorProp
     };
 
     return (
-      <div className="flex-1 w-full rounded-2xl border border-primary/40 bg-card shadow-lg overflow-hidden relative min-h-[70vh] sm:min-h-[620px] flex flex-col">
+      <div className="flex-1 w-full rounded-2xl border border-primary/40 bg-card shadow-lg overflow-hidden relative min-h-[70dvh] sm:min-h-[620px] flex flex-col">
         <div className="flex flex-wrap items-center gap-1 px-3 py-2 border-b border-border bg-muted/40">
           {TOOLBAR.map((a, i) =>
             a.kind === 'sep' ? (

@@ -1,4 +1,4 @@
-"""Topic lab checks (Communication, Finance, Python): seeding from topics.json, the /<lab>/topics and /<lab>/sections
+"""Topic lab checks (Communication, Finance, Python, GenAI): seeding from topics.json, the /<lab>/topics and /<lab>/sections
 routes, per-user sections, and the lab-specific prompts in /lab-sections (standalone, like the other backend/tests
 scripts; no AI provider is called, the model call is replaced by a recording fake).
 
@@ -42,6 +42,7 @@ LABS = {
     "communication": ("communication", "communication_topics", ROOT / "modules" / "communication_lab" / "topics.json"),
     "finance": ("finance", "finance_topics", ROOT / "modules" / "finance_lab" / "topics.json"),
     "python": ("python", "python_topics", ROOT / "modules" / "python_lab" / "topics.json"),
+    "genai": ("genai", "genai_topics", ROOT / "modules" / "genai_lab" / "topics.json"),
 }
 
 failures: list[str] = []
@@ -148,6 +149,9 @@ with TestClient(app) as client:
     check("finance writes for a beginner", "aimed at a beginner learning finance step by step" in generate("finance"))
     check("communication writes for professionals", "business English, communication and leadership skills" in generate("communication"))
     check("python writes for Python learners", "You are a senior Python instructor" in generate("python"))
+    genai_prompt = generate("genai")
+    check("genai writes as an AI engineering instructor", "You are a senior Generative AI and AI engineering instructor" in genai_prompt)
+    check("genai writes for builders of generative AI apps", "aimed at a learner going from AI and machine learning fundamentals" in genai_prompt)
     saved = call("ann", "GET", "/lab-sections", params={"lab": "finance", "topic_id": "t1"}).json()["sections"]
     check("lab-sections: the finance section is saved", saved.get("concepts", {}).get("content", "").startswith("**Section**"))
 
@@ -157,9 +161,18 @@ with TestClient(app) as client:
     check("quiz: python prompt uses its own focus", prompts and "Area: Functions & Modules" in prompts[-1] and "predict-the-output" in prompts[-1])
 
     prompts.clear()
+    r = call("ann", "POST", "/lab-sections/quiz/generate", json={"lab": "genai", "topic_id": "t1", "topic_name": "Tokenization", "category": "LLM Fundamentals"})
+    check("quiz: genai quiz generates", r.status_code == 200 and len(r.json()["questions"]) == 4, r.text)
+    check("quiz: genai prompt uses its own focus", prompts and "Area: LLM Fundamentals" in prompts[-1] and "spot-the-failure" in prompts[-1])
+
+    prompts.clear()
     r = call("ann", "POST", "/lab-sections/copilot", json={"lab": "communication", "context": "Active Listening", "mode": "eli5"})
     check("copilot: communication answers", r.status_code == 200, r.text)
     check("copilot: communication goal", prompts and "helping a professional improve their business English" in prompts[-1])
+    prompts.clear()
+    r = call("ann", "POST", "/lab-sections/copilot", json={"lab": "genai", "context": "Tokenization", "mode": "eli5"})
+    check("copilot: genai answers", r.status_code == 200, r.text)
+    check("copilot: genai goal", prompts and "helping someone learn AI and generative AI" in prompts[-1])
     prompts.clear()
     call("ann", "POST", "/lab-sections/copilot", json={"lab": "cv", "context": "Canny", "mode": "eli5"})
     check("copilot: cv keeps the interview goal", prompts and "lab, helping someone prepare for technical interviews." in prompts[-1])

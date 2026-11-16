@@ -96,7 +96,7 @@ export default function SearchBar() {
       {isOpen && results && (
         <div className="absolute top-full left-0 right-0 mt-2 z-[250] bg-card border border-border rounded-xl shadow-lg overflow-hidden max-h-[420px] overflow-y-auto animate-fadeIn divide-y divide-border/60">
           {totalResults === 0 ? (
-            <div className="p-6 text-center text-xs text-muted-foreground">
+            <div className="p-[1.5rem] text-center text-xs text-muted-foreground">
               No matching classes, subjects, or lessons found for &ldquo;{query}&rdquo;
             </div>
           ) : (

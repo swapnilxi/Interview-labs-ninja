@@ -11,6 +11,13 @@ from typing import Any, Dict, List, Optional
 
 from modules.common.db import get_db_path
 
+from .updates import ensure_tables as ensure_update_tables
+from .updates import purge_class as purge_class_updates
+from .videos import clean_plan_videos
+from .videos import ensure_tables as ensure_video_tables
+from .videos import purge_class as purge_class_videos
+from .videos import purge_subject as purge_subject_videos
+
 
 def slugify(text: str) -> str:
     """Convert text to a clean URL-friendly slug."""
@@ -378,6 +385,12 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_progress_user ON lms_user_progress(user_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_progress_lesson ON lms_user_progress(lesson_id);")
 
+        # ── 5b. Class membership + class updates (see updates.py) ──────────────
+        ensure_update_tables(cursor)
+
+        # ── 5c. Video links on classes and subjects (see videos.py) ────────────
+        ensure_video_tables(cursor)
+
         # ── 6. Module-root Landing Page (singleton) ────────────────────────────
         # The AI LMS home/intro landing page (frontend/src/modules/ai-lms/classes/landingpage.html),
         # separate from any one class -- see class_folders.py's "Module-root landing page" section.
@@ -611,6 +624,11 @@ def delete_class(identifier: str) -> bool:
 
     with _get_conn() as conn:
         cursor = conn.cursor()
+        # Members and the class's own updates go with it (there is no FOREIGN KEY on them; the Next.js twin
+        # does the same in deleteClass).
+        purge_class_updates(cursor, cls["id"])
+        # Video links of the class and of its subjects (before the subjects go with the class).
+        purge_class_videos(cursor, cls["id"])
         cursor.execute("DELETE FROM lms_classes WHERE id = ?", (cls["id"],))
         conn.commit()
     return True
@@ -698,6 +716,8 @@ def _parse_plan_item(item: Dict[str, Any], lesson_ids: set) -> Optional[Dict[str
         # callers in router.py); a module with sublessons is generated sublesson-by-
         # sublesson instead of as one lesson.
         "sublessons": sublessons,
+        # Video links of this module or sub-step (written by PUT .../videos, see videos.py).
+        "videos": clean_plan_videos(item.get("videos")),
     }
 
 
@@ -820,6 +840,7 @@ def delete_subject(subject_id: str) -> bool:
     """Delete a subject and cascade delete its lessons."""
     with _get_conn() as conn:
         cursor = conn.cursor()
+        purge_subject_videos(cursor, subject_id)
         cursor.execute("DELETE FROM lms_subjects WHERE id = ?", (subject_id,))
         conn.commit()
         return cursor.rowcount > 0

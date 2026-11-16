@@ -1336,6 +1336,7 @@ _LAB_DOMAINS = {
     "communication": "Business Communication & Leadership",
     "finance": "Finance & AI in Finance",
     "python": "Python",
+    "genai": "Generative AI and AI Systems",
 }
 
 # (interviewer, question types) for labs whose questions are not technical-interview questions; every other lab
@@ -1343,6 +1344,7 @@ _LAB_DOMAINS = {
 _QUESTION_STYLES = {
     "communication": ("senior hiring manager", ["conceptual", "scenario", "behavioral", "role-play", "practical"]),
     "finance": ("senior finance interviewer", ["conceptual", "calculation", "practical", "ai application"]),
+    "genai": ("senior AI engineering interviewer", ["conceptual", "implementation", "system design", "evaluation", "debugging"]),
 }
 _DEFAULT_QUESTION_STYLE = ("senior technical interviewer", ["conceptual", "implementation", "system design", "debugging", "practical"])
 

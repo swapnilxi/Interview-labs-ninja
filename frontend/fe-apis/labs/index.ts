@@ -6,7 +6,7 @@
  *   /dsa/topics            /dsa/sections             backend/modules/dsa_lab/router.py (+ dsa_lab/seed.py)
  *   /cv/topics             /cv/sections              backend/modules/cv_lab/router.py (+ cv_lab/seed.py)
  *   /system-design/topics  /system-design/sections   backend/modules/system_design_lab/router.py (+ seed.py)
- *   /communication/topics, /finance/topics, /python/topics (+ /sections each)
+ *   /communication/topics, /finance/topics, /python/topics, /genai/topics (+ /sections each)
  *                                                    backend/modules/common/topic_lab.py (+ <lab>_lab/topics.json)
  *
  * GET/POST each, login required (router-level get_current_user_id). Topics are shared by everyone; sections are the
@@ -15,7 +15,7 @@
  * mirrored here (CLAUDE.md, "Dual deployment modes").
  *
  * Seed data: the DSA/CV/System Design topics are not ported (FastAPI's init_db seeds them; the git-tracked database
- * already holds them). The Communication, Finance and Python labs seed from the same backend/modules/<lab>_lab/topics.json
+ * already holds them). The Communication, Finance, Python and GenAI labs seed from the same backend/modules/<lab>_lab/topics.json
  * files FastAPI reads (seedTopicLabs below, once per process, INSERT OR IGNORE like topic_lab.seed_topics), so they work
  * even on a database FastAPI never started on. Each route's next.config.mjs outputFileTracingIncludes ships its file.
  */
@@ -28,7 +28,7 @@ import { compileRoutes, dispatch, type TodoRoute } from '../todo/router';
 import { HttpError, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
 import { pyJsonDumps } from '../todo/py';
 
-export type LabKey = 'dsa' | 'cv' | 'system-design' | 'communication' | 'finance' | 'python';
+export type LabKey = 'dsa' | 'cv' | 'system-design' | 'communication' | 'finance' | 'python' | 'genai';
 
 interface LabConfig {
   table: string;
@@ -50,6 +50,7 @@ const LABS: Record<LabKey, LabConfig> = {
   communication: { table: 'communication_topics', sectionLab: 'communication', shape: 'prerequisites', order: 'rowid', lenientJson: true, seedDir: 'communication_lab' },
   finance: { table: 'finance_topics', sectionLab: 'finance', shape: 'prerequisites', order: 'rowid', lenientJson: true, seedDir: 'finance_lab' },
   python: { table: 'python_topics', sectionLab: 'python', shape: 'prerequisites', order: 'rowid', lenientJson: true, seedDir: 'python_lab' },
+  genai: { table: 'genai_topics', sectionLab: 'genai', shape: 'prerequisites', order: 'rowid', lenientJson: true, seedDir: 'genai_lab' },
 };
 
 // ── Schema (CREATE TABLE IF NOT EXISTS copies of the Python ones; no seeding) ────────────────────────────────
@@ -58,7 +59,7 @@ let schemaReady = false;
 
 function ensureLabSchema(db: TodoDb) {
   if (schemaReady) return;
-  for (const table of ['dsa_topics', 'cv_topics', 'communication_topics', 'finance_topics', 'python_topics']) {
+  for (const table of ['dsa_topics', 'cv_topics', 'communication_topics', 'finance_topics', 'python_topics', 'genai_topics']) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS ${table} (
         id TEXT PRIMARY KEY,
@@ -367,6 +368,7 @@ const COMPILED: Record<LabKey, ReturnType<typeof compileRoutes>> = {
   communication: compileRoutes(routesFor('communication')),
   finance: compileRoutes(routesFor('finance')),
   python: compileRoutes(routesFor('python')),
+  genai: compileRoutes(routesFor('genai')),
 };
 
 /** True for the paths this module serves (the DSA catch-all also serves the week plan). */
@@ -385,9 +387,10 @@ const writers: Record<LabKey, (req: Request, segments: string[]) => Promise<Resp
   communication: withNeonSync(dispatchLab('communication')),
   finance: withNeonSync(dispatchLab('finance')),
   python: withNeonSync(dispatchLab('python')),
+  genai: withNeonSync(dispatchLab('genai')),
 };
 
-/** Entry point for src/app/api/{dsa,cv,system-design,communication,finance,python}/[...path]/route.ts. */
+/** Entry point for src/app/api/{dsa,cv,system-design,communication,finance,python,genai}/[...path]/route.ts. */
 export function handleLabTopics(key: LabKey, req: Request, segments: string[]): Promise<Response> {
   return req.method === 'GET' ? dispatchLab(key)(req, segments) : writers[key](req, segments);
 }

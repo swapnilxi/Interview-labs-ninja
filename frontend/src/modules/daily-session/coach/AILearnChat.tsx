@@ -31,6 +31,15 @@ interface Props {
    * again (the session run bar's tutor) picks up where it left off. Memory only: a reload starts afresh.
    */
   persistKey?: string;
+  /** Start the conversation as soon as the chat is shown (no intro card). */
+  autoStart?: boolean;
+  /**
+   * Inside a Practice run: the run scores the chat from its own dock (see chatTranscript), so the chat leaves out its
+   * "End & review" button and review.
+   */
+  embedded?: boolean;
+  /** How many messages the learner has sent, whenever it changes. */
+  onLearnerTurns?: (n: number) => void;
 }
 
 interface ChatSnapshot {
@@ -45,8 +54,24 @@ interface ChatSnapshot {
 
 const chatMemory = new Map<string, ChatSnapshot>();
 
+const transcriptOf = (turns: ChatTurn[]) =>
+  turns.map((t) => `${t.role === 'tutor' ? 'Tutor' : 'Learner'}: ${t.content}`).join('\n\n');
+
+/** The conversation kept under `persistKey`, as the transcript the answer coach scores ('' when there is none). */
+export function chatTranscript(persistKey: string): string {
+  const turns = chatMemory.get(persistKey)?.turns ?? [];
+  return turns.some((t) => t.role === 'learner') ? transcriptOf(turns) : '';
+}
+
 /** AI Learn Chat: a Socratic AI tutor that teaches one topic in depth, step by step, then reviews what you learned. */
-export default function AILearnChat({ question, onEvaluated, persistKey }: Props) {
+export default function AILearnChat({
+  question,
+  onEvaluated,
+  persistKey,
+  autoStart = false,
+  embedded = false,
+  onLearnerTurns,
+}: Props) {
   const kind = detectKind(question.subType, question.category, question.questionText);
   const [saved] = useState(() => (persistKey ? chatMemory.get(persistKey) : undefined));
   const [turns, setTurns] = useState<ChatTurn[]>(saved?.turns ?? []);
@@ -74,7 +99,8 @@ export default function AILearnChat({ question, onEvaluated, persistKey }: Props
     setInput(cur && !/\s$/.test(cur) ? `${cur} ${text}` : `${cur}${text}`);
   });
   const lastSentCode = useRef('');
-  const started = turns.length > 0 || busy;
+  // An auto-started chat skips the intro card (also for the frame before its first request goes out).
+  const started = turns.length > 0 || busy || (autoStart && !error && isLoggedIn());
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
@@ -143,9 +169,7 @@ export default function AILearnChat({ question, onEvaluated, persistKey }: Props
     setError(null);
     stopSpeaking();
     try {
-      const transcript = turns
-        .map((t) => `${t.role === 'tutor' ? 'Tutor' : 'Learner'}: ${t.content}`)
-        .join('\n\n');
+      const transcript = transcriptOf(turns);
       const result = await answerCoachService.evaluate({
         questionText: question.questionText,
         answerText: transcript,
@@ -176,6 +200,19 @@ export default function AILearnChat({ question, onEvaluated, persistKey }: Props
   const name = meta?.tutor.name ?? 'Tutor';
   const candidateCount = turns.filter((t) => t.role === 'learner').length;
   const depth = meta?.depth ?? 0;
+
+  useEffect(() => {
+    onLearnerTurns?.(candidateCount);
+  }, [candidateCount, onLearnerTurns]);
+
+  // A ref, so React's development double-mount does not start two conversations.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!autoStart || autoStarted.current || started) return;
+    autoStarted.current = true;
+    start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   if (!started) {
     return (
@@ -313,7 +350,11 @@ export default function AILearnChat({ question, onEvaluated, persistKey }: Props
           {meta?.wrap_up ? (
             <p className="ds-banner ds-banner-center ds-tone-indigo text-[13px]">
               <Icon name="CheckCircleIcon" variant="solid" size={16} />
-              <span>Session wrapped up. End it to see your review.</span>
+              <span>
+                {embedded
+                  ? 'The tutor has wrapped up. Score the chat from the bar below.'
+                  : 'Session wrapped up. End it to see your review.'}
+              </span>
             </p>
           ) : (
             <div className="flex items-end gap-2">
@@ -382,22 +423,24 @@ export default function AILearnChat({ question, onEvaluated, persistKey }: Props
                 {showCode ? 'Hide code space' : kind === 'dsa' ? 'Write code' : 'Sketch design'}
               </button>
             )}
-            <button
-              type="button"
-              onClick={endAndReview}
-              disabled={evaluating || busy || candidateCount === 0}
-              className="ds-btn ds-btn-soft ds-btn-sm ds-tone-jade ml-auto"
-            >
-              {evaluating ? (
-                <span
-                  className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                  aria-hidden="true"
-                />
-              ) : (
-                <Icon name="CheckCircleIcon" size={15} />
-              )}
-              {evaluating ? 'Reviewing…' : 'End & review'}
-            </button>
+            {!embedded && (
+              <button
+                type="button"
+                onClick={endAndReview}
+                disabled={evaluating || busy || candidateCount === 0}
+                className="ds-btn ds-btn-soft ds-btn-sm ds-tone-jade ml-auto"
+              >
+                {evaluating ? (
+                  <span
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Icon name="CheckCircleIcon" size={15} />
+                )}
+                {evaluating ? 'Reviewing…' : 'End & review'}
+              </button>
+            )}
           </div>
         </>
       )}

@@ -1,5 +1,6 @@
 'use client';
 
+import ModuleVideos from './ModuleVideos';
 import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
@@ -172,7 +173,7 @@ function InsertGap({
           setSaving(false);
           if (ok) close();
         }}
-        className={`rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 space-y-2 ${indent ? 'ml-6 sm:ml-10' : ''}`}
+        className={`rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 space-y-2 ${indent ? 'ml-[1.5rem] sm:ml-10' : ''}`}
       >
         <div className="text-[11px] font-semibold text-primary">{active.label}</div>
         <textarea
@@ -311,9 +312,9 @@ function InsertGap({
   }
 
   return (
-    <div className={`group flex items-center gap-2 h-5 ${indent ? 'ml-6 sm:ml-10' : ''}`}>
+    <div className={`group flex items-center gap-2 h-5 [@media(pointer:coarse)]:h-auto [@media(pointer:coarse)]:min-h-[2.5rem] ${indent ? 'ml-[1.5rem] sm:ml-10' : ''}`}>
       <div className="flex-1 h-px bg-transparent group-hover:bg-border transition-colors" />
-      <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-70 transition-opacity">
         {targets.map((t) => (
           <button
             key={t.label}
@@ -673,7 +674,7 @@ export default function ProjectDetailModule({
           handleDrop(flat);
         }}
         className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border p-4 transition-colors ${
-          flat.depth === 1 ? 'ml-6 sm:ml-10 border-border/60 bg-muted/20' : 'border-border bg-card'
+          flat.depth === 1 ? 'ml-[1.5rem] sm:ml-10 border-border/60 bg-muted/20' : 'border-border bg-card'
         } ${dragKey === flat.key ? 'opacity-40' : ''} ${overKey === flat.key ? 'ring-2 ring-primary/50' : ''}`}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -693,6 +694,14 @@ export default function ProjectDetailModule({
             {flat.item.focus && (
               <div className="text-xs text-muted-foreground line-clamp-1">{flat.item.focus}</div>
             )}
+            <ModuleVideos
+              projectId={project.id}
+              moduleIndex={flat.moduleIndex}
+              subIndex={flat.subIndex ?? undefined}
+              videos={flat.item.videos ?? []}
+              canEdit={canEdit}
+              onChanged={() => onReload()}
+            />
           </div>
         </div>
 

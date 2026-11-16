@@ -26,7 +26,12 @@ import {
 import { isLoggedIn, onAuthChange } from '@/lib/auth/tokenStore';
 import { notify, pageInBackground, showDeviceNotification } from '@/lib/ui/notifications';
 import { lastOccurrence, nextOccurrence } from './scheduleRules';
-import { nativeSchedulerAvailable, scheduleHref, syncNativeSchedules } from './nativeScheduler';
+import {
+  nativeSchedulerAvailable,
+  scheduleHref,
+  scheduleTargetHref,
+  syncNativeSchedules,
+} from './nativeScheduler';
 
 export interface ScheduleAlert {
   key: string;
@@ -38,6 +43,8 @@ export interface ScheduleAlert {
   at: string;
   state: 'ok' | 'running' | 'error' | 'missed' | 'late';
   runId?: number;
+  /** Where the card's Open button goes when it is not the Scheduler tab (a class reminder opens its class). */
+  href?: string;
 }
 
 // ── Alert store (the in-app cards, ScheduleAlerts.tsx) ───────────────────────────────────────────────────────────
@@ -243,6 +250,7 @@ export async function runAgentOccurrence(
 async function fireReminder(schedule: Schedule, at: Date, missed: boolean) {
   const scheduledFor = at.toISOString();
   const key = `${schedule.id}@${scheduledFor}`;
+  const href = scheduleTargetHref(schedule);
   deliver(
     {
       key,
@@ -252,8 +260,10 @@ async function fireReminder(schedule: Schedule, at: Date, missed: boolean) {
       body: schedule.message || 'Scheduled reminder',
       at: scheduledFor,
       state: missed ? 'missed' : 'ok',
+      // Only a link that is not the Scheduler tab is kept on the card (a class reminder's class).
+      ...(href !== scheduleHref(schedule.id) ? { href } : {}),
     },
-    scheduleHref(schedule.id),
+    href,
     missed
   );
   if (!missed) {

@@ -480,11 +480,11 @@ export default function VoiceAssistant({ lessonTitle, lessonContentHtml }: Voice
   const isBusy = assistantState === 'transcribing' || assistantState === 'thinking';
 
   return (
-    <div className="fixed bottom-6 right-6 z-[200] flex flex-col items-end gap-3">
+    <div className="lms-voice-dock fixed z-[200] flex flex-col items-end gap-3">
       {/* Chat Panel */}
       {isOpen && (
         <div
-          className="w-[340px] max-h-[480px] flex flex-col rounded-2xl overflow-hidden shadow-2xl"
+          className="w-[min(340px,calc(100vw_-_1.5rem))] max-h-[min(480px,calc(100dvh_-_var(--chrome-top,4rem)_-_var(--lms-dock-base,1rem)_-_11rem))] flex flex-col rounded-2xl overflow-hidden shadow-2xl"
           style={{
             background: 'rgba(15,23,42,0.97)',
             border: '1px solid rgba(99,102,241,0.3)',
@@ -759,11 +759,11 @@ export default function VoiceAssistant({ lessonTitle, lessonContentHtml }: Voice
       )}
 
       {/* Floating Orb Button */}
-      <div className="flex flex-col items-center gap-1.5">
+      <div className="flex flex-row-reverse items-center gap-2 sm:flex-col sm:gap-1.5">
         {/* Tooltip label */}
         {!isOpen && (
           <div
-            className="text-[11px] font-semibold text-center leading-none px-2.5 py-1 rounded-full"
+            className="hidden text-[11px] font-semibold text-center leading-none px-2.5 py-1 rounded-full sm:block"
             style={{
               background: 'rgba(15,23,42,0.9)',
               border: '1px solid rgba(51,65,85,0.8)',
@@ -813,9 +813,11 @@ export default function VoiceAssistant({ lessonTitle, lessonContentHtml }: Voice
         {assistantState === 'idle' && (
           <button
             onClick={() => setIsOpen((prev) => !prev)}
+            aria-label={isOpen ? 'Hide panel' : 'Show panel'}
             className="text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors"
           >
-            {isOpen ? 'hide panel' : 'show panel'}
+            <span className="hidden sm:inline">{isOpen ? 'hide panel' : 'show panel'}</span>
+            <Icon name="ChatBubbleLeftRightIcon" size={18} className="sm:hidden" />
           </button>
         )}
       </div>

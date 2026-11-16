@@ -83,10 +83,11 @@
        aliases follow the accent, so a class string that is missed cannot leak teal or amber into a button, row or link. */
     --lab-cv: #0f8c80;
     --lab-system: #b45f0e;
-    /* Communication / Finance / Python: identity hues too (hero glow + icon tile only), never on controls. */
+    /* Communication / Finance / Python / GenAI: identity hues too (hero glow + icon tile only), never on controls. */
     --lab-communication: #b03a7a;
     --lab-finance: #2563a8;
     --lab-python: #6d4fc2;
+    --lab-genai: #c4472a;
     --lab-cv-soft: var(--lab-accent-soft);
     --lab-system-soft: var(--lab-accent-soft);
     --wiki-cv-hover: var(--lab-accent-ink);
@@ -184,6 +185,7 @@
     --lab-communication: #f08cc0;
     --lab-finance: #86b7f5;
     --lab-python: #b9a2f2;
+    --lab-genai: #f28b6b;
     --card-bar-idle: 0.45;
     --card-bar-hover: 0.9;
     --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
@@ -553,6 +555,10 @@
 
   .lab-shell[data-lab='python'] {
     --lab-identity: var(--lab-python);
+  }
+
+  .lab-shell[data-lab='genai'] {
+    --lab-identity: var(--lab-genai);
   }
 
   .lab-workspace {
@@ -993,7 +999,7 @@
   .lms-admin-pill {
     @apply lms-focus fixed z-40 inline-flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-xs font-medium text-foreground transition-colors;
     right: max(1rem, var(--safe-right));
-    bottom: max(1rem, var(--safe-bottom));
+    bottom: var(--lms-dock-base, max(1rem, var(--safe-bottom)));
     border-color: color-mix(in srgb, var(--color-foreground) 16%, transparent);
     background: color-mix(in srgb, var(--color-card) 82%, transparent);
     box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.5);
@@ -1010,6 +1016,77 @@
     @apply rounded-full px-2.5 py-1 text-[11px] font-semibold;
     background: color-mix(in srgb, var(--color-primary) 18%, transparent);
     color: var(--color-primary);
+  }
+
+  /* AI LMS floating controls: Ask Copilot, the view-mode switch and, on a lesson, Voice AI share one bottom-right dock.
+     --lms-dock-base is the first slot (the screen corner; on a phone, the space above the floating tab bar). Each control
+     sits one --lms-dock-step above those below it. :has() counts which of them this page has, so they never overlap and a
+     learner (no view-mode switch) is left with no empty slot. `.lms-touch` is the wrapper in app/ai-lms/layout.tsx. */
+  .lms-touch {
+    --lms-dock-base: max(1rem, var(--safe-bottom));
+    --lms-dock-step: 2.875rem;
+    --lms-dock-admin: 0;
+    --lms-dock-copilot: 0;
+    --lms-dock-voice: 0;
+  }
+  .lms-touch:has(.lms-dock-admin) {
+    --lms-dock-admin: 1;
+  }
+  .lms-touch:has(.lms-dock-copilot) {
+    --lms-dock-copilot: 1;
+  }
+  .lms-touch:has(.lms-voice-dock) {
+    --lms-dock-voice: 1;
+  }
+  @media (max-width: 767px) {
+    html.has-mobile-tabs .lms-touch {
+      --lms-dock-base: calc(var(--mobile-tab-h, 0px) + 0.25rem);
+    }
+  }
+  .lms-dock-copilot {
+    bottom: calc(var(--lms-dock-base) + var(--lms-dock-step) * var(--lms-dock-admin));
+  }
+  .lms-voice-dock {
+    right: max(1rem, var(--safe-right));
+    bottom: calc(var(--lms-dock-base) + var(--lms-dock-step) * (var(--lms-dock-admin) + var(--lms-dock-copilot)));
+  }
+  /* The page's last content stays clear of the dock (on a phone the body already reserves the tab bar). */
+  .lms-touch main {
+    padding-bottom: calc(var(--lms-dock-step) * (var(--lms-dock-admin) + var(--lms-dock-copilot) + var(--lms-dock-voice)) + 1.5rem);
+  }
+
+  /* AI LMS on a finger (coarse pointer): the pages use plain utility buttons, so every tappable control gets the app's
+     40x40 minimum, as in the To-Do area above (real size, not an invisible halo that would overlap its neighbours).
+     Button-like links are the ones that carry inline-flex or a radius; `.lms-crumb` is a breadcrumb text link (below). */
+  @media (pointer: coarse) {
+    .lms-touch
+      :is(button, summary, [role='button'], [role='tab'], a.lms-tap, a[class*='inline-flex'], a[class*='rounded']) {
+      min-height: 2.5rem;
+      min-width: 2.5rem;
+    }
+
+    .lms-touch
+      :is(select, input:not([type='checkbox'], [type='radio'], [type='file'], [type='hidden'], [type='range'])) {
+      min-height: 2.5rem;
+    }
+
+    /* A breadcrumb text link: 40px tall box that takes no room (padding and a matching negative margin), so the row and
+       its truncating names are unchanged. */
+    .lms-touch a.lms-crumb {
+      padding-block: 0.75rem;
+      margin-block: -0.75rem;
+    }
+  }
+
+  /* Phones: nothing you read is under 12px (the 10-11px labels and pills are desktop-density). */
+  @media (max-width: 767px) {
+    .lms-touch :is(.text-\[10px\], .text-\[10\.5px\], .text-\[11px\], .lms-meta-pill, .lms-admin-pill-action) {
+      font-size: 0.75rem;
+    }
+    /* 16px form fields so iOS does not zoom the page when one is focused. */
+    .lms-touch :is(select, textarea, input:not([type='checkbox'], [type='radio'], [type='file'], [type='hidden'], [type='range'], [type='color'])) {
+      font-size: 1rem;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

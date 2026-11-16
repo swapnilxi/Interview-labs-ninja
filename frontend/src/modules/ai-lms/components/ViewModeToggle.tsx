@@ -26,11 +26,11 @@ export default function ViewModeToggle() {
       onClick={toggle}
       aria-label={`${label}. ${isPreviewingAsStudent ? `Switch back to ${roleLabel} view` : 'Switch to student preview'}`}
       title={isPreviewingAsStudent ? `Switch back to ${roleLabel} view` : 'Preview as a student'}
-      className={`lms-admin-pill ${isPreviewingAsStudent ? 'lms-admin-pill-student' : ''}`}
+      className={`lms-admin-pill lms-dock-admin ${isPreviewingAsStudent ? 'lms-admin-pill-student' : ''}`}
     >
       <Icon name={isPreviewingAsStudent ? 'AcademicCapIcon' : 'EyeIcon'} size={15} />
       <span>{label}</span>
-      <span className="lms-admin-pill-action">Switch</span>
+      <span className="lms-admin-pill-action max-sm:hidden">Switch</span>
     </button>
   );
 }

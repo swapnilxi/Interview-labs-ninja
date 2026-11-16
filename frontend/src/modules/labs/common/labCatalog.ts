@@ -22,7 +22,7 @@ export const LAB_GROUPS: readonly LabGroup[] = [
   {
     id: 'learning',
     label: 'Learning Labs',
-    description: 'Skills built from the basics up: communication, finance and Python.',
+    description: 'Skills built from the basics up: communication, finance, Python and GenAI.',
   },
 ];
 
@@ -106,6 +106,17 @@ export const LAB_CATALOG: readonly LabCatalogEntry[] = [
     hint: 'From basics to data & AI',
     description:
       'Python from first program to OOP, testing and concurrency, then data and AI apps.',
+    noun: 'lessons',
+  },
+  {
+    key: 'genai',
+    group: 'learning',
+    path: '/genai-lab',
+    label: 'GenAI & AI Lab',
+    icon: 'SparklesIcon',
+    hint: 'From AI basics to LLM apps',
+    description:
+      'AI fundamentals, then LLMs, RAG, agents, evaluation and shipping generative AI apps.',
     noun: 'lessons',
   },
 ];

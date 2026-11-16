@@ -9,6 +9,8 @@ import crypto from 'crypto';
 import { getSQLiteDatabase } from '../_shared/db';
 import { seedInitialLmsContent } from './seed';
 import { contentHash, recordBackup, refreshLesson } from './classFolders';
+import { UPDATES_DDL, purgeClassUpdates } from './updatesSchema';
+import { VIDEOS_DDL, cleanPlanVideos, purgeClassVideos, purgeSubjectVideos } from './videosSchema';
 
 // Subject slugs that would collide with a static route segment
 // (/classes/[c]/lesson/[l], /classes/[c]/landing) or with the class folder's own
@@ -91,6 +93,12 @@ export function ensureLmsTables(): void {
       updated_at TEXT NOT NULL
     );
   `);
+
+  // Class membership + class updates (see updates.ts; same tables as backend/modules/ai_lms/updates.py).
+  db.exec(UPDATES_DDL);
+
+  // Video links on classes and subjects (see videos.ts; same table as backend/modules/ai_lms/videos.py).
+  db.exec(VIDEOS_DDL);
 
   // Migrate columns if table already existed without ai_context
   try {
@@ -351,8 +359,12 @@ export function deleteClass(idOrSlug: string): boolean {
   const current = db.prepare('SELECT id FROM lms_classes WHERE id = ? OR slug = ?').get(idOrSlug, idOrSlug) as { id: string } | undefined;
   if (!current) return false;
 
+  // Video links of the class and of its subjects, while the subjects still exist.
+  purgeClassVideos(db, current.id);
   db.prepare('DELETE FROM lms_lessons WHERE class_id = ?').run(current.id);
   db.prepare('DELETE FROM lms_subjects WHERE class_id = ?').run(current.id);
+  // Members and the class's own updates go with it (no FOREIGN KEY on them; Python's delete_class does the same).
+  purgeClassUpdates(db, current.id);
   db.prepare('DELETE FROM lms_classes WHERE id = ?').run(current.id);
   return true;
 }
@@ -409,6 +421,8 @@ function parsePlanItem(item: unknown, lessonIds: Set<string>): Record<string, un
     context: String(rec.context || '').trim(),
     lesson_id: typeof lessonId === 'string' && lessonIds.has(lessonId) ? lessonId : null,
     sublessons,
+    // Video links of this module or sub-step (written by PUT .../videos, see videos.ts).
+    videos: cleanPlanVideos(rec.videos),
   };
 }
 
@@ -613,6 +627,7 @@ export function deleteSubject(subjectId: string): boolean {
   const current = db.prepare('SELECT id FROM lms_subjects WHERE id = ?').get(subjectId);
   if (!current) return false;
 
+  purgeSubjectVideos(db, subjectId);
   db.prepare('DELETE FROM lms_lessons WHERE subject_id = ?').run(subjectId);
   db.prepare('DELETE FROM lms_subjects WHERE id = ?').run(subjectId);
   return true;

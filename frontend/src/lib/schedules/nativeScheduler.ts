@@ -14,6 +14,7 @@ import { getToken, isLoggedIn } from '@/lib/auth/tokenStore';
 import { resolveApiBaseUrl } from '@/lib/http/apiClient';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
 import type { Schedule } from '@/lib/services/scheduleService';
+import { classReminderHref, classSlugOf } from './classReminders';
 import { nextOccurrences } from './scheduleRules';
 
 interface NativeJob {
@@ -62,6 +63,16 @@ export function scheduleHref(scheduleId: number): string {
   return `/ai-todo?tab=schedule&schedule=${scheduleId}`;
 }
 
+/**
+ * Where a schedule's notification opens when it is tapped: the class for a class practice reminder
+ * (classReminders.ts), the Scheduler tab on that schedule for everything else. Use this, not `scheduleHref`, wherever
+ * a reminder's link is worked out (the web engine, the Android alarm list, the in-app card).
+ */
+export function scheduleTargetHref(schedule: Pick<Schedule, 'id' | 'kind' | 'source_text'>): string {
+  const slug = classSlugOf(schedule);
+  return slug ? classReminderHref(slug) : scheduleHref(schedule.id);
+}
+
 function buildJobs(schedules: Schedule[]): NativeJob[] {
   const now = new Date();
   const until = now.getTime() + HORIZON_DAYS * 86_400_000;
@@ -82,7 +93,7 @@ function buildJobs(schedules: Schedule[]): NativeJob[] {
         title: s.title,
         body:
           s.kind === 'agent' ? 'Running your scheduled AI job…' : s.message || 'Scheduled reminder',
-        href: scheduleHref(s.id),
+        href: scheduleTargetHref(s),
       });
     }
   }

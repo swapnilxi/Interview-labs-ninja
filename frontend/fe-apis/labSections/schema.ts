@@ -7,6 +7,7 @@
  */
 
 import type { TodoDb } from '../todo/_shared';
+import { LAB_VIDEOS_DDL } from './videosSchema';
 
 export function ensureLabSectionsSchema(db: TodoDb): void {
   db.exec(`
@@ -65,6 +66,8 @@ export function ensureLabSectionsSchema(db: TodoDb): void {
     CREATE INDEX IF NOT EXISTS idx_lab_section_settings_user_lab ON lab_section_settings(user_id, lab_name);
   `);
   addProjectColumns(db);
+  // Personal video links on lab pages (see videos.ts; same table as backend/modules/lab_sections/videos.py).
+  db.exec(LAB_VIDEOS_DDL);
 }
 
 /**

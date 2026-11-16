@@ -71,7 +71,7 @@ import {
   useScrollToTopOnChange,
 } from '@/modules/labs/common/labNavigation';
 import type { SectionDef } from '@/modules/labs/common/labSectionDefaults';
-import { prereqMarkdown } from '@/modules/labs/common/prereqMarkdown';
+import { templateSectionContent } from '@/modules/labs/common/topicLabContent';
 import ProjectSelector from '@/modules/labs/common/project/ProjectSelector';
 import { sectionSaveInfo } from '@/modules/labs/common/project/sectionProject';
 import type {
@@ -80,6 +80,7 @@ import type {
   TopicLabTopic,
   TopicTag,
 } from '@/modules/labs/common/topicLabTypes';
+import LabPageVideos from '@/modules/labs/common/LabPageVideos';
 import { useLabQuiz } from '@/modules/labs/common/useLabQuiz';
 import { useLabSections, type SectionState } from '@/modules/labs/common/useLabSections';
 import { useLabSettings } from '@/modules/labs/common/useLabSettings';
@@ -102,16 +103,6 @@ const anchorFor = (lab: string, name: string) =>
  */
 type LabSlug = NonNullable<ComponentProps<typeof LabCopilot>['labType']>;
 const labSlug = (lab: TopicLabName) => lab.replace(/_/g, '-') as LabSlug;
-
-/** The default Prerequisites template: the topic's own prerequisites, then the lab's baseline for its category. */
-function prerequisitesFor<T extends TopicLabTopic>(config: TopicLabConfig<T>, topic: T): string {
-  const baseline = config.prereqBaseline ?? {};
-  const base = baseline[topic.category] ?? baseline['*'] ?? [];
-  return prereqMarkdown(`Prerequisites for ${topic.name}`, [
-    { title: config.ownPrereqTitle ?? 'Study these first', items: topic.prerequisites ?? [] },
-    ...base,
-  ]);
-}
 
 /** Lab-specific tags (TopicLabConfig.topicTags) after a topic's difficulty. */
 function TopicTags({ tags }: { tags: TopicTag[] }) {
@@ -523,11 +514,7 @@ export default function TopicLab<T extends TopicLabTopic>({
     topic: currentTopic,
     subtopic: currentSubtopic,
     sectionDefs,
-    getDefaultContent: (id) => {
-      if (!currentTopic) return '';
-      if (config.defaultContent) return config.defaultContent(id, currentTopic);
-      return id === 'prerequisites' ? prerequisitesFor(config, currentTopic) : '';
-    },
+    getDefaultContent: (id) => (currentTopic ? templateSectionContent(config, currentTopic, id) : ''),
     defaultGuidance,
   });
   const quiz = useLabQuiz({
@@ -1069,6 +1056,9 @@ export default function TopicLab<T extends TopicLabTopic>({
                   <MarkdownLite content={currentSubtopic.content} />
                 </div>
               )}
+
+              {/* ── Your video links for this page (personal) ── */}
+              <LabPageVideos lab={lab} topicId={currentTopic.id} subtopicId={currentSubtopic?.id ?? ''} />
 
               {/* ── Content outline ── */}
               <div className="lab-card-muted p-4">

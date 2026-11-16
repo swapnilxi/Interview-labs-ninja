@@ -65,7 +65,7 @@ export default function LessonList({
 
   if (lessons.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
+      <div className="rounded-xl border border-dashed border-border bg-card/50 p-[1.5rem] sm:p-[3rem] text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
           <Icon name="DocumentTextIcon" size={24} />
         </div>
@@ -76,6 +76,9 @@ export default function LessonList({
       </div>
     );
   }
+
+  // Learners see a title and a Study chip (one line). With editor controls the row has too much for one line on a phone.
+  const hasRowControls = !!(onEdit || onDelete || (onReorder && lessons.length > 1));
 
   const handleMove = (index: number, direction: 'up' | 'down') => {
     if (!onReorder) return;
@@ -93,7 +96,7 @@ export default function LessonList({
   return (
     <div className="space-y-3">
       {/* Header bar with Organize Mode toggle */}
-      <div className="flex items-center justify-between pb-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
         <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
           <Icon name="QueueListIcon" size={14} className="text-primary" />
           <span>
@@ -101,7 +104,7 @@ export default function LessonList({
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {lessons.length > 1 && (
             <button
               type="button"
@@ -146,7 +149,7 @@ export default function LessonList({
                   router.push(lessonHref);
                 }
               }}
-              className={`group relative flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+              className={`group relative flex ${hasRowControls ? 'flex-col items-stretch gap-3 sm:flex-row sm:items-center' : 'items-center'} justify-between rounded-xl border p-4 transition-all duration-200 ${
                 isOrganizeMode
                   ? 'border-primary/40 bg-card ring-1 ring-primary/20 cursor-default'
                   : 'glow-card border-border bg-card cursor-pointer hover:border-primary/40 hover:bg-card/80 hover:shadow-sm'
@@ -167,7 +170,7 @@ export default function LessonList({
 
                 <div className="min-w-0 flex-1 pr-4">
                   <div
-                    className={`font-heading text-sm font-semibold truncate block transition-colors ${
+                    className={`font-heading text-sm font-semibold break-words sm:truncate block transition-colors ${
                       isOrganizeMode
                         ? 'text-foreground'
                         : 'text-foreground group-hover:text-primary'
@@ -184,7 +187,7 @@ export default function LessonList({
               </div>
 
               {/* Right: Read time, source badge, actions */}
-              <div className="flex items-center gap-3 flex-shrink-0">
+              <div className={`flex flex-wrap items-center gap-3 sm:flex-shrink-0 sm:flex-nowrap ${hasRowControls ? 'justify-between sm:justify-end' : 'flex-shrink-0'}`}>
                 <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Icon name="ClockIcon" size={13} />
                   <span>{lesson.read_time_minutes || 5} min read</span>
@@ -200,7 +203,7 @@ export default function LessonList({
                 {onReorder && lessons.length > 1 && (
                   <div
                     className={`flex items-center gap-1 bg-muted/70 p-1 rounded-lg border border-border ${
-                      isOrganizeMode ? 'opacity-100' : 'opacity-30 group-hover:opacity-100'
+                      isOrganizeMode ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100'
                     } transition-opacity`}
                   >
                     <button
@@ -232,7 +235,7 @@ export default function LessonList({
 
                 {/* Edit & Delete actions */}
                 {!isOrganizeMode && (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                     {onEdit && (
                       <button
                         type="button"

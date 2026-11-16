@@ -413,7 +413,7 @@ export default function ConfigInteractive() {
             <div>
               <SectionHeader
                 title="Lab prompts"
-                sub="Extra instructions and your background for each lab (DSA, System Design, CV, Communication, Finance, Python). Sign in to save them."
+                sub="Extra instructions and your background for each lab (DSA, System Design, CV, Communication, Finance, Python, GenAI & AI). Sign in to save them."
               />
               <LabSettingsManager onSaveStateChange={onLabSaveState} />
             </div>

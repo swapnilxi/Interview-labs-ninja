@@ -74,6 +74,62 @@ def extract_json_object(text: str) -> dict:
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 
 
+def _repair_json(text: str) -> str:
+    """Fix the slips models make in otherwise-good JSON so one bad character doesn't lose the whole reply: raw newlines/tabs
+    inside strings, invalid backslashes (\d, C:\path), unescaped inner quotes (a quote only closes a string when a
+    , : } ] follows it) and trailing commas. Valid JSON comes back unchanged. Twin: repairJson in fe-apis/ai/utils.ts."""
+    out: List[str] = []
+    in_string = False
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if not in_string:
+            if ch == '"':
+                in_string = True
+            elif ch == ",":
+                j = i + 1
+                while j < n and text[j].isspace():
+                    j += 1
+                if j < n and text[j] in "]}":
+                    i += 1
+                    continue
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "\\":
+            nxt = text[i + 1] if i + 1 < n else ""
+            if nxt and nxt in '"\\/bfnrtu':
+                out.append(ch + nxt)
+                i += 2
+            else:
+                out.append("\\\\")
+                i += 1
+            continue
+        if ch == '"':
+            j = i + 1
+            while j < n and text[j].isspace():
+                j += 1
+            if j >= n or text[j] in ",:}]":
+                in_string = False
+                out.append(ch)
+            else:
+                out.append('\\"')
+            i += 1
+            continue
+        if ch == "\n":
+            out.append("\\n")
+        elif ch == "\r":
+            out.append("\\r")
+        elif ch == "\t":
+            out.append("\\t")
+        elif ord(ch) < 0x20:
+            out.append(" ")
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _clean_reply(text: str) -> str:
     """Drop a reasoning block (<think>…</think>, or an unfinished one) and markdown fences."""
     text = _THINK_BLOCK.sub("", text or "")
@@ -149,7 +205,7 @@ def extract_json_items(text: str) -> Tuple[List[dict], bool]:
     Raises ValueError, in words a user can act on, when there is nothing to use. The text it reports is what the
     AI actually said, so "No JSON array found" no longer hides an empty reply, a refusal or a cut-off.
     """
-    cleaned = _clean_reply(text)
+    cleaned = _repair_json(_clean_reply(text))
     if not cleaned:
         raise ValueError("the AI returned an empty reply")
 
@@ -162,9 +218,13 @@ def extract_json_items(text: str) -> Tuple[List[dict], bool]:
             try:
                 value = json.loads(cleaned[i : end + 1])
             except ValueError:
-                continue  # "[note]" in some prose, not JSON
+                value = None  # "[note]" in some prose, or a list with one broken object: keep the good ones
             if isinstance(value, list) and all(isinstance(v, dict) for v in value):
                 return value, True
+            if value is None and cleaned[i + 1 :].lstrip().startswith("{"):
+                items = _salvage_objects(cleaned, i)
+                if items:
+                    return items, False
             continue
         if cleaned[i + 1 :].lstrip().startswith("{"):  # an unclosed list of objects: the reply stopped mid-list
             items = _salvage_objects(cleaned, i)

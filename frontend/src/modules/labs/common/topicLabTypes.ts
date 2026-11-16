@@ -19,7 +19,7 @@ export interface TopicLabTopic {
 /** The labs TopicLab.tsx renders. DSA has its own page (week plan, organizer, approaches). */
 export type TopicLabName = Extract<
   LabName,
-  'cv' | 'system_design' | 'communication' | 'finance' | 'python'
+  'cv' | 'system_design' | 'communication' | 'finance' | 'python' | 'genai'
 >;
 
 /** A small label next to a topic's difficulty: `accent` and `chip` are pills, `text` is plain muted text. */

@@ -48,6 +48,7 @@ const nextConfig = {
     '/api/communication/[...path]': ['../backend/data/lab_ninja.sqlite3', '../backend/modules/communication_lab/topics.json'],
     '/api/finance/[...path]': ['../backend/data/lab_ninja.sqlite3', '../backend/modules/finance_lab/topics.json'],
     '/api/python/[...path]': ['../backend/data/lab_ninja.sqlite3', '../backend/modules/python_lab/topics.json'],
+    '/api/genai/[...path]': ['../backend/data/lab_ninja.sqlite3', '../backend/modules/genai_lab/topics.json'],
     '/api/lab-sections/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/lab-projects/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/sessions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
@@ -143,6 +144,7 @@ const nextConfig = {
       { source: '/communication/:path+', destination: '/api/communication/:path+' },
       { source: '/finance/:path+', destination: '/api/finance/:path+' },
       { source: '/python/:path+', destination: '/api/python/:path+' },
+      { source: '/genai/:path+', destination: '/api/genai/:path+' },
       { source: '/sessions/:path*', destination: '/api/sessions/:path*' },
       // The labs' Generate Practice panel (fe-apis/dailySession/labGenerate.ts). No page lives under /lab.
       { source: '/lab/:path+', destination: '/api/lab/:path+' },

@@ -17,6 +17,7 @@ import { useCompanionStats } from './companion/useCompanion';
 import './daily-session.css';
 import './styles/insights.css';
 import './styles/blitz-space.css';
+import './styles/practice.css';
 
 const TAB_HEADER: Record<DailySessionTab, { title: string; subtitle: string }> = {
   session: {
@@ -26,7 +27,7 @@ const TAB_HEADER: Record<DailySessionTab, { title: string; subtitle: string }> =
   },
   practice: {
     title: 'Practice',
-    subtitle: 'Build a focused drill: pick a topic, a level and how long you have.',
+    subtitle: 'Answer, get scored by the AI, level up. Missed ones come back until you nail them.',
   },
   'quick-practice': {
     title: 'Quick blitz',

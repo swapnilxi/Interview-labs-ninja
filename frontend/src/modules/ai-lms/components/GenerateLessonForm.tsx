@@ -234,7 +234,7 @@ export default function GenerateLessonForm({
 
   return (
     <>
-      <div className="w-full max-w-3xl mx-auto rounded-2xl border border-border bg-card p-6 md:p-8 shadow-xl relative overflow-hidden">
+      <div className="w-full max-w-3xl mx-auto rounded-2xl border border-border bg-card p-[1.5rem] md:p-8 shadow-xl relative overflow-hidden">
         {/* Header */}
         <div className="mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 mb-3">
@@ -251,13 +251,13 @@ export default function GenerateLessonForm({
         </div>
 
         {error && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm flex items-start gap-3">
+          <div className="mb-[1.5rem] p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm flex items-start gap-3">
             <Icon name="ExclamationTriangleIcon" size={20} className="flex-shrink-0 mt-0.5" />
             <div className="flex-1 leading-relaxed">{error}</div>
           </div>
         )}
 
-        <form onSubmit={handleGenerate} className="space-y-6">
+        <form onSubmit={handleGenerate} className="space-y-[1.5rem]">
           {/* Class & Subject Selector Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Class Selection */}

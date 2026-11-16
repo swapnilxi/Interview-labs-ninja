@@ -31,6 +31,8 @@ from .class_folders import (
     save_landing,
     save_module_landing,
 )
+from . import updates
+from . import videos as lms_videos
 from .visual_engine import (
     generate_native_visual,
     build_structured_lesson_html,
@@ -79,6 +81,10 @@ _NO_SYNC_POST = re.compile(
     r"lessons/[^/]+/(?:view|complete|visualize|easy-read|deeper|breakdown|revise)"
     r"|projects/[^/]+/suggest-placement"
     r"|subjects/[^/]+/(?:rag/index|summarize-context)"
+    r"|classes/[^/]+/(?:membership|notifications)"
+    # Video links are not files of the class folder (videos.py).
+    r"|videos(?:/reorder|/[0-9]+)?"
+    r"|projects/[^/]+/modules/[0-9]+(?:/sublessons/[0-9]+)?/videos"
     r"|voice-chat|copilot|upload-source"
     r")/?$"
 )
@@ -89,7 +95,10 @@ _NO_SYNC_POST = re.compile(
 _NON_EDIT_WRITES = re.compile(
     r"^/api/lms/(?:lessons/[^/]+/(?:view|complete)|voice-chat|copilot|upload-source"
     r"|lessons/[^/]+/(?:revise|easy-read|deeper|visualize|breakdown)"
-    r"|classes/[^/]+/landing/ai|landing/ai)/?$"
+    r"|classes/[^/]+/landing/ai|landing/ai"
+    # A learner joining, leaving or showing interest in a class changes only their own row. Sending an update
+    # (POST classes/<c>/notifications) is deliberately NOT here: it needs an editor.
+    r"|classes/[^/]+/membership)/?$"
 )
 
 
@@ -385,6 +394,207 @@ async def handle_delete_class(class_id_or_slug: str) -> Dict[str, Any]:
     if not success:
         raise HTTPException(status_code=400, detail="Cannot delete class (system class or not found).")
     return {"status": "deleted", "id": class_id_or_slug}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Class membership + updates (announcements). The logic is in updates.py (no FastAPI import there);
+# the Next.js twin is fe-apis/lms/updates.ts, which also sends the device push (this router never does).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class MembershipRequest(BaseModel):
+    # Checked in updates.py, not here, so both backends answer a bad value with the same text.
+    status: Optional[Any] = None
+
+
+class SendUpdateRequest(BaseModel):
+    title: Optional[Any] = None
+    body: Optional[Any] = None
+    link: Optional[Any] = None
+    scope: Optional[Any] = None
+
+
+def _update_http_error(err: updates.UpdateError) -> HTTPException:
+    return HTTPException(status_code=err.status_code, detail=err.detail)
+
+
+def _whole_number(raw: Optional[str], name: str) -> Optional[int]:
+    if raw is None or raw == "":
+        return None
+    if not re.fullmatch(r"[0-9]{1,12}", raw):
+        raise HTTPException(status_code=422, detail=f"{name} must be a whole number.")
+    return int(raw)
+
+
+@router.get("/classes/{class_id_or_slug}/membership")
+async def get_class_membership(class_id_or_slug: str, user_id: int = Depends(get_current_user_id)) -> Dict[str, Any]:
+    """The caller's place in a class (enrolled / interested / none) and how many people are in it."""
+    try:
+        return updates.get_membership(class_id_or_slug, user_id)
+    except updates.UpdateError as err:
+        raise _update_http_error(err)
+
+
+@router.put("/classes/{class_id_or_slug}/membership")
+async def put_class_membership(
+    class_id_or_slug: str,
+    payload: MembershipRequest,
+    user_id: int = Depends(get_current_user_id),
+) -> Dict[str, Any]:
+    """Join (`enrolled`) or show interest (`interested`); interest never downgrades an enrolment."""
+    try:
+        return updates.set_membership(class_id_or_slug, user_id, payload.status)
+    except updates.UpdateError as err:
+        raise _update_http_error(err)
+
+
+@router.delete("/classes/{class_id_or_slug}/membership")
+async def delete_class_membership(class_id_or_slug: str, user_id: int = Depends(get_current_user_id)) -> Dict[str, Any]:
+    """Leave a class."""
+    try:
+        return updates.remove_membership(class_id_or_slug, user_id)
+    except updates.UpdateError as err:
+        raise _update_http_error(err)
+
+
+@router.post("/classes/{class_id_or_slug}/notifications", status_code=status.HTTP_201_CREATED)
+async def post_class_update(
+    class_id_or_slug: str,
+    payload: SendUpdateRequest,
+    user_id: int = Depends(get_current_user_id),
+) -> Dict[str, Any]:
+    """Send an update to a class's people or to everyone in AI LMS. Editor+ only (the router gate; this path is
+    not in _NON_EDIT_WRITES). No device push in this backend: `push` is always zero here."""
+    try:
+        sent = updates.send_update(class_id_or_slug, user_id, payload.model_dump())
+    except updates.UpdateError as err:
+        raise _update_http_error(err)
+    return {key: sent[key] for key in ("id", "scope", "recipients", "push")}
+
+
+@router.get("/classes/{class_id_or_slug}/notifications")
+async def list_class_updates(class_id_or_slug: str, user: dict = Depends(get_current_active_user)) -> List[Dict[str, Any]]:
+    """The updates sent from a class, newest first. A GET, so the write gate does not cover it: checked here."""
+    if not has_permission(user, "ai_lms:edit"):
+        raise HTTPException(status_code=403, detail="Instructor or admin access is required to see sent updates.")
+    try:
+        return updates.list_class_updates(class_id_or_slug)
+    except updates.UpdateError as err:
+        raise _update_http_error(err)
+
+
+@router.get("/notifications")
+async def get_my_updates(
+    after: Optional[str] = None,
+    limit: Optional[str] = None,
+    user_id: int = Depends(get_current_user_id),
+) -> Dict[str, Any]:
+    """The caller's own class updates, oldest first. `after` is a cursor from an earlier answer."""
+    after_id = _whole_number(after, "after")
+    limit_n = _whole_number(limit, "limit")
+    return updates.inbox(user_id, after_id, updates.INBOX_DEFAULT_LIMIT if limit_n is None else limit_n)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Video links on classes, subjects and project modules. The logic is in videos.py (no FastAPI import there);
+# the Next.js twin is fe-apis/lms/videos.ts. Everyone signed in can read them; every write needs an editor (the
+# router gate above: none of these paths is in _NON_EDIT_WRITES).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class VideoCreateRequest(BaseModel):
+    # Checked in videos.py, not here, so both backends answer a bad value with the same text.
+    scope: Optional[Any] = None
+    ref: Optional[Any] = None
+    url: Optional[Any] = None
+    title: Optional[Any] = None
+
+
+class VideoUpdateRequest(BaseModel):
+    url: Optional[Any] = None
+    title: Optional[Any] = None
+
+
+class VideoReorderRequest(BaseModel):
+    scope: Optional[Any] = None
+    ref: Optional[Any] = None
+    ids: Optional[Any] = None
+
+
+class ModuleVideosRequest(BaseModel):
+    videos: Optional[Any] = None
+
+
+def _video_http_error(err: lms_videos.VideoError) -> HTTPException:
+    return HTTPException(status_code=err.status_code, detail=err.detail)
+
+
+@router.get("/videos")
+async def list_lms_videos(scope: Optional[str] = None, ref: Optional[str] = None) -> Dict[str, Any]:
+    """The links of one class (`scope=class`, id or slug) or subject (`scope=subject`, id), in order."""
+    try:
+        return lms_videos.list_videos(scope, ref)
+    except lms_videos.VideoError as err:
+        raise _video_http_error(err)
+
+
+@router.post("/videos", status_code=status.HTTP_201_CREATED)
+async def create_lms_video(payload: VideoCreateRequest, user_id: int = Depends(get_current_user_id)) -> Dict[str, Any]:
+    try:
+        return lms_videos.add_video(payload.model_dump(), user_id)
+    except lms_videos.VideoError as err:
+        raise _video_http_error(err)
+
+
+@router.post("/videos/reorder")
+async def reorder_lms_videos(payload: VideoReorderRequest) -> Dict[str, Any]:
+    try:
+        return lms_videos.reorder_videos(payload.model_dump())
+    except lms_videos.VideoError as err:
+        raise _video_http_error(err)
+
+
+@router.patch("/videos/{video_id}")
+async def update_lms_video(video_id: int, payload: VideoUpdateRequest) -> Dict[str, Any]:
+    try:
+        # exclude_unset: a missing key means "leave it", not "set it to null".
+        return lms_videos.update_video(video_id, payload.model_dump(exclude_unset=True))
+    except lms_videos.VideoError as err:
+        raise _video_http_error(err)
+
+
+@router.delete("/videos/{video_id}")
+async def delete_lms_video(video_id: int) -> Dict[str, Any]:
+    try:
+        return lms_videos.delete_video(video_id)
+    except lms_videos.VideoError as err:
+        raise _video_http_error(err)
+
+
+@router.put("/projects/{project_id}/modules/{module_index}/videos")
+async def put_module_videos(project_id: str, module_index: int, payload: ModuleVideosRequest) -> Dict[str, Any]:
+    """Replace the video links of one module of a project's outline. Answers with the project, like its neighbours."""
+    cls, project = _get_project_or_404(project_id)
+    plan: List[Dict[str, Any]] = project.get("project_plan") or []
+    try:
+        plan = lms_videos.set_plan_item_videos(plan, module_index, None, payload.videos)
+    except lms_videos.VideoError as err:
+        raise _video_http_error(err)
+    save_project_plan(project["id"], plan)
+    return get_subject_by_id_or_slug(cls["id"], project["id"])  # type: ignore
+
+
+@router.put("/projects/{project_id}/modules/{module_index}/sublessons/{sub_index}/videos")
+async def put_sublesson_videos(
+    project_id: str, module_index: int, sub_index: int, payload: ModuleVideosRequest
+) -> Dict[str, Any]:
+    """Replace the video links of one sub-step of a module."""
+    cls, project = _get_project_or_404(project_id)
+    plan: List[Dict[str, Any]] = project.get("project_plan") or []
+    try:
+        plan = lms_videos.set_plan_item_videos(plan, module_index, sub_index, payload.videos)
+    except lms_videos.VideoError as err:
+        raise _video_http_error(err)
+    save_project_plan(project["id"], plan)
+    return get_subject_by_id_or_slug(cls["id"], project["id"])  # type: ignore
 
 
 # ─────────────────────────────────────────────────────────────────────────────

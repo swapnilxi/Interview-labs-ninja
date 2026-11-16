@@ -48,6 +48,8 @@ const SOURCE_META: Record<NotificationSource, { label: string; icon: string; chi
     icon: 'ClipboardDocumentCheckIcon',
     chip: 'bg-emerald-500/15 text-emerald-500',
   },
+  // Updates an instructor or admin sent to a class (or to all of AI LMS): see modules/ai-lms/utils/useLmsNotificationSync.
+  'ai-lms': { label: 'AI LMS', icon: 'AcademicCapIcon', chip: 'bg-sky-500/15 text-sky-500' },
   system: { label: 'System', icon: 'BellIcon', chip: 'bg-amber-500/15 text-amber-500' },
 };
 
@@ -64,6 +66,7 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'daily-session', label: 'Daily' },
   { key: 'labs', label: 'Labs' },
   { key: 'todo', label: 'To-Do' },
+  { key: 'ai-lms', label: 'Classes' },
 ];
 
 function timeAgo(ts: number): string {

@@ -11,10 +11,18 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { classSlug } = await params;
-  const formatted = classSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  // A short slug is an acronym ("ai"), not a word.
+  const formatted =
+    classSlug.length <= 3
+      ? classSlug.toUpperCase()
+      : classSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const title = `${formatted} - AI LMS | InterviewNinja`;
+  // The page is login-only, so what a shared link previews has to say so.
+  const description = `Curated modules, subjects, and lessons for ${formatted}. Log in to LabNinja to open this class.`;
   return {
-    title: `${formatted} - AI LMS | InterviewNinja`,
-    description: `Curated modules, subjects, and lessons for ${formatted}.`,
+    title,
+    description,
+    openGraph: { title, description, type: 'website', siteName: 'LabNinja' },
   };
 }
 

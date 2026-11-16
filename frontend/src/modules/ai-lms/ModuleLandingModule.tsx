@@ -59,8 +59,8 @@ export default function ModuleLandingModule() {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-60px)]">
-      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-6 py-2 border-b border-border bg-card text-xs flex-shrink-0">
+    <div className="flex flex-col h-[calc(100dvh-60px-var(--mobile-tab-h,0px))]">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[1.5rem] py-2 border-b border-border bg-card text-xs flex-shrink-0">
         <BackButton href="/ai-lms" label="Back to AI LMS" className="-ml-2.5" />
         {landing?.file_sync && (
           <span

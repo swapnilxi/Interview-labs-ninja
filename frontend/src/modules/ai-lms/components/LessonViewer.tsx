@@ -307,8 +307,8 @@ export default function LessonViewer({
       <div
         className={`flex flex-col ${
           isFullscreen
-            ? 'fixed inset-0 z-[250] bg-background p-4 sm:p-6 overflow-y-auto'
-            : 'w-full max-w-6xl mx-auto min-h-[calc(100vh-100px)] py-4 px-4 sm:px-6'
+            ? 'fixed inset-0 z-[250] bg-background p-4 sm:p-[1.5rem] overflow-y-auto'
+            : 'w-full max-w-6xl mx-auto min-h-[calc(100dvh-100px)] py-4 px-4 sm:px-[1.5rem]'
         }`}
       >
         {/* Header Card: Breadcrumbs, Title, Progress, Mode Switcher, Actions */}
@@ -319,7 +319,7 @@ export default function LessonViewer({
             <div className="h-3.5 w-px bg-border/80 flex-shrink-0" />
             <Link
               href="/ai-lms"
-              className="flex items-center gap-1 hover:text-foreground transition-colors flex-shrink-0"
+              className="lms-crumb flex items-center gap-1 hover:text-foreground transition-colors flex-shrink-0"
             >
               <Icon name="HomeIcon" size={12} />
               <span>AI LMS</span>
@@ -327,7 +327,7 @@ export default function LessonViewer({
             <Icon name="ChevronRightIcon" size={10} className="flex-shrink-0 opacity-60" />
             <Link
               href={`/ai-lms/classes/${lmsClass.slug}`}
-              className="hover:text-foreground transition-colors font-medium truncate max-w-[10rem]"
+              className="lms-crumb hover:text-foreground transition-colors font-medium truncate max-w-[10rem]"
             >
               {lmsClass.name}
             </Link>
@@ -336,7 +336,7 @@ export default function LessonViewer({
                 <Icon name="ChevronRightIcon" size={10} className="flex-shrink-0 opacity-60" />
                 <Link
                   href={`/ai-lms/classes/${lmsClass.slug}/${subject.slug}`}
-                  className="hover:text-foreground transition-colors font-medium truncate max-w-[10rem]"
+                  className="lms-crumb hover:text-foreground transition-colors font-medium truncate max-w-[10rem]"
                 >
                   {subject.name}
                 </Link>
@@ -548,7 +548,7 @@ export default function LessonViewer({
         {isEditing ? (
           <LessonHtmlEditor ref={editorRef} html={currentLesson.generated_html} />
         ) : viewMode === 'read' ? (
-          <div className="flex-1 w-full rounded-2xl border border-border bg-card shadow-lg overflow-hidden relative min-h-[70vh] sm:min-h-[620px] flex flex-col">
+          <div className="flex-1 w-full rounded-2xl border border-border bg-card shadow-lg overflow-hidden relative min-h-[70dvh] sm:min-h-[620px] flex flex-col">
             <LmsHtmlFrame
               html={currentLesson.generated_html || ''}
               filePath={currentLesson.file_path || ''}
@@ -642,10 +642,10 @@ export default function LessonViewer({
             <div className="hidden sm:block sm:w-24 order-1" />
           )}
 
-          <div className="order-3 sm:order-2 w-full sm:w-auto flex items-center justify-center gap-2">
+          <div className="order-3 sm:order-2 w-full sm:w-auto min-w-0 flex flex-wrap items-center justify-center gap-2">
             <Link
               href={backHref}
-              className="flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
+              className="flex min-w-0 items-center justify-center gap-1.5 text-center text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted transition-colors"
             >
               <Icon name="Squares2X2Icon" size={14} />
               <span>{subject ? subject.name : lmsClass.name} Overview</span>

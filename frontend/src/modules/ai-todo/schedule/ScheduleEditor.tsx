@@ -16,6 +16,7 @@ import type {
   ScheduleKind,
 } from '@/lib/services/scheduleService';
 import { formatReminder } from '@/lib/reminders/reminderTime';
+import { visibleSourceText } from '@/lib/schedules/classReminders';
 
 /**
  * The "options" way to set up a schedule (and where an AI draft lands for a check before saving): what kind, what it
@@ -196,9 +197,10 @@ export default function ScheduleEditor({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-heading text-base font-semibold text-foreground">{heading}</h3>
-          {v.source_text && (
+          {/* A class practice reminder carries a marker here, not a sentence: never show it (classReminders.ts). */}
+          {visibleSourceText(v.source_text) && (
             <p className="mt-0.5 break-words text-xs text-muted-foreground">
-              From “{v.source_text}”
+              From “{visibleSourceText(v.source_text)}”
             </p>
           )}
         </div>

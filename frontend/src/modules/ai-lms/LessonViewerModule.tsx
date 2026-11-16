@@ -77,7 +77,7 @@ export default function LessonViewerModule({
 
   if (loading) {
     return (
-      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-6 animate-pulse">
+      <div className="w-full max-w-6xl mx-auto px-4 sm:px-[1.5rem] py-10 space-y-[1.5rem] animate-pulse">
         <div className="flex items-center justify-between">
           <div className="h-4 w-64 bg-muted rounded" />
           <div className="h-8 w-32 bg-muted rounded" />

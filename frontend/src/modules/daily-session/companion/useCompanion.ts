@@ -94,12 +94,18 @@ export interface CompanionStats {
   streak: number;
   lastDay: string | null; // YYYY-MM-DD of the last completed session
   sessions: number;
+  /** XP earned on `xpDay` (YYYY-MM-DD), for the daily goal. Read it through xpToday(), which knows the day. */
+  xpDay: string | null;
+  dayXp: number;
 }
 
-const DEFAULT_STATS: CompanionStats = { xp: 0, streak: 0, lastDay: null, sessions: 0 };
+const DEFAULT_STATS: CompanionStats = { xp: 0, streak: 0, lastDay: null, sessions: 0, xpDay: null, dayXp: 0 };
 
 const dayKey = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** XP earned today (0 once the day has turned). */
+export const xpToday = (s: CompanionStats) => (s.xpDay === dayKey() ? s.dayXp : 0);
 
 export function useCompanionStats() {
   const [stats, setStats] = useState<CompanionStats>(DEFAULT_STATS);
@@ -112,7 +118,9 @@ export function useCompanionStats() {
 
   const addXp = useCallback((n: number) => {
     const cur = read(STATS_KEY, DEFAULT_STATS);
-    write(STATS_KEY, { ...cur, xp: cur.xp + n });
+    const today = dayKey();
+    const dayXp = (cur.xpDay === today ? cur.dayXp : 0) + n;
+    write(STATS_KEY, { ...cur, xp: cur.xp + n, xpDay: today, dayXp });
   }, []);
 
   /** Call once when a session completes. Returns the new streak and whether it grew today. */

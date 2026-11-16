@@ -20,6 +20,7 @@ const LAB_DOMAINS: Record<string, string> = {
   communication: 'Business Communication & Leadership',
   finance: 'Finance & AI in Finance',
   python: 'Python',
+  genai: 'Generative AI and AI Systems',
 };
 
 // (interviewer, question types) for labs whose questions are not technical-interview questions. Python: _QUESTION_STYLES.
@@ -31,6 +32,10 @@ const QUESTION_STYLES: Record<string, [string, string[]]> = {
   finance: [
     'senior finance interviewer',
     ['conceptual', 'calculation', 'practical', 'ai application'],
+  ],
+  genai: [
+    'senior AI engineering interviewer',
+    ['conceptual', 'implementation', 'system design', 'evaluation', 'debugging'],
   ],
 };
 const DEFAULT_QUESTION_STYLE: [string, string[]] = [

@@ -12,12 +12,15 @@ import { useAuth } from '@/contexts/AuthContext';
 export default function LoginForm({
   titleId,
   feature,
+  opening,
   onSuccess,
 }: {
   /** id for the heading, so the dialog or page can point aria-labelledby at it. */
   titleId: string;
   /** "Log in to use <feature>" instead of the plain title. */
   feature?: string | null;
+  /** What the person is about to open after logging in ("the class you were sent"): said in the one line under the title. */
+  opening?: string | null;
   onSuccess?: () => void;
 }) {
   const { login, signup } = useAuth();
@@ -80,9 +83,13 @@ export default function LoginForm({
         <p className="mx-auto mt-1 max-w-[36ch] text-[13px] leading-snug text-muted-foreground">
           {feature
             ? 'This feature is AI-powered and tracks your progress across sessions.'
-            : mode === 'login'
-              ? 'Log in to continue to LabNinja.'
-              : 'Create an account to get started.'}
+            : opening
+              ? mode === 'login'
+                ? `Log in to open ${opening}.`
+                : `Create an account to open ${opening}.`
+              : mode === 'login'
+                ? 'Log in to continue to LabNinja.'
+                : 'Create an account to get started.'}
         </p>
       </div>
 

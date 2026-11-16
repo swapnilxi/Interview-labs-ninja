@@ -46,6 +46,8 @@ export interface LmsProjectPlanItem {
   context?: string;
   lesson_id: string | null;
   sublessons: LmsProjectPlanItem[];
+  /** Video links of this module or sub-step (PUT .../videos; the outline carries them, so they move with the entry). */
+  videos?: { url: string; title: string }[];
 }
 
 export interface LmsSubject {
@@ -262,4 +264,65 @@ export interface BreakdownResult {
   summary: string;
   chunk_count?: number;
   breakdown_html: string;
+}
+
+// ── Class membership and class updates (announcements). See backend/modules/ai_lms/updates.py. ──
+
+/** `enrolled` = joined the class; `interested` = turned on its practice reminders without joining. */
+export type LmsMembershipStatus = 'enrolled' | 'interested';
+
+/** `class` reaches the people of one class; `ai-lms` reaches everyone who is in any class. */
+export type LmsUpdateScope = 'class' | 'ai-lms';
+
+/** GET / PUT / DELETE /api/lms/classes/{class}/membership: the caller's place in a class and who else is in it. */
+export interface LmsMembership {
+  status: LmsMembershipStatus | null;
+  enrolled_count: number;
+  interested_count: number;
+  /** enrolled + interested: the people a class update reaches. */
+  member_count: number;
+  /** People in any class: who a module-wide update reaches. */
+  module_member_count: number;
+  /** The two counts above without the caller: what an update *they* send would reach. */
+  audience_count: number;
+  module_audience_count: number;
+}
+
+/** One update an instructor or admin sent from a class (GET /api/lms/classes/{class}/notifications). */
+export interface LmsSentUpdate {
+  id: string;
+  title: string;
+  body: string;
+  link: string;
+  scope: LmsUpdateScope;
+  created_at: string;
+  sender_name: string;
+  recipient_count: number;
+}
+
+/** POST /api/lms/classes/{class}/notifications. `push` counts device pushes the server accepted (Next.js layer only). */
+export interface LmsUpdateResult {
+  id: string;
+  scope: LmsUpdateScope;
+  recipients: number;
+  push: { web: number; android: number };
+}
+
+/** One update in the caller's own inbox (GET /api/lms/notifications). `cursor` is what to pass as `after` next time. */
+export interface LmsInboxItem {
+  cursor: number;
+  id: string;
+  scope: LmsUpdateScope;
+  class_slug: string | null;
+  class_name: string | null;
+  title: string;
+  body: string;
+  link: string;
+  created_at: string;
+  sender_name: string;
+}
+
+export interface LmsInbox {
+  items: LmsInboxItem[];
+  cursor: number;
 }

@@ -44,3 +44,16 @@ export function resolveLoginReturnPath(next?: string | null): string {
   }
   return DEFAULT_LOGIN_LANDING;
 }
+
+/**
+ * What the person is on their way to, in words, when `?next=` points at a shared AI LMS link (a class someone sent them).
+ * The login screen says it ("Log in to open the class you were sent."), so a link opened logged out does not land on an
+ * unexplained login form. null for every other page.
+ */
+export function describeReturnTarget(next?: string | null): string | null {
+  if (!isSafeReturnPath(next)) return null;
+  const path = next.split(/[?#]/)[0];
+  if (/^\/ai-lms\/classes\/[^/]+\/?$/.test(path)) return 'the class you were sent';
+  if (/^\/ai-lms\/classes\//.test(path)) return 'the page you were sent';
+  return null;
+}

@@ -16,6 +16,7 @@ import { enableNativeReminders } from '@/lib/reminders/nativeReminders';
 import { startNativePush, syncPushTokenAfterLogin } from '@/lib/reminders/nativePush';
 import { onAuthChange } from '@/lib/auth/tokenStore';
 import { todoService } from '@/lib/services/todoService';
+import { useLmsNotificationSync } from '@/modules/ai-lms/utils/useLmsNotificationSync';
 
 /**
  * Mounted once in the root layout: renders the toast host for every page and runs the
@@ -106,6 +107,9 @@ async function checkTodoDue() {
 }
 
 export default function NotificationHost() {
+  // Updates an instructor or admin sent to your classes (or to all of AI LMS) → the notification centre.
+  useLmsNotificationSync();
+
   // Exact-time task reminders, on every page. Notifications already allowed: make sure the service worker that
   // delivers them on phones is registered (it may not be on a browser that turned them on before it existed).
   useEffect(() => {

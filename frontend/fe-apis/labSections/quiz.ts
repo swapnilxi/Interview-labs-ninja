@@ -15,6 +15,7 @@ const DOMAINS: Record<string, string> = {
   communication: 'Business Communication & Leadership',
   finance: 'Finance & AI-in-Finance',
   python: 'Python programming',
+  genai: 'Generative AI & AI engineering',
 };
 
 interface QuizProfile {
@@ -71,6 +72,18 @@ const PROFILES: Record<string, QuizProfile> = {
       'something, and when to use this feature instead of an alternative. Mix the kinds: predict-the-output, ' +
       'spot-the-bug, conceptual, and which-version-is-more-Pythonic questions.',
     closing: 'Test understanding that matters when writing real Python, not trivia.',
+  },
+  genai: {
+    category: 'Area',
+    related: 'Related lessons in the same area',
+    focus:
+      'Write {count} questions that are about this specific topic AND the concepts around it: what the key terms ' +
+      'mean, how the mechanism works step by step (tokens, embeddings, attention, retrieval, tool calls), what a ' +
+      'short snippet or configuration does (write it inline in the question), where it fails (hallucination, ' +
+      'context limits, cost, latency, prompt injection), and which design fits a given situation. Mix the kinds: ' +
+      'conceptual, trade-off ("which approach fits this case?"), spot-the-failure, small calculation with round ' +
+      'numbers (tokens, dimensions, cost), and what-happens-next questions.',
+    closing: 'Test understanding that matters when building and reasoning about real AI systems, not trivia.',
   },
 };
 

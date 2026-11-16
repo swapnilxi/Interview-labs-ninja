@@ -55,6 +55,7 @@ from modules.system_design_lab.router import router as sd_router
 from modules.communication_lab.router import router as communication_router
 from modules.finance_lab.router import router as finance_router
 from modules.python_lab.router import router as python_router
+from modules.genai_lab.router import router as genai_router
 
 # Daily session module
 from modules.daily_session.daily_session import router as session_router
@@ -184,6 +185,7 @@ app.include_router(sd_router)
 app.include_router(communication_router)
 app.include_router(finance_router)
 app.include_router(python_router)
+app.include_router(genai_router)
 app.include_router(linkedin_templates_router)
 app.include_router(linkedin_generation_router)
 app.include_router(todo_router)

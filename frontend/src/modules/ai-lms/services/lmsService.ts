@@ -8,18 +8,24 @@ import type {
   GenerateLessonRequest,
   LmsClass,
   LmsContentStatus,
+  LmsInbox,
   LmsInstructor,
   LmsLanding,
   LmsLandingAiResult,
   LmsLandingSaved,
   LmsLandingSection,
   LmsLesson,
+  LmsMembership,
+  LmsMembershipStatus,
   LmsModuleLanding,
   LmsModuleLandingSaved,
   LmsNavigation,
   LmsPathTarget,
   LmsSearchResult,
+  LmsSentUpdate,
   LmsSubject,
+  LmsUpdateResult,
+  LmsUpdateScope,
   VisualExplanationResult,
 } from '../types';
 
@@ -144,6 +150,51 @@ export const lmsService = {
     await apiJson(`/api/lms/instructors/${encodeURIComponent(idOrSlug)}`, {
       method: 'DELETE',
     });
+  },
+
+  // ── Membership and class updates (see backend/modules/ai_lms/updates.py) ────────────────
+  /** The caller's place in a class (enrolled / interested / none) and how many people are in it. */
+  async getClassMembership(classIdOrSlug: string): Promise<LmsMembership> {
+    return apiJson<LmsMembership>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/membership`);
+  },
+
+  /** Join (`enrolled`) or show interest (`interested`); interest never downgrades an enrolment. */
+  async setClassMembership(classIdOrSlug: string, status: LmsMembershipStatus): Promise<LmsMembership> {
+    return apiJson<LmsMembership>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/membership`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  async leaveClass(classIdOrSlug: string): Promise<LmsMembership> {
+    return apiJson<LmsMembership>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/membership`, {
+      method: 'DELETE',
+    });
+  },
+
+  /** Instructor / admin: send an update to a class's people, or to everyone in AI LMS (`scope: 'ai-lms'`). */
+  async sendClassUpdate(
+    classIdOrSlug: string,
+    payload: { title: string; body?: string; link?: string; scope?: LmsUpdateScope }
+  ): Promise<LmsUpdateResult> {
+    return apiJson<LmsUpdateResult>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/notifications`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /** Instructor / admin: the updates sent from a class, newest first. */
+  async listClassUpdates(classIdOrSlug: string): Promise<LmsSentUpdate[]> {
+    return apiJson<LmsSentUpdate[]>(`/api/lms/classes/${encodeURIComponent(classIdOrSlug)}/notifications`);
+  },
+
+  /** The caller's own class updates, oldest first. Without `after` it is the first sync: the last few days. */
+  async getNotificationInbox(after?: number, limit?: number): Promise<LmsInbox> {
+    const params = new URLSearchParams();
+    if (after !== undefined) params.set('after', String(after));
+    if (limit !== undefined) params.set('limit', String(limit));
+    const query = params.toString();
+    return apiJson<LmsInbox>(`/api/lms/notifications${query ? `?${query}` : ''}`);
   },
 
   // ── Subjects ─────────────────────────────────────────────────────────────

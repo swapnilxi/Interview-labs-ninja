@@ -215,7 +215,7 @@ export default function LabSettingsManager({
       {/* ── Lab Selector (if not fixed to one lab) ── */}
       {!fixedLab && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {(['dsa', 'system_design', 'cv', 'communication', 'finance', 'python'] as LabName[]).map((labKey) => {
+          {(['dsa', 'system_design', 'cv', 'communication', 'finance', 'python', 'genai'] as LabName[]).map((labKey) => {
             const meta = LABS_CONFIG[labKey];
             const isSelected = selectedLab === labKey;
             return (

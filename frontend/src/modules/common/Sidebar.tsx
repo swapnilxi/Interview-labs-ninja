@@ -48,6 +48,7 @@ const LAB_TINTS: Record<string, Tint> = {
   '/communication-lab': 'green',
   '/finance-lab': 'orange',
   '/python-lab': 'purple',
+  '/genai-lab': 'red',
   '/labs-project': 'cyan',
 };
 const toLink = (l: { label: string; path: string; icon: string }): SidebarLink => ({

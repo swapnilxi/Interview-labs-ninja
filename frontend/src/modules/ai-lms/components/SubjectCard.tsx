@@ -39,7 +39,7 @@ export default function SubjectCard({
 
   return (
     <div
-      className="glow-card-wrap relative"
+      className="glow-card-wrap relative h-full"
       style={{ '--card-accent': accent } as React.CSSProperties}
     >
       {!isOrganizeMode && <span className="glow-card-halo" aria-hidden="true" />}
@@ -66,7 +66,7 @@ export default function SubjectCard({
                 }
               }
         }
-        className={`group relative flex flex-col justify-between rounded-xl border bg-card p-5 shadow-sm focus-ring ${
+        className={`group relative flex h-full flex-col justify-between rounded-xl border bg-card p-5 shadow-sm focus-ring ${
           isOrganizeMode
             ? 'border-secondary/40 ring-1 ring-secondary/20 cursor-default'
             : 'glow-card cursor-pointer hover:-translate-y-1 focus-visible:-translate-y-1'
@@ -86,8 +86,8 @@ export default function SubjectCard({
         />
 
         <div className="relative z-[2]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5">
               <div
                 className="flex h-9 w-9 items-center justify-center rounded-lg font-semibold text-xs border transition-transform duration-300 group-hover:scale-105"
                 style={{
@@ -119,7 +119,7 @@ export default function SubjectCard({
               )}
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="ml-auto flex items-center gap-1.5">
               {/* Reorder Buttons */}
               {(onMoveLeft || onMoveRight) && (
                 <div
@@ -134,7 +134,7 @@ export default function SubjectCard({
                       onMoveLeft?.();
                     }}
                     title="Move left / up"
-                    className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-background disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                    className="p-[0.625rem] sm:p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-background disabled:opacity-20 disabled:pointer-events-none transition-colors"
                   >
                     <Icon name="ArrowLeftIcon" size={12} />
                   </button>
@@ -147,7 +147,7 @@ export default function SubjectCard({
                       onMoveRight?.();
                     }}
                     title="Move right / down"
-                    className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-background disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                    className="p-[0.625rem] sm:p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-background disabled:opacity-20 disabled:pointer-events-none transition-colors"
                   >
                     <Icon name="ArrowRightIcon" size={12} />
                   </button>
@@ -165,7 +165,7 @@ export default function SubjectCard({
                         onEdit(subject);
                       }}
                       title="Edit subject"
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                      className="p-[0.625rem] sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
                     >
                       <Icon name="PencilIcon" size={13} />
                     </button>
@@ -179,7 +179,7 @@ export default function SubjectCard({
                         onDelete(subject);
                       }}
                       title="Delete subject"
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      className="p-[0.625rem] sm:p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     >
                       <Icon name="TrashIcon" size={13} />
                     </button>

@@ -1,4 +1,4 @@
-export type LabGuideKey = 'dsa' | 'cv' | 'system_design' | 'communication' | 'finance' | 'python' | 'labs_project';
+export type LabGuideKey = 'dsa' | 'cv' | 'system_design' | 'communication' | 'finance' | 'python' | 'genai' | 'labs_project';
 
 export interface GuideStep {
   number: number;
@@ -508,6 +508,67 @@ export const LAB_GUIDES: Record<LabGuideKey, LabGuideItem> = {
     faqs: [
       { question: 'Which Python version does the lab use?', answer: 'Modern Python 3 (3.11 or newer). Ask in the copilot or add a standing context in Lab Settings if you are on an older version.' },
       { question: 'Where do I run the code?', answer: 'Any Python 3 install, VS Code, Jupyter, or Google Colab in the browser. The Getting Started lesson walks through the setup.' },
+    ],
+  },
+  genai: {
+    key: 'genai',
+    name: 'GenAI & AI Lab',
+    shortName: 'GenAI & AI',
+    tagline: 'From AI fundamentals to LLMs, RAG, agents and shipping generative AI apps.',
+    icon: 'SparklesIcon',
+    accentVar: 'var(--lab-genai, #c4472a)',
+    accentBg: 'rgba(196, 71, 42, 0.12)',
+    overview:
+      'GenAI & AI Lab takes you from how machine learning works to building and shipping applications on large language models. It covers AI foundations, LLM fundamentals (tokens, transformers, decoding, context), prompting and structured outputs, retrieval-augmented generation, agents and tool use, fine-tuning and serving, evaluation and safety, multimodal models, and the production side of LLM apps. Each lesson explains the mechanism, shows short runnable Python, compares design choices, lists the failure modes and finishes with exercises, interview questions and a quiz.',
+    quickSteps: [
+      {
+        number: 1,
+        title: 'Pick your starting point',
+        summary: 'Nine categories, from AI Foundations to Production & LLMOps.',
+        icon: 'RectangleStackIcon',
+        details: [
+          'New to AI: start at AI, Machine Learning & Deep Learning and go in order through LLM Fundamentals.',
+          'Already use LLMs: jump to Prompting & Context, then RAG & Knowledge or Agents & Tools.',
+          'Preparing for interviews: Evaluation & Safety and Production & LLMOps hold the usual design-round topics.',
+        ],
+      },
+      {
+        number: 2,
+        title: 'Understand it, then build it',
+        summary: 'Mechanism first, code second.',
+        icon: 'CodeBracketIcon',
+        details: [
+          'How It Works explains the idea with a small worked example you can check by hand.',
+          'Build It gives short Python you can run with numpy or adapt to your provider SDK.',
+          'Failure Modes & Gotchas shows what breaks in practice and how to catch it.',
+        ],
+      },
+      {
+        number: 3,
+        title: 'Check yourself',
+        summary: 'Exercises, interview questions and a scenario quiz.',
+        icon: 'TrophyIcon',
+        details: [
+          'Hands-On Exercises include tasks that need no API key.',
+          'Generate more quiz questions at any time; ones you have seen are not repeated.',
+          'Ask the copilot to explain a question you got wrong.',
+        ],
+      },
+    ],
+    sectionsExplained: [
+      { name: 'How It Works', icon: 'CpuChipIcon', purpose: 'The mechanism step by step: intuition, plain-text math and a small worked example.', proTip: 'Redo the worked example by hand once; it is the fastest way to remember it.' },
+      { name: 'Build It', icon: 'CodeBracketIcon', purpose: 'Short runnable Python that grows from a minimal version to a realistic one.', proTip: 'Swap in your own provider and model; the structure stays the same.' },
+      { name: 'Patterns & Trade-offs', icon: 'RectangleGroupIcon', purpose: 'The main design choices compared in a table, with a decision guide.', proTip: 'Interviewers probe this section: be ready to say why you would not pick the other options.' },
+      { name: 'Production: Cost, Latency & Safety', icon: 'ShieldCheckIcon', purpose: 'Cost per request, latency budget, reliability, security and a pre-launch checklist.', proTip: 'Add a cost estimate with real token counts to every project you build.' },
+    ],
+    powerTips: [
+      'Prompt add-ons: "Show the Math" or "Code First" change every section of the lab at once.',
+      'Save useful sections into a Labs Project to build a study plan or a write-up for an AI app.',
+      'The field moves fast: tell the AI which provider and model version you use in Lab Settings, and the examples follow.',
+    ],
+    faqs: [
+      { question: 'Do I need an API key to follow the lessons?', answer: 'No. The concepts and most exercises need only Python and numpy. A provider key is only needed to run code that calls a hosted model.' },
+      { question: 'Which model or library does the lab use?', answer: 'The lessons are vendor-neutral and use generic client code. Add your provider and version as a standing context in Lab Settings and the examples adapt.' },
     ],
   },
   labs_project: {

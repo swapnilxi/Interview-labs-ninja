@@ -11,6 +11,7 @@ export const LAB_DISPLAY_NAMES: Record<LabName, string> = {
   communication: 'Communication Lab',
   finance: 'Finance Lab',
   python: 'Python Lab',
+  genai: 'GenAI & AI Lab',
 };
 
 /**

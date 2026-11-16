@@ -30,7 +30,7 @@ export default function EmptyState({
   secondaryAction,
 }: EmptyStateProps) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-card/60 p-12 text-center max-w-lg mx-auto my-8">
+    <div className="mx-auto my-8 max-w-lg rounded-2xl border border-dashed border-border bg-card/60 p-[1.5rem] text-center sm:p-[3rem]">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4 border border-primary/20">
         <Icon name={icon} size={28} />
       </div>
@@ -41,7 +41,7 @@ export default function EmptyState({
       </p>
 
       {(primaryAction || secondaryAction) && (
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <div className="mt-[1.5rem] flex flex-wrap items-center justify-center gap-3">
           {primaryAction &&
             (primaryAction.href ? (
               <Link

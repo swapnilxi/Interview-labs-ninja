@@ -3,6 +3,7 @@ import type { LabName } from '@/lib/services/labSectionsService';
 import { COMMUNICATION_SECTION_DEFS } from '@/modules/labs/communication-lab/labConfig';
 import { CV_SECTION_DEFS } from '@/modules/labs/cv-lab/sectionDefs';
 import { FINANCE_SECTION_DEFS } from '@/modules/labs/finance-lab/labConfig';
+import { GENAI_SECTION_DEFS } from '@/modules/labs/genai-lab/labConfig';
 import { PYTHON_SECTION_DEFS } from '@/modules/labs/python-lab/labConfig';
 import { SYSTEM_DESIGN_SECTION_DEFS } from '@/modules/labs/system-design-lab/sectionDefs';
 
@@ -179,6 +180,23 @@ export const LABS_CONFIG: Record<LabName, LabMeta> = {
       { label: '🎯 Interview Focus', text: 'Emphasise what Python interviews ask about this topic, including output-prediction questions.' },
     ],
   },
+  genai: {
+    key: 'genai',
+    name: 'GenAI & AI Lab',
+    shortName: 'GenAI & AI',
+    icon: 'SparklesIcon',
+    description: 'AI fundamentals, then LLMs, prompting, RAG, agents, fine-tuning, evaluation and shipping generative AI apps.',
+    identity: 'var(--lab-genai)',
+    sampleTopic: { name: 'Retrieval Strategies: Hybrid Search & Reranking', brief: 'Combine keyword and vector search, then rerank so the best passages come first.', subtopic: 'Cross-Encoder Reranking' },
+    defaultPromptAddons: [
+      { label: '🔰 Total Beginner', text: 'Assume I am new to AI: define every term, avoid jargon and start from everyday analogies.' },
+      { label: '🧮 Show the Math', text: 'Include the key equations in plain text with every symbol explained, plus one worked numeric example.' },
+      { label: '🛠️ Code First', text: 'Lead with a short runnable Python example, then explain it; use numpy or PyTorch where they fit.' },
+      { label: '🏭 Production Focus', text: 'Emphasise cost, latency, reliability, monitoring and security for real deployments.' },
+      { label: '🧪 Evaluate Everything', text: 'For every technique, say how to test that it works and which metric or eval to use.' },
+      { label: '🎯 Interview Focus', text: 'Tie every section back to GenAI and ML engineering interviews, including system-design style questions.' },
+    ],
+  },
 };
 
 export function getSectionDefsForLab(lab: LabName): readonly SectionDef[] {
@@ -189,6 +207,7 @@ export function getSectionDefsForLab(lab: LabName): readonly SectionDef[] {
     case 'communication': return COMMUNICATION_SECTION_DEFS;
     case 'finance': return FINANCE_SECTION_DEFS;
     case 'python': return PYTHON_SECTION_DEFS;
+    case 'genai': return GENAI_SECTION_DEFS;
   }
 }
 

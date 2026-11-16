@@ -97,3 +97,7 @@ def register(cursor: sqlite3.Cursor) -> None:
     """Create tables. Called from init_db."""
     create_tables(cursor)
     add_project_columns(cursor)
+    # Personal video links on lab pages (see videos.py).
+    from .videos import ensure_table as ensure_video_table
+
+    ensure_video_table(cursor)

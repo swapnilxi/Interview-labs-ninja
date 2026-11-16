@@ -37,6 +37,7 @@ const API_PREFIX: Record<LabName, string> = {
   communication: '/communication',
   finance: '/finance',
   python: '/python',
+  genai: '/genai',
 };
 
 /**

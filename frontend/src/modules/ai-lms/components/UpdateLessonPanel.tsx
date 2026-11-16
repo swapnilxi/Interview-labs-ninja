@@ -165,7 +165,7 @@ export default function UpdateLessonPanel({
 
       <div className="w-full rounded-2xl border border-border bg-card shadow-lg overflow-hidden min-h-[480px] flex flex-col">
         {loading ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-3">
+          <div className="flex-1 flex flex-col items-center justify-center p-[1.5rem] sm:p-[3rem] text-center space-y-3">
             <div className="h-10 w-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
             <p className="text-xs text-muted-foreground">
               {loading === 'regenerate'
@@ -206,7 +206,7 @@ export default function UpdateLessonPanel({
             />
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center p-12 text-center text-xs text-muted-foreground">
+          <div className="flex-1 flex items-center justify-center p-[1.5rem] sm:p-[3rem] text-center text-xs text-muted-foreground">
             Your updated lesson preview will appear here.
           </div>
         )}

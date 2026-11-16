@@ -56,6 +56,18 @@ import {
 import * as landingEdit from './landingEdit';
 import { withNeonSync } from '@/lib/server/neonSync';
 import { buildZip } from './zip';
+import { HttpError } from '../todo/_shared';
+import {
+  INBOX_DEFAULT_LIMIT,
+  getMembership,
+  inbox,
+  listClassUpdates,
+  parseWholeNumber,
+  pushUpdate,
+  removeMembership,
+  sendUpdate,
+  setMembership,
+} from './updates';
 
 const NAMED_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
 
@@ -78,10 +90,12 @@ const EDITOR_ROLES = new Set(['editor', 'admin', 'superadmin']);
 // Writes that only touch the caller's own state or return AI output without saving anything
 // (mirrors _NON_EDIT_WRITES in backend/modules/ai_lms/router.py). Every other
 // POST/PUT/PATCH/DELETE changes shared LMS content and needs an editor role.
+// `classes/<c>/membership` is a learner joining, leaving or showing interest: their own row only.
+// `classes/<c>/notifications` (sending an update) is deliberately not here: it needs an editor.
 const NON_EDIT_WRITES =
-  /^\/api\/lms\/(?:lessons\/[^/]+\/view|voice-chat|copilot|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai)\/?$/;
+  /^\/api\/lms\/(?:lessons\/[^/]+\/(?:view|complete)|voice-chat|copilot|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai|classes\/[^/]+\/membership)\/?$/;
 
-function requireUserId(req: Request): number | NextResponse {
+export function requireUserId(req: Request): number | NextResponse {
   const user = getUserFromAuthHeader(req.headers.get('authorization'));
   if (!user) {
     return NextResponse.json({ detail: 'Log in to use this feature.' }, { status: 401 });
@@ -199,6 +213,104 @@ async function handleReorderClassesImpl(req: Request): Promise<NextResponse> {
     return NextResponse.json({ detail: err.message || 'Failed to reorder classes' }, { status: 500 });
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Class membership + updates (announcements). The logic is in updates.ts, the twin of
+// backend/modules/ai_lms/updates.py; this layer also pushes the update to devices (the Python one never does).
+// ─────────────────────────────────────────────────────────────────────────────
+
+function updatesErrorResponse(err: unknown, fallback: string): NextResponse {
+  if (err instanceof HttpError) return NextResponse.json({ detail: err.detail }, { status: err.status });
+  return NextResponse.json({ detail: (err as Error)?.message || fallback }, { status: 500 });
+}
+
+async function jsonObject(req: Request): Promise<Record<string, unknown>> {
+  const body = await req.json().catch(() => null);
+  return body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
+}
+
+export async function handleGetClassMembership(classSlug: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    return NextResponse.json(getMembership(classSlug, auth));
+  } catch (err) {
+    return updatesErrorResponse(err, 'Failed to load membership');
+  }
+}
+
+async function handleSetClassMembershipImpl(classSlug: string, req: Request): Promise<NextResponse> {
+  try {
+    // PUT is in NON_EDIT_WRITES: it only changes the caller's own row.
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    return NextResponse.json(setMembership(classSlug, auth, (await jsonObject(req)).status));
+  } catch (err) {
+    return updatesErrorResponse(err, 'Failed to update membership');
+  }
+}
+
+async function handleRemoveClassMembershipImpl(classSlug: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    return NextResponse.json(removeMembership(classSlug, auth));
+  } catch (err) {
+    return updatesErrorResponse(err, 'Failed to leave the class');
+  }
+}
+
+async function handleSendClassUpdateImpl(classSlug: string, req: Request): Promise<NextResponse> {
+  try {
+    // A POST that is NOT in NON_EDIT_WRITES, so requireUserId already demands an editor, admin or superadmin.
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const sent = sendUpdate(classSlug, auth, await jsonObject(req));
+    const push = await pushUpdate(sent);
+    return NextResponse.json(
+      { id: sent.id, scope: sent.scope, recipients: sent.recipients, push },
+      { status: 201 }
+    );
+  } catch (err) {
+    return updatesErrorResponse(err, 'Failed to send the update');
+  }
+}
+
+export async function handleListClassUpdates(classSlug: string, req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    // A GET, so the write gate in requireUserId does not cover it: checked here (as in router.py).
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
+    if (!user || !EDITOR_ROLES.has(user.role)) {
+      return NextResponse.json(
+        { detail: 'Instructor or admin access is required to see sent updates.' },
+        { status: 403 }
+      );
+    }
+    return NextResponse.json(listClassUpdates(classSlug));
+  } catch (err) {
+    return updatesErrorResponse(err, 'Failed to list updates');
+  }
+}
+
+export async function handleGetMyUpdates(req: Request): Promise<NextResponse> {
+  try {
+    const auth = requireUserId(req);
+    if (auth instanceof NextResponse) return auth;
+    const params = new URL(req.url).searchParams;
+    const after = parseWholeNumber(params.get('after'), 'after');
+    const limit = parseWholeNumber(params.get('limit'), 'limit');
+    return NextResponse.json(inbox(auth, after, limit ?? INBOX_DEFAULT_LIMIT));
+  } catch (err) {
+    return updatesErrorResponse(err, 'Failed to load updates');
+  }
+}
+
+// These write, but not to what the class folders show, so they only need the Neon push (no folder sync).
+export const handleSetClassMembership = withNeonSync(handleSetClassMembershipImpl);
+export const handleRemoveClassMembership = withNeonSync(handleRemoveClassMembershipImpl);
+export const handleSendClassUpdate = withNeonSync(handleSendClassUpdateImpl);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Subjects Handlers

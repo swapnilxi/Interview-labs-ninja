@@ -1,4 +1,4 @@
-"""Context-driven generation for the labs' on-demand sections (DSA, CV, System Design, Communication, Finance, Python).
+"""Context-driven generation for the labs' on-demand sections (DSA, CV, System Design, Communication, Finance, Python, GenAI).
 
 A section's default body comes from a template baked into the frontend. This router handles the
 AI-written alternatives: `generate` writes a section from the topic alone (for sections that have no
@@ -16,15 +16,16 @@ per-section generation settings (`/lab-sections/settings`: prompt, add-on, stand
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, StrictInt
 
 from modules.auth.dependencies import get_current_user_id
-from modules.common.ai import AISettings, call_ai_text, extract_json_array
+from modules.common.ai import AISettings, call_ai_text, extract_json_items
 from modules.lab_projects.knowledge import generation_ref, load_project_context, quiz_prompt_parts, section_prompt_parts
 
+from . import videos as page_videos
 from .quiz import build_quiz_prompt, normalize_questions
 from .store import (
     add_quiz_questions,
@@ -42,7 +43,7 @@ from .store import (
 
 router = APIRouter(prefix="/lab-sections", tags=["lab-sections"], dependencies=[Depends(get_current_user_id)])
 
-LabName = Literal["dsa", "cv", "system_design", "communication", "finance", "python"]
+LabName = Literal["dsa", "cv", "system_design", "communication", "finance", "python", "genai"]
 
 _DOMAINS: Dict[str, str] = {
     "dsa": "Data Structures & Algorithms",
@@ -51,6 +52,7 @@ _DOMAINS: Dict[str, str] = {
     "communication": "Business Communication",
     "finance": "Finance",
     "python": "Python",
+    "genai": "Generative AI and AI engineering",
 }
 
 # Who a section (and the copilot) is written for. The three interview labs share the default, so their prompts are
@@ -60,12 +62,14 @@ _AUDIENCE: Dict[str, str] = {
     "communication": "a professional improving their business English, communication and leadership skills",
     "finance": "a beginner learning finance step by step, from the basics up to using AI in finance",
     "python": "a learner going from Python basics to writing professional Python for software, data and AI work",
+    "genai": "a learner going from AI and machine learning fundamentals to building, evaluating and shipping generative AI applications",
 }
 _DEFAULT_COPILOT_GOAL = "helping someone prepare for technical interviews"
 _COPILOT_GOAL: Dict[str, str] = {
     "communication": "helping a professional improve their business English, communication and leadership",
     "finance": "helping a beginner learn finance and how AI is used in it",
     "python": "helping someone learn Python, from the basics to professional, data and AI work",
+    "genai": "helping someone learn AI and generative AI, from the fundamentals to building and shipping LLM applications",
 }
 
 # A section is a long document; the default 2048-token budget would silently truncate it mid-output.
@@ -257,7 +261,7 @@ async def generate_section(payload: GenerateSectionPayload, user_id: int = Depen
 
 # ── Quiz ──────────────────────────────────────────────────────────────────────
 
-_QUIZ_MAX_TOKENS = 3500
+_QUIZ_MAX_TOKENS = 6000
 
 
 class GenerateQuizPayload(AISettings):
@@ -341,7 +345,7 @@ async def generate_quiz(payload: GenerateQuizPayload, user_id: int = Depends(get
         )
 
     try:
-        questions = normalize_questions(extract_json_array(response_text))
+        questions = normalize_questions(extract_json_items(response_text)[0])
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"The AI response couldn't be parsed. Try again. ({exc})")
     if not questions:
@@ -576,3 +580,48 @@ async def delete_settings(
     """Reset one section's settings ('*' = just the lab-wide row), or every setting of the lab (the default, 'all')."""
     return reset_settings(user_id, lab, section_id)
 
+
+
+# ── Video links on lab pages (personal, like the progress and settings above) ──────────────────────────────────
+# The logic is in videos.py (no FastAPI import there); the Next.js twin is fe-apis/labSections/videos.ts.
+
+
+class PageVideoIn(BaseModel):
+    lab: LabName
+    topic_id: str = Field(min_length=1, max_length=200)
+    subtopic_id: str = Field(default="", max_length=200)  # '' = the topic's own page
+    # Checked in videos.py, not here, so both backends answer a bad value with the same text.
+    url: Optional[Any] = None
+    title: Optional[Any] = None
+
+
+def _video_http_error(err: page_videos.VideoError) -> HTTPException:
+    return HTTPException(status_code=err.status_code, detail=err.detail)
+
+
+@router.get("/videos")
+async def get_page_videos(
+    lab: LabName,
+    topic_id: str = Query(min_length=1, max_length=200),
+    subtopic_id: str = Query(default="", max_length=200),
+    user_id: int = Depends(get_current_user_id),
+) -> dict:
+    """The signed-in user's own video links for one topic or subtopic page, in order."""
+    return page_videos.list_videos(user_id, lab, topic_id, subtopic_id)
+
+
+@router.post("/videos", status_code=201)
+async def add_page_video(payload: PageVideoIn, user_id: int = Depends(get_current_user_id)) -> dict:
+    try:
+        return page_videos.add_video(user_id, payload.lab, payload.topic_id, payload.subtopic_id, payload.url, payload.title)
+    except page_videos.VideoError as err:
+        raise _video_http_error(err)
+
+
+@router.delete("/videos/{video_id}")
+async def delete_page_video(video_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    """Remove one of the user's own links (someone else's id is a 404)."""
+    try:
+        return page_videos.delete_video(user_id, video_id)
+    except page_videos.VideoError as err:
+        raise _video_http_error(err)

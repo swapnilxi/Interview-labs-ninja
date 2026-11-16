@@ -84,14 +84,15 @@ export function ScheduleCard({ alert }: { alert: ScheduleAlert }) {
           onClick={() => {
             dismissScheduleAlert(alert.key);
             router.push(
-              alert.runId
-                ? `${scheduleHref(alert.scheduleId)}&run=${alert.runId}`
-                : scheduleHref(alert.scheduleId)
+              alert.href ??
+                (alert.runId
+                  ? `${scheduleHref(alert.scheduleId)}&run=${alert.runId}`
+                  : scheduleHref(alert.scheduleId))
             );
           }}
           className="todo-btn todo-btn-quiet h-10 flex-1 text-sm"
         >
-          Open in Scheduler
+          {alert.href ? 'Open class' : 'Open in Scheduler'}
         </button>
         <button
           type="button"

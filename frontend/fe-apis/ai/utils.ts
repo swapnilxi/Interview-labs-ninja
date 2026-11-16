@@ -60,6 +60,53 @@ export function extractJsonObject(text: string): Record<string, any> {
 // answers: every provider silently cuts a reply off at max_tokens, so a long answer arrives as `[ {..}, {..}, {` with no
 // closing bracket although most of the results were there. Models also answer a one-item request with a bare `{..}`.
 
+/**
+ * Fixes the slips models make in otherwise-good JSON: raw newlines/tabs inside strings, invalid backslashes, unescaped inner
+ * quotes (a quote only closes a string when , : } ] follows it) and trailing commas. Valid JSON is unchanged.
+ * Twin: _repair_json in backend/modules/common/ai/utils.py.
+ */
+function repairJson(text: string): string {
+  let out = '';
+  let inString = false;
+  const n = text.length;
+  for (let i = 0; i < n; i++) {
+    const ch = text[i];
+    if (!inString) {
+      if (ch === '"') inString = true;
+      else if (ch === ',') {
+        let j = i + 1;
+        while (j < n && /\s/.test(text[j])) j++;
+        if (j < n && (text[j] === ']' || text[j] === '}')) continue;
+      }
+      out += ch;
+      continue;
+    }
+    if (ch === '\\') {
+      const nxt = i + 1 < n ? text[i + 1] : '';
+      if (nxt && '"\\/bfnrtu'.includes(nxt)) {
+        out += ch + nxt;
+        i++;
+      } else out += '\\\\';
+      continue;
+    }
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < n && /\s/.test(text[j])) j++;
+      if (j >= n || ',:}]'.includes(text[j])) {
+        inString = false;
+        out += ch;
+      } else out += '\\"';
+      continue;
+    }
+    if (ch === '\n') out += '\\n';
+    else if (ch === '\r') out += '\\r';
+    else if (ch === '\t') out += '\\t';
+    else if (ch.charCodeAt(0) < 0x20) out += ' ';
+    else out += ch;
+  }
+  return out;
+}
+
 function cleanReply(text: string | null | undefined): string {
   let t = (text ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '');
   const openThink = t.toLowerCase().indexOf('<think>');
@@ -133,7 +180,7 @@ function excerpt(text: string, limit = 120): string {
  * words a user can act on, when there is nothing to use (the text is what the AI actually said).
  */
 export function extractJsonItems(text: string | null | undefined): { items: Record<string, any>[]; complete: boolean } {
-  const cleaned = cleanReply(text);
+  const cleaned = repairJson(cleanReply(text));
   if (!cleaned) throw new Error('the AI returned an empty reply');
 
   let cutOff = false;
@@ -143,6 +190,11 @@ export function extractJsonItems(text: string | null | undefined): { items: Reco
     if (end !== -1) {
       const value = tryParse(cleaned.slice(i, end + 1));
       if (Array.isArray(value) && value.every(isObject)) return { items: value as Record<string, any>[], complete: true };
+      if (value === undefined && cleaned.slice(i + 1).trimStart().startsWith('{')) {
+        // a list with one broken object: keep the good ones
+        const items = salvageObjects(cleaned, i);
+        if (items.length) return { items, complete: false };
+      }
       continue; // "[note]" in some prose, not JSON
     }
     if (cleaned.slice(i + 1).trimStart().startsWith('{')) {

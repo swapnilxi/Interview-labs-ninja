@@ -1,0 +1,398 @@
+/*
+ * Practice (the game layer), imported by DailySessionContainer.tsx after daily-session.css. Prefix `pm-`.
+ * Built on the ds-* tokens: saffron = XP and reward, jade = nailed, gold = almost, rose = review. Calm everywhere
+ * except one moment: the AI's result (ring fills, score counts up, XP pops, the dock takes the grade's colour).
+ */
+
+/* ── Player card (level and daily goal) ───────────────────────────────── */
+.ds-skin .pm-player {
+  --pm-pad: 1.1rem;
+  padding: var(--pm-pad) var(--pm-pad) 0;
+}
+@media (min-width: 640px) {
+  .ds-skin .pm-player {
+    --pm-pad: 1.5rem;
+  }
+}
+.ds-skin .pm-player-main {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.ds-skin .pm-player-level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+.ds-skin .pm-player-level small {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--ds-ink-3);
+}
+.ds-skin .pm-player-level b {
+  margin-top: 2px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ds-ink);
+}
+.ds-skin .pm-player-rank {
+  font-size: clamp(1.2rem, 1.05rem + 0.6vw, 1.45rem);
+  font-weight: 650;
+  letter-spacing: -0.022em;
+  line-height: 1.2;
+  color: var(--ds-ink);
+}
+.ds-skin .pm-player-sub {
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  color: var(--ds-ink-2);
+}
+.ds-skin .pm-player-next {
+  color: var(--ds-ink-3);
+}
+/* The goal row runs edge to edge under a hairline, like the last row of a grouped list. */
+.ds-skin .pm-goal {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: calc(100% + 2 * var(--pm-pad));
+  margin: 1.1rem calc(-1 * var(--pm-pad)) 0;
+  padding: 0.8rem var(--pm-pad);
+  border-top: 1px solid var(--ds-line);
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s ease;
+}
+.ds-skin .pm-goal:hover {
+  background: color-mix(in srgb, var(--ds-ink) 4%, transparent);
+}
+.ds-skin .pm-goal:focus-visible {
+  outline: 2px solid var(--ds-indigo);
+  outline-offset: -2px;
+}
+.ds-skin .pm-goal-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* ── Missions and the builder ─────────────────────────────────────────── */
+.ds-skin .pm-mission-count {
+  flex-shrink: 0;
+  min-width: 1.75rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--color-fill);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+  text-align: center;
+  color: var(--ds-ink-2);
+}
+.ds-skin .pm-builder > .pm-builder-part {
+  padding: 1.25rem;
+}
+.ds-skin .pm-builder > .pm-builder-part + .pm-builder-part {
+  border-top: 1px solid var(--ds-line);
+}
+@media (min-width: 640px) {
+  .ds-skin .pm-builder > .pm-builder-part {
+    padding: 1.4rem 1.5rem;
+  }
+}
+
+/* ── Run bar: XP and combo ────────────────────────────────────────────── */
+.ds-skin .pm-stat {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+  height: 2rem;
+  padding: 0 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  animation: pm-bump 0.42s var(--ease-ios, ease) both;
+}
+.ds-skin .pm-xp {
+  background: var(--ds-gold-soft);
+  color: var(--ds-gold-ink);
+}
+.ds-skin .pm-combo {
+  background: var(--ds-gold);
+  color: #fff;
+}
+.dark .ds-skin .pm-combo {
+  color: #1d1205;
+}
+.ds-skin .pm-stat:last-child {
+  margin-right: 0.25rem;
+}
+@keyframes pm-bump {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Pips coloured by result (more specific than the current-pip rule, so the answered current one keeps its colour). */
+.ds-skin .ds-pips .ds-pip[data-grade='nailed']::before {
+  background: var(--ds-jade);
+}
+.ds-skin .ds-pips .ds-pip[data-grade='almost']::before {
+  background: var(--ds-gold);
+}
+.ds-skin .ds-pips .ds-pip[data-grade='review']::before {
+  background: var(--ds-rose);
+}
+
+/* ── The question ─────────────────────────────────────────────────────── */
+.ds-skin .pm-locked {
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+.ds-skin .pm-stuck {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Result ───────────────────────────────────────────────────────────── */
+.ds-skin .pm-result {
+  padding: 1rem;
+  border-radius: 16px;
+  background: var(--ds-surface-2);
+}
+.ds-skin .pm-result[data-grade] {
+  background: color-mix(in srgb, var(--t) 8%, var(--ds-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--t) 24%, transparent);
+  animation: ds-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@media (min-width: 640px) {
+  .ds-skin .pm-result {
+    padding: 1.25rem;
+  }
+}
+.ds-skin .pm-result-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.ds-skin .pm-result-grade {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.ds-skin .pm-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+.ds-skin .pm-score b {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ds-ink);
+}
+.ds-skin .pm-score small {
+  margin-top: 3px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--ds-ink-3);
+}
+.ds-skin .pm-xp-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+.ds-skin .pm-xp-pop {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  background: var(--ds-gold-soft);
+  color: var(--ds-gold-ink);
+  font-size: 0.875rem;
+  font-weight: 750;
+  animation: pm-xp-in 0.6s 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes pm-xp-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.85);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.08);
+  }
+  100% {
+    transform: none;
+  }
+}
+.ds-skin .pm-takeaways {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ds-ink);
+}
+.ds-skin .pm-takeaways > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.ds-skin .pm-takeaways > li > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.ds-skin .pm-takeaways b {
+  font-weight: 600;
+}
+.ds-skin .pm-more {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--ds-line);
+}
+.ds-skin .pm-more > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.75rem;
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ds-ink-2);
+}
+.ds-skin .pm-more > summary::-webkit-details-marker {
+  display: none;
+}
+.ds-skin .pm-more > summary:focus-visible {
+  outline: 2px solid var(--ds-indigo);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.ds-skin .pm-more > summary .ds-caret {
+  transition: transform 0.2s ease;
+}
+.ds-skin .pm-more[open] > summary .ds-caret {
+  transform: rotate(180deg);
+}
+.ds-skin .pm-result-checking {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+.ds-skin .pm-shimmer > span {
+  display: block;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--ds-line) 0%, var(--ds-line-strong) 50%, var(--ds-line) 100%);
+  background-size: 200% 100%;
+  animation: pm-shimmer 1.2s linear infinite;
+}
+.ds-skin .pm-shimmer > span + span {
+  width: 70%;
+  margin-top: 0.45rem;
+}
+@keyframes pm-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+/* ── Dock (one column: Practice has no side rail) ─────────────────────── */
+.ds-skin .pm-dock .ds-dock-inner {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 48rem;
+}
+.ds-skin .pm-dock-side {
+  flex: 0 0 auto;
+  padding: 0 1rem;
+}
+.ds-skin .pm-dock-main {
+  flex: 1 1 auto;
+  padding: 0 1.25rem;
+}
+.ds-skin .pm-grade {
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 0.35rem;
+  padding: 0 0.5rem;
+}
+.ds-skin .pm-dock-result {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.6rem 0 0.9rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--t-ink);
+}
+/* The result takes over the bar's colour. */
+.ds-skin .pm-dock[data-grade] .ds-dock-bar {
+  background: color-mix(in srgb, var(--t) 16%, var(--ds-surface));
+  border-color: color-mix(in srgb, var(--t) 35%, transparent);
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease;
+}
+@media (min-width: 640px) {
+  .ds-skin .pm-dock-main {
+    flex: 0 0 auto;
+    min-width: 11rem;
+  }
+}
+
+/* ── Finish ───────────────────────────────────────────────────────────── */
+.ds-skin .pm-finish-xp {
+  margin-top: 1.1rem;
+  font-size: clamp(2.6rem, 2rem + 2.5vw, 3.4rem);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: color-mix(in srgb, var(--ds-gold) 78%, var(--ds-ink));
+}
+.ds-skin .pm-finish-xp small {
+  margin-left: 0.2em;
+  font-size: 0.4em;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--ds-ink-3);
+}
+.ds-skin .pm-finish-level {
+  max-width: 24rem;
+  margin: 1.25rem auto 0;
+}
+.ds-skin .pm-levelup {
+  animation: ds-pop 0.5s 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-skin .pm-stat,
+  .ds-skin .pm-result[data-grade],
+  .ds-skin .pm-xp-pop,
+  .ds-skin .pm-levelup,
+  .ds-skin .pm-shimmer > span {
+    animation: none;
+  }
+}

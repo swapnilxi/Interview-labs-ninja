@@ -18,6 +18,17 @@ import ManualLessonModal from './components/ManualLessonModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import EmptyState from './components/EmptyState';
 import ExportClassButton from './components/ExportClassButton';
+import ClassMembershipButton from './components/ClassMembershipButton';
+import ClassRemindersButton from './components/ClassRemindersButton';
+import ImportLabModuleButton from './components/ImportLabModuleButton';
+import LmsVideos from './components/LmsVideos';
+import SendClassUpdateButton from './components/SendClassUpdateButton';
+import ShareClassButton from './components/ShareClassButton';
+import {
+  LMS_TOOLBAR_BTN,
+  LMS_TOOLBAR_BTN_ACCENT,
+  LMS_TOOLBAR_BTN_PRIMARY,
+} from './components/toolbarStyles';
 import { useLmsCopilotContext } from './context/LmsCopilotContext';
 import { classCopilotContext } from './utils/copilotContext';
 
@@ -61,6 +72,16 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
   useEffect(() => {
     loadClass();
   }, [loadClass]);
+
+  // Reloads the class without swapping the page for its loading skeleton: the import dialog stays open on its
+  // result screen while the new subject appears behind it.
+  const refreshClass = useCallback(async () => {
+    try {
+      setLmsClass(await lmsService.getClass(classSlug));
+    } catch {
+      /* keep showing what is already there */
+    }
+  }, [classSlug]);
 
   const handleDeleteSubject = async () => {
     if (!subjectToDelete) return;
@@ -120,10 +141,10 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
 
   if (loading) {
     return (
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6 animate-pulse">
-        <div className="h-4 w-48 bg-muted rounded" />
-        <div className="h-10 w-96 bg-muted rounded" />
-        <div className="h-6 w-full max-w-xl bg-muted rounded" />
+      <div className="mx-auto w-full max-w-7xl animate-pulse space-y-[1.5rem] px-4 py-10 sm:px-[1.5rem] lg:px-8">
+        <div className="h-4 w-[12rem] max-w-full rounded bg-muted" />
+        <div className="h-10 w-[24rem] max-w-full rounded bg-muted" />
+        <div className="h-[1.5rem] w-full max-w-xl rounded bg-muted" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-8">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-40 rounded-xl bg-muted" />
@@ -155,173 +176,162 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
   const directLessons = lmsClass.direct_lessons || [];
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-10">
-      {/* Header & Breadcrumbs */}
-      <div className="space-y-4 pb-6 border-b border-border">
+    <div className="mx-auto w-full max-w-7xl space-y-10 px-4 pb-[8rem] pt-[2rem] sm:px-[1.5rem] md:pt-[3rem] lg:px-8">
+      {/* Header: where you are, what this class is, what you can do with it, how the AI is guided */}
+      <header className="space-y-[1.25rem] border-b border-border pb-[1.75rem]">
         <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
           <BackButton href="/ai-lms" label="Back" className="-ml-2.5" />
           <div className="h-3.5 w-px bg-border/80" />
-          <Link
-            href="/ai-lms"
-            className="hover:text-foreground transition-colors"
-          >
+          <Link href="/ai-lms" className="lms-crumb -my-2.5 py-2.5 transition-colors hover:text-foreground">
             AI LMS
           </Link>
           <span>/</span>
-          <span className="font-semibold text-foreground">{lmsClass.name}</span>
+          <span className="min-w-0 break-words font-semibold text-foreground">{lmsClass.name}</span>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div
-                className="flex h-[48px] w-[48px] items-center justify-center rounded-xl border transition-colors shadow-sm"
-                style={{
-                  backgroundColor: `color-mix(in srgb, ${lmsClass.accent_color || '#6366f1'} 14%, transparent)`,
-                  borderColor: `color-mix(in srgb, ${lmsClass.accent_color || '#6366f1'} 30%, transparent)`,
-                  color: lmsClass.accent_color || '#6366f1',
-                }}
-              >
-                <Icon name={lmsClass.icon || 'BookmarkIcon'} size={22} />
-              </div>
-              <h1 className="font-heading text-2xl md:text-4xl font-extrabold text-foreground">
-                {lmsClass.name}
-              </h1>
-            </div>
-            <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
-              {lmsClass.description || 'Curated modules and structured technical lesson sequences.'}
-            </p>
-          </div>
-
-          {/* Action CTAs */}
-          <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
-            <Link
-              href={`/ai-lms/classes/${lmsClass.slug}/landing`}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-xl border shadow-sm transition-colors"
+              style={{
+                backgroundColor: `color-mix(in srgb, ${lmsClass.accent_color || '#6366f1'} 14%, transparent)`,
+                borderColor: `color-mix(in srgb, ${lmsClass.accent_color || '#6366f1'} 30%, transparent)`,
+                color: lmsClass.accent_color || '#6366f1',
+              }}
             >
+              <Icon name={lmsClass.icon || 'BookmarkIcon'} size={22} />
+            </div>
+            <h1 className="min-w-0 break-words font-heading text-2xl font-extrabold text-foreground md:text-4xl">
+              {lmsClass.name}
+            </h1>
+          </div>
+          <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            {lmsClass.description || 'Curated modules and structured technical lesson sequences.'}
+          </p>
+        </div>
+
+        {/* Actions. Everyone's first, then the instructor's; each group wraps as a unit, so a row never
+            splits a set of buttons beside the title the way it did when they all sat next to it. */}
+        <div className="flex flex-wrap items-center gap-x-[1.5rem] gap-y-[0.625rem]">
+          <div className="flex flex-wrap items-center gap-2">
+            <ClassMembershipButton classSlug={lmsClass.slug} />
+            <ClassRemindersButton classSlug={lmsClass.slug} className={lmsClass.name} />
+            <ShareClassButton classSlug={lmsClass.slug} className={lmsClass.name} />
+            <Link href={`/ai-lms/classes/${lmsClass.slug}/landing`} className={LMS_TOOLBAR_BTN}>
               <Icon name="GlobeAltIcon" size={14} />
               <span>Landing Page</span>
             </Link>
-
-            <ExportClassButton classSlug={lmsClass.slug} />
-
-            {canEdit && (
-            <button
-              type="button"
-              onClick={() => setIsClassEditOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
-            >
-              <Icon name="PencilSquareIcon" size={14} />
-              <span>Edit Class</span>
-            </button>
-            )}
-
-            {canEdit && !isOtherClass && (
-              <button
-                type="button"
-                onClick={() => setIsSubjectModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
-              >
-                <Icon name="PlusIcon" size={14} />
-                <span>New Subject</span>
-              </button>
-            )}
-
-            {canEdit && !isOtherClass && (
-              <button
-                type="button"
-                onClick={() => setIsProjectModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/5 text-indigo-500 font-medium text-xs hover:bg-indigo-500/10 transition-colors shadow-sm"
-              >
-                <Icon name="CodeBracketSquareIcon" size={14} />
-                <span>Add Project</span>
-              </button>
-            )}
-
-            {canEdit && isOtherClass && (
-              <button
-                type="button"
-                onClick={() => {
-                  setLessonToEdit(null);
-                  setIsLessonModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-border bg-card text-foreground font-medium text-xs hover:bg-muted transition-colors shadow-sm"
-              >
-                <Icon name="PlusIcon" size={14} />
-                <span>Add Lesson</span>
-              </button>
-            )}
-
-            {canEdit && (
-            <Link
-              href={`/ai-lms/generate?class=${lmsClass.slug}`}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 transition-all"
-            >
-              <Icon name="SparklesIcon" size={15} />
-              <span>Generate Lesson</span>
-            </Link>
-            )}
+            <ExportClassButton classSlug={lmsClass.slug} className={LMS_TOOLBAR_BTN} />
           </div>
+
+          {canEdit && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href={`/ai-lms/generate?class=${lmsClass.slug}`} className={LMS_TOOLBAR_BTN_PRIMARY}>
+                <Icon name="SparklesIcon" size={14} />
+                <span>Generate Lesson</span>
+              </Link>
+              {!isOtherClass && (
+                <button type="button" onClick={() => setIsSubjectModalOpen(true)} className={LMS_TOOLBAR_BTN}>
+                  <Icon name="PlusIcon" size={14} />
+                  <span>New Subject</span>
+                </button>
+              )}
+              {!isOtherClass && (
+                <button
+                  type="button"
+                  onClick={() => setIsProjectModalOpen(true)}
+                  className={LMS_TOOLBAR_BTN_ACCENT}
+                >
+                  <Icon name="CodeBracketSquareIcon" size={14} />
+                  <span>Add Project</span>
+                </button>
+              )}
+              {isOtherClass && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLessonToEdit(null);
+                    setIsLessonModalOpen(true);
+                  }}
+                  className={LMS_TOOLBAR_BTN}
+                >
+                  <Icon name="PlusIcon" size={14} />
+                  <span>Add Lesson</span>
+                </button>
+              )}
+              {!isOtherClass && (
+                <ImportLabModuleButton
+                  targetClass={lmsClass}
+                  existingSubjects={subjects}
+                  onImported={refreshClass}
+                />
+              )}
+              <SendClassUpdateButton classSlug={lmsClass.slug} className={lmsClass.name} />
+              <button type="button" onClick={() => setIsClassEditOpen(true)} className={LMS_TOOLBAR_BTN}>
+                <Icon name="PencilSquareIcon" size={14} />
+                <span>Edit Class</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* AI Guidance Context Card */}
-        <div
-          className="glow-card-wrap relative mt-4"
-          style={{ '--card-accent': '#8b5cf6' } as React.CSSProperties}
-        >
-          <div className="glow-card relative rounded-xl border border-primary/25 bg-primary/5 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 shadow-xs">
+        <div className="glow-card-wrap relative" style={{ '--card-accent': '#8b5cf6' } as React.CSSProperties}>
+          <div className="glow-card relative flex flex-col justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4 sm:flex-row sm:items-start">
             <span className="glow-card-rim" aria-hidden="true" />
-            <div className="space-y-1 relative z-[2]">
+            <div className="relative z-[2] min-w-0 space-y-1">
               <div className="flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/20 text-primary">
+                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-primary/20 text-primary">
                   <Icon name="SparklesIcon" size={12} />
                 </span>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
                   AI Generation Guidance Context
                 </h3>
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed pl-7">
+              <p className="break-words pl-7 text-xs leading-relaxed text-muted-foreground">
                 {lmsClass.ai_context
                   ? lmsClass.ai_context
                   : 'No custom AI instructions set. AI will use standard defaults. Click "Edit Context" to provide domain depth, target audience, or stack requirements.'}
               </p>
             </div>
             {canEdit && (
-            <button
-              type="button"
-              onClick={() => setIsClassEditOpen(true)}
-              className="relative z-[2] flex-shrink-0 self-start sm:self-auto ml-7 sm:ml-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
-            >
-              <Icon name="PencilIcon" size={12} />
-              <span>{lmsClass.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsClassEditOpen(true)}
+                className="relative z-[2] ml-7 inline-flex min-h-[2.25rem] flex-shrink-0 items-center gap-1.5 self-start rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 sm:ml-0 sm:self-auto"
+              >
+                <Icon name="PencilIcon" size={12} />
+                <span>{lmsClass.ai_context ? 'Edit AI Context' : 'Add AI Context'}</span>
+              </button>
             )}
           </div>
         </div>
-      </div>
+      </header>
+
+      <LmsVideos scope="class" refId={lmsClass.id} canEdit={canEdit} />
 
       {/* Normal Classes: Show Subjects Grid */}
       {!isOtherClass && (
-        <section className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
+        <section className="space-y-[1.5rem]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
               <h2 className="font-heading text-xl font-bold text-foreground">
                 Subjects & Projects ({subjects.length})
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 Topic modules for concepts, or projects for AI-planned implementation roadmaps
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               {canEdit && subjects.length > 1 && (
                 <button
                   type="button"
                   onClick={() => setIsOrganizeSubjects(!isOrganizeSubjects)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                  className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all ${
                     isOrganizeSubjects
-                      ? 'bg-primary text-white border-primary shadow-sm'
-                      : 'bg-card text-foreground border-border hover:bg-muted'
+                      ? 'border-primary bg-primary text-white shadow-sm'
+                      : 'border-border bg-card text-foreground hover:bg-muted'
                   }`}
                 >
                   <Icon name="ArrowsUpDownIcon" size={14} />
@@ -329,7 +339,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
                 </button>
               )}
 
-              <span className="text-xs text-muted-foreground font-medium">
+              <span className="text-xs font-medium text-muted-foreground">
                 {lmsClass.lesson_count} total lessons in this class
               </span>
             </div>
@@ -352,7 +362,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               } : undefined}
             />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {subjects.map((subj, idx) => (
                 <SubjectCard
                   key={subj.id}
@@ -364,8 +374,9 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
                   orderIndex={idx}
                   canMoveLeft={idx > 0}
                   canMoveRight={idx < subjects.length - 1}
-                  onMoveLeft={() => handleMoveSubject(idx, 'left')}
-                  onMoveRight={() => handleMoveSubject(idx, 'right')}
+                  // Reordering changes shared content: only instructors get the arrows (a learner's tap would be a 403).
+                  onMoveLeft={canEdit ? () => handleMoveSubject(idx, 'left') : undefined}
+                  onMoveRight={canEdit ? () => handleMoveSubject(idx, 'right') : undefined}
                 />
               ))}
             </div>
@@ -375,13 +386,13 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
 
       {/* Fallback "Other" Class: Direct Lessons Sequence */}
       {isOtherClass && (
-        <section className="space-y-6">
+        <section className="space-y-[1.5rem]">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-heading text-xl font-bold text-foreground">
                 Standalone Lessons ({directLessons.length})
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 Uncategorized lessons stored directly under the Other fallback class
               </p>
             </div>

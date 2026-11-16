@@ -5,7 +5,7 @@ import LabsHomeModule from '@/modules/labs/home/LabsHomeModule';
 export const metadata: Metadata = {
   title: 'Labs — InterviewNinja',
   description:
-    'Every lab in one place: DSA, System Design, Computer Vision, Communication, Finance and Python.',
+    'Every lab in one place: DSA, System Design, Computer Vision, Communication, Finance, Python and GenAI & AI.',
 };
 
 // Login required like every page (AuthGate in the root layout); it only links to the labs.

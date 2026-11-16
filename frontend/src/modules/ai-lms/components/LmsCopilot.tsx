@@ -110,12 +110,12 @@ export default function LmsCopilot() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label={`Open Learning Copilot for ${label}`}
-          className="lms-admin-pill !bottom-[4.5rem] !pl-2 !pr-4 animate-fade-in"
+          className="lms-admin-pill lms-dock-copilot !pl-2 max-sm:!pr-2 sm:!pr-4 animate-fade-in"
         >
           <span className="copilot-icon !h-7 !w-7">
             <Icon name="SparklesIcon" size={14} variant="solid" />
           </span>
-          <span>Ask Copilot</span>
+          <span className="hidden sm:inline">Ask Copilot</span>
         </button>
       )}
     </>

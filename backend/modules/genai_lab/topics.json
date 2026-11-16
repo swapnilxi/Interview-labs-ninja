@@ -1,0 +1,534 @@
+[
+  {
+    "id": "ai-landscape",
+    "name": "AI, Machine Learning & Deep Learning",
+    "brief": "How AI, machine learning, deep learning and generative AI relate, and what each can and cannot do.",
+    "category": "AI Foundations",
+    "difficulty": "Easy",
+    "prerequisites": [],
+    "subtopics": [
+      {"id": "lnd-definitions", "name": "AI vs ML vs Deep Learning vs GenAI", "brief": "How the terms nest, with one example of each."},
+      {"id": "lnd-history", "name": "A Short History: Rules to Transformers", "brief": "Symbolic AI, statistical learning, deep learning and the transformer era."},
+      {"id": "lnd-discriminative-generative", "name": "Discriminative vs Generative Models", "brief": "Predicting a label versus producing new data."},
+      {"id": "lnd-ai-system", "name": "From a Model to an AI System", "brief": "Data, a model, tools and guardrails together make a product."}
+    ]
+  },
+  {
+    "id": "ml-basics",
+    "name": "Machine Learning Basics",
+    "brief": "Learn patterns from data: supervised, unsupervised and reinforcement learning, and how to tell whether a model works.",
+    "category": "AI Foundations",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["AI, Machine Learning & Deep Learning"],
+    "subtopics": [
+      {"id": "mlb-paradigms", "name": "Supervised, Unsupervised & Reinforcement Learning", "brief": "What data each needs and what each one learns."},
+      {"id": "mlb-splits-metrics", "name": "Train/Validation/Test Splits & Metrics", "brief": "Accuracy, precision, recall, F1 and why you hold data out."},
+      {"id": "mlb-overfitting", "name": "Overfitting, Underfitting & Bias-Variance", "brief": "Why a model that memorizes fails on new data."},
+      {"id": "mlb-data-quality", "name": "Features, Labels & Data Quality", "brief": "Leakage, class imbalance and noisy labels: garbage in, garbage out."}
+    ]
+  },
+  {
+    "id": "neural-networks",
+    "name": "Neural Networks & Backpropagation",
+    "brief": "Layers of weighted sums and nonlinearities that learn by following gradients.",
+    "category": "AI Foundations",
+    "difficulty": "Medium",
+    "prerequisites": ["Machine Learning Basics"],
+    "subtopics": [
+      {"id": "nn-neurons-layers", "name": "Neurons, Layers & Activation Functions", "brief": "Weighted sums, ReLU, GELU and why nonlinearity matters."},
+      {"id": "nn-loss-gradients", "name": "Loss Functions & Gradients", "brief": "Cross-entropy, mean squared error and the slope of the loss."},
+      {"id": "nn-backprop", "name": "Backpropagation & the Chain Rule", "brief": "How the error flows backwards through the layers."},
+      {"id": "nn-architectures", "name": "CNNs, RNNs & the Road to Transformers", "brief": "What each architecture is good at and where it breaks."}
+    ]
+  },
+  {
+    "id": "training-optimization",
+    "name": "Training & Optimization",
+    "brief": "How models are trained in practice: optimizers, learning rates, regularization and diagnosing a run.",
+    "category": "AI Foundations",
+    "difficulty": "Medium",
+    "prerequisites": ["Neural Networks & Backpropagation"],
+    "subtopics": [
+      {"id": "opt-sgd-adam", "name": "SGD, Momentum & Adam", "brief": "Mini-batches, optimizers and what the learning rate does."},
+      {"id": "opt-schedules", "name": "Learning-Rate Schedules, Warmup & Clipping", "brief": "Keeping large training runs stable."},
+      {"id": "opt-regularization", "name": "Regularization & Normalization", "brief": "Dropout, weight decay, batch norm and layer norm."},
+      {"id": "opt-debugging", "name": "Reading Loss Curves & Debugging Training", "brief": "Diverging loss, plateaus and the overfit-one-batch test."}
+    ]
+  },
+  {
+    "id": "embeddings-representation",
+    "name": "Embeddings & Representation Learning",
+    "brief": "Turn words, images and users into vectors where closeness means similarity.",
+    "category": "AI Foundations",
+    "difficulty": "Medium",
+    "prerequisites": ["Neural Networks & Backpropagation"],
+    "subtopics": [
+      {"id": "emb-vectors", "name": "Vectors, Dot Products & Cosine Similarity", "brief": "The geometry behind the word similar."},
+      {"id": "emb-contextual", "name": "From Word2Vec to Contextual Embeddings", "brief": "Static vectors versus vectors that change with the sentence."},
+      {"id": "emb-contrastive", "name": "Contrastive Learning & Sentence Embeddings", "brief": "How a model learns to place similar items close together."},
+      {"id": "emb-limits", "name": "Dimensionality, Visualization & Limits", "brief": "PCA and UMAP views, and what a single vector cannot capture."}
+    ]
+  },
+  {
+    "id": "tokenization",
+    "name": "Tokenization",
+    "brief": "How text becomes the integer tokens a language model actually reads, and why that matters for cost and odd behavior.",
+    "category": "LLM Fundamentals",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Embeddings & Representation Learning"],
+    "subtopics": [
+      {"id": "tok-bpe", "name": "Byte-Pair Encoding & Subwords", "brief": "How a vocabulary of word pieces is learned from text."},
+      {"id": "tok-special", "name": "Vocabularies, Special Tokens & Chat Templates", "brief": "Start and end markers, role tags and why templates matter."},
+      {"id": "tok-cost-quirks", "name": "Token Counts, Cost & Odd Failures", "brief": "Why models miscount letters and why some languages cost more."},
+      {"id": "tok-practice", "name": "Counting & Inspecting Tokens in Code", "brief": "Using a tokenizer library to budget a prompt."}
+    ]
+  },
+  {
+    "id": "transformers-attention",
+    "name": "Transformers & Attention",
+    "brief": "The architecture behind modern LLMs: self-attention, positions and stacked blocks.",
+    "category": "LLM Fundamentals",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Neural Networks & Backpropagation", "Tokenization"],
+    "subtopics": [
+      {"id": "trf-self-attention", "name": "Self-Attention: Queries, Keys & Values", "brief": "Scaled dot-product attention, step by step."},
+      {"id": "trf-block", "name": "Multi-Head Attention & the Transformer Block", "brief": "Residual streams, feed-forward layers and layer norm."},
+      {"id": "trf-positions-masking", "name": "Positional Encodings & Causal Masking", "brief": "How order is represented and why a decoder cannot peek ahead."},
+      {"id": "trf-variants", "name": "Encoder, Decoder & Encoder-Decoder Models", "brief": "BERT-style, GPT-style and T5-style models, and what each is for."}
+    ]
+  },
+  {
+    "id": "pretraining-scaling",
+    "name": "Pretraining, Scaling Laws & Model Families",
+    "brief": "How a base model learns from internet-scale text, why bigger worked, and how to read the model landscape.",
+    "category": "LLM Fundamentals",
+    "difficulty": "Medium",
+    "prerequisites": ["Transformers & Attention"],
+    "subtopics": [
+      {"id": "pre-objective-data", "name": "Next-Token Prediction & Training Data", "brief": "The objective, data mixes, filtering and deduplication."},
+      {"id": "pre-scaling-laws", "name": "Scaling Laws & Compute-Optimal Training", "brief": "How parameters, tokens and compute trade off."},
+      {"id": "pre-families", "name": "Dense, Mixture-of-Experts & Reasoning Models", "brief": "Sparse experts, and models that think before they answer."},
+      {"id": "pre-choosing", "name": "Open vs Closed Models & Choosing One", "brief": "Capability, cost, latency, license and privacy."}
+    ]
+  },
+  {
+    "id": "decoding-sampling",
+    "name": "Decoding & Sampling",
+    "brief": "How a model turns probabilities into text: greedy, temperature, top-k, top-p and beam search.",
+    "category": "LLM Fundamentals",
+    "difficulty": "Medium",
+    "prerequisites": ["Transformers & Attention"],
+    "subtopics": [
+      {"id": "dec-logits-temperature", "name": "Logits, Softmax & Temperature", "brief": "From raw scores to probabilities, and how temperature reshapes them."},
+      {"id": "dec-top-k-p", "name": "Greedy, Top-k, Top-p & Min-p", "brief": "Cutting off the unlikely tail to control randomness."},
+      {"id": "dec-beam-stops", "name": "Beam Search, Repetition Penalties & Stop Sequences", "brief": "When deterministic search helps and how to end cleanly."},
+      {"id": "dec-reproducibility", "name": "Seeds, Determinism & Why Outputs Vary", "brief": "What you can and cannot make repeatable."}
+    ]
+  },
+  {
+    "id": "context-kv-cache",
+    "name": "Context Windows, KV Cache & Long Context",
+    "brief": "What fits in a prompt, why memory grows with length, and how long-context models cope.",
+    "category": "LLM Fundamentals",
+    "difficulty": "Medium",
+    "prerequisites": ["Transformers & Attention"],
+    "subtopics": [
+      {"id": "ctx-window", "name": "Context Windows & Lost in the Middle", "brief": "Limits, position effects and how much of the window is really used."},
+      {"id": "ctx-kv-cache", "name": "The KV Cache & Memory Cost", "brief": "Why each new token is cheap but long conversations are memory hungry."},
+      {"id": "ctx-long-methods", "name": "Long-Context Techniques", "brief": "Sliding windows, rotary scaling, sparse and linear attention."},
+      {"id": "ctx-budget", "name": "Budgeting Context: Truncate, Summarize, Retrieve", "brief": "Strategies for when the input will not fit."}
+    ]
+  },
+  {
+    "id": "prompt-patterns",
+    "name": "Prompt Engineering Patterns",
+    "brief": "Write instructions a model follows reliably: roles, examples, step-by-step reasoning and iteration.",
+    "category": "Prompting & Context",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Decoding & Sampling"],
+    "subtopics": [
+      {"id": "pp-structure", "name": "Clear Instructions, Roles & Delimiters", "brief": "System versus user messages, and separating instructions from data."},
+      {"id": "pp-few-shot", "name": "Zero-Shot, Few-Shot & Examples", "brief": "Showing the pattern you want."},
+      {"id": "pp-reasoning", "name": "Step-by-Step Reasoning & Self-Consistency", "brief": "Chain of thought: when it helps and when it wastes tokens."},
+      {"id": "pp-iterate", "name": "Testing & Iterating on Prompts", "brief": "Versioning prompts and checking them against examples."}
+    ]
+  },
+  {
+    "id": "structured-outputs",
+    "name": "Structured Outputs",
+    "brief": "Get JSON and typed results you can parse: schemas, constrained decoding and validation.",
+    "category": "Prompting & Context",
+    "difficulty": "Medium",
+    "prerequisites": ["Prompt Engineering Patterns"],
+    "subtopics": [
+      {"id": "so-schemas", "name": "JSON Schemas & Typed Responses", "brief": "Describing the exact shape you expect."},
+      {"id": "so-constrained", "name": "Constrained Decoding & Native Structured Output", "brief": "Guaranteeing valid JSON at the token level."},
+      {"id": "so-validation", "name": "Validation, Retries & Repair", "brief": "Schema checks, and what to do on a bad parse."},
+      {"id": "so-extraction", "name": "Extraction Patterns", "brief": "Pulling entities and fields out of messy text."}
+    ]
+  },
+  {
+    "id": "context-engineering",
+    "name": "Context Engineering & Memory",
+    "brief": "Decide what goes into the window: instructions, retrieved facts, tool results, history and long-term memory.",
+    "category": "Prompting & Context",
+    "difficulty": "Medium",
+    "prerequisites": ["Context Windows, KV Cache & Long Context", "Prompt Engineering Patterns"],
+    "subtopics": [
+      {"id": "ce-anatomy", "name": "Anatomy of a Context Window", "brief": "System prompt, history, tools, retrieved data and scratch space."},
+      {"id": "ce-short-term", "name": "Conversation History & Summarization", "brief": "Trimming, compacting and rolling summaries."},
+      {"id": "ce-long-term", "name": "Long-Term Memory Stores", "brief": "Facts, preferences and episodes saved across sessions."},
+      {"id": "ce-ordering", "name": "Ordering for Attention & Prompt Caching", "brief": "Stable prefixes first, volatile data last."}
+    ]
+  },
+  {
+    "id": "vector-search",
+    "name": "Embeddings & Vector Search",
+    "brief": "Find the passages closest in meaning: embedding models, nearest-neighbor search and vector databases.",
+    "category": "RAG & Knowledge",
+    "difficulty": "Medium",
+    "prerequisites": ["Embeddings & Representation Learning"],
+    "subtopics": [
+      {"id": "vs-embedding-models", "name": "Choosing an Embedding Model", "brief": "Dimensions, domain fit, multilingual support and cost."},
+      {"id": "vs-ann", "name": "Nearest-Neighbor Search: HNSW & IVF", "brief": "Approximate search that trades a little recall for speed."},
+      {"id": "vs-databases", "name": "Vector Databases & Metadata Filters", "brief": "Storing vectors beside the fields you filter on."},
+      {"id": "vs-metrics", "name": "Distance Metrics & Normalization", "brief": "Cosine, dot product and L2, and when they agree."}
+    ]
+  },
+  {
+    "id": "chunking-indexing",
+    "name": "Chunking & Indexing",
+    "brief": "Split documents so each chunk stands alone, and index them so the right one can be found.",
+    "category": "RAG & Knowledge",
+    "difficulty": "Medium",
+    "prerequisites": ["Embeddings & Vector Search"],
+    "subtopics": [
+      {"id": "ci-parsing", "name": "Parsing PDFs, HTML & Tables", "brief": "Getting clean text out of real documents."},
+      {"id": "ci-strategies", "name": "Fixed, Recursive & Semantic Chunking", "brief": "Sizes, overlap and splitting on document structure."},
+      {"id": "ci-metadata", "name": "Metadata, Titles & Contextual Chunks", "brief": "Adding source, section and a short context line to each chunk."},
+      {"id": "ci-updates", "name": "Index Updates, Deduplication & Versioning", "brief": "Keeping the index in step with changing documents."}
+    ]
+  },
+  {
+    "id": "retrieval-strategies",
+    "name": "Retrieval Strategies: Hybrid Search & Reranking",
+    "brief": "Combine keyword and vector search, rewrite queries, and rerank so the best passages come first.",
+    "category": "RAG & Knowledge",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Chunking & Indexing"],
+    "subtopics": [
+      {"id": "rs-hybrid", "name": "BM25, Vector & Hybrid Search", "brief": "Why keywords still matter, and how to fuse scores with reciprocal rank fusion."},
+      {"id": "rs-query", "name": "Query Rewriting, Multi-Query & HyDE", "brief": "Turning a vague question into better searches."},
+      {"id": "rs-rerank", "name": "Cross-Encoder Reranking", "brief": "A slower, sharper second pass over the top results."},
+      {"id": "rs-assembly", "name": "Assembling Context & Citations", "brief": "Packing passages, ordering them and citing sources."}
+    ]
+  },
+  {
+    "id": "rag-evaluation",
+    "name": "RAG Evaluation",
+    "brief": "Measure retrieval and answers separately: recall, faithfulness and relevance on a test set.",
+    "category": "RAG & Knowledge",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Retrieval Strategies: Hybrid Search & Reranking"],
+    "subtopics": [
+      {"id": "re-retrieval-metrics", "name": "Retrieval Metrics: Recall@k, MRR & nDCG", "brief": "Did the right chunk come back, and how high?"},
+      {"id": "re-answer-metrics", "name": "Faithfulness & Answer Relevance", "brief": "Is the answer grounded in the passages, and on topic?"},
+      {"id": "re-test-sets", "name": "Building a Golden Test Set", "brief": "Questions, expected sources and synthetic data."},
+      {"id": "re-failure-analysis", "name": "Diagnosing RAG Failures", "brief": "Bad chunking, missed retrieval, or a model that ignores the context."}
+    ]
+  },
+  {
+    "id": "graph-rag",
+    "name": "Knowledge Graphs & GraphRAG",
+    "brief": "Add structure to retrieval: entities, relations and graph queries for multi-hop questions.",
+    "category": "RAG & Knowledge",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Retrieval Strategies: Hybrid Search & Reranking"],
+    "subtopics": [
+      {"id": "gr-basics", "name": "Entities, Relations & Property Graphs", "brief": "Nodes and edges, and when a graph beats a table."},
+      {"id": "gr-extraction", "name": "Building a Graph from Text with an LLM", "brief": "Extracting triples and resolving duplicate entities."},
+      {"id": "gr-graphrag", "name": "GraphRAG & Community Summaries", "brief": "Answering questions about a whole corpus, not one passage."},
+      {"id": "gr-tradeoffs", "name": "When Plain RAG Is Enough", "brief": "Cost, complexity and the multi-hop test."}
+    ]
+  },
+  {
+    "id": "tool-use",
+    "name": "Tool Use & Function Calling",
+    "brief": "Let a model call your code: describe tools, parse the call, run it and feed the result back.",
+    "category": "Agents & Tools",
+    "difficulty": "Medium",
+    "prerequisites": ["Structured Outputs"],
+    "subtopics": [
+      {"id": "tu-schemas", "name": "Tool Definitions & Schemas", "brief": "Names, descriptions and parameters a model can use well."},
+      {"id": "tu-loop", "name": "The Call, Execute, Respond Loop", "brief": "Round trips between the model and your functions."},
+      {"id": "tu-errors", "name": "Parallel Calls, Errors & Retries", "brief": "Handling bad arguments and failed tools."},
+      {"id": "tu-design", "name": "Designing Good Tools", "brief": "A few clear, safe tools beat many overlapping ones."}
+    ]
+  },
+  {
+    "id": "agent-loops",
+    "name": "Agent Loops: ReAct & Planning",
+    "brief": "Models that reason, act and observe in a loop to finish multi-step tasks.",
+    "category": "Agents & Tools",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Tool Use & Function Calling"],
+    "subtopics": [
+      {"id": "agl-react", "name": "The ReAct Pattern", "brief": "Thought, action, observation, repeat."},
+      {"id": "agl-planning", "name": "Planning, Decomposition & Reflection", "brief": "Plan-and-execute, and critiquing your own steps."},
+      {"id": "agl-state", "name": "State, Scratchpads & Stopping Conditions", "brief": "Knowing when the job is done and when to give up."},
+      {"id": "agl-frameworks", "name": "Agent Frameworks vs a Plain Loop", "brief": "What graph-style agent libraries add, and what they cost."}
+    ]
+  },
+  {
+    "id": "multi-agent",
+    "name": "Multi-Agent Systems",
+    "brief": "Several specialized agents that hand work to each other: patterns, coordination and when it is worth it.",
+    "category": "Agents & Tools",
+    "difficulty": "Hard",
+    "prerequisites": ["Agent Loops: ReAct & Planning"],
+    "subtopics": [
+      {"id": "ma-patterns", "name": "Orchestrator-Worker, Handoff & Debate", "brief": "Common ways to split a job across agents."},
+      {"id": "ma-communication", "name": "Shared State & Message Passing", "brief": "What agents see of each other's work."},
+      {"id": "ma-costs", "name": "Cost, Latency & Error Compounding", "brief": "Why more agents is not automatically better."},
+      {"id": "ma-when", "name": "When One Agent Is Enough", "brief": "A checklist to run before adding complexity."}
+    ]
+  },
+  {
+    "id": "mcp-protocols",
+    "name": "MCP & Tool Protocols",
+    "brief": "Standard ways to connect models to tools and data: the Model Context Protocol and its relatives.",
+    "category": "Agents & Tools",
+    "difficulty": "Medium",
+    "prerequisites": ["Tool Use & Function Calling"],
+    "subtopics": [
+      {"id": "mcp-architecture", "name": "Hosts, Clients & Servers", "brief": "How MCP separates the app, the connector and the capability."},
+      {"id": "mcp-primitives", "name": "Tools, Resources & Prompts", "brief": "The three kinds of thing a server can expose."},
+      {"id": "mcp-transport-auth", "name": "Transports & Authorization", "brief": "Local versus remote servers, and who may call what."},
+      {"id": "mcp-build", "name": "Building a Small MCP Server", "brief": "Wrapping a function so any compatible client can use it."}
+    ]
+  },
+  {
+    "id": "agent-eval-guardrails",
+    "name": "Agent Evaluation & Guardrails",
+    "brief": "Test agents on whole tasks and keep them inside safe limits.",
+    "category": "Agents & Tools",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Agent Loops: ReAct & Planning"],
+    "subtopics": [
+      {"id": "age-task-evals", "name": "Task Success, Trajectories & Cost", "brief": "Judging the outcome and the path taken to reach it."},
+      {"id": "age-permissions", "name": "Permissions, Sandboxes & Human Approval", "brief": "Least privilege for tools that change things."},
+      {"id": "age-guardrails", "name": "Input and Output Guardrails", "brief": "Validating what goes in and what comes out."},
+      {"id": "age-limits", "name": "Step Limits, Budgets & Loop Detection", "brief": "Stopping runaway agents."}
+    ]
+  },
+  {
+    "id": "fine-tuning",
+    "name": "Fine-Tuning: SFT, LoRA & QLoRA",
+    "brief": "Adapt a pretrained model to your data and style with supervised fine-tuning and low-rank adapters.",
+    "category": "Fine-tuning & Optimization",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Training & Optimization", "Pretraining, Scaling Laws & Model Families"],
+    "subtopics": [
+      {"id": "ft-when", "name": "Prompting vs RAG vs Fine-Tuning", "brief": "Choosing the cheapest tool that works."},
+      {"id": "ft-sft-data", "name": "Supervised Fine-Tuning & Dataset Quality", "brief": "Instruction pairs, formats and why quality beats quantity."},
+      {"id": "ft-lora", "name": "LoRA & QLoRA", "brief": "Training small low-rank adapters on a frozen or quantized model."},
+      {"id": "ft-evaluating", "name": "Evaluating a Tuned Model & Avoiding Forgetting", "brief": "Before-and-after comparisons and catastrophic forgetting."}
+    ]
+  },
+  {
+    "id": "alignment",
+    "name": "Alignment: RLHF & DPO",
+    "brief": "Teach a model human preferences with reward models, policy optimization and direct preference optimization.",
+    "category": "Fine-tuning & Optimization",
+    "difficulty": "Hard",
+    "prerequisites": ["Fine-Tuning: SFT, LoRA & QLoRA"],
+    "subtopics": [
+      {"id": "aln-preferences", "name": "Preference Data & Reward Models", "brief": "Ranking answers and learning a reward from the rankings."},
+      {"id": "aln-rlhf", "name": "RLHF & PPO", "brief": "Optimizing a policy against a reward, with a leash to the original model."},
+      {"id": "aln-dpo", "name": "DPO & Other Direct Methods", "brief": "Learning from preferences without a separate reward model."},
+      {"id": "aln-reasoning-rl", "name": "Reinforcement Learning for Reasoning", "brief": "Verifiable rewards and long chains of thought."}
+    ]
+  },
+  {
+    "id": "distillation-quantization",
+    "name": "Distillation & Quantization",
+    "brief": "Make models smaller and cheaper: teacher-student training and lower-precision weights.",
+    "category": "Fine-tuning & Optimization",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Fine-Tuning: SFT, LoRA & QLoRA"],
+    "subtopics": [
+      {"id": "dq-distillation", "name": "Knowledge Distillation", "brief": "A small student learns from a large teacher's outputs."},
+      {"id": "dq-quant-basics", "name": "Quantization: FP16, INT8 & INT4", "brief": "Precision, memory and the accuracy trade-off."},
+      {"id": "dq-methods", "name": "Post-Training Methods: GPTQ, AWQ & GGUF", "brief": "Common formats and tools for running models locally."},
+      {"id": "dq-pruning", "name": "Pruning & Sparsity", "brief": "Removing the weights that matter least."}
+    ]
+  },
+  {
+    "id": "inference-serving",
+    "name": "Inference Optimization & Serving",
+    "brief": "Serve models fast and cheaply: batching, KV-cache management, speculative decoding and serving engines.",
+    "category": "Fine-tuning & Optimization",
+    "difficulty": "Hard",
+    "prerequisites": ["Context Windows, KV Cache & Long Context", "Distillation & Quantization"],
+    "subtopics": [
+      {"id": "inf-batching", "name": "Continuous Batching & PagedAttention", "brief": "Keeping the GPU busy across many requests."},
+      {"id": "inf-speculative", "name": "Speculative Decoding", "brief": "A small draft model proposes, the big model verifies."},
+      {"id": "inf-engines", "name": "Serving Engines: vLLM, TGI & llama.cpp", "brief": "What each one is for and how they differ."},
+      {"id": "inf-metrics", "name": "Throughput, Time to First Token & Cost per Token", "brief": "The numbers that describe serving performance."}
+    ]
+  },
+  {
+    "id": "llm-evaluation",
+    "name": "LLM Evaluation & LLM-as-Judge",
+    "brief": "Measure whether a model or prompt is actually better: benchmarks, test sets and model graders.",
+    "category": "Evaluation & Safety",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Prompt Engineering Patterns"],
+    "subtopics": [
+      {"id": "ev-benchmarks", "name": "Benchmarks & Their Limits", "brief": "What public benchmark scores do and do not tell you."},
+      {"id": "ev-task-evals", "name": "Building Task-Specific Evals", "brief": "Test cases, rubrics and regression suites."},
+      {"id": "ev-judge", "name": "LLM-as-Judge", "brief": "Pairwise and rubric grading, position bias and calibration."},
+      {"id": "ev-human", "name": "Human Review & Online Metrics", "brief": "Spot checks, thumbs-up data and A/B tests."}
+    ]
+  },
+  {
+    "id": "hallucinations-grounding",
+    "name": "Hallucinations & Grounding",
+    "brief": "Why models state false things confidently, and how to reduce it with sources, checks and honest uncertainty.",
+    "category": "Evaluation & Safety",
+    "difficulty": "Medium",
+    "prerequisites": ["Decoding & Sampling"],
+    "subtopics": [
+      {"id": "hg-causes", "name": "Why Models Hallucinate", "brief": "Training objectives, missing knowledge and pressure to answer."},
+      {"id": "hg-grounding", "name": "Grounding with Sources & Citations", "brief": "Answer from provided text and show where it came from."},
+      {"id": "hg-detection", "name": "Detecting & Verifying Claims", "brief": "Self-checks, retrieval-based verification and consistency tests."},
+      {"id": "hg-abstain", "name": "Calibration & Saying I Do Not Know", "brief": "Designing the system so abstaining is an acceptable answer."}
+    ]
+  },
+  {
+    "id": "prompt-injection-red-teaming",
+    "name": "Prompt Injection & Red Teaming",
+    "brief": "How attackers steer LLM apps through text, and how to test and defend against it.",
+    "category": "Evaluation & Safety",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Tool Use & Function Calling"],
+    "subtopics": [
+      {"id": "pi-injection", "name": "Direct & Indirect Prompt Injection", "brief": "Malicious instructions in user input or in retrieved documents."},
+      {"id": "pi-attacks", "name": "Jailbreaks, Data Leaks & Tool Abuse", "brief": "What attackers try against models and agents."},
+      {"id": "pi-defenses", "name": "Layered Defenses", "brief": "Isolation, least privilege, filtering and confirmation steps."},
+      {"id": "pi-red-team", "name": "Red-Teaming Your App", "brief": "Attack suites, scoring and fixing what breaks."}
+    ]
+  },
+  {
+    "id": "responsible-ai",
+    "name": "Responsible AI & Governance",
+    "brief": "Bias, privacy, transparency and the rules around deploying AI systems.",
+    "category": "Evaluation & Safety",
+    "difficulty": "Medium",
+    "prerequisites": ["LLM Evaluation & LLM-as-Judge"],
+    "subtopics": [
+      {"id": "ra-bias", "name": "Bias, Fairness & Representational Harm", "brief": "Where it comes from and how to measure it."},
+      {"id": "ra-privacy", "name": "Privacy, PII & Data Handling", "brief": "What you may send to a model and what you must protect."},
+      {"id": "ra-transparency", "name": "Transparency, Model Cards & Disclosure", "brief": "Telling users what the system is and is not."},
+      {"id": "ra-governance", "name": "Regulation & Risk Frameworks", "brief": "The EU AI Act and the NIST AI Risk Management Framework at a practical level."}
+    ]
+  },
+  {
+    "id": "vision-language-models",
+    "name": "Vision-Language Models",
+    "brief": "Models that read images and text together: how pictures become tokens and what they get wrong.",
+    "category": "Multimodal & Generative Media",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Transformers & Attention", "Embeddings & Representation Learning"],
+    "subtopics": [
+      {"id": "vl-vit", "name": "Vision Transformers & Image Patches", "brief": "Turning an image into a sequence of tokens."},
+      {"id": "vl-clip", "name": "CLIP & Contrastive Image-Text Models", "brief": "A shared space for pictures and captions."},
+      {"id": "vl-multimodal-llm", "name": "Multimodal LLMs: Connecting Vision to Language", "brief": "Projectors that feed image features to a language model."},
+      {"id": "vl-limits", "name": "OCR, Charts & Common Failure Modes", "brief": "Counting, small text and spatial reasoning."}
+    ]
+  },
+  {
+    "id": "diffusion-models",
+    "name": "Diffusion Models & Image Generation",
+    "brief": "Create images by learning to remove noise: the forward and reverse process, guidance and control.",
+    "category": "Multimodal & Generative Media",
+    "difficulty": "Hard",
+    "prerequisites": ["Neural Networks & Backpropagation", "Training & Optimization"],
+    "subtopics": [
+      {"id": "dm-noise", "name": "Adding and Removing Noise", "brief": "The forward process and the learned reverse step."},
+      {"id": "dm-latent", "name": "Latent Diffusion, U-Nets & Diffusion Transformers", "brief": "Working in a compressed space with a denoising network."},
+      {"id": "dm-guidance", "name": "Text Conditioning & Classifier-Free Guidance", "brief": "How a prompt steers each denoising step."},
+      {"id": "dm-control", "name": "Control, Editing & Safety", "brief": "ControlNet, inpainting, style adapters and watermarking."}
+    ]
+  },
+  {
+    "id": "speech-audio",
+    "name": "Speech & Audio AI",
+    "brief": "Speech-to-text, text-to-speech and voice interfaces built on modern models.",
+    "category": "Multimodal & Generative Media",
+    "difficulty": "Medium",
+    "prerequisites": ["Transformers & Attention"],
+    "subtopics": [
+      {"id": "sa-stt", "name": "Speech Recognition with Whisper-Style Models", "brief": "Audio to text, languages and word timing."},
+      {"id": "sa-tts", "name": "Text-to-Speech & Voice Cloning", "brief": "Natural voices and the consent questions around them."},
+      {"id": "sa-realtime", "name": "Real-Time Voice Agents", "brief": "Streaming, interruptions and latency budgets."},
+      {"id": "sa-eval", "name": "Evaluating Speech Systems", "brief": "Word error rate, naturalness and real-world noise."}
+    ]
+  },
+  {
+    "id": "multimodal-agents",
+    "name": "Multimodal Agents",
+    "brief": "Agents that see screens, hear users and act: computer use, document agents and video understanding.",
+    "category": "Multimodal & Generative Media",
+    "difficulty": "Hard",
+    "prerequisites": ["Vision-Language Models", "Agent Loops: ReAct & Planning"],
+    "subtopics": [
+      {"id": "mm-computer-use", "name": "Computer-Use & GUI Agents", "brief": "Screenshots in, clicks and keystrokes out."},
+      {"id": "mm-documents", "name": "Document & Chart Understanding", "brief": "Reading invoices, forms and slide decks."},
+      {"id": "mm-video", "name": "Video & Long Media Understanding", "brief": "Sampling frames, using transcripts and answering time-based questions."},
+      {"id": "mm-safety", "name": "Reliability & Safety for Acting on Screens", "brief": "Mis-clicks, injection through web pages and approval steps."}
+    ]
+  },
+  {
+    "id": "llm-app-architecture",
+    "name": "Architecture of an LLM Application",
+    "brief": "The parts of a real LLM product: gateway, prompts, retrieval, tools, state and fallbacks.",
+    "category": "Production & LLMOps",
+    "difficulty": "Medium",
+    "prerequisites": ["Context Engineering & Memory", "Tool Use & Function Calling"],
+    "subtopics": [
+      {"id": "la-components", "name": "Components & Data Flow", "brief": "From request to answer: where each piece sits."},
+      {"id": "la-streaming", "name": "Streaming, Latency & UX Patterns", "brief": "Showing progress and handling partial output."},
+      {"id": "la-reliability", "name": "Retries, Timeouts & Fallback Models", "brief": "Keeping the app up when a provider is not."},
+      {"id": "la-state", "name": "State, Users & Multi-Tenancy", "brief": "Isolating each user's data and memory."}
+    ]
+  },
+  {
+    "id": "observability-cost-latency",
+    "name": "Observability, Cost & Latency",
+    "brief": "See what the app is doing and control what it costs: tracing, token accounting, caching, batching and routing.",
+    "category": "Production & LLMOps",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Architecture of an LLM Application"],
+    "subtopics": [
+      {"id": "oc-tracing", "name": "Tracing, Logging & Prompt Versioning", "brief": "Reconstructing exactly what the model saw."},
+      {"id": "oc-cost", "name": "Token & Cost Accounting", "brief": "Per-feature and per-user budgets."},
+      {"id": "oc-caching", "name": "Prompt Caching, Response Caching & Batching", "brief": "Reusing work and using discounted batch endpoints."},
+      {"id": "oc-routing", "name": "Model Routing & Latency Budgets", "brief": "Sending easy requests to small, fast models."}
+    ]
+  },
+  {
+    "id": "deployment-evals-ci",
+    "name": "Deployment, CI & Eval-Driven Development",
+    "brief": "Ship changes safely: eval suites in CI, staged rollouts, drift monitoring and a feedback loop.",
+    "category": "Production & LLMOps",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["LLM Evaluation & LLM-as-Judge", "Observability, Cost & Latency"],
+    "subtopics": [
+      {"id": "dc-eval-ci", "name": "Evals in CI & Regression Gates", "brief": "Blocking a prompt or model change that makes things worse."},
+      {"id": "dc-rollout", "name": "Canaries, A/B Tests & Rollbacks", "brief": "Releasing prompt and model changes gradually."},
+      {"id": "dc-drift", "name": "Monitoring Drift & Provider Changes", "brief": "Catching quality shifts when a hosted model updates."},
+      {"id": "dc-feedback", "name": "Feedback Loops & Data Flywheels", "brief": "Turning production traces into better evals and training data."}
+    ]
+  }
+]

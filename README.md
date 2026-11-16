@@ -272,6 +272,28 @@ Class
 `steps` (insert), `reorder` (move), `suggest-placement` (AI recommendation). Any change to
 these must be made in both `router.py` and `fe-apis/lms/index.ts`.
 
+### Video links (labs and AI LMS)
+
+- **Rules in one place.** `frontend/src/lib/video/videoLinks.ts` (browser + `fe-apis`) and its Python mirror
+  `backend/modules/common/video_links.py` accept and refuse the same strings with the same texts: `http(s)` with a
+  host, no whitespace or `user:pass@`, at most 500 characters, 20 videos per item (422), a repeat is a 409. Only the
+  url and an optional title are stored; provider, playlist/video, start time and embed address are derived in the browser.
+- **AI LMS (shared, editors write, everyone reads).** Class and subject (a project is a subject): table `lms_videos`,
+  `GET/POST /api/lms/videos`, `PATCH/DELETE /api/lms/videos/{id}`, `POST /api/lms/videos/reorder`. Project module or
+  sub-step: the `videos` list inside its outline entry, `PUT /api/lms/projects/{id}/modules/{i}/videos` and
+  `.../sublessons/{j}/videos` (answers with the project). Deleting a class or subject removes its rows. Python
+  `ai_lms/videos.py` <-> `fe-apis/lms/videos.ts`; no allowlist entry, so the editor gate applies.
+- **Labs (personal).** Table `lab_page_videos`, `GET/POST /lab-sections/videos`, `DELETE /lab-sections/videos/{id}`
+  (own rows only; another user's id is a 404), any lab key, topic or subtopic page. Python `lab_sections/videos.py` <->
+  `fe-apis/labSections/videos.ts`. Shown by `LabPageVideos` in `TopicLab`.
+- **Embeds.** YouTube videos, playlists (`playlist?list=`, `watch?v=&list=`), shorts/live/embed, `m.` and `music.`
+  hosts, `t=`/`start=`; Vimeo (with unlisted hash); Loom; direct `.mp4/.webm/.mov/.m4v`. Anything else is a plain link.
+  YouTube uses `www.youtube.com/embed`, not `youtube-nocookie.com` (which never sends the viewer's login, so private
+  videos could not play for their owner). The iframe is created only after Play, and every YouTube card has an
+  "Open on YouTube" link. Private videos play in the page only for their owner: set shared ones to Unlisted.
+- **UI.** `components/ui/VideoLinks.tsx` (presentational) with wrappers `ai-lms/components/{LmsVideos,ModuleVideos}.tsx`
+  and `labs/common/LabPageVideos.tsx`. Checks: `backend/tests/videos_test.py`.
+
 ### Class folders (editable HTML)
 
 Every class is mirrored to a folder you can edit in the IDE:
@@ -338,6 +360,30 @@ frontend/src/modules/ai-lms/classes/<class>/
   - Nothing is written on Vercel, whose filesystem is read-only.
   - On the Vercel deployment, `/api` is served by the Python function, which runs DB-only. After
     editing files, open the app (or run the CLI) before committing the DB.
+
+### Class membership, updates and practice reminders
+
+- **Who is "in" a class:** `lms_class_members(class_id, user_id, status, joined_at)`. `enrolled` = the learner pressed
+  **Join class**; `interested` = they turned on the class's practice reminders without joining. Both get the class's updates.
+- **Updates (announcements):** an instructor, admin or superadmin (the `ai_lms:edit` gate) uses **Send update** on the class
+  page to reach one class's people (`scope: 'class'`) or everyone in any class (`scope: 'ai-lms'`). Stored once in
+  `lms_notifications`, fanned out at send time to `lms_notification_recipients` (its integer id is the browser's cursor).
+  The sender is never a recipient; only approved accounts are. Limits: title 120, message 1000, link an in-app path
+  (`/...`, not `//`), 30 sends per sender per hour (429).
+- **Endpoints** (`/api/lms`, same paths, shapes, texts and codes in `backend/modules/ai_lms/updates.py` + `router.py` and
+  `frontend/fe-apis/lms/updates.ts` + `index.ts`; change both): `GET|PUT|DELETE classes/{c}/membership` (a learner's own row,
+  in the non-editor write allowlist), `POST classes/{c}/notifications` (editor+, NOT allowlisted), `GET classes/{c}/notifications`
+  (sent list, editor+, checked in the handler), `GET notifications?after=&limit=` (the caller's own updates).
+  Deleting a class removes its members and its own updates; a module-wide update sent from it stays.
+- **Delivery:** `useLmsNotificationSync` (mounted by `NotificationHost`) polls the inbox every minute while the tab is visible
+  and feeds the notification centre (source `ai-lms`, "Classes" filter). The Next.js layer also pushes to Web Push and FCM
+  subscriptions at send time (`pushUpdate`); **the FastAPI backend never pushes** (`push` is always zero there).
+- **Practice reminders:** per class, up to three times a day (daily, weekdays or chosen days). Each is an ordinary Scheduler
+  reminder whose `source_text` is `lms-class:<slug>` (all marker logic in `src/lib/schedules/classReminders.ts`); its notification
+  opens the class (`scheduleTargetHref`). They run on the device: in an open tab on the web, as native alarms in the Android app.
+  **There is no server cron, so a closed browser tab fires nothing.** The Scheduler editor hides the marker.
+- Checks: `backend/tests/lms_updates_test.py` (TestClient; not run on a machine without FastAPI) and the Python module
+  runs without FastAPI against a DB copy.
 
 ## YouTube Exercise Generator (CV / DSA / System Design Labs)
 
@@ -502,11 +548,12 @@ modules/labs/
   communication-lab/  labConfig.ts + an 8-line module
   finance-lab/        labConfig.ts + an 8-line module
   python-lab/         labConfig.ts + an 8-line module
+  genai-lab/          labConfig.ts + an 8-line module
   dsa-lab/            its own page (see below)
   home/               /labs        project/   /labs-project
 ```
 
-**One page for five labs.** CV, System Design, Communication, Finance and Python are all rendered by `common/TopicLab.tsx`; each
+**One page for six labs.** CV, System Design, Communication, Finance, Python and GenAI & AI are all rendered by `common/TopicLab.tsx`; each
 lab's module is `<TopicLab config={X_LAB} />` and everything that differs is its `TopicLabConfig` (`common/topicLabTypes.ts`) in
 `<lab>/labConfig.ts`. A lab extends the page through the config, it never copies it:
 
@@ -533,19 +580,33 @@ state. It still uses the shared parts from `common/` (sidebar, wiki parts, tags,
 settings), and its data and templates are split the same way (`sectionContent.ts`, `DSAWikiIndex.tsx`, `types.ts`). Don't fold it into
 `TopicLab`; share a piece through `common/` when a second lab needs it.
 
-**Adding a lab:** a `labConfig.ts` (+ `sectionDefs.ts` if the config imports anything heavy) and an 8-line module in `modules/labs/<lab>/`,
-an entry in `common/labCatalog.ts`, `getSectionDefsForLab` / `LABS_CONFIG` in `labSectionDefaults.ts`, the route page in `app/<lab>/`,
-and the backend wrapper below.
+**Adding a lab** (a config-driven topic lab; the GenAI & AI Lab was added this way, use it as the model). Everything specific to the
+lab lives in two folders, the rest is one-line registrations:
 
-## Labs home and the Learning Labs (Communication, Finance, Python)
+- *The lab itself:* `frontend/src/modules/labs/<lab>/labConfig.ts` (section prompts + `TopicLabConfig`, data only) and an 8-line
+  `<Lab>Module.tsx`; `frontend/src/app/<lab>/page.tsx`; `backend/modules/<lab>_lab/{__init__,router,schema}.py` + `topics.json` (ASCII only).
+- *Frontend registrations:* `common/labCatalog.ts` (the one list behind `/labs`, the sidebar, the phone sheet), `labSectionDefaults.ts`
+  (`LABS_CONFIG` + `getSectionDefsForLab`), `labGuideData.ts` + `LabGuideModal.tsx` (guide), `LabSettingsManager.tsx` (lab list),
+  `LabCopilot.tsx`, the `LabName` union (`lib/services/labSectionsService.ts`) and `TopicLabName` (`topicLabTypes.ts`),
+  `common/project/sectionProject.ts`, the To-Do lab plan (`modules/ai-todo/labs/labContent.ts`, `LabPlanView.tsx`), the sidebar tile colour
+  (`modules/common/Sidebar.tsx`), the identity hue + `.lab-shell[data-lab]` rule in `styles/tailwind.css`, and the lab's two folders in
+  `scripts/check-tailwind-traps.mjs`. `npx tsc --noEmit` lists the exhaustive `Record<LabName, ...>` maps you still have to fill.
+- *Backend registrations:* `main.py` (router), `modules/common/db.py` (the schema `register` and the `lab_sections` category seeding
+  list), `lab_sections/router.py` (`LabName`, `_DOMAINS`, `_AUDIENCE`, `_COPILOT_GOAL`), `lab_sections/quiz.py` (domain + profile),
+  `daily_session/daily_session.py` (`_LAB_DOMAINS`, `_QUESTION_STYLES`), and `backend/tests/topic_labs_test.py`.
+- *Next.js twin:* `fe-apis/labs/index.ts` (`LABS`, table list, routes), `fe-apis/labSections/{handlers,quiz}.ts` and
+  `fe-apis/dailySession/labGenerate.ts` (same texts as the Python side), `src/app/api/<lab>/[...path]/route.ts`, and in `next.config.mjs` the
+  `/<lab>/:path+` rewrite and the `outputFileTracingIncludes` entry (database + `topics.json`).
+
+## Labs home and the Learning Labs (Communication, Finance, Python, GenAI & AI)
 
 **Labs home (`/labs`, public).** A card per lab, in two groups, then Labs Project. The groups come from one list,
 `frontend/src/modules/labs/common/labCatalog.ts`, which also drives the sidebar's Labs menu (All labs, *Interview Labs*: DSA, System
-Design, CV; *Learning Labs*: Communication, Finance, Python; Labs Project), the phone Labs sheet (`MobileTabBar.tsx`) and the Labs
+Design, CV; *Learning Labs*: Communication, Finance, Python, GenAI & AI; Labs Project), the phone Labs sheet (`MobileTabBar.tsx`) and the Labs
 Project empty state. The header bar has one **Labs** link (active on any lab page) instead of one link per lab. Sidebar menu groups
 start closed; the group of the page you are on opens itself. Add a new lab to `labCatalog.ts`, not to each menu.
 
-**The three Learning Labs** (`/communication-lab`, `/finance-lab`, `/python-lab`) are one component, not three copies:
+**The four Learning Labs** (`/communication-lab`, `/finance-lab`, `/python-lab`, `/genai-lab`) are one component, not four copies:
 
 - **Frontend:** `modules/labs/common/TopicLab.tsx` renders the lab layout (topic tree, wiki index, on-demand sections, copilot)
   from a `TopicLabConfig` (`topicLabTypes.ts`); CV and System Design use the same page (see "Lab code layout" above). Each
@@ -556,18 +617,18 @@ start closed; the group of the page you are on opens itself. Add a new lab to `l
   start collapsed and the open lesson's category expands itself. Emoji prompt add-ons and the lab metadata live in
   `labSectionDefaults.ts` (`LABS_CONFIG`); guide content in `labGuideData.ts`.
 - **Backend:** `backend/modules/common/topic_lab.py` holds the shared table schema (CV's `cv_topics` columns), seeding, reads/writes and
-  a router factory; `communication_lab/`, `finance_lab/`, `python_lab/` are thin wrappers (`/communication`, `/finance`, `/python`
-  + `/topics`, `/sections`, login required). **Seed topics live in `backend/modules/<lab>_lab/topics.json`** (ASCII only), read by
+  a router factory; `communication_lab/`, `finance_lab/`, `python_lab/`, `genai_lab/` are thin wrappers (`/communication`, `/finance`,
+  `/python`, `/genai` + `/topics`, `/sections`, login required). **Seed topics live in `backend/modules/<lab>_lab/topics.json`** (ASCII only), read by
   `init_db()` on every start (INSERT OR IGNORE by id, so a topic added to the file later appears and edited rows are kept) and by the
   Next.js twin. Saving a topic is an upsert, not CV's INSERT OR REPLACE, so a lesson that gets a subtopic keeps its place in the path.
 - **Next.js twin:** `fe-apis/labs/index.ts` serves the same routes and seeds the same `topics.json` files once per process
   (`seedTopicLabs`), so nextjs-api mode works on a database FastAPI never started on; each route's `outputFileTracingIncludes` ships
-  its JSON file. Rewrites: `/communication/:path+`, `/finance/:path+`, `/python/:path+`.
-- **Prompts:** `lab_sections` accepts `communication`, `finance`, `python`. They get their own audience line (section + copilot) and
+  its JSON file. Rewrites: `/communication/:path+`, `/finance/:path+`, `/python/:path+`, `/genai/:path+`.
+- **Prompts:** `lab_sections` accepts `communication`, `finance`, `python`, `genai`. They get their own audience line (section + copilot) and
   quiz profile (`_AUDIENCE`, `_COPILOT_GOAL` in `lab_sections/router.py`; `_PROFILES` in `quiz.py`; same texts in
   `fe-apis/labSections/handlers.ts` and `quiz.ts`); DSA/CV/System Design prompts are byte-identical to before. The Generate Questions
-  panel's prompt (`daily_session.py`, twin `fe-apis/dailySession/labGenerate.ts`) has its own interviewer/question types for Communication and Finance.
-- **Identity hues** (hero glow + icon tile only): `--lab-communication`, `--lab-finance`, `--lab-python` in `tailwind.css`,
+  panel's prompt (`daily_session.py`, twin `fe-apis/dailySession/labGenerate.ts`) has its own interviewer/question types for Communication, Finance and GenAI & AI.
+- **Identity hues** (hero glow + icon tile only): `--lab-communication`, `--lab-finance`, `--lab-python`, `--lab-genai` in `tailwind.css`,
   `.lab-shell[data-lab=...]`.
 - **Checks:** `backend/tests/topic_labs_test.py` (seeding, routes, per-user sections, ordering, prompts; runs on a DB copy). Twin
   parity was verified the CLAUDE.md way (mock provider, same requests to both backends, statuses, bodies, stored rows and prompts

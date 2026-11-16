@@ -136,6 +136,7 @@ export function PipStrip({
   count,
   current,
   isDone,
+  gradeOf,
   onSelect,
   label,
   className = '',
@@ -143,6 +144,8 @@ export function PipStrip({
   count: number;
   current?: number;
   isDone: (index: number) => boolean;
+  /** Read-only strip: colours a done pip by its result ('nailed' | 'almost' | 'review'), see `.ds-pip[data-grade]`. */
+  gradeOf?: (index: number) => string | undefined;
   onSelect?: (index: number) => void;
   label: string;
   className?: string;
@@ -161,7 +164,14 @@ export function PipStrip({
         aria-valuetext={`${done} of ${count} answered`}
       >
         {pips.map((i) => (
-          <span key={i} className="ds-pip" data-done={isDone(i)} aria-hidden="true" />
+          <span
+            key={i}
+            className="ds-pip"
+            data-done={isDone(i)}
+            data-grade={gradeOf?.(i)}
+            aria-current={current === i ? 'true' : undefined}
+            aria-hidden="true"
+          />
         ))}
       </div>
     );

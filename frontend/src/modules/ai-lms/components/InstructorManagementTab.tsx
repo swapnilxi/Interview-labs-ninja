@@ -90,9 +90,10 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
       : '4.9';
 
   return (
+    <>
     <div className="space-y-8 animate-fadeIn">
       {/* Overview & Action Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-card border border-border/80 shadow-sm relative overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-[1.5rem] rounded-2xl bg-card border border-border/80 shadow-sm relative overflow-hidden">
         <div className="absolute -right-12 -top-12 w-48 h-48 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="space-y-1.5 relative z-10">
@@ -246,14 +247,14 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
 
       {/* Instructor Cards Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-[1.5rem]">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-64 rounded-2xl border border-border bg-card/60 p-6 animate-pulse" />
+            <div key={i} className="h-64 rounded-2xl border border-border bg-card/60 p-[1.5rem] animate-pulse" />
           ))}
         </div>
       ) : filteredInstructors.length === 0 ? (
         <div className="text-center py-16 px-4 rounded-2xl border border-dashed border-border bg-card/40">
-          <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
+          <div className="w-[3rem] h-[3rem] rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
             <Icon name="UserGroupIcon" size={24} />
           </div>
           <h3 className="font-heading text-base font-semibold text-foreground">No Instructors Found</h3>
@@ -274,7 +275,7 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-[1.5rem]">
           {filteredInstructors.map((inst) => {
             const isPersonaExpanded = expandedPersonaId === inst.id;
             const isReal = inst.type === 'real';
@@ -282,7 +283,7 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
             return (
               <div
                 key={inst.id}
-                className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-6 shadow-sm hover:border-primary/40 hover:shadow-md transition-all duration-200"
+                className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-[1.5rem] shadow-sm hover:border-primary/40 hover:shadow-md transition-all duration-200"
               >
                 <div>
                   {/* Category Badge & Rating */}
@@ -455,8 +456,10 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
           })}
         </div>
       )}
+    </div>
 
-      {/* Modals */}
+      {/* Modals: outside the animated wrapper, whose end-state transform would make it the containing block of these
+          fixed overlays (they would be positioned inside the tab instead of on the screen). */}
       <CreateInstructorModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
@@ -487,6 +490,6 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
         onConfirm={handleDeleteInstructor}
         onCancel={() => setInstructorToDelete(null)}
       />
-    </div>
+    </>
   );
 }

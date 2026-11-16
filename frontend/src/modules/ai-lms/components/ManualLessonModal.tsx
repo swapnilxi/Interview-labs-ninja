@@ -161,8 +161,8 @@ export default function ManualLessonModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-4xl bg-card border border-border rounded-xl shadow-2xl p-6 transition-smooth max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-y-auto p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-4xl bg-card border border-border rounded-xl shadow-2xl p-[1.5rem] transition-smooth max-h-[90dvh] flex flex-col">
         <div className="flex items-center justify-between pb-4 border-b border-border flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10 text-primary">

@@ -2,7 +2,7 @@ import { apiFetch } from '@/lib/http/apiClient';
 import { defaultAIRequestFields } from '@/lib/services/settingsService';
 
 /** Lab keys as stored server-side (match `lab_sections.lab_name`). */
-export type LabName = 'dsa' | 'cv' | 'system_design' | 'communication' | 'finance' | 'python';
+export type LabName = 'dsa' | 'cv' | 'system_design' | 'communication' | 'finance' | 'python' | 'genai';
 export type ContextMode = 'update' | 'regenerate';
 /** `generate` writes a section from the topic alone (no learner context). */
 export type SectionMode = 'generate' | ContextMode;

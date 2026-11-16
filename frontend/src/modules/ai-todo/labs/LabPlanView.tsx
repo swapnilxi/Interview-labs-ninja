@@ -31,6 +31,7 @@ const PROJECT_ICON_FOR_LAB: Record<LabName, string> = {
   system_design: 'fc:study',
   communication: 'fc:briefcase',
   finance: 'fc:money',
+  genai: 'fc:idea',
 };
 
 interface LabPlanViewProps {
