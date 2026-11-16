@@ -294,6 +294,18 @@ these must be made in both `router.py` and `fe-apis/lms/index.ts`.
 - **UI.** `components/ui/VideoLinks.tsx` (presentational) with wrappers `ai-lms/components/{LmsVideos,ModuleVideos}.tsx`
   and `labs/common/LabPageVideos.tsx`. Checks: `backend/tests/videos_test.py`.
 
+### Import from labs, sharing and the class page
+
+- **Import from labs** (class page, instructors): `components/ImportLabModuleButton.tsx` + `utils/importLabModule.ts`. A *lab
+  module* is one topic of a topic lab; it becomes a Subject, its own page plus each subtopic page become Lessons
+  (`utils/labLessonHtml.ts`, themed like AI lessons, saved quiz questions become an interactive quiz). Content per section: the
+  user's saved lab text, else the lab's template (topic page only), else AI-written on request (saved in the lab too). It only
+  calls existing lab and LMS endpoints, so it needs no twin. A lab is importable by adding one line to
+  `modules/labs/common/labModules.ts`. The user's lab video links are copied onto the subject. Re-import = delete the subject first.
+- **Share** (`components/ShareClassButton.tsx`): copies `/ai-lms/classes/<slug>` (or `/landing`). Classes are shared content: any signed-in
+  user can open the link; a guest goes to `/login?next=`, and the login screen says what it is opening (`describeReturnTarget`).
+- **Class page layout:** the toolbar button look lives in `components/toolbarStyles.ts`. Mind the pixel spacing keys (`px-6` is 6px).
+
 ### Class folders (editable HTML)
 
 Every class is mirrored to a folder you can edit in the IDE:
