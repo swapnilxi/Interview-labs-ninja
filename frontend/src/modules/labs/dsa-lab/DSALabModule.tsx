@@ -1,5 +1,6 @@
 'use client';
 
+import LabPageVideos from '@/modules/labs/common/LabPageVideos';
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import ConfirmHost from '@/components/ui/ConfirmHost';
@@ -1052,6 +1053,8 @@ function TopicDetail({
         accentVar="--lab-accent"
         onAddSubtopic={(generated) => onAddGeneratedSubtopic(topic.id, generated)}
       />
+
+      <LabPageVideos lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} />
 
       {/* ── On-demand sections ── */}
       <div className="space-y-4">

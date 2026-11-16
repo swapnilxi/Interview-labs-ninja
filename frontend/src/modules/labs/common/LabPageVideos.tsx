@@ -70,7 +70,7 @@ export default function LabPageVideos({
       videos={current.videos}
       canEdit
       audience="personal"
-      heading="Videos"
+      heading="Videos and links"
       emptyHint="Add a video that goes with this page. Only you can see it."
       onAdd={async (url, title) => {
         const created = await addLabPageVideo(lab, topicId, subtopicId, url, title);

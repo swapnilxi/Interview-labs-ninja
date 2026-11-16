@@ -266,8 +266,8 @@ export default function VideoLinks({
   canEdit,
   onAdd,
   onRemove,
-  heading = 'Videos',
-  emptyHint = 'Add a YouTube, Vimeo or Loom link, or a link to a video file.',
+  heading = 'Videos and links',
+  emptyHint = 'Add a YouTube video or playlist, Vimeo, Loom, a video file, or any other resource link.',
   compact = false,
   busy = false,
   audience = 'class',
@@ -339,7 +339,7 @@ export default function VideoLinks({
     }
     setSubmitting(false);
     if (failed.length === 0) {
-      setAnnouncement(added === 1 ? 'Video added.' : `Added ${added} videos.`);
+      setAnnouncement(added === 1 ? 'Link added.' : `Added ${added} links.`);
       closeForm();
       return;
     }
@@ -385,7 +385,7 @@ export default function VideoLinks({
             aria-controls={formId}
           >
             <Icon name="PlusIcon" size={14} />
-            <span>Add video link</span>
+            <span>Add link</span>
           </button>
         )}
       </div>
@@ -407,7 +407,7 @@ export default function VideoLinks({
         >
           <div>
             <label htmlFor={`${formId}-url`} className="mb-1.5 block text-sm font-semibold text-foreground">
-              Video link
+              Link (YouTube, video or any resource)
             </label>
             <textarea
               id={`${formId}-url`}
@@ -462,7 +462,7 @@ export default function VideoLinks({
               Cancel
             </button>
             <button type="submit" className={BTN_PRIMARY} disabled={submitting || busy}>
-              {submitting ? 'Adding…' : several ? `Add ${lines.length} videos` : 'Add video'}
+              {submitting ? 'Adding…' : several ? `Add ${lines.length} links` : 'Add link'}
             </button>
           </div>
         </form>

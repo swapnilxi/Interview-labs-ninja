@@ -21,7 +21,7 @@ export default function LmsVideos({
   scope,
   refId,
   canEdit,
-  heading = 'Videos',
+  heading = 'Videos and links',
 }: {
   scope: LmsVideoScope;
   /** The class id or slug (scope 'class') or the subject id (scope 'subject'). */

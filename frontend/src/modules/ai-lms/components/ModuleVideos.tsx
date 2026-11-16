@@ -21,7 +21,7 @@ export default function ModuleVideos({
   videos,
   canEdit,
   onChanged,
-  heading = 'Videos',
+  heading = 'Videos and links',
   compact = true,
 }: {
   projectId: string;
