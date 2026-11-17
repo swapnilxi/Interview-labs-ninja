@@ -707,13 +707,22 @@ streak and achievements. Code: `frontend/src/modules/labs/guided/`; twins `front
 - **Adding a lab.** An entry in `guided/labs.ts`, the same lab in `GUIDED_LABS` and `PROFILES` on the server (`prompts.ts` and
   `prompts.py`) and in the Python router's `lab` type, a `/<lab>-lab/guided-practice` route (copy `app/cv-lab/guided-practice` and
   `guided/CvGuidedPage.tsx`), and `guidedPractice: '<lab>'` in the lab's config.
-- **Checks.** `backend/tests/guided_practice_test.py` (Python router, needs `LABNINJA_TEST_DB_PATH`); the same-requests twin diff and
-  the prompt byte-identity check from CLAUDE.md; the pure rules (`parse.ts`, `tree.ts`, `xp.ts`) have no framework here, so compile
+- **Checks.** `backend/tests/guided_practice_test.py` (the Python router: state, versions, validation, AI error mapping; 508 checks,
+  needs `LABNINJA_TEST_DB_PATH`, a copy of the DB); `backend/tests/guided_practice_prompts_test.py` (every prompt through the Python
+  and the TypeScript builders, 1,369 inputs, compared character by character; needs Node 22.18+; no database); the same-requests
+  twin diff described in CLAUDE.md for the endpoints; the pure rules (`parse.ts`, `tree.ts`, `xp.ts`) have no framework here, so compile
   them with `tsc --module commonjs` and assert in node. In the browser: scratch DB copy + a mock OpenAI-compatible provider
   (`customBaseUrl`) + Playwright, as CLAUDE.md describes.
 - **Known limits.** FastAPI's provider timeouts are 45 to 60 s while the Next.js twin allows 240 s, so a long lesson from a slow model
   can time out in `fastapi` mode. The first run of an exercise needs the network once (Pyodide). A generated test the reference
   solution also gets wrong still passes verification. The state document grows with tutor threads and STAR versions (1.5M cap).
+  Twin differences that were measured and left alone (everything else matched: status, body and prompt): a whole-number float
+  such as `4.0` is accepted by Next.js and refused by FastAPI, and a stored `1.0` reads back as `1` from Next.js;
+  string limits count UTF-16 units on Next.js and characters on FastAPI; a repeated query parameter (`?lab=cv&lab=dsa`) takes the first
+  value on Next.js and the last on FastAPI; FastAPI words its own 422 texts and its provider errors differently. The app sends none
+  of these. Twin check: the same 576 requests (every endpoint, the boundaries, both labs) to the real router and the real handlers on
+  two DB copies and a mock provider, plus 1,369 prompt cases through both builders (every builder, branch and lab, odd lab values
+  included), compared character by character.
 
 ## Labs home and the Learning Labs (Communication, Finance, Python, GenAI & AI)
 
