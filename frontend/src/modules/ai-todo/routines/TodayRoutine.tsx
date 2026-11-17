@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import FlatIcon from '@/components/ui/FlatIcon';
-import { ymd } from '@/lib/reminders/smartParse';
 import { reportFailure } from '@/lib/services/mutationFeedback';
 import {
   ROUTINES_CHANGED_EVENT,
@@ -13,7 +12,7 @@ import {
   type RoutineItem,
 } from '@/lib/services/routineService';
 import RoutineItemRow from './RoutineItemRow';
-import { isDoneToday, isOnToday } from './routineDays';
+import { isDoneToday, isOnToday, tickDay } from './routineDays';
 
 const COLLAPSED_KEY = 'labninja.todo.today.routine-collapsed';
 
@@ -61,7 +60,10 @@ export default function TodayRoutine({ now }: { now: Date }) {
     [groups, now]
   );
   const items = onToday.flatMap((g) => g.items);
-  const done = items.filter((i) => isDoneToday(i, now)).length;
+  const done = onToday.reduce(
+    (n, g) => n + g.items.filter((i) => isDoneToday(i, g, now)).length,
+    0
+  );
 
   if (!items.length) return null;
 
@@ -76,8 +78,9 @@ export default function TodayRoutine({ now }: { now: Date }) {
     });
   };
 
-  const toggle = async (item: RoutineItem, isDone: boolean) => {
-    const today = ymd(new Date());
+  const toggle = async (group: RoutineGroup, item: RoutineItem, isDone: boolean) => {
+    // A Dailies tick belongs to the day that started at 8 am (tickDay); every other group's to the calendar date.
+    const today = tickDay(group, new Date());
     const patch = (doneOn: string | null) =>
       setGroups(
         (list) =>
@@ -135,8 +138,8 @@ export default function TodayRoutine({ now }: { now: Date }) {
                   <RoutineItemRow
                     key={item.id}
                     item={item}
-                    done={isDoneToday(item, now)}
-                    onToggle={(d) => void toggle(item, d)}
+                    done={isDoneToday(item, group, now)}
+                    onToggle={(d) => void toggle(group, item, d)}
                   />
                 ))}
               </ul>

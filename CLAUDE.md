@@ -100,6 +100,7 @@ further down in `README.md` — check there before assuming a module's shape.
 - **`backendFetch` (`src/lib/http/backendAvailability.ts`) times out after 5s by default.** Any call that waits on an
   AI provider must pass `timeoutMs: AI_TIMEOUT_MS` (5 min). Without it, Daily Session generation was always cut off
   and the page silently saved the same built-in questions every time; it no longer falls back on errors at all.
+- **The build's JSX tagger (`@dhiwise/component-tagger`) cannot parse a JSX element that carries a type argument** (`<Segmented<T> prop />`): `tsc` accepts it, `next dev` fails with "Expected jsx identifier" on the next element. Make such a component non-generic and cast at the call site.
 - **Frontend dev port is 4028.** Backend CORS defaults to `http://localhost:4028`
   (`backend/main.py`) — if you ever see CORS errors in local dev, check that default
   before assuming something else is wrong.
@@ -133,7 +134,8 @@ further down in `README.md` — check there before assuming a module's shape.
   Don't add guest branches to new methods.
 - **To-Do Routines** (`/ai-todo?tab=routines`, Dailies + routine groups, ticked per local date) and pinned tasks on
   Today: `backend/modules/ai_todo/routines/` ↔ `frontend/fe-apis/todo/routines/` (same limits and error texts), plus
-  `tasks.pinned` in both tasks twins. README: "Routines and pinned tasks".
+  `tasks.pinned` in both tasks twins. Dailies ticks start over at 8 am local (`tickDay`, frontend only), other groups
+  at midnight. README: "Routines and pinned tasks".
 - **To-Do Scheduler** (`/ai-todo?tab=schedule`): `backend/modules/ai_todo/schedules/` ↔ `frontend/fe-apis/todo/schedules/`
   (prompts byte-identical), and rule validation `frontend/src/lib/schedules/scheduleRules.ts` (`normalizeRule`) ↔
   `schedules/rules.py` (same error texts, same stored JSON). Runs happen on the device (web engine + the native Android
@@ -151,6 +153,14 @@ further down in `README.md` — check there before assuming a module's shape.
   listed once in `common/labCatalog.ts` (`/labs`, the sidebar Labs menu, the phone Labs sheet). `modules/common/copilot/CopilotChat.tsx`
   stays shared with non-lab modules. Adding a lab = its two folders + a short list of registrations: README "Lab code layout" > "Adding a lab".
   README: "Lab code layout" and "Labs home and the Learning Labs".
+- **Lab management** (`<lab path>/manage` for all seven labs, shared parts in `frontend/src/modules/labs/common/management/`): a lab is one entry in
+  `labManagement.ts` (`LAB_MANAGEMENT`) plus a six-line `app/<lab>/manage/page.tsx`; it gets *Lab management* (section prompts, lab-wide context,
+  groups and topics) and *Topic management* (one topic's group, visibility and context) as pages with their own URLs, not modals. `SectionPromptEditor`
+  is one editor used as a page and as the lab pages' quick dialog. **Topics are per user in every lab:** `<lab>_topics.owner_id` (NULL = shared) +
+  `<lab>_topic_overrides`; `POST /<lab>/topics` takes `shared` (admin only), `DELETE /<lab>/topics` and `DELETE /<lab>/sections` exist. One
+  implementation per backend (`backend/modules/common/owned_topics.py` ↔ `fetchOwned`/`saveOwned`/`deleteOwned` in `frontend/fe-apis/labs/index.ts`):
+  change both. A topic's own context is a `lab_section_settings` row with section id `topic:<id>` (no table). New create/edit flows get a page and an
+  address, not a dialog (Labs Project's New project is `/labs-project/new`). README: "Lab management".
 - **AI LMS hierarchy:** Class > Subject (-> Lessons) or Project (-> Module/Step -> Sub-step,
   each generating one Lesson). A Project is an `lms_subjects` row with `kind='project'`; its
   outline lives in `project_plan` JSON. Both levels of outline items carry `{title, focus,
@@ -251,6 +261,16 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   string must stay byte-identical across the pair. Isolation rules live in README.md ("Labs Project"): never
   null `lab_section_content.project_id` / `lab_quiz_questions.project_id` on a project delete, and always scope
   section queries by user *and* project. `backend/tests/lab_projects_test.py` covers it.
+- **Guided Practice** is the fourth lab twin: `backend/modules/guided_practice/` ↔ `frontend/fe-apis/guidedPractice/`
+  (`/guided-practice/*`, one set of endpoints for `lab` = `dsa` | `cv`; page code in `frontend/src/modules/labs/guided/`, routes
+  `/dsa-lab/guided-practice` and `/cv-lab/guided-practice`). It stores one document per user, lab, topic and subtopic
+  (`guided_practice_state`, saved with a version, a stale save is a 409) and runs six AI prompts that return raw text (the browser
+  parses it). **The prompts (`prompts.ts` ↔ `prompts.py`) must stay byte-identical**: check with the fixtures harness (every builder x
+  every branch x both labs), not by eye. A new lab = `guided/labs.ts` + `GUIDED_LABS`/`PROFILES` on both servers + a route + a
+  `guidedPractice` flag in its `TopicLabConfig`. The page has its own purple accent (`.gp-accent`, VISUAL-GUIDELINES.md "Module
+  notes"); AI results and progress are applied through `useGuidedStore.mutate` (never from a stale closure). Exercises run in the
+  browser (Pyodide, `public/runner/python-worker.js`); the AI's own tests are verified against its reference solution first. README:
+  "Guided Practice".
 - **Data twins for the rest of the labs and Daily Session** (so nextjs-api mode shows the SQLite data):
   `fe-apis/labs` = topics + sections of DSA/CV/System Design (`/dsa/topics|sections` share the
   `api/dsa/[...path]` route with the week plan; `/cv/*`, `/system-design/*`) and of the Learning Labs (`/communication/*`,

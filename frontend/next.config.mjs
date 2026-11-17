@@ -51,6 +51,8 @@ const nextConfig = {
     '/api/genai/[...path]': ['../backend/data/lab_ninja.sqlite3', '../backend/modules/genai_lab/topics.json'],
     '/api/lab-sections/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/lab-projects/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    // Guided Practice (fe-apis/guidedPractice): the saved path and progress of a DSA page, plus its AI endpoints.
+    '/api/guided-practice/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/sessions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/lab/[...path]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/questions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
@@ -132,6 +134,9 @@ const nextConfig = {
       { source: '/lab-sections/:path*', destination: '/api/lab-sections/:path*' },
       // Labs Projects + their saved sections (fe-apis/labProjects).
       { source: '/lab-projects/:path*', destination: '/api/lab-projects/:path*' },
+      // Guided Practice's saved progress and AI endpoints (fe-apis/guidedPractice). No page lives under /guided-practice
+      // (the page is /dsa-lab/guided-practice).
+      { source: '/guided-practice/:path*', destination: '/api/guided-practice/:path*' },
       // DSA lab: only the week plan has a Next.js twin (fe-apis/dsaLab: the active plan, profiles, AI
       // organizer). ':path*' also matches the bare /dsa/week-plan; /dsa/topics etc. stay untouched.
       { source: '/dsa/week-plan/:path*', destination: '/api/dsa/week-plan/:path*' },

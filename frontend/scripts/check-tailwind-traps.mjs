@@ -59,6 +59,7 @@ const TODO_ROOTS = [
   'src/modules/common/copilot',
   'src/lib/ui',
   'src/modules/labs/dsa-lab',
+  'src/modules/labs/guided',
   'src/app/dsa-lab',
   'src/modules/labs/cv-lab',
   'src/modules/labs/system-design-lab',

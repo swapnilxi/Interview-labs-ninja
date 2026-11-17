@@ -533,7 +533,7 @@
   }
 
   .lab-shell {
-    @apply h-app-screen overflow-hidden bg-background pt-[60px] text-foreground;
+    @apply h-app-screen overflow-clip bg-background pt-[60px] text-foreground; /* clip, not hidden: hidden can still be scrolled by focus / scrollIntoView, which shifts the whole lab */
     --lab-identity: var(--color-primary);   /* hero glow + icon tile only; CV / SD override below */
     --rail: var(--lab-accent);              /* .todo-rail colour: the active-row rail follows the accent in every lab */
   }

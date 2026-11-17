@@ -127,8 +127,6 @@ export const PYTHON_LAB: TopicLabConfig = {
     'Python from your first program to OOP, testing and concurrency, then data and AI apps',
   noun: { one: 'lesson', many: 'lessons' },
   sectionDefs: PYTHON_SECTION_DEFS,
-  quizSettingsNote:
-    'These instructions and your context are added to the requirements for each new batch of quiz questions.',
   ownPrereqTitle: 'Study these lessons first',
   prereqBaseline: {
     'Python Basics': [

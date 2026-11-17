@@ -1,14 +1,12 @@
 from __future__ import annotations
 from typing import List, Optional
-from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from modules.auth.dependencies import get_current_user_id
-from modules.common.db import fetch_lab_sections, save_lab_section
-from .seed import fetch_system_design_topics, save_system_design_topic
+from modules.common.owned_topics import SYSTEM_DESIGN
+from modules.common.topic_lab import build_router
 
 
 # Next.js twin (nextjs-api mode): frontend/fe-apis/labs/ — same paths, shapes and storage format; change both.
-router = APIRouter(prefix="/system-design", tags=["system-design-lab"], dependencies=[Depends(get_current_user_id)])
+# The routes are the shared topic-lab ones (common/topic_lab.py) with System Design's own topic fields (scale, isLLD).
 
 
 class SDSubtopicIn(BaseModel):
@@ -28,30 +26,14 @@ class SDTopicIn(BaseModel):
     difficulty: str
     isLLD: bool = False
     subtopics: List[SDSubtopicIn] = Field(default_factory=list)
+    shared: bool = False  # admin only: make this topic everyone's instead of the caller's own
 
 
-class LabSectionIn(BaseModel):
-    name: str
-    isCustom: bool = True
-
-
-@router.get("/topics")
-async def get_system_design_topics() -> List[dict]:
-    return fetch_system_design_topics()
-
-
-@router.post("/topics")
-async def save_system_design_topic_endpoint(payload: SDTopicIn) -> dict:
-    save_system_design_topic(payload.model_dump())
-    return {"status": "success"}
-
-
-@router.get("/sections")
-async def get_system_design_sections(user_id: int = Depends(get_current_user_id)) -> List[dict]:
-    return fetch_lab_sections(user_id, "system_design")
-
-
-@router.post("/sections")
-async def save_system_design_section(payload: LabSectionIn, user_id: int = Depends(get_current_user_id)) -> dict:
-    save_lab_section(user_id, "system_design", payload.name)
-    return {"status": "success"}
+router = build_router(
+    prefix="/system-design",
+    tag="system-design-lab",
+    table="system_design_topics",
+    section_lab="system_design",
+    shape=SYSTEM_DESIGN,
+    topic_model=SDTopicIn,
+)

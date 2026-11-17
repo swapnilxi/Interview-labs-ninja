@@ -178,8 +178,8 @@ function parseSectionPayload(body: Row): SectionPayload {
     mode: oneOf(body.mode, SECTION_MODES, 'mode'),
     context: strField(body, 'context', 4000, { def: '' }),
     existingContent: strField(body, 'existing_content', 40000, { def: '' }),
-    sectionGuidance: strField(body, 'section_guidance', 9000, { def: '' }),
-    standingContext: strField(body, 'standing_context', 4500, { def: '' }),
+    sectionGuidance: strField(body, 'section_guidance', 13000, { def: '' }),
+    standingContext: strField(body, 'standing_context', 6500, { def: '' }),
     promptAddon: strField(body, 'prompt_addon', 4000, { def: '' }),
     projectId: projectIdField(body),
   };
@@ -527,8 +527,8 @@ Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key
       const relatedTopics = listField(body, 'related_topics', 20);
       const subtopicName = strField(body, 'subtopic_name', 300, { def: '' });
       const subtopicBrief = strField(body, 'subtopic_brief', 2000, { def: '' });
-      const sectionGuidance = strField(body, 'section_guidance', 9000, { def: '' });
-      const standingContext = strField(body, 'standing_context', 4500, { def: '' });
+      const sectionGuidance = strField(body, 'section_guidance', 13000, { def: '' });
+      const standingContext = strField(body, 'standing_context', 6500, { def: '' });
       const projectId = projectIdField(body);
 
       // Only questions from no project or this same project are shown to the model as "already seen".
@@ -655,7 +655,7 @@ Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key
       const lab = oneOf(body.lab, LAB_NAMES, 'lab');
       const topicId = strField(body, 'topic_id', 200, { min: 1 });
       const subtopicId = strField(body, 'subtopic_id', 200, { def: '' });
-      return addPageVideo(userId, lab, topicId, subtopicId, body.url, body.title);
+      return addPageVideo(userId, lab, topicId, subtopicId, body.url, body.title, body.shared === true);
     },
   },
   {

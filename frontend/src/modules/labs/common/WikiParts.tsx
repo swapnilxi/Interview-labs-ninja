@@ -13,6 +13,7 @@
  * `data-wiki-index`, `data-wiki-index-list`.
  */
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { jumpToAnchor } from '@/modules/labs/common/labNavigation';
 import { difficultyDotClass } from '@/modules/labs/common/LabTags';
@@ -39,6 +40,7 @@ export function WikiHero({
   metrics,
   children,
   onOpenGuide,
+  managementHref,
   guideLabel = 'How to use this lab',
 }: {
   /** A Heroicons name for AppIcon, e.g. 'BookOpenIcon' (DSA), 'EyeIcon' (CV), 'ServerStackIcon' (System Design). */
@@ -50,6 +52,8 @@ export function WikiHero({
   children?: ReactNode;
   /** Callback to open the lab guide modal */
   onOpenGuide?: () => void;
+  /** The lab's management page (a gear next to the guide button). */
+  managementHref?: string;
   /** Label for the guide button */
   guideLabel?: string;
 }) {
@@ -77,6 +81,16 @@ export function WikiHero({
                   <Icon name="BookOpenIcon" size={14} className="lab-ink flex-shrink-0" />
                   <span>{guideLabel}</span>
                 </button>
+              )}
+              {managementHref && (
+                <Link
+                  href={managementHref}
+                  aria-label="Lab management"
+                  title="Lab management"
+                  className="todo-focus inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:mix-border-primary/40 hover:text-foreground"
+                >
+                  <Icon name="Cog6ToothIcon" size={16} />
+                </Link>
               )}
             </div>
             <p className="mt-1 text-sm font-medium leading-snug mix-text-foreground/[0.74]">

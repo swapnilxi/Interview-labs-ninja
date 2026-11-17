@@ -14,7 +14,16 @@ import type { TaskPriority } from '@/lib/services/todoService';
 import { routineService, type RoutineGroup, type RoutineItem } from '@/lib/services/routineService';
 import RoutineGroupEditor, { type GroupDraft } from './RoutineGroupEditor';
 import RoutineItemRow, { MenuItem } from './RoutineItemRow';
-import { WEEKDAYS, WEEKEND, daysLabel, isDoneToday, isOnToday, isSwitchedOn } from './routineDays';
+import {
+  DAILIES_RESET_HOUR,
+  WEEKDAYS,
+  WEEKEND,
+  daysLabel,
+  isDoneToday,
+  isOnToday,
+  isSwitchedOn,
+  tickDay,
+} from './routineDays';
 
 /**
  * To-Do → Routines: lists you tick off each day. Dailies is on every day; the groups you make are on their weekdays
@@ -88,7 +97,9 @@ export default function RoutinesView() {
   };
 
   const toggle = async (item: RoutineItem, done: boolean) => {
-    const today = ymd(new Date());
+    // A Dailies tick belongs to the day that started at 8 am (tickDay); every other group's to the calendar date.
+    const group = (groups ?? []).find((g) => g.id === item.group_id);
+    const today = group ? tickDay(group, new Date()) : ymd(new Date());
     patchItem(item.id, (i) => ({ ...i, done_on: done ? today : null }));
     try {
       await routineService.updateItem(item.id, { done_on: done ? today : null });
@@ -427,7 +438,7 @@ function RoutineGroupCard({
   const switchedOn = isSwitchedOn(group, now);
   // A switch only matters for a group its days don't already put on today.
   const canSwitch = !isDailies && !(group.days ?? []).includes(now.getDay());
-  const done = group.items.filter((i) => isDoneToday(i, now)).length;
+  const done = group.items.filter((i) => isDoneToday(i, group, now)).length;
   const when = daysLabel(group);
   const headId = `rt-group-${group.id}`;
 
@@ -448,6 +459,7 @@ function RoutineGroupCard({
           </h4>
           <p className="rt-card-sub">
             {when ?? 'No fixed days'}
+            {isDailies && ` · starts over at ${DAILIES_RESET_HOUR} am`}
             {switchedOn && ' · on for today'}
             {on && group.items.length > 0 && ` · ${done} of ${group.items.length} done`}
           </p>
@@ -515,7 +527,7 @@ function RoutineGroupCard({
             <RoutineItemRow
               key={item.id}
               item={item}
-              done={isDoneToday(item, now)}
+              done={isDoneToday(item, group, now)}
               groups={groups}
               onToggle={(d) => onToggle(item, d)}
               onRename={(title) => onRename(item, title)}

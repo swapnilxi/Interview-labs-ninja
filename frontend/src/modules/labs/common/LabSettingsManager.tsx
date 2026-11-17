@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useId, useRef } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import AutoSaveStatus from '@/components/ui/AutoSaveStatus';
 import { useAutoSave, type AutoSaveState } from '@/lib/ui/useAutoSave';
@@ -13,13 +14,11 @@ import {
   type LabName,
   type SectionSettings,
 } from '@/lib/services/labSectionsService';
-import {
-  LABS_CONFIG,
-  getSectionDefsForLab,
-  labTileStyle,
-  type SectionDef,
-} from './labSectionDefaults';
+import { LABS_CONFIG, getSectionDefsForLab, type SectionDef } from './labSectionDefaults';
+import SectionPromptEditor from './SectionPromptEditor';
 import SectionPromptModal from './SectionPromptModal';
+import { Field, presetChip, settingsTextarea } from './settingsUi';
+import { isTopicSettingsId } from './useLabSettings';
 
 interface LabSettingsManagerProps {
   initialLab?: LabName;
@@ -35,6 +34,16 @@ interface LabSettingsManagerProps {
    * Save button can flush them, instead of this component showing its own status line.
    */
   onSaveStateChange?: (report: LabSaveReport) => void;
+  /**
+   * Set by a page that gives every section its own address (lab management): a section row becomes a link to `hrefFor(id)`, and
+   * the section named by `activeId` is edited on the page, in place of the list. Without it a section opens in a dialog.
+   */
+  section?: {
+    activeId: string | null;
+    hrefFor: (id: string) => string;
+    /** The list (and the whole lab's settings). */
+    backHref: string;
+  };
 }
 
 export interface LabSaveReport {
@@ -51,7 +60,10 @@ export default function LabSettingsManager({
   onSectionUpdated,
   onClose,
   onSaveStateChange,
+  section,
 }: LabSettingsManagerProps) {
+  const wideId = useId();
+  const sectionsId = useId();
   const [selectedLab, setSelectedLab] = useState<LabName>(fixedLab || initialLab);
   const [settings, setSettings] = useState<Record<string, SectionSettings>>({});
   const [loading, setLoading] = useState<boolean>(true);
@@ -73,7 +85,8 @@ export default function LabSettingsManager({
     if (lab !== selectedLabRef.current) return;
     setSettings((prev) => {
       const next = { ...prev };
-      if (values.prompt.trim() || values.addon.trim() || values.context.trim()) next[sectionId] = values;
+      if (values.prompt.trim() || values.addon.trim() || values.context.trim())
+        next[sectionId] = values;
       else delete next[sectionId];
       return next;
     });
@@ -111,22 +124,25 @@ export default function LabSettingsManager({
     labWideSave.schedule({ lab: selectedLab, addon, context });
   };
 
-  const loadSettings = useCallback(async (lab: LabName) => {
-    // Never let a reload overwrite an edit that is still waiting to be saved.
-    await flushLabWide();
-    setLoading(true);
-    try {
-      const data = await fetchLabSettings(lab);
-      setSettings(data);
-      const wide = data[LAB_WIDE_SECTION];
-      setLabWideAddon(wide?.addon || '');
-      setLabWideContext(wide?.context || '');
-    } catch (err) {
-      console.error('Failed to load lab settings:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [flushLabWide]);
+  const loadSettings = useCallback(
+    async (lab: LabName) => {
+      // Never let a reload overwrite an edit that is still waiting to be saved.
+      await flushLabWide();
+      setLoading(true);
+      try {
+        const data = await fetchLabSettings(lab);
+        setSettings(data);
+        const wide = data[LAB_WIDE_SECTION];
+        setLabWideAddon(wide?.addon || '');
+        setLabWideContext(wide?.context || '');
+      } catch (err) {
+        console.error('Failed to load lab settings:', err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [flushLabWide]
+  );
 
   useEffect(() => {
     loadSettings(selectedLab);
@@ -146,17 +162,6 @@ export default function LabSettingsManager({
     const saved = await saveLabSettings(selectedLab, sectionId, vals);
     applySaved(selectedLab, sectionId, saved);
     if (onSectionUpdated) onSectionUpdated(sectionId);
-  };
-
-  const handleResetSection = async (sectionId: string) => {
-    try {
-      await resetLabSettings(selectedLab, sectionId);
-      await loadSettings(selectedLab);
-      showToast('success', 'Section reset to built-in defaults');
-      if (onSectionUpdated) onSectionUpdated(sectionId);
-    } catch (err) {
-      showToast('error', 'Failed to reset section');
-    }
   };
 
   const handleResetEntireLab = async () => {
@@ -190,320 +195,314 @@ export default function LabSettingsManager({
     );
   });
 
-  const customizedCount = Object.keys(settings).filter((k) => k !== LAB_WIDE_SECTION).length;
+  // A topic's own context rides in the same settings (see topicSettingsId) but is not a customised section.
+  const customizedCount = Object.keys(settings).filter(
+    (k) => k !== LAB_WIDE_SECTION && !isTopicSettingsId(k)
+  ).length;
+  const activeSection = section?.activeId
+    ? (sectionDefs.find((d) => d.id === section.activeId) ?? null)
+    : null;
 
   return (
-    <div className="space-y-[1.5rem]">
-      {/* ── Toast Notification ── */}
+    <div className="space-y-[2rem]">
       {toast && (
-        <div
+        <p
           role={toast.type === 'error' ? 'alert' : 'status'}
-          data-semantic={toast.type === 'success' ? 'done' : undefined}
-          className={`p-3.5 rounded-lg flex items-center gap-2.5 text-xs font-medium text-foreground animate-fade-in ${
-            toast.type === 'success' ? 'mix-bg-success/10' : 'mix-bg-error/10'
-          }`}
+          className={`text-[13px] ${toast.type === 'error' ? 'text-error' : 'text-muted-foreground'}`}
         >
-          <Icon
-            name={toast.type === 'success' ? 'CheckCircleIcon' : 'ExclamationCircleIcon'}
-            size={16}
-            className={toast.type === 'success' ? 'text-success' : 'text-error'}
-          />
-          <span>{toast.message}</span>
-        </div>
+          {toast.message}
+        </p>
       )}
 
-      {/* ── Lab Selector (if not fixed to one lab) ── */}
+      {/* The lab picker, only where the lab is not already fixed (the Settings page) */}
       {!fixedLab && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {(['dsa', 'system_design', 'cv', 'communication', 'finance', 'python', 'genai'] as LabName[]).map((labKey) => {
-            const meta = LABS_CONFIG[labKey];
-            const isSelected = selectedLab === labKey;
+        <div role="group" aria-label="Lab" className="flex flex-wrap gap-2">
+          {(
+            [
+              'dsa',
+              'system_design',
+              'cv',
+              'communication',
+              'finance',
+              'python',
+              'genai',
+            ] as LabName[]
+          ).map((labKey) => {
+            const on = selectedLab === labKey;
             return (
               <button
                 key={labKey}
                 type="button"
+                aria-pressed={on}
+                title={LABS_CONFIG[labKey].description}
                 onClick={() => {
                   void flushLabWide();
                   setSelectedLab(labKey);
                 }}
-                aria-pressed={isSelected}
-                className={`todo-focus p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${
-                  isSelected
-                    ? 'lab-tint mix-border-primary/50 ring-1 mix-ring-primary/25'
-                    : 'bg-card border-border hover:mix-bg-foreground/[0.04]'
-                }`}
+                className={presetChip(on)}
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="lab-tile h-8 w-8" style={labTileStyle(labKey)}>
-                    <Icon name={meta.icon as any} size={18} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground leading-snug">
-                      {meta.shortName}
-                    </h3>
-                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
-                      {labKey.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
-                  {meta.description}
-                </p>
-                {isSelected && (
-                  <div className="absolute top-3 right-3">
-                    <span className="block h-2 w-2 rounded-full bg-primary" />
-                  </div>
-                )}
+                {on && <Icon name="CheckIcon" size={12} />}
+                {LABS_CONFIG[labKey].shortName}
               </button>
             );
           })}
         </div>
       )}
 
-      {/* ── Lab Overview & Global Addons ── */}
-      <div className="bg-card border rounded-xl p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b">
-          <div className="flex items-center gap-3">
-            <div className="lab-tile h-8 w-8" style={labTileStyle(selectedLab)}>
-              <Icon name={labMeta.icon as any} size={18} />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">
-                {labMeta.name} — Global Configuration
-              </h2>
-              <p className="text-xs font-medium text-muted-foreground">
-                Instructions and learner context set here automatically apply to every section of {labMeta.shortName}.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs px-2.5 py-1 rounded-full mix-bg-foreground/[0.06] text-muted-foreground font-medium">
-              {customizedCount} / {sectionDefs.length} sections customized
-            </span>
-            {customizedCount > 0 && (
-              <button
-                type="button"
-                onClick={handleResetEntireLab}
-                className="todo-btn todo-btn-secondary hover:text-error"
-                title="Reset all sections to defaults"
-              >
-                <Icon name="ArrowPathIcon" size={12} />
-                Reset Lab Defaults
-              </button>
+      {section && activeSection ? (
+        /* One section, on its own page */
+        <div className="space-y-[1.5rem]">
+          <div>
+            <Link
+              href={section.backHref}
+              className="todo-focus -ml-2.5 inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:min-h-[2rem]"
+            >
+              <Icon name="ArrowLeftIcon" size={16} />
+              Sections and prompts
+            </Link>
+            <h2 className="mt-2 font-heading text-[1.25rem] font-semibold leading-tight tracking-[-0.018em] text-foreground">
+              {activeSection.label}
+            </h2>
+            {activeSection.subtitle && (
+              <p className="mt-1 text-sm text-muted-foreground">{activeSection.subtitle}</p>
             )}
           </div>
-        </div>
-
-        {/* Global Prompt Add-on */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-foreground">
-              Lab-Wide Prompt Add-on
-            </label>
-            <p className="text-xs font-medium text-muted-foreground">
-              Always appended to the AI instructions for all sections in this lab:
-            </p>
-            <textarea
-              rows={3}
-              value={labWideAddon}
-              maxLength={2000}
-              onChange={(e) => editLabWide({ addon: e.target.value })}
-              placeholder="e.g. Always write solutions in clean C++20 with complexity analysis, or focus on Staff-level distributed systems questions."
-              className="todo-input resize-y px-3 py-2 text-[13px] leading-relaxed"
+          {/* The editor starts from the saved settings, so it waits for them: mounted early it would show (and save) empty fields */}
+          {loading ? (
+            <p className="py-[2rem] text-center text-sm text-muted-foreground">Loading…</p>
+          ) : (
+            <SectionPromptEditor
+              key={activeSection.id}
+              lab={selectedLab}
+              section={activeSection}
+              currentSettings={settings[activeSection.id]}
+              labWideSettings={settings[LAB_WIDE_SECTION]}
+              currentTopic={currentTopic}
+              variant="page"
+              wholeLabHref={section.backHref}
+              onSave={(vals) => handleSaveSection(activeSection.id, vals)}
             />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-foreground">
-              Standing Learner Context
-            </label>
-            <p className="text-xs font-medium text-muted-foreground">
-              Your background, target companies, or areas of focus:
-            </p>
-            <textarea
-              rows={3}
-              value={labWideContext}
-              maxLength={2000}
-              onChange={(e) => editLabWide({ context: e.target.value })}
-              placeholder="e.g. 7 years experience in backend engineering, preparing for Google/Meta L5 interviews, strong in systems but rusty on dynamic programming."
-              className="todo-input resize-y px-3 py-2 text-[13px] leading-relaxed"
-            />
-          </div>
+          )}
         </div>
+      ) : (
+        <>
+          {/* ── The whole lab ── */}
+          <section
+            aria-labelledby={wideId}
+            className="rounded-2xl border bg-card p-[1.25rem] sm:p-[1.5rem]"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+              <div className="min-w-0">
+                <h2 id={wideId} className="text-[15px] font-semibold text-foreground">
+                  Whole lab
+                </h2>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Applies to every section of {labMeta.shortName}
+                </p>
+              </div>
+              {!onSaveStateChange && (
+                <AutoSaveStatus
+                  state={labWideSave.state}
+                  error={labWideSave.error}
+                  onRetry={labWideSave.retry}
+                />
+              )}
+            </div>
 
-        {/* Quick Addon Presets */}
-        <div>
-          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
-            Quick Add-on Presets:
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            {labMeta.defaultPromptAddons.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => {
-                  if (labWideAddon.includes(item.text)) return;
-                  editLabWide({ addon: labWideAddon ? `${labWideAddon.trim()}\n${item.text}` : item.text });
-                }}
-                className={`todo-focus text-xs px-2 py-1 rounded-md border transition-colors ${
-                  labWideAddon.includes(item.text)
-                    ? 'lab-tint mix-border-primary/30 lab-ink font-semibold'
-                    : 'mix-bg-foreground/[0.04] border-border text-foreground font-medium hover:mix-bg-foreground/[0.08]'
-                }`}
+            <div className="mt-[1.25rem] grid grid-cols-1 gap-[1.25rem] md:grid-cols-2">
+              <Field
+                id={`${wideId}-addon`}
+                label="Add-on"
+                help="Added to the instructions of every section"
+                aside={
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {labWideAddon.length} / 2,000
+                  </span>
+                }
               >
-                + {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {!onSaveStateChange && (
-          <div className="flex justify-end pt-2">
-            <AutoSaveStatus
-              state={labWideSave.state}
-              error={labWideSave.error}
-              onRetry={labWideSave.retry}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* ── Section-by-Section Customization ── */}
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">
-              {labMeta.shortName} Sections ({sectionDefs.length})
-            </h3>
-            <p className="text-xs font-medium text-muted-foreground">
-              Click any section to inspect, edit its prompt instructions, add prompt add-ons, or test live output.
-            </p>
-          </div>
-          <div className="relative w-full sm:w-64">
-            <Icon
-              name="MagnifyingGlassIcon"
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filter sections..."
-              className="todo-input pl-9 pr-3 py-1.5 text-xs"
-            />
-          </div>
-        </div>
-
-        {/* Section Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {filteredSections.map((sec) => {
-            const secSetting = settings[sec.id];
-            const hasCustomPrompt = Boolean(secSetting?.prompt);
-            const hasAddon = Boolean(secSetting?.addon);
-            const hasContext = Boolean(secSetting?.context);
-            const isCustomized = hasCustomPrompt || hasAddon || hasContext;
-
-            return (
-              <div
-                key={sec.id}
-                onClick={() => setSelectedSectionForModal(sec)}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer group hover:mix-border-primary/40 ${
-                  isCustomized
-                    ? 'mix-bg-primary/[0.06] mix-border-primary/30'
-                    : 'bg-card border-border hover:mix-bg-foreground/[0.04]'
-                }`}
+                <textarea
+                  id={`${wideId}-addon`}
+                  rows={4}
+                  value={labWideAddon}
+                  maxLength={2000}
+                  onChange={(e) => editLabWide({ addon: e.target.value })}
+                  placeholder="Write every solution in clean C++20 with its complexity"
+                  className={settingsTextarea}
+                />
+              </Field>
+              <Field
+                id={`${wideId}-context`}
+                label="Standing context"
+                help="Your background, target companies or focus"
+                aside={
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {labWideContext.length} / 2,000
+                  </span>
+                }
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                        isCustomized
-                          ? 'lab-tint text-primary'
-                          : 'mix-bg-foreground/[0.06] text-muted-foreground'
-                      }`}
+                <textarea
+                  id={`${wideId}-context`}
+                  rows={4}
+                  value={labWideContext}
+                  maxLength={2000}
+                  onChange={(e) => editLabWide({ context: e.target.value })}
+                  placeholder="Seven years in backend engineering, preparing for L5 interviews, rusty on dynamic programming"
+                  className={settingsTextarea}
+                />
+              </Field>
+            </div>
+
+            <div className="mt-[1.25rem]">
+              <p className="text-[13px] font-medium text-foreground">Add-on presets</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {labMeta.defaultPromptAddons.map((item) => {
+                  const on = labWideAddon.includes(item.text);
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => {
+                        if (on) {
+                          editLabWide({
+                            addon: labWideAddon
+                              .replace(item.text, '')
+                              .replace(/\n{2,}/g, '\n')
+                              .trim(),
+                          });
+                        } else {
+                          editLabWide({
+                            addon: labWideAddon.trim()
+                              ? `${labWideAddon.trim()}\n${item.text}`
+                              : item.text,
+                          });
+                        }
+                      }}
+                      className={presetChip(on)}
                     >
-                      <Icon name={sec.icon as any} size={15} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="break-words text-[13px] font-semibold leading-snug text-foreground group-hover:lab-ink transition-colors">
-                          {sec.label}
-                        </h4>
-                        {isCustomized ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-full lab-tint lab-ink">
-                            <Icon name="SparklesIcon" size={11} />
-                            Customized
-                          </span>
-                        ) : (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-full mix-bg-foreground/[0.06] text-muted-foreground">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 break-words text-xs font-medium leading-snug text-muted-foreground">
-                        {sec.subtitle || sec.id}
-                      </p>
-                    </div>
-                  </div>
+                      {on && <Icon name="CheckIcon" size={12} />}
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
 
+          {/* ── Section by section ── */}
+          <section aria-labelledby={sectionsId}>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <h2 id={sectionsId} className="text-[15px] font-semibold text-foreground">
+                Sections
+                <span className="ml-2 text-[13px] font-normal tabular-nums text-muted-foreground">
+                  {sectionDefs.length}
+                </span>
+              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                {customizedCount > 0 && (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedSectionForModal(sec);
-                    }}
-                    className="todo-focus p-1 rounded-md text-muted-foreground group-hover:text-primary hover:mix-bg-foreground/[0.06] transition-colors shrink-0"
-                    title="Edit prompt and addons"
-                    aria-label={`Edit prompt and add-ons for ${sec.label}`}
+                    onClick={handleResetEntireLab}
+                    className="todo-btn todo-btn-quiet px-2.5 py-1 text-xs"
                   >
-                    <Icon name="PencilSquareIcon" size={15} />
+                    Reset {customizedCount} edited
                   </button>
-                </div>
-
-                {/* Badges preview */}
-                <div className="mt-2.5 pt-2 border-t flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    {hasCustomPrompt && (
-                      <span className="lab-ink font-semibold flex items-center gap-1">
-                        <Icon name="DocumentTextIcon" size={12} /> Custom Prompt
-                      </span>
-                    )}
-                    {hasAddon && (
-                      <span className="lab-ink font-semibold flex items-center gap-1">
-                        <Icon name="SparklesIcon" size={12} /> Add-on Active
-                      </span>
-                    )}
-                    {hasContext && (
-                      <span className="lab-ink font-semibold flex items-center gap-1">
-                        <Icon name="UserIcon" size={12} /> Standing Context
-                      </span>
-                    )}
-                    {!isCustomized && (
-                      <span className="font-medium text-muted-foreground">Using standard template instructions</span>
-                    )}
-                  </div>
-                  {isCustomized && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleResetSection(sec.id);
-                      }}
-                      className="todo-focus rounded-md px-1 text-xs font-medium text-muted-foreground hover:text-error transition-colors"
-                    >
-                      Reset
-                    </button>
-                  )}
+                )}
+                <div className="relative w-full sm:w-56">
+                  <Icon
+                    name="MagnifyingGlassIcon"
+                    size={14}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search sections"
+                    aria-label="Search sections"
+                    className="todo-input todo-input-quiet w-full py-1.5 pl-9 pr-3 text-[13px]"
+                  />
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </div>
 
-      {/* ── Section Prompt Modal ── */}
-      {selectedSectionForModal && (
+            {loading ? (
+              <p className="py-[2rem] text-center text-sm text-muted-foreground">Loading…</p>
+            ) : filteredSections.length === 0 ? (
+              <p className="py-[2rem] text-center text-sm text-muted-foreground">
+                No section matches “{searchQuery.trim()}”
+              </p>
+            ) : (
+              <ul className="divide-y overflow-hidden rounded-2xl border bg-card">
+                {filteredSections.map((sec) => {
+                  const saved = settings[sec.id];
+                  const parts = [
+                    saved?.prompt ? 'Prompt' : null,
+                    saved?.addon ? 'Add-on' : null,
+                    saved?.context ? 'Context' : null,
+                  ].filter(Boolean) as string[];
+                  const edited = parts.length > 0;
+                  const rowClass =
+                    'todo-focus flex min-h-[3.25rem] w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--color-fill)] focus-visible:ring-inset focus-visible:ring-offset-0';
+                  const content = (
+                    <>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="break-words text-sm font-medium text-foreground">
+                            {sec.label}
+                          </span>
+                          {edited && (
+                            <span
+                              aria-hidden="true"
+                              className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary"
+                            />
+                          )}
+                        </span>
+                        {sec.subtitle && (
+                          <span className="mt-0.5 block break-words text-[13px] text-muted-foreground">
+                            {sec.subtitle}
+                          </span>
+                        )}
+                      </span>
+                      {edited && (
+                        <span className="hidden flex-shrink-0 text-xs text-muted-foreground sm:block">
+                          <span className="sr-only">Edited: </span>
+                          {parts.join(', ')}
+                        </span>
+                      )}
+                      <Icon
+                        name="ChevronRightIcon"
+                        size={16}
+                        className="flex-shrink-0 text-muted-foreground"
+                      />
+                    </>
+                  );
+                  return (
+                    <li key={sec.id}>
+                      {section ? (
+                        <Link href={section.hrefFor(sec.id)} className={rowClass}>
+                          {content}
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSectionForModal(sec)}
+                          className={rowClass}
+                        >
+                          {content}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+
+      {/* Without addresses for the sections, one opens in a dialog */}
+      {!section && selectedSectionForModal && (
         <SectionPromptModal
           lab={selectedLab}
           section={selectedSectionForModal}

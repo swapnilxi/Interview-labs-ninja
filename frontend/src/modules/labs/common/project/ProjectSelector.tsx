@@ -133,7 +133,7 @@ export default function ProjectSelector({ className = '' }: { className?: string
 
         <div className="mt-1 border-t pt-1">
           <Link
-            href="/labs-project?new=1"
+            href="/labs-project/new"
             role="menuitem"
             onClick={() => setOpen(false)}
             className={`${itemClass} items-center lab-ink`}

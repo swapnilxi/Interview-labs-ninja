@@ -49,6 +49,7 @@ from modules.common.config_router import router as config_router
 # Lab modules
 from modules.dsa_lab.router import router as dsa_router
 from modules.lab_sections.router import router as lab_sections_router
+from modules.guided_practice.router import router as guided_practice_router
 from modules.lab_projects.router import router as lab_projects_router
 from modules.cv_lab.router import router as cv_router
 from modules.system_design_lab.router import router as sd_router
@@ -181,6 +182,7 @@ app.include_router(session_router)
 app.include_router(session_public_router)
 app.include_router(dsa_router)
 app.include_router(lab_sections_router)
+app.include_router(guided_practice_router)
 app.include_router(lab_projects_router)
 app.include_router(cv_router)
 app.include_router(sd_router)

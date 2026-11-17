@@ -39,8 +39,6 @@ export const SYSTEM_DESIGN_LAB: TopicLabConfig<SDTopic> = {
   wikiDescription: 'Production-scale architecture interview reference',
   noun: { one: 'problem', many: 'problems' },
   sectionDefs: SYSTEM_DESIGN_SECTION_DEFS,
-  quizSettingsNote:
-    'These instructions and your context are added to the requirements for each new batch of quiz questions.',
   defaultContent: getContent,
   fallbackTopics: TOPICS,
   customTopic: {

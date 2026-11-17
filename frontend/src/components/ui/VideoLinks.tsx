@@ -29,13 +29,19 @@ export interface VideoLinkItem {
   id: string | number;
   url: string;
   title: string;
+  /** Added for everyone: shown with a tag. */
+  shared?: boolean;
+  /** The viewer cannot remove this one. */
+  locked?: boolean;
 }
 
 interface VideoLinksProps {
   videos: VideoLinkItem[];
   canEdit: boolean;
   /** Adds one link; rejects with a readable message (duplicate, limit, not allowed...). */
-  onAdd: (url: string, title: string) => Promise<void>;
+  onAdd: (url: string, title: string, shared?: boolean) => Promise<void>;
+  /** Offers "Show to everyone" in the add form (an admin). */
+  canShare?: boolean;
   onRemove: (id: string | number) => Promise<void>;
   /** Default "Videos". */
   heading?: string;
@@ -168,7 +174,7 @@ function VideoCard({
               />
             )}
           </div>
-          <p className="mt-2 break-words text-sm font-semibold leading-snug text-foreground">{title}</p>
+          <p className="mt-2 break-words text-sm font-semibold leading-snug text-foreground">{title}{video.shared && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 align-middle text-xs font-medium text-muted-foreground">Everyone</span>}</p>
         </div>
       ) : (
         <div className={`flex items-start gap-3 ${compact ? 'p-2.5' : 'p-3'}`}>
@@ -182,7 +188,7 @@ function VideoCard({
             />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="break-words text-sm font-semibold leading-snug text-foreground">{title}</p>
+            <p className="break-words text-sm font-semibold leading-snug text-foreground">{title}{video.shared && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 align-middle text-xs font-medium text-muted-foreground">Everyone</span>}</p>
             {chips.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {chips.map((chip) => (
@@ -271,11 +277,13 @@ export default function VideoLinks({
   compact = false,
   busy = false,
   audience = 'class',
+  canShare = false,
 }: VideoLinksProps) {
   const formId = useId();
   const [formOpen, setFormOpen] = useState(false);
   const [urlText, setUrlText] = useState('');
   const [titleText, setTitleText] = useState('');
+  const [forEveryone, setForEveryone] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [playingId, setPlayingId] = useState<string | number | null>(null);
@@ -300,6 +308,7 @@ export default function VideoLinks({
     setFormOpen(false);
     setUrlText('');
     setTitleText('');
+    setForEveryone(false);
     setFormErrors([]);
     addButtonRef.current?.focus();
   };
@@ -331,7 +340,7 @@ export default function VideoLinks({
     let added = 0;
     for (let i = 0; i < lines.length; i++) {
       try {
-        await onAdd(lines[i], several ? '' : titleText);
+        await onAdd(lines[i], several ? '' : titleText, canShare && forEveryone);
         added += 1;
       } catch (err) {
         failed.push({ line: lines[i], number: i + 1, reason: errorMessage(err) });
@@ -447,6 +456,12 @@ export default function VideoLinks({
               />
             </div>
           )}
+          {canShare && (
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input type="checkbox" checked={forEveryone} onChange={(event) => setForEveryone(event.target.checked)} />
+              <span>Show to everyone</span>
+            </label>
+          )}
           {showYouTubeHelper && (
             <p className="text-xs leading-relaxed text-muted-foreground">{youTubeHelper}</p>
           )}
@@ -480,7 +495,7 @@ export default function VideoLinks({
             <VideoCard
               key={video.id}
               video={video}
-              canEdit={canEdit}
+              canEdit={canEdit && !video.locked}
               compact={compact}
               busy={busy}
               playing={playingId === video.id}

@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added — Guided Practice (DSA and CV labs)
+
+A dedicated page behind a **Guided Practice** card on every DSA and CV topic page: an AI-written path (five phases and a final boss)
+with a lesson, a coding exercise and tests that run in the browser, hints and a solution on request; **Breakdown** (recursive) and
+**Dive Deeper** (five levels) on any question; an inline **AI Tutor** and a **STAR** answer; XP, levels, a coding streak, achievements
+(including Curiosity Explorer, Concept Decomposer, Curious Learner, Concept Master) and toggles (Game mode, celebrations, sound and
+haptics, focus mode, compact rows, editor options) with keyboard shortcuts. Progress is saved per user, lab, topic and subtopic.
+New: `backend/modules/guided_practice/` ↔ `frontend/fe-apis/guidedPractice/` (`/guided-practice/*`), `frontend/src/modules/labs/guided/`,
+routes `/dsa-lab/guided-practice` and `/cv-lab/guided-practice`, `public/runner/python-worker.js`, `styles/guided-practice.css`, table
+`guided_practice_state`. Touched: the shared `Markdown` renderer (optional code highlighting), `TopicLab` / `topicLabTypes` (the card, one
+config flag), `DSALabModule` (the card), `next.config.mjs` (rewrite and tracing entry).
+
 ### Added — Career Studio module
 
 A self-contained, login-required "AI Career Studio" at `/career` (collapsible sidebar menu +

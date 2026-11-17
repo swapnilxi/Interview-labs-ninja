@@ -137,8 +137,6 @@ export const FINANCE_LAB: TopicLabConfig = {
   wikiNote: 'Educational content only, not financial advice.',
   noun: { one: 'lesson', many: 'lessons' },
   sectionDefs: FINANCE_SECTION_DEFS,
-  quizSettingsNote:
-    'These instructions and your context are added to the requirements for each new batch of quiz questions.',
   ownPrereqTitle: 'Study these lessons first',
   prereqBaseline: {
     'Finance Basics': [

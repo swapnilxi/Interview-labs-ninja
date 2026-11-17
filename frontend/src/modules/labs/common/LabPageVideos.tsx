@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import VideoLinks from '@/components/ui/VideoLinks';
 import type { LabName } from '@/lib/services/labSectionsService';
 import {
@@ -11,7 +12,7 @@ import {
 } from '@/lib/services/videoService';
 
 /**
- * The signed-in user's own video links for the open lab page (a topic, or one of its subtopics). Personal, like their
+ * The video links for the open lab page: the signed-in user's own, plus any an admin added for everyone (a topic, or one of its subtopics). Personal, like their
  * saved sections and progress: nobody else sees them, so the person can always add and remove.
  *
  * The list belongs to the page it was loaded for (`key`), so the first render after navigating can never show the
@@ -27,6 +28,7 @@ export default function LabPageVideos({
   /** '' for the topic's own page. */
   subtopicId: string;
 }) {
+  const { isAdmin } = useAuth();
   const key = `${lab}|${topicId}|${subtopicId}`;
   const [state, setState] = useState<{
     key: string;
@@ -67,13 +69,18 @@ export default function LabPageVideos({
 
   return (
     <VideoLinks
-      videos={current.videos}
+      videos={current.videos.map((v) => ({ ...v, locked: v.shared && !isAdmin }))}
       canEdit
+      canShare={isAdmin}
       audience="personal"
       heading="Videos and links"
-      emptyHint="Add a video that goes with this page. Only you can see it."
-      onAdd={async (url, title) => {
-        const created = await addLabPageVideo(lab, topicId, subtopicId, url, title);
+      emptyHint={
+        isAdmin
+          ? 'Add a video that goes with this page. Only you can see it, unless you show it to everyone.'
+          : 'Add a video that goes with this page. Only you can see it.'
+      }
+      onAdd={async (url, title, shared) => {
+        const created = await addLabPageVideo(lab, topicId, subtopicId, url, title, shared);
         setState((prev) =>
           prev.key === key ? { ...prev, videos: [...prev.videos, created] } : prev
         );

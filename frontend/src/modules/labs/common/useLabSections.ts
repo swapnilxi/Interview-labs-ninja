@@ -67,10 +67,10 @@ export function useLabSections({
   const settings = useLabSettings(lab);
   const { selected: selectedProject } = useLabProjects();
   /** The instructions and standing context a section's generation is given (built-in or the learner's own). */
-  const instructionsFor = (def: SectionDef) =>
-    settings.effective(def.id, def.guidance ?? defaultGuidance?.[def.id] ?? '');
   const topicId = topic?.id ?? '';
   const subtopicId = subtopic?.id ?? '';
+  const instructionsFor = (def: SectionDef) =>
+    settings.effective(def.id, def.guidance ?? defaultGuidance?.[def.id] ?? '', topicId);
   const key = topicId ? `${topicId}|${subtopicId}` : '';
 
   const initSections = useCallback(
@@ -152,7 +152,7 @@ export function useLabSections({
     void (async () => {
       // Read at click time (after the project list has loaded), so the stored selection is honoured.
       const project = await resolveSelectedProject();
-      if (def && (def.aiGenerated || settings.usesAi(sectionId) || project)) {
+      if (def && (def.aiGenerated || settings.usesAi(sectionId, topicId) || project)) {
         const instructions = instructionsFor(def);
         try {
           const saved = await generateSectionWithContext({

@@ -12,7 +12,10 @@ import remarkGfm from 'remark-gfm';
  * nothing here) and rem-safe spacing (the 6/12/18/24... keys are redefined in px in this app: see CLAUDE.md).
  */
 
-function CodeBlock({ lang, code }: { lang: string; code: string }) {
+/** Turns a fenced block's source into coloured spans (Guided Practice passes a Python one); without it blocks stay plain. */
+export type CodeHighlighter = (code: string, lang: string) => React.ReactNode;
+
+function CodeBlock({ lang, code, highlight }: { lang: string; code: string; highlight?: CodeHighlighter }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     try {
@@ -40,7 +43,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
       </div>
       <pre className="p-4 bg-elevated overflow-x-auto leading-relaxed">
         <code className="text-[13px] font-code text-foreground leading-relaxed whitespace-pre">
-          {code}
+          {highlight ? highlight(code, lang) : code}
         </code>
       </pre>
     </div>
@@ -110,19 +113,37 @@ const components: Components = {
   td: ({ children }) => <td className="px-3 py-2 border-b border-border align-top">{children}</td>,
   // Fenced blocks arrive as <pre><code class="language-x">; inline code has no <pre> parent.
   pre: ({ children }) => <>{children}</>,
-  code: ({ className, children }) => {
+  code: codeRenderer(),
+};
+
+type CodeProps = React.ComponentProps<'code'> & { node?: unknown };
+
+function codeRenderer(highlight?: CodeHighlighter) {
+  return function MdCode({ className, children }: CodeProps) {
     const lang = /language-([\w+#-]+)/.exec(className ?? '')?.[1];
     const text = String(children ?? '');
     // Block code: has a language class, or spans multiple lines (a fence without a language).
     if (lang || text.includes('\n'))
-      return <CodeBlock lang={lang ?? ''} code={text.replace(/\n$/, '')} />;
+      return <CodeBlock lang={lang ?? ''} code={text.replace(/\n$/, '')} highlight={highlight} />;
     return (
       <code className="px-1.5 py-0.5 rounded mix-bg-muted/70 font-code text-[0.85em] text-foreground">
         {children}
       </code>
     );
-  },
-};
+  };
+}
+
+/** The shared map with fenced blocks highlighted; built once per highlighter (pass a module-level function). */
+const highlightedComponents = new WeakMap<CodeHighlighter, Components>();
+function componentsFor(highlight?: CodeHighlighter): Components {
+  if (!highlight) return components;
+  let map = highlightedComponents.get(highlight);
+  if (!map) {
+    map = { ...components, code: codeRenderer(highlight) };
+    highlightedComponents.set(highlight, map);
+  }
+  return map;
+}
 
 function MdHeading({ size, children }: { size: string; children?: React.ReactNode }) {
   return (
@@ -138,13 +159,16 @@ function MdHeading({ size, children }: { size: string; children?: React.ReactNod
 export default function Markdown({
   content,
   className = '',
+  highlight,
 }: {
   content: string;
   className?: string;
+  /** Colours fenced code (Guided Practice passes a Python highlighter). Use a stable, module-level function. */
+  highlight?: CodeHighlighter;
 }) {
   return (
     <div className={`text-[14px] leading-7 text-foreground space-y-2 ${className}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={componentsFor(highlight)}>
         {content}
       </ReactMarkdown>
     </div>

@@ -53,6 +53,23 @@ const LABS: Record<LabKey, LabConfig> = {
   genai: { table: 'genai_topics', sectionLab: 'genai', shape: 'prerequisites', order: 'rowid', lenientJson: true, seedDir: 'genai_lab' },
 };
 
+/** The columns a save writes, per shape of topic table (backend/modules/common/owned_topics.py TopicShape.columns / .ddl). */
+const COLUMNS: Record<LabConfig['shape'], string[]> = {
+  prerequisites: ['name', 'brief', 'category', 'difficulty', 'prerequisites_json', 'subtopics_json'],
+  'system-design': ['name', 'brief', 'category', 'scale', 'difficulty', 'is_lld', 'subtopics_json'],
+};
+const SHAPE_DDL: Record<LabConfig['shape'], string> = {
+  prerequisites: `name TEXT NOT NULL, brief TEXT NOT NULL, category TEXT NOT NULL, difficulty TEXT NOT NULL,
+        prerequisites_json TEXT NOT NULL DEFAULT '[]', subtopics_json TEXT NOT NULL DEFAULT '[]'`,
+  'system-design': `name TEXT NOT NULL, brief TEXT NOT NULL, category TEXT NOT NULL, scale TEXT NOT NULL DEFAULT 'N/A',
+        difficulty TEXT NOT NULL, is_lld INTEGER NOT NULL DEFAULT 0, subtopics_json TEXT NOT NULL DEFAULT '[]'`,
+};
+
+/** `dsa_topics` -> `dsa_topic_overrides`. */
+function overridesTable(lab: LabConfig): string {
+  return lab.table.replace(/_topics$/, '_topic_overrides');
+}
+
 // ── Schema (CREATE TABLE IF NOT EXISTS copies of the Python ones; no seeding) ────────────────────────────────
 
 let schemaReady = false;
@@ -94,6 +111,20 @@ function ensureLabSchema(db: TodoDb) {
       user_id INTEGER DEFAULT NULL,
       UNIQUE(user_id, lab_name, name)
     )`);
+  // owner_id (NULL = shared with everyone) and <lab>_topic_overrides (a person's own version of a shared topic), for every lab:
+  // backend/modules/common/owned_topics.py ensure_ownership.
+  for (const lab of Object.values(LABS)) {
+    const cols = db.all<{ name: string }>(`PRAGMA table_info(${lab.table})`);
+    if (!cols.some((c) => c.name === 'owner_id')) db.exec(`ALTER TABLE ${lab.table} ADD COLUMN owner_id INTEGER DEFAULT NULL`);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ${overridesTable(lab)} (
+        user_id INTEGER NOT NULL,
+        topic_id TEXT NOT NULL,
+        ${SHAPE_DDL[lab.shape]},
+        is_custom INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, topic_id)
+      )`);
+  }
   seedTopicLabs(db);
   schemaReady = true;
 }
@@ -220,110 +251,141 @@ function parseJsonColumn(text: string, lenient: boolean): unknown {
 
 // ── Handlers ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-function fetchTopics(lab: LabConfig): Row[] {
+/** A stored row as the API serves it (TopicShape.to_dict). */
+function topicOut(lab: LabConfig, r: Row): Row {
+  if (lab.shape === 'system-design') {
+    return {
+      id: r.id,
+      name: r.name,
+      brief: r.brief,
+      category: r.category,
+      scale: r.scale,
+      difficulty: r.difficulty,
+      isLLD: Boolean(r.is_lld),
+      subtopics: parseJsonColumn(r.subtopics_json as string, true),
+      isCustom: Boolean(r.is_custom),
+    };
+  }
+  return {
+    id: r.id,
+    name: r.name,
+    brief: r.brief,
+    category: r.category,
+    difficulty: r.difficulty,
+    prerequisites: parseJsonColumn(r.prerequisites_json as string, lab.lenientJson),
+    subtopics: parseJsonColumn(r.subtopics_json as string, lab.lenientJson),
+    isCustom: Boolean(r.is_custom),
+  };
+}
+
+function isAdminUser(db: TodoDb, userId: number): boolean {
+  const role = db.get<{ role?: string }>('SELECT role FROM users WHERE id = ?', userId)?.role;
+  return role === 'admin' || role === 'superadmin';
+}
+
+/** owned_topics.fetch_owned: the shared topics plus the caller's own, the caller's version of a shared one in its place. */
+function fetchOwned(lab: LabConfig, userId: number): Row[] {
   return withLabsDb((db) => {
-    if (lab.shape === 'system-design') {
-      return db
-        .all(
-          `SELECT id, name, brief, category, scale, difficulty, is_lld, subtopics_json, is_custom
-           FROM system_design_topics ORDER BY is_custom ASC, rowid ASC`
-        )
-        .map((r) => ({
-          id: r.id,
-          name: r.name,
-          brief: r.brief,
-          category: r.category,
-          scale: r.scale,
-          difficulty: r.difficulty,
-          isLLD: Boolean(r.is_lld),
-          subtopics: parseJsonColumn(r.subtopics_json, true),
-          isCustom: Boolean(r.is_custom),
-        }));
-    }
+    const list = COLUMNS[lab.shape].join(', ');
+    const overrides = new Map<string, Row>(
+      db.all(`SELECT topic_id AS id, ${list}, is_custom FROM ${overridesTable(lab)} WHERE user_id = ?`, userId).map((r) => [r.id as string, r])
+    );
     return db
       .all(
-        `SELECT id, name, brief, category, difficulty, prerequisites_json, subtopics_json, is_custom
-         FROM ${lab.table} ORDER BY is_custom ASC, ${lab.order} ASC`
+        `SELECT id, ${list}, is_custom, owner_id FROM ${lab.table} WHERE owner_id IS NULL OR owner_id = ?
+         ORDER BY is_custom ASC, ${lab.order} ASC`,
+        userId
       )
-      .map((r) => ({
-        id: r.id,
-        name: r.name,
-        brief: r.brief,
-        category: r.category,
-        difficulty: r.difficulty,
-        prerequisites: parseJsonColumn(r.prerequisites_json, lab.lenientJson),
-        subtopics: parseJsonColumn(r.subtopics_json, lab.lenientJson),
-        isCustom: Boolean(r.is_custom),
-      }));
+      .map((base) => {
+        const shared = base.owner_id === null || base.owner_id === undefined;
+        const changed = shared && overrides.has(base.id as string);
+        const out = topicOut(lab, changed ? (overrides.get(base.id as string) as Row) : base);
+        out.isShared = shared;
+        out.isModified = changed;
+        return out;
+      });
   });
 }
 
-function saveTopic(key: LabKey, lab: LabConfig, body: unknown): Row {
+/** owned_topics.save_owned: new = the caller's own; own = updated in place (also how it moves pattern); shared = the caller's
+ *  own version, unless an admin saves it with `shared` (which also makes an own topic everyone's). */
+function saveOwned(lab: LabConfig, userId: number, id: string, values: unknown[], shared: boolean): void {
+  withLabsDb((db) => {
+    if (shared && !isAdminUser(db, userId)) throw new HttpError(403, 'Only an admin can share a topic with everyone');
+    const cols = COLUMNS[lab.shape];
+    const marks = cols.map(() => '?').join(', ');
+    const ov = overridesTable(lab);
+    const row = db.get<{ owner_id: number | null }>(`SELECT owner_id FROM ${lab.table} WHERE id = ?`, id);
+    if (!row) {
+      db.run(
+        `INSERT INTO ${lab.table} (id, ${cols.join(', ')}, is_custom, owner_id) VALUES (?, ${marks}, 1, ?)`,
+        id, ...values, shared ? null : userId
+      );
+      return;
+    }
+    const owner = row.owner_id ?? null;
+    if (owner !== null && owner !== userId) throw new HttpError(403, 'This topic belongs to another user');
+    if (owner === null && !shared) {
+      db.run(
+        `INSERT OR REPLACE INTO ${ov} (user_id, topic_id, ${cols.join(', ')}, is_custom)
+         VALUES (?, ?, ${marks}, (SELECT is_custom FROM ${lab.table} WHERE id = ?))`,
+        userId, id, ...values, id
+      );
+    } else {
+      db.run(
+        `UPDATE ${lab.table} SET ${cols.map((c) => `${c}=?`).join(', ')}, owner_id=? WHERE id=?`,
+        ...values, shared ? null : owner, id
+      );
+      db.run(`DELETE FROM ${ov} WHERE user_id = ? AND topic_id = ?`, userId, id);
+    }
+  });
+}
+
+/** owned_topics.delete_owned. */
+function deleteOwned(lab: LabConfig, userId: number, topicId: string | null): Row {
+  if (!topicId) throw new HttpError(422, 'topic_id: Field required');
+  withLabsDb((db) => {
+    const ov = overridesTable(lab);
+    const row = db.get<{ owner_id: number | null; is_custom: number }>(`SELECT owner_id, is_custom FROM ${lab.table} WHERE id = ?`, topicId);
+    if (!row) throw new HttpError(404, 'Topic not found');
+    const owner = row.owner_id ?? null;
+    if (owner !== null && owner !== userId) throw new HttpError(403, 'This topic belongs to another user');
+    if (owner === null && !row.is_custom) {
+      db.run(`DELETE FROM ${ov} WHERE user_id = ? AND topic_id = ?`, userId, topicId);
+    } else if (owner === null && !isAdminUser(db, userId)) {
+      throw new HttpError(403, 'Only an admin can remove a topic shared with everyone');
+    } else {
+      db.run(`DELETE FROM ${lab.table} WHERE id = ?`, topicId);
+      db.run(`DELETE FROM ${ov} WHERE topic_id = ?`, topicId);
+    }
+  });
+  return { status: 'success' };
+}
+
+/** The request model of each lab's POST /topics (the Pydantic models), in field order; the checked values in column order. */
+function saveTopic(lab: LabConfig, body: unknown, userId: number): Row {
   if (!isDict(body)) throw new HttpError(422, 'Input should be a valid dictionary');
   const id = reqStr(body, 'id', '');
   const name = reqStr(body, 'name', '');
   const brief = reqStr(body, 'brief', '');
   const category = reqStr(body, 'category', '');
+  let values: unknown[];
+  let shared: boolean;
   if (lab.shape === 'system-design') {
     const scale = reqStr(body, 'scale', '');
     const difficulty = reqStr(body, 'difficulty', '');
     const isLLD = optBool(body, 'isLLD', false);
     const subs = subtopics(body);
-    withLabsDb((db) =>
-      db.run(
-        `INSERT OR REPLACE INTO system_design_topics (
-           id, name, brief, category, scale, difficulty, is_lld, subtopics_json, is_custom
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_custom FROM system_design_topics WHERE id = ?), 1))`,
-        id, name, brief, category, scale, difficulty, isLLD ? 1 : 0, pyJsonDumps(subs), id
-      )
-    );
-    return { status: 'success' };
+    shared = optBool(body, 'shared', false);
+    values = [name, brief, category, scale, difficulty, isLLD ? 1 : 0, pyJsonDumps(subs)];
+  } else {
+    const difficulty = reqStr(body, 'difficulty', '');
+    const prerequisites = strList(body, 'prerequisites');
+    const subs = subtopics(body);
+    shared = optBool(body, 'shared', false);
+    values = [name, brief, category, difficulty, pyJsonDumps(prerequisites), pyJsonDumps(subs)];
   }
-  const difficulty = reqStr(body, 'difficulty', '');
-  const prerequisites = strList(body, 'prerequisites');
-  const subs = subtopics(body);
-  withLabsDb((db) => {
-    if (key === 'dsa') {
-      db.run(
-        `INSERT INTO dsa_topics (
-           id, name, brief, category, difficulty, prerequisites_json, subtopics_json, is_custom
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-         ON CONFLICT(id) DO UPDATE SET
-           name=excluded.name,
-           brief=excluded.brief,
-           category=excluded.category,
-           difficulty=excluded.difficulty,
-           prerequisites_json=excluded.prerequisites_json,
-           subtopics_json=excluded.subtopics_json,
-           is_custom=COALESCE((SELECT is_custom FROM dsa_topics WHERE id=excluded.id), 1)`,
-        id, name, brief, category, difficulty, pyJsonDumps(prerequisites), pyJsonDumps(subs)
-      );
-    } else if (lab.seedDir) {
-      // The topic labs (common/topic_lab.py save_topic): an upsert keeps an edited lesson's rowid, so it keeps its
-      // place in the lab's ordered path (INSERT OR REPLACE would re-insert it at the end), and keeps is_custom.
-      db.run(
-        `INSERT INTO ${lab.table} (
-           id, name, brief, category, difficulty, prerequisites_json, subtopics_json, is_custom
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-         ON CONFLICT(id) DO UPDATE SET
-           name = excluded.name,
-           brief = excluded.brief,
-           category = excluded.category,
-           difficulty = excluded.difficulty,
-           prerequisites_json = excluded.prerequisites_json,
-           subtopics_json = excluded.subtopics_json`,
-        id, name, brief, category, difficulty, pyJsonDumps(prerequisites), pyJsonDumps(subs)
-      );
-    } else {
-      // cv_lab/seed.py save_cv_topic
-      db.run(
-        `INSERT OR REPLACE INTO cv_topics (
-           id, name, brief, category, difficulty, prerequisites_json, subtopics_json, is_custom
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_custom FROM cv_topics WHERE id = ?), 1))`,
-        id, name, brief, category, difficulty, pyJsonDumps(prerequisites), pyJsonDumps(subs), id
-      );
-    }
-  });
+  saveOwned(lab, userId, id, values, shared);
   return { status: 'success' };
 }
 
@@ -351,13 +413,27 @@ function saveSection(lab: LabConfig, userId: number, body: unknown): Row {
   return { status: 'success' };
 }
 
+/** common/db.py delete_custom_lab_section: the caller's own custom section only. */
+function deleteSection(lab: LabConfig, userId: number, name: string | null): Row {
+  if (!name) throw new HttpError(422, 'name: Field required');
+  const changes = withLabsDb(
+    (db) =>
+      db.run('DELETE FROM lab_sections WHERE lab_name = ? AND name = ? AND user_id = ? AND is_custom = 1', lab.sectionLab, name, userId)
+        .changes
+  );
+  if (changes === 0) throw new HttpError(404, 'Only a pattern or category you added can be removed');
+  return { status: 'success' };
+}
+
 function routesFor(key: LabKey): TodoRoute[] {
   const lab = LABS[key];
   return [
-    { method: 'GET', path: '/topics', handler: () => fetchTopics(lab) },
-    { method: 'POST', path: '/topics', handler: async (ctx) => saveTopic(key, lab, await ctx.json()) },
+    { method: 'GET', path: '/topics', handler: (ctx) => fetchOwned(lab, ctx.userId) },
+    { method: 'POST', path: '/topics', handler: async (ctx) => saveTopic(lab, await ctx.json(), ctx.userId) },
+    { method: 'DELETE', path: '/topics', handler: (ctx) => deleteOwned(lab, ctx.userId, ctx.query.get('topic_id')) },
     { method: 'GET', path: '/sections', handler: (ctx) => fetchSections(lab, ctx.userId) },
     { method: 'POST', path: '/sections', handler: async (ctx) => saveSection(lab, ctx.userId, await ctx.json()) },
+    { method: 'DELETE', path: '/sections', handler: (ctx) => deleteSection(lab, ctx.userId, ctx.query.get('name')) },
   ];
 }
 

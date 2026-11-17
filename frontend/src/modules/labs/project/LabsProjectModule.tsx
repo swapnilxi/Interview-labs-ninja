@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import ConfirmHost from '@/components/ui/ConfirmHost';
 import { useUrlState } from '@/lib/navigation/urlState';
 import { toast } from '@/lib/ui/toast';
 import { useLabProjects } from '@/modules/labs/common/project/useLabProjects';
-import ProjectFormDialog from '@/modules/labs/project/ProjectFormDialog';
 import ProjectScreen, { type ProjectTab } from '@/modules/labs/project/ProjectScreen';
 import ProjectsList, { type StatusFilter } from '@/modules/labs/project/ProjectsList';
 import SectionDetail from '@/modules/labs/project/SectionDetail';
@@ -23,9 +24,10 @@ const positiveInt = (value: string | null): number | null => {
  *   /labs-project                                        projects (status=active|archived|all)
  *   /labs-project?project=ID&tab=sections|context        one project (an unknown id falls back to the list)
  *   /labs-project?project=ID&tab=sections&section=ID     one saved section (an unknown id falls back to the list)
- *   /labs-project?new=1                                  the list with the New project dialog open
+ *   /labs-project/new                                    New project (its own page; the old /labs-project?new=1 redirects there)
  */
 export default function LabsProjectModule() {
+  const router = useRouter();
   const { get, update } = useUrlState();
   const { allProjects, selectedId, loaded, loading, error, refresh } = useLabProjects();
 
@@ -35,7 +37,6 @@ export default function LabsProjectModule() {
   const statusParam = get('status');
   const status: StatusFilter =
     statusParam === 'archived' || statusParam === 'all' ? statusParam : 'active';
-  const newOpen = get('new') === '1';
 
   const project = projectId !== null ? allProjects.find((p) => p.id === projectId) : undefined;
   const unknownProject = loaded && projectId !== null && !project;
@@ -46,8 +47,6 @@ export default function LabsProjectModule() {
     toast.info('That project no longer exists.');
     update({ project: null, tab: null, section: null }, 'replace');
   }, [unknownProject, update]);
-
-  const closeNew = () => update({ new: null }, 'replace');
 
   let body: React.ReactNode;
   if (!loaded && error) {
@@ -81,17 +80,17 @@ export default function LabsProjectModule() {
             Pick a project in any lab — its context is woven into every answer. Save the answers
             you want to keep; they become knowledge future generations can build on.
           </p>
-          <button type="button" className={primaryButton} onClick={() => update({ new: 1 })}>
+          <Link href="/labs-project/new" className={primaryButton}>
             <Icon name="PlusIcon" size={15} />
             New project
-          </button>
+          </Link>
         </div>
         <ProjectsList
           projects={allProjects}
           selectedId={selectedId}
           status={status}
           onStatusChange={(next) => update({ status: next === 'active' ? null : next }, 'replace')}
-          onNew={() => update({ new: 1 })}
+          onNew={() => router.push('/labs-project/new')}
         />
       </>
     );
@@ -100,14 +99,6 @@ export default function LabsProjectModule() {
   return (
     <>
       {body}
-      <ProjectFormDialog
-        isOpen={newOpen && loaded}
-        onClose={closeNew}
-        onCreated={(created) => {
-          // Leaves the list for the new project: its Context tab when there is none yet, else its sections.
-          update({ new: null, project: created.id, tab: created.context ? 'sections' : 'context' });
-        }}
-      />
       {/* the question dialog is portalled to <body>, outside the page frame: give it the same hairline and weight */}
       <ConfirmHost panelClassName="lab-page" />
     </>

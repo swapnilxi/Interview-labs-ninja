@@ -55,8 +55,6 @@ export interface TopicLabConfig<T extends TopicLabTopic = TopicLabTopic> {
   noun: { one: string; many: string };
   /** Every section in page order, each with its default `guidance` (the AI prompt the settings show and edit). */
   sectionDefs: readonly SectionDef[];
-  /** Note shown on the quiz entry of the lab settings dialog. */
-  quizSettingsNote: string;
   /**
    * Text a plain Generate fills a section with, without the AI. Without it, Prerequisites gets the template built from
    * `prereqBaseline` and every other section is written by the AI (`aiGenerated` in its SectionDef).
@@ -80,4 +78,9 @@ export interface TopicLabConfig<T extends TopicLabTopic = TopicLabTopic> {
   subtopicLabel?: string;
   /** localStorage key of the sidebar's Recent list. */
   recentKey: string;
+  /**
+   * The lab has Guided Practice (labs/guided): its topic pages show the Guided Practice card, which opens
+   * `/<lab>-lab/guided-practice`. The value is the lab's key there; the lab also needs an entry in guided/labs.ts and a route.
+   */
+  guidedPractice?: 'dsa' | 'cv';
 }

@@ -26,6 +26,15 @@ import {
 
 const EMPTY_VALUES: SectionSettings = { prompt: '', addon: '', context: '' };
 
+/**
+ * A topic's own add-on and context ("topic management") are saved like a section row, under the id `topic:<topic id>` (its
+ * `addon` and `context` are used). It needs no table of its own: the settings endpoints take any section id, and a reset of
+ * the lab clears it with the rest.
+ */
+export const TOPIC_SETTINGS_PREFIX = 'topic:';
+export const topicSettingsId = (topicId: string) => `${TOPIC_SETTINGS_PREFIX}${topicId}`;
+export const isTopicSettingsId = (id: string) => id.startsWith(TOPIC_SETTINGS_PREFIX);
+
 interface Snapshot {
   loaded: boolean;
   byId: ReadonlyMap<string, SectionSettings>;
@@ -79,20 +88,28 @@ const isEmpty = (v: SectionSettings) => !(v.prompt.trim() || v.addon.trim() || v
 
 /**
  * What a generator is told for one section: the user's own prompt in place of the built-in one (if
- * they wrote one), then the lab-wide and section add-ons; plus the lab-wide and section context.
+ * they wrote one), then the add-ons, widest first: the lab's, the open topic's (when there is one), the section's; plus the
+ * context in the same order.
  * Used for real generations and for the live preview in the settings dialog, so the two agree.
  */
 export function composeInstructions(
   defaultGuidance: string,
   section: SectionSettings,
-  labWide: SectionSettings
+  labWide: SectionSettings,
+  topic?: SectionSettings
 ): { guidance: string; standingContext: string } {
   const base = (section.prompt.trim() || defaultGuidance).trim();
-  const addons = [labWide.addon.trim(), section.addon.trim()].filter(Boolean);
+  const addons = [labWide.addon.trim(), topic?.addon.trim() ?? '', section.addon.trim()].filter(
+    Boolean
+  );
   const guidance = addons.length
     ? `${base}${base ? '\n\n' : ''}Additional instructions from the learner:\n${addons.join('\n')}`
     : base;
-  const standingContext = [labWide.context.trim(), section.context.trim()]
+  const standingContext = [
+    labWide.context.trim(),
+    topic?.context.trim() ?? '',
+    section.context.trim(),
+  ]
     .filter(Boolean)
     .join('\n\n');
   return { guidance, standingContext };
@@ -119,17 +136,29 @@ export function useLabSettings(lab: LabName) {
 
     /** The section itself has settings (a "Custom" badge). */
     const isCustomised = (sectionId: string) => !isEmpty(get(sectionId));
-    /** Pressing Generate on this section asks the AI (the section, or the whole lab, is customised). */
-    const usesAi = (sectionId: string) => isCustomised(sectionId) || labWideActive;
+    /** The topic has context of its own (see topicSettingsId). */
+    const topicSettings = (topicId?: string) =>
+      topicId ? get(topicSettingsId(topicId)) : EMPTY_VALUES;
+    const topicActive = (topicId?: string) => {
+      const t = topicSettings(topicId);
+      return !!(t.addon.trim() || t.context.trim());
+    };
+    /** Pressing Generate on this section asks the AI (the section, the topic or the whole lab is customised). */
+    const usesAi = (sectionId: string, topicId?: string) =>
+      isCustomised(sectionId) || labWideActive || topicActive(topicId);
 
     /** What the generator is told for a section, given the saved settings (see composeInstructions). */
-    const effective = (sectionId: string, defaultGuidance: string) =>
-      composeInstructions(defaultGuidance, get(sectionId), labWide);
+    const effective = (sectionId: string, defaultGuidance: string, topicId?: string) =>
+      composeInstructions(defaultGuidance, get(sectionId), labWide, topicSettings(topicId));
 
     return {
       loaded: snap.loaded,
       get,
       labWide,
+      /** The add-on and context saved for one topic (empty when none). */
+      topic: (topicId: string) => topicSettings(topicId),
+      /** The topic has an add-on or context of its own (the dot on its gear). */
+      hasTopicSettings: (topicId: string) => topicActive(topicId),
       /** Anything customised anywhere in the lab (the dot on the gear). */
       hasAny: snap.byId.size > 0,
       isCustomised,

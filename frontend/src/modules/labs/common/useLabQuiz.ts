@@ -87,8 +87,8 @@ export function useLabQuiz({
     try {
       // The quiz's built-in rules live in the backend prompt, so the learner's text is an extra block on
       // top of it, and nothing extra is sent until they have changed something for this section or the lab.
-      const instructions = settings.effective('quiz', defaultGuidance);
-      const touched = settings.isCustomised('quiz') || settings.usesAi('quiz');
+      const instructions = settings.effective('quiz', defaultGuidance, topicId);
+      const touched = settings.isCustomised('quiz') || settings.usesAi('quiz', topicId);
       const project = await resolveSelectedProject();
       const added = await generateQuiz({
         lab,

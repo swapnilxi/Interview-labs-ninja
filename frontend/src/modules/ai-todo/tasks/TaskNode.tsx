@@ -535,6 +535,8 @@ export default function TaskNode({
       </button>
     )
   ) || null;
+  const genColor = task.generation_type === 'dive_deeper' ? 'rgb(139 92 246)' : task.generation_type === 'chunk' ? 'rgb(245 158 11)' : null;
+  const genLabel = task.generation_type === 'dive_deeper' ? 'Created by Dive deeper' : 'Created by Chunk it';
   const genTag =
     task.generation_type === 'dive_deeper' ? (
       <span className="px-1.5 text-xs text-muted-foreground" title="Created by Dive Deeper">Deep</span>
@@ -553,6 +555,16 @@ export default function TaskNode({
         data-expanded={detailsExpanded ? 'true' : undefined}
         data-done={task.status === 'done' ? 'true' : undefined}
       >
+        {/* Origin ribbon: violet = made by Dive deeper, amber = made by Chunk it */}
+        {!isCard && genColor && (
+          <span
+            className="todo-rail"
+            role="img"
+            aria-label={genLabel}
+            title={genLabel}
+            style={{ '--rail': genColor } as React.CSSProperties}
+          />
+        )}
         <div className="flex items-start gap-x-2.5">
           {/* Lead: subtask chevron + checkbox */}
           <div className="flex shrink-0 items-start gap-2.5">
@@ -757,7 +769,7 @@ export default function TaskNode({
                   <button
                     onClick={() => handleAIAction('dive')}
                     disabled={loading !== null}
-                    className={`${metaBtn} todo-reveal font-medium text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50`}
+                    className={`${metaBtn} todo-reveal font-medium bg-violet-500/10 text-violet-700 hover:bg-violet-500/20 dark:text-violet-300 disabled:cursor-not-allowed disabled:opacity-50`}
                     title="Break into strategic subtasks"
                   >
                     {loading === 'dive' ? (
@@ -770,7 +782,7 @@ export default function TaskNode({
                   <button
                     onClick={() => handleAIAction('chunk')}
                     disabled={loading !== null}
-                    className={`${metaBtn} todo-reveal font-medium text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50`}
+                    className={`${metaBtn} todo-reveal font-medium bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 disabled:cursor-not-allowed disabled:opacity-50`}
                     title="Break into actionable steps"
                   >
                     {loading === 'chunk' ? (
@@ -886,7 +898,7 @@ export default function TaskNode({
                   <button
                     onClick={() => handleAIAction('dive')}
                     disabled={loading !== null}
-                    className="todo-btn todo-btn-quiet px-2 py-1"
+                    className="todo-btn todo-btn-quiet px-2 py-1 bg-violet-500/10 text-violet-700 hover:bg-violet-500/20 dark:text-violet-300"
                     title="Break into strategic subtasks"
                   >
                     {loading === 'dive' ? (
@@ -899,7 +911,7 @@ export default function TaskNode({
                   <button
                     onClick={() => handleAIAction('chunk')}
                     disabled={loading !== null}
-                    className="todo-btn todo-btn-quiet px-2 py-1"
+                    className="todo-btn todo-btn-quiet px-2 py-1 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
                     title="Break into actionable steps"
                   >
                     {loading === 'chunk' ? (

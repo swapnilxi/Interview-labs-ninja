@@ -105,7 +105,7 @@ with TestClient(app) as client:
         check(f"{prefix}: owner sees the custom section", "My Area" in [s["name"] for s in call("ann", "GET", f"/{prefix}/sections").json()])
         check(f"{prefix}: other users do not", "My Area" not in [s["name"] for s in call("bob", "GET", f"/{prefix}/sections").json()])
 
-        # A subtopic added to a seeded topic keeps the topic seeded; a new topic is custom.
+        # A subtopic added to a seeded topic keeps the topic seeded (it is stored as the user's own version); a new topic is custom.
         first = dict(topics[0])
         first.pop("isCustom")
         first["subtopics"] = first["subtopics"] + [{"id": f"{prefix}-extra", "name": "Extra", "brief": "Custom subtopic."}]
@@ -131,8 +131,14 @@ with TestClient(app) as client:
             "SELECT COUNT(*) FROM lab_sections WHERE lab_name = ? AND user_id IS NULL GROUP BY name HAVING COUNT(*) > 1", (lab_key,)
         ).fetchall()
         check(f"{prefix}: re-running init_db adds no duplicate sections", not dup)
-        subs = json.loads(conn.execute(f"SELECT subtopics_json FROM {table} WHERE id = ?", (seed[0]["id"],)).fetchone()[0])
+        # A subtopic a user adds to a seeded topic is that user's own version (<lab>_topic_overrides); the shared row is untouched.
+        overrides = table.replace("_topics", "_topic_overrides")
+        subs = json.loads(
+            conn.execute(f"SELECT subtopics_json FROM {overrides} WHERE topic_id = ?", (seed[0]["id"],)).fetchone()[0]
+        )
         check(f"{prefix}: re-seeding keeps the user's added subtopic", subs[-1]["id"] == f"{prefix}-extra")
+        shared = json.loads(conn.execute(f"SELECT subtopics_json FROM {table} WHERE id = ?", (seed[0]["id"],)).fetchone()[0])
+        check(f"{prefix}: the shared topic itself is untouched", shared == seed[0]["subtopics"])
     conn.close()
 
     # ── /lab-sections accepts the new labs and uses their own wording ─────────────────────────────────

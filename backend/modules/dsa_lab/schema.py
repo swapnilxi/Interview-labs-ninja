@@ -1,5 +1,6 @@
 from __future__ import annotations
 import sqlite3
+from modules.common.owned_topics import PREREQUISITES_STRICT, ensure_ownership
 from .seed import seed_dsa_topics
 
 
@@ -16,6 +17,9 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
             is_custom INTEGER NOT NULL DEFAULT 0
         )
     """)
+    # owner_id (NULL = shared with everyone) and dsa_topic_overrides (a user's own version of a shared topic): see
+    # modules/common/owned_topics.py, the one implementation for every lab.
+    ensure_ownership(cursor, "dsa_topics", PREREQUISITES_STRICT)
 
 
 def create_week_plan_table(cursor: sqlite3.Cursor) -> None:

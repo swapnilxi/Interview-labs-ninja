@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from 'react';
 import { toast } from '@/lib/ui/toast';
 import { updateProject, type LabProject } from '@/lib/services/labProjectsService';
 import { upsertProject } from '@/modules/labs/common/project/projectStore';
-import { CONTEXT_MAX, DESCRIPTION_MAX, NAME_MAX } from '@/modules/labs/project/ProjectFormDialog';
+import { CONTEXT_MAX, DESCRIPTION_MAX, NAME_MAX } from '@/modules/labs/project/ProjectForm';
 import { fieldClass, primaryButton, quietButton, Spinner } from '@/modules/labs/project/ui';
 
 /**

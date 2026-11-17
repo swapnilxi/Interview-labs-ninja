@@ -239,6 +239,7 @@ def init_db() -> None:
         from modules.genai_lab.schema import register as genai_register
         from modules.dsa_lab.schema import register as dsa_register
         from modules.lab_sections.schema import register as lab_sections_register
+        from modules.guided_practice.schema import register as guided_practice_register
         from modules.lab_projects.schema import register as lab_projects_register
         from modules.linkedin_post_generator.templates.schema import register as linkedin_register
         from modules.ai_todo.shared.schema import register as todo_register
@@ -254,6 +255,7 @@ def init_db() -> None:
         genai_register(cursor)
         dsa_register(cursor)
         lab_sections_register(cursor)
+        guided_practice_register(cursor)
         lab_projects_register(cursor)
         linkedin_register(cursor)
         todo_register(cursor)
@@ -1072,6 +1074,22 @@ def fetch_lab_sections(user_id: Optional[int], lab_name: str) -> List[dict]:
         )
         rows = cursor.fetchall()
         return [{"id": r[0], "labName": r[1], "name": r[2], "isCustom": bool(r[3])} for r in rows]
+    finally:
+        conn.close()
+
+
+def delete_custom_lab_section(user_id: int, lab_name: str, name: str) -> bool:
+    """Remove a custom section the user added (their own row only; the seeded ones can't be removed).
+    True when a row was deleted."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM lab_sections WHERE lab_name = ? AND name = ? AND user_id = ? AND is_custom = 1",
+            (lab_name, name, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
     finally:
         conn.close()
 

@@ -20,10 +20,17 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, BeforeValidator, Field, StrictInt, ValidationError
 from modules.auth.dependencies import get_current_user_id
 from modules.common.ai import AISettings, call_ai_text, extract_json_object
-from modules.common.db import fetch_lab_sections, save_lab_section
+from modules.common.db import delete_custom_lab_section, fetch_lab_sections, save_lab_section
+from modules.common.owned_topics import (
+    PREREQUISITES_STRICT,
+    TopicError,
+    delete_owned,
+    fetch_owned,
+    is_admin_user,
+    save_owned,
+)
 from . import week_plan as store
 from .auto_plan import auto_plan_max_tokens, build_auto_plan_prompt, normalize_auto_plan, validate_auto_request
-from .seed import fetch_dsa_topics, save_dsa_topic
 from .week_plan import MAX_ENTRIES, MAX_WEEKS, WeekPlanError, clean_name, clean_summary, normalize_plan, validate_plan
 
 
@@ -46,6 +53,7 @@ class DSATopicIn(BaseModel):
     difficulty: str
     prerequisites: List[str] = Field(default_factory=list)
     subtopics: List[DSASubtopicIn] = Field(default_factory=list)
+    shared: bool = False  # admin only: make this topic everyone's instead of the caller's own
 
 
 class LabSectionIn(BaseModel):
@@ -54,13 +62,27 @@ class LabSectionIn(BaseModel):
 
 
 @router.get("/topics")
-async def get_dsa_topics() -> List[dict]:
-    return fetch_dsa_topics()
+async def get_dsa_topics(user_id: int = Depends(get_current_user_id)) -> List[dict]:
+    return fetch_owned("dsa_topics", PREREQUISITES_STRICT, user_id, order="id")
 
 
 @router.post("/topics")
-async def save_dsa_topic_endpoint(payload: DSATopicIn) -> dict:
-    save_dsa_topic(payload.model_dump())
+async def save_dsa_topic_endpoint(payload: DSATopicIn, user_id: int = Depends(get_current_user_id)) -> dict:
+    data = payload.model_dump()
+    shared = data.pop("shared")
+    try:
+        save_owned("dsa_topics", PREREQUISITES_STRICT, data, user_id, is_admin_user(user_id), shared)
+    except TopicError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    return {"status": "success"}
+
+
+@router.delete("/topics")
+async def delete_dsa_topic_endpoint(topic_id: str, user_id: int = Depends(get_current_user_id)) -> dict:
+    try:
+        delete_owned("dsa_topics", topic_id, user_id, is_admin_user(user_id))
+    except TopicError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
     return {"status": "success"}
 
 
@@ -72,6 +94,13 @@ async def get_dsa_sections(user_id: int = Depends(get_current_user_id)) -> List[
 @router.post("/sections")
 async def save_dsa_section(payload: LabSectionIn, user_id: int = Depends(get_current_user_id)) -> dict:
     save_lab_section(user_id, "dsa", payload.name)
+    return {"status": "success"}
+
+
+@router.delete("/sections")
+async def delete_dsa_section(name: str, user_id: int = Depends(get_current_user_id)) -> dict:
+    if not delete_custom_lab_section(user_id, "dsa", name):
+        raise HTTPException(status_code=404, detail="Only a pattern or category you added can be removed")
     return {"status": "success"}
 
 

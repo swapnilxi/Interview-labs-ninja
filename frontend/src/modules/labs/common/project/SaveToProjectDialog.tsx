@@ -199,7 +199,7 @@ export default function SaveToProjectDialog({
                     it.
                   </p>
                   <Link
-                    href="/labs-project?new=1"
+                    href="/labs-project/new"
                     className="todo-focus mt-2 inline-flex items-center gap-1.5 rounded-md font-semibold lab-ink hover:underline"
                   >
                     <Icon name="FolderPlusIcon" size={14} />

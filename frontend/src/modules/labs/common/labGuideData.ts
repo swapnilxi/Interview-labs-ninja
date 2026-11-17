@@ -145,7 +145,7 @@ export const LAB_GUIDES: Record<LabGuideKey, LabGuideItem> = {
       {
         question: 'Can I generate answers in languages other than Python?',
         answer:
-          'Yes! Open the Lab Settings & Prompts modal and specify your preferred language (e.g., C++, Java, Rust, TypeScript) in the Custom Standing Context field.',
+          'Yes! Open Lab management (the gear in the sidebar), go to Sections and prompts, and write your preferred language (e.g., C++, Java, Rust, TypeScript) in Standing context.',
       },
       {
         question: 'How do I add my own problem to a pattern?',
@@ -239,7 +239,7 @@ export const LAB_GUIDES: Record<LabGuideKey, LabGuideItem> = {
       {
         question: 'How do I focus on deployment rather than research?',
         answer:
-          'In Lab Settings, activate the "Real-Time FPS Optimizations" prompt add-on to prioritize low-latency inference, TensorRT, and edge hardware constraints.',
+          'In Lab management, under Sections and prompts, switch on the "Real-Time FPS Optimizations" add-on to prioritize low-latency inference, TensorRT, and edge hardware constraints.',
       },
     ],
   },

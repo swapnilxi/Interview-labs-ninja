@@ -25,6 +25,7 @@ export default function WikiIndex({
   onSelectSub,
   onBeforeOrganize,
   onOpenGuide,
+  managementHref,
 }: {
   grouped: { name: string; topics: DSATopic[] }[];
   topics: DSATopic[];
@@ -33,6 +34,7 @@ export default function WikiIndex({
   onSelectSub: (topicId: string, subId: string) => void;
   onBeforeOrganize: (trigger: OrganizeTrigger) => void;
   onOpenGuide?: () => void;
+  managementHref?: string;
 }) {
   // ?view=week shows the week-by-week plan; no param is the pattern-wise handbook.
   const { get: getParam, update: updateUrl } = useUrlState();
@@ -54,6 +56,7 @@ export default function WikiIndex({
         title="DSA Lab Wiki"
         description="Pattern-wise interview preparation handbook"
         onOpenGuide={onOpenGuide}
+        managementHref={managementHref}
         metrics={[
           { label: 'Patterns', value: grouped.length },
           { label: 'Topics', value: topics.length },

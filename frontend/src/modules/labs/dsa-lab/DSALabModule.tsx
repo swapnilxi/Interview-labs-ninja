@@ -1,12 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import LabPageVideos from '@/modules/labs/common/LabPageVideos';
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import ConfirmHost from '@/components/ui/ConfirmHost';
 import LabCopilot, { LabCopilotRail } from '@/modules/labs/common/LabCopilot';
 import { LabMobileBar, LabSheetBackdrop, useLabPanes, useLabSheets } from '@/modules/labs/common/LabMobile';
-import { LAB_REVEAL, LabAddRow, LabRecentList, LabSidebarHeader } from '@/modules/labs/common/LabSidebarParts';
+import { LAB_REVEAL, LabRecentList, LabSidebarHeader } from '@/modules/labs/common/LabSidebarParts';
 import OnDemandSection from '@/modules/labs/common/OnDemandSection';
 import QuizCarousel from '@/modules/labs/common/QuizCarousel';
 import GenerateQuestionsPanel, { GeneratedSubtopic } from '@/modules/labs/common/GenerateQuestionsPanel';
@@ -20,8 +21,6 @@ import WeekOrganizer from './organizer/WeekOrganizer';
 import { clearOrganizerUi } from './organizer/uiState';
 import { DifficultyTag, LcTag, Tag } from './ui';
 import { CompleteButton, DoneMark } from '@/modules/labs/common/LabProgressUi';
-import { LabSettingsButton } from '@/modules/labs/common/LabSettings';
-import LabSettingsModal from '@/modules/labs/common/LabSettingsModal';
 import LabGuideModal from '@/modules/labs/common/LabGuideModal';
 import ProjectSelector from '@/modules/labs/common/project/ProjectSelector';
 import { sectionSaveInfo } from '@/modules/labs/common/project/sectionProject';
@@ -29,12 +28,17 @@ import SectionPromptModal from '@/modules/labs/common/SectionPromptModal';
 import { useLabSettings } from '@/modules/labs/common/useLabSettings';
 import { DSA_DEFAULT_GUIDANCE } from './sectionGuidance';
 import ApproachTabs from './ApproachTabs';
+import GuidedPracticeCard from '@/modules/labs/guided/GuidedPracticeCard';
 import { buildUrl, useUrlState } from '@/lib/navigation/urlState';
 import { LabBackBar, LabScreenLoading, jumpToAnchor, useLabNav, useScrollToTopOnChange } from '@/modules/labs/common/labNavigation';
 import type { ContextMode } from '@/lib/services/labSectionsService';
 import { apiFetch } from '@/lib/http/apiClient';
+import { addGroup, saveTopic } from '@/modules/labs/common/management/labCatalogApi';
+import { manageHref } from '@/modules/labs/common/management/types';
+import LabSidebarSearch from '@/modules/labs/common/LabSidebarSearch';
+import { labManagementConfig } from '@/modules/labs/common/management/labManagement';
 
-import { parseBrief, SECTION_DEFS, SETTINGS_SECTIONS, getContent } from './sectionContent';
+import { parseBrief, SECTION_DEFS, getContent } from './sectionContent';
 import type { DSATopic } from './types';
 import DSAWikiIndex from './DSAWikiIndex';
 import { STATIC_DSA_TOPICS } from './fallbackTopics';
@@ -75,6 +79,8 @@ function focusOrganizeTrigger(trigger: OrganizeTrigger) {
   requestAnimationFrame(attempt);
 }
 
+const DSA_MANAGEMENT = labManagementConfig('dsa');
+
 export default function DSALabInteractive() {
   const [topics, setTopics] = useState<DSATopic[]>([]);
   const [topicsReady, setTopicsReady] = useState(false);
@@ -92,9 +98,6 @@ export default function DSALabInteractive() {
   );
 
   // add-section
-  const [showAddSec, setShowAddSec] = useState(false);
-  const [newSecInput, setNewSecInput] = useState('');
-  const [addingSec, setAddingSec] = useState(false);
   // add-topic
   const [addingTopicTo, setAddingTopicTo] = useState<string | null>(null);
   const [newTopicInput, setNewTopicInput] = useState('');
@@ -309,35 +312,33 @@ export default function DSALabInteractive() {
     setExpandedTopics((prev) => new Set([...prev, item.topicId]));
   };
 
-  const handleAddSection = () => {
-    if (!newSecInput.trim()) return;
-    setAddingSec(true);
-    const name = newSecInput.trim();
-    apiFetch('/dsa/sections', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, isCustom: true }),
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(() => {
-        setSectionsData((prev) => [
-          ...prev,
-          { id: Date.now(), labName: 'dsa', name, isCustom: true },
-        ]);
-        setExpandedSecs((prev) => new Set([...prev, name]));
-        setNewSecInput('');
-        setShowAddSec(false);
-      })
-      .catch((e) => console.error('addSec:', e))
-      .finally(() => setAddingSec(false));
+  const [topicError, setTopicError] = useState<string | null>(null);
+  const sidebarSettings = useLabSettings('dsa');
+
+  /** Adds a pattern. Shown once it is saved; true when it was. */
+  const handleAddSection = async (nameArg: string): Promise<boolean> => {
+    const name = (nameArg ?? '').trim();
+    if (!name) return false;
+    setTopicError(null);
+    try {
+      await addGroup(DSA_MANAGEMENT.apiBase, name);
+    } catch (e) {
+      setTopicError(e instanceof Error ? e.message : 'Could not add the pattern.');
+      return false;
+    }
+    setSectionsData((prev) => [...prev, { id: Date.now(), labName: 'dsa', name, isCustom: true }]);
+    setExpandedSecs((prev) => new Set([...prev, name]));
+    return true;
   };
 
-  const handleAddTopic = (sectionName: string) => {
-    if (!newTopicInput.trim()) return;
+  /** Adds a topic to a pattern. Shown once it is saved: one that failed to save would vanish on the next load. */
+  const handleAddTopic = async (sectionName: string, nameArg?: string): Promise<boolean> => {
+    const typed = (nameArg ?? newTopicInput).trim();
+    if (!typed) return false;
     setAddingTopic(true);
     const newTopic: DSATopic = {
       id: `custom-${Date.now()}`,
-      name: newTopicInput.trim(),
+      name: typed,
       brief: 'Custom topic.',
       category: sectionName,
       difficulty: 'Medium',
@@ -345,20 +346,20 @@ export default function DSALabInteractive() {
       subtopics: [],
       isCustom: true,
     };
-    apiFetch('/dsa/topics', {
-      method: 'POST',
-      body: JSON.stringify(newTopic),
-    })
-      .then((r) => {
-        if (!r.ok) console.error('addTopic: HTTP', r.status);
-      })
-      .catch((e) => console.error('addTopic:', e))
-      .finally(() => {
-        setTopics((prev) => [...prev, newTopic]);
-        setNewTopicInput('');
-        setAddingTopicTo(null);
-        setAddingTopic(false);
-      });
+    setTopicError(null);
+    try {
+      await saveTopic(DSA_MANAGEMENT.apiBase, newTopic);
+    } catch (e) {
+      setTopicError(e instanceof Error ? e.message : 'Could not save the topic.');
+      return false;
+    } finally {
+      setAddingTopic(false);
+    }
+    setTopics((prev) => [...prev, { ...newTopic, isShared: false }]);
+    setExpandedSecs((prev) => new Set([...prev, sectionName]));
+    setNewTopicInput('');
+    setAddingTopicTo(null);
+    return true;
   };
 
   const handleAddSub = (topicId: string) => {
@@ -367,34 +368,29 @@ export default function DSALabInteractive() {
     if (!parent) return;
     const newSub = { id: `sub-${Date.now()}`, name: newSubInput.trim(), brief: 'Custom subtopic.' };
     const updated = { ...parent, subtopics: [...parent.subtopics, newSub] };
-    apiFetch('/dsa/topics', {
-      method: 'POST',
-      body: JSON.stringify(updated),
-    })
-      .then((r) => {
-        if (!r.ok) console.error('addSub: HTTP', r.status);
+    setTopicError(null);
+    // shown once it is saved: a subtopic that failed to save would vanish on the next load
+    saveTopic(DSA_MANAGEMENT.apiBase, updated)
+      .then(() => {
+        setTopics((prev) => prev.map((t) => (t.id === topicId ? updated : t)));
+        setNewSubInput('');
+        setAddingSubTo(null);
+        setExpandedTopics((prev) => new Set([...prev, topicId]));
       })
-      .catch((e) => console.error('addSub:', e));
-    setTopics((prev) => prev.map((t) => (t.id === topicId ? updated : t)));
-    setNewSubInput('');
-    setAddingSubTo(null);
-    setExpandedTopics((prev) => new Set([...prev, topicId]));
+      .catch((e) => setTopicError(e instanceof Error ? e.message : 'Could not save the subtopic.'));
   };
 
   const handleAddGeneratedSubtopic = (topicId: string, generated: GeneratedSubtopic) => {
     const parent = topics.find((t) => t.id === topicId);
     if (!parent) return;
     const updated = { ...parent, subtopics: [...parent.subtopics, generated] };
-    apiFetch('/dsa/topics', {
-      method: 'POST',
-      body: JSON.stringify(updated),
-    })
-      .then((r) => {
-        if (!r.ok) console.error('addGeneratedSub: HTTP', r.status);
+    setTopicError(null);
+    saveTopic(DSA_MANAGEMENT.apiBase, updated)
+      .then(() => {
+        setTopics((prev) => prev.map((t) => (t.id === topicId ? updated : t)));
+        setExpandedTopics((prev) => new Set([...prev, topicId]));
       })
-      .catch((e) => console.error('addGeneratedSub:', e));
-    setTopics((prev) => prev.map((t) => (t.id === topicId ? updated : t)));
-    setExpandedTopics((prev) => new Set([...prev, topicId]));
+      .catch((e) => setTopicError(e instanceof Error ? e.message : 'Could not save the subtopic.'));
   };
 
   /* ── render ── */
@@ -428,52 +424,33 @@ export default function DSALabInteractive() {
               collapseLabel={lab.isMobile ? 'Close sidebar' : undefined}
               onOpenGuide={() => setGuideOpen(true)}
               settings={
-                <LabSettingsButton lab="dsa" labName="DSA Lab" sections={SETTINGS_SECTIONS} />
+                <Link
+                  href={manageHref(DSA_MANAGEMENT, { topic: selectedTopicId && selectedTopicId !== 'wiki' ? selectedTopicId : null })}
+                  title="Lab management"
+                  aria-label="Lab management"
+                  className="todo-focus relative flex-shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground"
+                >
+                  <Icon name="Cog6ToothIcon" size={14} />
+                  {sidebarSettings.hasAny && (
+                    <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
+                  )}
+                </Link>
               }
             />
             {leftExpanded && (
               <div className="px-3 pb-3">
-                {showAddSec ? (
-                  <div className="flex gap-1.5">
-                    <input
-                      autoFocus
-                      value={newSecInput}
-                      onChange={(e) => setNewSecInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddSection();
-                        if (e.key === 'Escape') {
-                          setShowAddSec(false);
-                          setNewSecInput('');
-                        }
-                      }}
-                      placeholder="New pattern or section"
-                      aria-label="New pattern or section name"
-                      className="todo-input todo-input-quiet min-w-0 flex-1 px-2.5 py-1.5 text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddSection}
-                      disabled={addingSec || !newSecInput.trim()}
-                      className="todo-btn todo-btn-primary"
-                    >
-                      {addingSec ? 'Adding…' : 'Add'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddSec(false);
-                        setNewSecInput('');
-                      }}
-                      className="todo-btn todo-btn-ghost w-8 px-0"
-                      aria-label="Cancel"
-                      title="Cancel"
-                    >
-                      <Icon name="XMarkIcon" size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <LabAddRow label="Add pattern / section" onClick={() => setShowAddSec(true)} />
-                )}
+                <LabSidebarSearch
+                  groupNoun={DSA_MANAGEMENT.groupNoun.one}
+                  groups={allSecNames}
+                  topics={topics}
+                  currentGroup={currentTopic?.category}
+                  error={topicError}
+                  onOpenGroup={(name) => setExpandedSecs((prev) => new Set([...prev, name]))}
+                  onOpenTopic={(id) => navigateTo({ id, type: 'topic', topicId: id, label: '' })}
+                  onOpenSubtopic={(topicId, subId) => navigateTo({ id: subId, type: 'subtopic', topicId, label: '' })}
+                  onAddTopic={handleAddTopic}
+                  onAddGroup={handleAddSection}
+                />
               </div>
             )}
           </div>
@@ -774,6 +751,7 @@ export default function DSALabInteractive() {
               onSelectTopic={selectTopic}
               onSelectSub={selectSub}
               onBeforeOrganize={rememberOrganizerPlace}
+              managementHref={manageHref(DSA_MANAGEMENT)}
               onOpenGuide={() => setGuideOpen(true)}
             />
           ) : !currentTopic ? (
@@ -883,7 +861,6 @@ function TopicDetail({
   const [promptModalSection, setPromptModalSection] = useState<
     (typeof SECTION_DEFS)[number] | null
   >(null);
-  const [labSettingsModalOpen, setLabSettingsModalOpen] = useState(false);
   // The quiz isn't a template section: its state comes from the AI quiz, not from `sections`.
   const sections: Record<string, SectionState> = {
     ...baseSections,
@@ -910,8 +887,8 @@ function TopicDetail({
           <WeekPill week={week} />
           {subtopic && <Tag>Subtopic</Tag>}
           {topic.isCustom && <Tag>Custom</Tag>}
+          {topic.isCustom && (topic.isShared ? <Tag>Everyone</Tag> : <Tag>Only you</Tag>)}
         </div>
-
         <div className="mt-3.5 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
@@ -970,26 +947,25 @@ function TopicDetail({
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Actions: every control in the row is one height (h-8) and one corner, so they sit on one line */}
         <div className="mt-[1.25rem] flex flex-wrap items-start gap-2">
-          <ProjectSelector />
-          <button
-            type="button"
-            onClick={() => setLabSettingsModalOpen(true)}
-            className="todo-btn todo-btn-secondary"
-            title="DSA Lab Settings & Prompts"
+          <ProjectSelector className="h-8" />
+          <Link
+            href={manageHref(DSA_MANAGEMENT, { tab: 'topic', topic: topic.id, sub: subtopic?.id })}
+            className="todo-btn todo-btn-secondary relative h-8 w-8 rounded-lg px-0"
+            aria-label="Topic management"
+            title="Topic management"
           >
-            <Icon name="AdjustmentsHorizontalIcon" size={14} className="text-primary" />
-            <span>Lab Settings</span>
-            {labSettings.hasAny && (
+            <Icon name="Cog6ToothIcon" size={16} />
+            {labSettings.hasTopicSettings(topic.id) && (
               <>
-                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary" />
-                <span className="sr-only">(customised)</span>
+                <span aria-hidden="true" className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="sr-only">(has topic settings)</span>
               </>
             )}
-          </button>
+          </Link>
           <div className="ml-auto">
-            <CompleteButton lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} />
+            <CompleteButton lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} className="h-8" />
           </div>
         </div>
       </header>
@@ -1053,6 +1029,9 @@ function TopicDetail({
         accentVar="--lab-accent"
         onAddSubtopic={(generated) => onAddGeneratedSubtopic(topic.id, generated)}
       />
+
+      {/* ── Guided Practice: a dedicated page (/dsa-lab/guided-practice), not a section of this one ── */}
+      <GuidedPracticeCard lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} name={name} />
 
       <LabPageVideos lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} />
 
@@ -1184,6 +1163,7 @@ function TopicDetail({
           section={promptModalSection}
           currentSettings={labSettings.get(promptModalSection.id)}
           labWideSettings={labSettings.labWide}
+          topicSettings={labSettings.topic(topic.id)}
           currentTopic={{ name: topic.name, brief: desc, subtopicName: subtopic?.name }}
           isOpen={true}
           onClose={() => setPromptModalSection(null)}
@@ -1196,13 +1176,6 @@ function TopicDetail({
           }}
         />
       )}
-
-      <LabSettingsModal
-        lab="dsa"
-        isOpen={labSettingsModalOpen}
-        onClose={() => setLabSettingsModalOpen(false)}
-        currentTopic={{ name: topic.name, brief: desc, subtopicName: subtopic?.name }}
-      />
     </div>
   );
 }

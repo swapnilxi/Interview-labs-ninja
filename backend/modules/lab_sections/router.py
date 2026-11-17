@@ -93,9 +93,9 @@ class GenerateSectionPayload(AISettings):
     existing_content: str = Field(default="", max_length=40000)
     # Standing instructions for this kind of section (structure, depth): the section's built-in text,
     # or the user's own prompt, plus their add-on. The frontend composes them so both backends get the same.
-    section_guidance: str = Field(default="", max_length=9000)
+    section_guidance: str = Field(default="", max_length=13000)
     # What the user told the lab-wide and section settings about themselves (role, target, language...).
-    standing_context: str = Field(default="", max_length=4500)
+    standing_context: str = Field(default="", max_length=6500)
     # Additional instructions (prompt add-on) specific to section or lab.
     prompt_addon: str = Field(default="", max_length=4000)
     # The Labs Project to write for (None = no project: the lab's general behaviour). The project's text is
@@ -276,8 +276,8 @@ class GenerateQuizPayload(AISettings):
     subtopic_name: str = Field(default="", max_length=300)
     subtopic_brief: str = Field(default="", max_length=2000)
     count: int = Field(default=4, ge=1, le=8)
-    section_guidance: str = Field(default="", max_length=9000)
-    standing_context: str = Field(default="", max_length=4500)
+    section_guidance: str = Field(default="", max_length=13000)
+    standing_context: str = Field(default="", max_length=6500)
     # The Labs Project the questions are for (None = no project); loaded server-side like the section flow's.
     project_id: Optional[StrictInt] = Field(default=None, ge=1)
 
@@ -593,6 +593,7 @@ class PageVideoIn(BaseModel):
     # Checked in videos.py, not here, so both backends answer a bad value with the same text.
     url: Optional[Any] = None
     title: Optional[Any] = None
+    shared: bool = False  # admin only: show it to everyone, not just the caller
 
 
 def _video_http_error(err: page_videos.VideoError) -> HTTPException:
@@ -613,7 +614,7 @@ async def get_page_videos(
 @router.post("/videos", status_code=201)
 async def add_page_video(payload: PageVideoIn, user_id: int = Depends(get_current_user_id)) -> dict:
     try:
-        return page_videos.add_video(user_id, payload.lab, payload.topic_id, payload.subtopic_id, payload.url, payload.title)
+        return page_videos.add_video(user_id, payload.lab, payload.topic_id, payload.subtopic_id, payload.url, payload.title, payload.shared)
     except page_videos.VideoError as err:
         raise _video_http_error(err)
 

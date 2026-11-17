@@ -106,6 +106,13 @@ horizontal page scroll, room above the floating tab bar and the mic button. Chec
   streak / XP pills are neutral; a selected chip shows a check; stat cards are numbers; the header eyebrow is the date.
 - **SwipeLearn:** the card banner carries the topic's hue (the screen's one moment); topics appear as `.swipe-dot`
   everywhere else; the deck's actions are neutral rounds with Save as the one accent button.
+- **Guided Practice (`labs/guided`, DSA and CV):** the one screen with its own accent, purple `#9172EC`, because its brief asked
+  for it; `.gp-accent` re-points `--color-primary` and the `--lab-accent*` tokens (a `var()` alias resolves where it is declared, so
+  both must be redeclared), and anything portalled to `<body>` carries `gp-accent` itself. Everything else is this guideline: solid
+  grouped cards with hairlines (material, i.e. blur, only on the title bar, reward banners and sheets), the journey line through the
+  phases as the signature and the three activity rings (one hue in three weights) as the moment, iOS switches and segmented controls,
+  44 px buttons on touch screens (larger hit areas on the small controls), no hue gradients, glows or coloured shadows. The dark
+  ink on a purple fill is deliberate: white on `#9172EC` is 3.6:1.
 
 ## 10. Before you ship a screen
 

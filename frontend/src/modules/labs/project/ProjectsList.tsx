@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { formatServerDate, projectHref, type LabProject } from '@/lib/services/labProjectsService';
+import { exampleHref, PROJECT_TEMPLATES } from '@/modules/labs/project/projectTemplates';
 import {
   deleteWithConfirm,
   setArchived,
@@ -81,6 +82,21 @@ export default function ProjectsList({
           <Icon name="PlusIcon" size={16} />
           Create your first project
         </button>
+        <div className="mx-auto mt-[1.5rem] max-w-md border-t border-border pt-4 text-left">
+          <p className="text-[13px] font-medium text-foreground">Or start from an example</p>
+          <ul className="mt-2 space-y-1">
+            {PROJECT_TEMPLATES.map((t) => (
+              <li key={t.id}>
+                <Link
+                  href={exampleHref(t.id)}
+                  className="todo-focus rounded text-sm lab-ink hover:underline"
+                >
+                  {t.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       </EmptyState>
     );
   }

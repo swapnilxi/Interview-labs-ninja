@@ -1,0 +1,211 @@
+'use client';
+
+import { useEffect, useId, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Icon from '@/components/ui/AppIcon';
+import BackButton from '@/components/ui/BackButton';
+import { createProject, projectHref } from '@/lib/services/labProjectsService';
+import { upsertProject } from '@/modules/labs/common/project/projectStore';
+import { PROJECT_TEMPLATES, templateById } from '@/modules/labs/project/projectTemplates';
+import { fieldClass, primaryButton, Spinner } from '@/modules/labs/project/ui';
+
+export const NAME_MAX = 120;
+export const DESCRIPTION_MAX = 1000;
+export const CONTEXT_MAX = 12000;
+
+const labelClass = 'mb-1.5 block text-[13px] font-medium text-foreground';
+
+/**
+ * New project, on its own page (/labs-project/new): a name (required), one line about it and, if you have it, the first draft of its
+ * context. Creating goes straight to the new project: its Context tab when there is none yet, else its sections.
+ *
+ * `?example=<id>` fills the form from an example project (projectTemplates.ts); nothing is created until Create is pressed.
+ */
+export default function ProjectForm() {
+  const router = useRouter();
+  const example = templateById(useSearchParams().get('example'));
+  const nameId = useId();
+  const descId = useId();
+  const contextId = useId();
+  const [name, setName] = useState(example?.name ?? '');
+  const [description, setDescription] = useState(example?.description ?? '');
+  const [context, setContext] = useState(example?.context ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Choosing another example (or none) changes the address, and the form follows it
+  const filledFrom = useRef<string | null>(example?.id ?? null);
+  useEffect(() => {
+    const id = example?.id ?? null;
+    if (filledFrom.current === id) return;
+    filledFrom.current = id;
+    setName(example?.name ?? '');
+    setDescription(example?.description ?? '');
+    setContext(example?.context ?? '');
+  }, [example]);
+  const choose = (id: string | null) =>
+    router.replace(
+      id ? `/labs-project/new?example=${encodeURIComponent(id)}` : '/labs-project/new',
+      { scroll: false }
+    );
+
+  const submit = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const project = await createProject({ name: trimmed, description, context });
+      upsertProject(project);
+      router.push(projectHref(project.id, project.context ? 'sections' : 'context'));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create the project. Try again.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="max-w-[720px]">
+      <div className="mb-5">
+        <BackButton href="/labs-project" label="Projects" />
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+        className="rounded-2xl border border-border bg-card p-5 sm:p-[1.5rem]"
+      >
+        <h1 className="font-heading text-[1.25rem] font-semibold leading-tight tracking-[-0.018em] text-foreground">
+          New project
+        </h1>
+        <p className="mt-1 text-sm mix-text-foreground/[0.68]">
+          Every lab can generate for it, using what you write here.
+        </p>
+
+        <section aria-label="Start from an example" className="mt-[1.5rem]">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <p className="text-[13px] font-medium text-foreground">Start from an example</p>
+            {example && (
+              <button
+                type="button"
+                onClick={() => choose(null)}
+                disabled={busy}
+                className="text-[13px] text-muted-foreground hover:text-foreground hover:underline"
+              >
+                Start blank
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            {PROJECT_TEMPLATES.map((t) => {
+              const on = example?.id === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  aria-pressed={on}
+                  disabled={busy}
+                  onClick={() => choose(t.id)}
+                  className={`todo-focus flex flex-col items-stretch justify-start rounded-xl border p-3 text-left transition-colors ${
+                    on
+                      ? 'border-transparent bg-[var(--color-fill-strong)]'
+                      : 'hover:bg-[var(--color-fill)]'
+                  }`}
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="break-words text-sm font-medium text-foreground">
+                      {t.name}
+                    </span>
+                    {on && <Icon name="CheckIcon" size={14} className="mt-0.5 flex-shrink-0" />}
+                  </span>
+                  <span className="mt-1 line-clamp-4 text-[13px] text-muted-foreground">
+                    {t.description}
+                  </span>
+                  <span className="mt-auto pt-2 text-xs text-muted-foreground">
+                    {t.tags.join(' · ')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Enterprise-scale systems with the context already written. The numbers are illustrative:
+            change anything before you create it.
+          </p>
+        </section>
+
+        <div className="mt-[1.5rem] space-y-5">
+          <div>
+            <label htmlFor={nameId} className={labelClass}>
+              Name
+            </label>
+            <input
+              id={nameId}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={NAME_MAX}
+              placeholder="Crop disease detection"
+              className={fieldClass}
+              autoFocus={!example}
+              disabled={busy}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor={descId} className={labelClass}>
+              Description
+            </label>
+            <input
+              id={descId}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={DESCRIPTION_MAX}
+              placeholder="One line on what the project is"
+              className={fieldClass}
+              disabled={busy}
+            />
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-baseline justify-between gap-3">
+              <label htmlFor={contextId} className="text-[13px] font-medium text-foreground">
+                Context
+              </label>
+              <span className="text-xs text-muted-foreground">Optional, you can add it later</span>
+            </div>
+            <textarea
+              id={contextId}
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              maxLength={CONTEXT_MAX}
+              rows={8}
+              placeholder="Background, objectives, requirements, constraints, technical decisions"
+              className={`${fieldClass} resize-y text-[0.8125rem] leading-relaxed`}
+              disabled={busy}
+            />
+            <p className="mt-1.5 text-right text-xs tabular-nums text-muted-foreground">
+              {context.length.toLocaleString()} / {CONTEXT_MAX.toLocaleString()}
+            </p>
+          </div>
+          {error && (
+            <p role="alert" className="text-[0.8125rem] text-error">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-[1.5rem] flex justify-end gap-2 border-t border-border pt-5">
+          <Link href="/labs-project" className="todo-btn todo-btn-secondary" aria-disabled={busy}>
+            Cancel
+          </Link>
+          <button type="submit" disabled={!name.trim() || busy} className={primaryButton}>
+            {busy && <Spinner />}
+            {busy ? 'Creating…' : 'Create project'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

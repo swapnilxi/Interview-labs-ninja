@@ -480,11 +480,17 @@ generations (in any lab) can build on. Everything is per user and login-required
   semantics) and `lab_sections/{router,quiz}.py` ↔ `fe-apis/labSections/{handlers,quiz}.ts` must stay byte-identical: change both and diff the
   prompts both backends send to a mock provider.
 - **Frontend**: `src/modules/labs/project/` (page `/labs-project`: Projects list, Project Context, Project Sections, section detail;
-  screens live in the URL: `?project=&tab=context|sections&section=&status=&new=1`), `src/modules/labs/common/project/` (shared store +
+  screens live in the URL: `?project=&tab=context|sections&section=&status=`; **New project is its own page, `/labs-project/new`**
+  (`ProjectForm.tsx`), and the old `/labs-project?new=1` redirects there from the server page), `src/modules/labs/common/project/` (shared store +
   `useLabProjects`, `ProjectSelector` in each lab's header, `SectionProjectBar` under each generated section with **Save to Project**,
   `SaveToProjectDialog`), `src/lib/services/labProjectsService.ts`. The selection is shared by all labs and kept in localStorage per user.
   `useLabSections`/`useLabQuiz` read it at click time (`resolveSelectedProject`); with a project selected even the labs' template
   sections go through the AI.
+- **Example projects**: `src/modules/labs/project/projectTemplates.json` (+ `projectTemplates.ts`) holds three enterprise-scale examples (a
+  multi-tenant SaaS platform, a payments and fraud platform, an enterprise RAG assistant), each with a worked-out context (goal, scale,
+  requirements, decisions made, hard problems, what to ask of each lab). `/labs-project/new?example=<id>` fills the form from one and nothing
+  is created until Create is pressed; the empty projects list links to them. The numbers are illustrative. A user can also be given them
+  directly: insert the same three rows into `lab_projects` for that `user_id` (name, description and context come from the JSON).
 - **Tests**: `cd backend && uv run python tests/lab_projects_test.py` (copy of the DB, fake model call): CRUD, isolation between users and projects,
   persistence, deletion, retrieval, project context in the prompts, the no-project prompt, update/regenerate behaviour, quiz scoping.
 - **Not covered yet**: the "Generate Questions" / YouTube panel (feeds the global Question Bank, no `fe-apis` twin), the other
@@ -562,6 +568,7 @@ modules/labs/
   python-lab/         labConfig.ts + an 8-line module
   genai-lab/          labConfig.ts + an 8-line module
   dsa-lab/            its own page (see below)
+  guided/             Guided Practice for DSA and CV (see "Guided Practice"): the page, the game rules, the Python runner
   home/               /labs        project/   /labs-project
 ```
 
@@ -609,6 +616,104 @@ lab lives in two folders, the rest is one-line registrations:
 - *Next.js twin:* `fe-apis/labs/index.ts` (`LABS`, table list, routes), `fe-apis/labSections/{handlers,quiz}.ts` and
   `fe-apis/dailySession/labGenerate.ts` (same texts as the Python side), `src/app/api/<lab>/[...path]/route.ts`, and in `next.config.mjs` the
   `/<lab>/:path+` rewrite and the `outputFileTracingIncludes` entry (database + `topics.json`).
+
+## Lab management (`<lab path>/manage`, every lab)
+
+All seven labs (DSA, System Design, CV, Communication, Finance, Python, GenAI & AI) have a management page with its own addresses, built
+from shared parts in `frontend/src/modules/labs/common/management/`. A lab is described once, in `labManagement.ts` (`LAB_MANAGEMENT`, a
+`LabManagementConfig`: name, icon, lab path, API base, what to call a group of topics, what its backend can do in `can`), and gets two tabs:
+
+- **Lab management** (`?` and `?view=catalog`): *Sections and prompts* is `LabSettingsManager` (the whole lab's add-on and standing context,
+  then one row per section) and *Patterns and topics* (*Categories and topics* outside DSA) is `LabCatalogPanel`: every group with its topics,
+  move, remove, add or remove a group. A section's settings are their own page, `?section=<id>` (`SectionPromptEditor`, `variant="page"`);
+  the same editor is the quick dialog a lab page opens (`SectionPromptModal`, `variant="modal"`, with "Generate now"). The Settings page's
+  "Lab prompts" section uses the same manager (a chip row picks the lab; a section opens in the dialog there).
+- **Topic management** (`?tab=topic&topic=<id>`): `TopicManagementPanel` for one topic: its group, who sees it (Only you / Everyone; an admin
+  can share a person's topic; "Reset to the shared version" drops a person's changes to a shared one), the **context for this topic** and
+  removing it. `topic` / `sub` are the same params as the lab's own page, so one link moves between the two.
+- **Pages**: `app/<lab>/manage/page.tsx` is six lines (`labManagementConfig('<lab>')` + `LabManageRoute`, a server component with the header,
+  the login gate and the Suspense boundary). **Adding a lab**: an entry in `LAB_MANAGEMENT`, that page file, and the lab's gears pointing at
+  `manageHref(config, ...)` (TopicLab.tsx does this for the six topic labs, DSALabModule.tsx for DSA).
+- **Gears on a lab page**: the topic page's gear opens Topic management, the sidebar gear and the wiki hero's gear open Lab management. The
+  old per-lab "Lab Settings" dialog is gone.
+- **Topic add-on and context** need no table: they are a `lab_section_settings` row with the section id `topic:<topic id>` (`addon` and
+  `context` are used, `topicSettingsId` in `useLabSettings.ts`). `composeInstructions` puts the lab-wide add-on and context first, then the
+  topic's, then the section's, and a topic with either makes its sections go through the AI like a customised lab does. The generate payload
+  limits are 6,500 characters for `standing_context` and 13,000 for `section_guidance` on both backends (three of each, 2,000 apiece, plus
+  the built-in text). The section editor's preview (`SectionPromptEditor`, `topicSettings`) includes the topic's, so it matches what is sent.
+- **Sidebar search** (`common/LabSidebarSearch.tsx`, every lab): type to find a group, topic or subtopic (Enter opens the first match); text
+  nothing is named like can be added as a topic in a group (the open topic's by default) or as a new group. A lab passes its topics and its
+  save callbacks (they answer whether the save worked; the lab shows a topic or group only once it is saved). DSA's sidebar and `TopicLab.tsx`
+  (the six other labs) both use it; it replaced DSA's "Add pattern" row and the other labs' "Add category" row.
+- **Who sees a topic (all seven labs, both backends)**: `<lab>_topics.owner_id` is NULL for shared topics (the seed topics, anything an admin
+  shared) and the creator's user id otherwise; a person's changes to a *shared* topic (moving it, adding subtopics) go to
+  `<lab>_topic_overrides (user_id, topic_id, ...)` and the topic list returns their version in its place (`isModified`; `isShared` marks the
+  shared ones). `POST /<lab>/topics` takes `shared: true` (admin only), `DELETE /<lab>/topics?topic_id=` removes an own topic (an admin: any
+  custom one; for a changed seed topic it resets it) and `DELETE /<lab>/sections?name=` removes a category the person added. One
+  implementation per backend: Python `backend/modules/common/owned_topics.py` (used by `common/topic_lab.py`'s `build_router`, which serves
+  CV, System Design, Communication, Finance, Python and GenAI, and by `dsa_lab/router.py`); Next.js `fe-apis/labs/index.ts` (`fetchOwned`,
+  `saveOwned`, `deleteOwned`; the six lab route files under `src/app/api/<lab>/[...path]/route.ts` export DELETE too). A lab with its own topic
+  columns (System Design: `scale`, `is_lld`) passes its `TopicShape`. Change both twins; the two return byte-identical topic and section lists.
+  Tests: `cd backend && uv run python tests/owned_topics_test.py` (every lab, a DB copy, no `main` import) and `tests/topic_labs_test.py`.
+- **Videos on lab pages** can be added for everyone by an admin (`lab_page_videos.user_id = 0`; `lab_sections/videos.py` ↔
+  `fe-apis/labSections/videos.ts`): everyone sees them, only an admin removes them, `shared` on the POST body is admin only.
+
+## Guided Practice (`/dsa-lab/guided-practice`, `/cv-lab/guided-practice`)
+
+A dedicated page behind the **Guided Practice** card that every DSA and CV topic and subtopic page shows under "Generate practice
+material" (the brief also calls it SolvePath). One AI-written path per learner and topic: five phases of questions in learning
+order, a final boss, and for any question Breakdown, Dive Deeper, an AI Tutor and a STAR answer, with XP, levels, a coding
+streak and achievements. Code: `frontend/src/modules/labs/guided/`; twins `frontend/fe-apis/guidedPractice/` ↔
+`backend/modules/guided_practice/` (`/guided-practice/*`, one set of endpoints for every lab, `lab` = `dsa` | `cv`).
+
+- **Pages.** `/<lab>-lab/guided-practice?topic=<id>[&sub=<id>][&q=<question>]` (`view=week` is carried so Back returns to the week
+  plan). The open question is in the URL, so on a phone the list and the workspace are two screens and the system Back goes from one
+  to the other; a desktop shows both, with the path sticky beside the workspace. The card is `GuidedPracticeCard` (it also shows the
+  saved progress); DSA puts it in `DSALabModule.tsx`, the TopicLab labs through `guidedPractice: 'cv'` in their `TopicLabConfig`.
+- **Storage.** One JSON document per (user, lab, topic, subtopic) in `guided_practice_state` (`state_json`, a small `summary_json` for
+  the card, a `version`). The browser owns the document (`useGuidedStore`): it saves at once after a generation or a completion, after
+  700 ms for small changes, on tab hide and on leaving; a save quotes the loaded version and a stale one is a **409** (another tab or
+  device saved first: the page stops and offers Reload instead of overwriting). Over 1.5M characters is a 413. A document that cannot
+  be read is never overwritten (`unreadable`). Nothing is regenerated by a page load: the outline is written once, a lesson the first
+  time its question opens, children when Breakdown / Dive Deeper is pressed, a tutor turn or STAR version when asked.
+- **AI.** The endpoints (`/curriculum`, `/question`, `/breakdown`, `/deeper`, `/tutor`, `/star`) only build a prompt and return the model's
+  raw text; `parse.ts` reads it for both backends (tolerant JSON, strict shape; a Breakdown or Dive Deeper question that repeats a
+  title anywhere in the path is dropped). The prompts are `prompts.ts` ↔ `prompts.py`, **byte-identical** (`PROFILES` holds the few
+  words that differ per lab; the DSA texts are the originals). Context sent (`context.ts`): the topic and subtopic, the learner's level
+  and progress and their latest completed titles, the question with its phase and its chain of parent questions, the other titles in
+  its phase and its siblings (so the model avoids repeats), and for the tutor the thread, the learner's code and last test report.
+- **Exercises run in the browser.** Python via Pyodide, loaded once from jsDelivr inside `public/runner/python-worker.js`; after it
+  starts the worker drops `fetch`/`XMLHttpRequest`/`WebSocket` and the Python `js` bridge. An endless loop is ended by terminating the
+  worker (8 s). The AI writes tests and a reference solution together, so the first run of an exercise runs the reference solution
+  against the tests and drops every test it disagrees with (`verifyExercise`); with fewer than two left the exercise is shown but not
+  graded. CV exercises are plain Python on lists (no numpy): an image is rows of numbers, a box is `[x1, y1, x2, y2]`.
+- **The game** (`xp.ts`, `constants.ts`, all pure and unit-tested). XP per question by difficulty, +10 for passing every test of an
+  exercise, +5 exploration on a Dive Deeper question, +40 per phase, +120 for the boss, +5 on a day that continues a coding streak
+  (from the second day). XP is paid through a ledger keyed by what earned
+  it, so un-completing and completing again, or regenerating children, never pays twice (a regenerate keeps every child that was
+  started). A parent that was broken down completes once its steps are done or once the learner shows they understand it (its tests
+  pass, or the tutor's verdict is *understood*). Achievements: First Step, Code Runner, Three-Day Streak, Phase Cleared, Path Complete,
+  Boss Slayer, **Curiosity Explorer** (five Dive Deeper questions completed), **Concept Decomposer** (five breakdowns whose questions
+  are all complete, nested ones count), **Curious Learner** (five tutor sessions that ended in *understood*), **Concept Master** (ten answers that passed their
+  tests or earned the tutor's *understood* with no hint, no solution and no STAR answer). Reading an answer or talking to the tutor
+  never completes a question or pays XP.
+- **Toggles** (`prefs.ts`, localStorage `gp.prefs.v1`; progress is tracked either way): Game mode, Celebrations, Sound and haptics,
+  daily goal, compact rows, hide completed, focus mode, editor line numbers and text size. Keyboard: `J`/`K`, `T`, `S`, `B`, `D`, `R`,
+  `F`, `?`, Ctrl/Cmd+Enter in the editor.
+- **Look.** The one page with its own accent, purple `#9172EC` (see VISUAL-GUIDELINES.md): `.gp-accent` re-points the tokens, the
+  `.gp-*` classes are in `styles/guided-practice.css`. Cards are solid grouped surfaces with hairlines; material (blur) is only the title
+  bar, the reward banners and the sheets, which are the app's `Modal` (bottom sheets on phones). Signature: the route line through the
+  phases; the moment: the three activity rings.
+- **Adding a lab.** An entry in `guided/labs.ts`, the same lab in `GUIDED_LABS` and `PROFILES` on the server (`prompts.ts` and
+  `prompts.py`) and in the Python router's `lab` type, a `/<lab>-lab/guided-practice` route (copy `app/cv-lab/guided-practice` and
+  `guided/CvGuidedPage.tsx`), and `guidedPractice: '<lab>'` in the lab's config.
+- **Checks.** `backend/tests/guided_practice_test.py` (Python router, needs `LABNINJA_TEST_DB_PATH`); the same-requests twin diff and
+  the prompt byte-identity check from CLAUDE.md; the pure rules (`parse.ts`, `tree.ts`, `xp.ts`) have no framework here, so compile
+  them with `tsc --module commonjs` and assert in node. In the browser: scratch DB copy + a mock OpenAI-compatible provider
+  (`customBaseUrl`) + Playwright, as CLAUDE.md describes.
+- **Known limits.** FastAPI's provider timeouts are 45 to 60 s while the Next.js twin allows 240 s, so a long lesson from a slow model
+  can time out in `fastapi` mode. The first run of an exercise needs the network once (Pyodide). A generated test the reference
+  solution also gets wrong still passes verification. The state document grows with tutor threads and STAR versions (1.5M cap).
 
 ## Labs home and the Learning Labs (Communication, Finance, Python, GenAI & AI)
 
@@ -745,6 +850,12 @@ are on their weekdays (`days`, 0 = Sunday … 6 = Saturday, e.g. Weekdays or Wee
 switched them on for (`active_on`, e.g. the day before a deployment). A tick is the local date in `done_on`, so a
 routine is fresh again tomorrow without a reset job. Today shows the groups that are on today in a collapsible
 "Routine" section (`TodayRoutine.tsx`).
+
+- **Dailies start over at 8 am, every other group at midnight.** `tickDay(group, now)` in `routines/routineDays.ts`
+  is the date a tick belongs to: for Dailies it is yesterday's date until 8:00 on the device's clock
+  (`DAILIES_RESET_HOUR`), so a tick made at 7:59 is gone at 8:00. `done_on` is written with it and compared with it
+  (`isDoneToday(item, group, now)`); nothing is reset on a server, and there is no backend change (both twins just
+  store the date). Both screens re-check once a minute, so the reset shows without a reload.
 
 - **Moves are real moves** (the source row is deleted, like the other To-Do moves): an item to another group
   (`PATCH group_id`, lands at the end), out to the To-Do as a task due on the browser's today or to Quick Daily

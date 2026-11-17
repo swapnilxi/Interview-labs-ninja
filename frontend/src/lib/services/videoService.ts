@@ -15,6 +15,8 @@ export interface PageVideo {
   title: string;
   order_index: number;
   created_at: string;
+  /** Added by an admin for everyone (only an admin can remove it). */
+  shared?: boolean;
 }
 
 /** '' for the topic's own page. */
@@ -33,11 +35,12 @@ export function addLabPageVideo(
   topicId: string,
   subtopicId: string,
   url: string,
-  title = ''
+  title = '',
+  shared = false
 ): Promise<PageVideo> {
   return apiJson<PageVideo>('/lab-sections/videos', {
     method: 'POST',
-    body: JSON.stringify({ lab, topic_id: topicId, subtopic_id: subtopicId, url, title }),
+    body: JSON.stringify({ lab, topic_id: topicId, subtopic_id: subtopicId, url, title, shared }),
   });
 }
 

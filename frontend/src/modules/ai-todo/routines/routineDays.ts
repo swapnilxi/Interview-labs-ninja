@@ -46,6 +46,26 @@ export function isSwitchedOn(group: RoutineGroup, now: Date): boolean {
   return group.kind !== 'dailies' && group.active_on === ymd(now);
 }
 
-export function isDoneToday(item: RoutineItem, now: Date): boolean {
-  return item.done_on === ymd(now);
+/** Dailies start a new day at this local hour: before it, yesterday's ticks still count and nothing has reset yet. */
+export const DAILIES_RESET_HOUR = 8;
+
+/**
+ * The date a tick made at `now` belongs to (and the one `done_on` is compared with). Dailies turn over at 8 am: a
+ * tick made at 7:59 is still "yesterday's" and ends at 8:00. Every other group turns over at midnight, as before.
+ * Nothing is reset on a server: an item is done only while its `done_on` equals this date.
+ */
+export function tickDay(group: Pick<RoutineGroup, 'kind'>, now: Date): string {
+  if (group.kind === 'dailies' && now.getHours() < DAILIES_RESET_HOUR) {
+    // Built from the calendar fields, not by subtracting hours, so a daylight-saving change can't shift the date.
+    return ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  }
+  return ymd(now);
+}
+
+export function isDoneToday(
+  item: RoutineItem,
+  group: Pick<RoutineGroup, 'kind'>,
+  now: Date
+): boolean {
+  return item.done_on === tickDay(group, now);
 }

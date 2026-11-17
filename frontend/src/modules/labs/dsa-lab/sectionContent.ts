@@ -1,4 +1,3 @@
-import { settingsSections } from '@/modules/labs/common/LabSettings';
 import { buildPrerequisitesMarkdown } from './prerequisites';
 import { DSA_DEFAULT_GUIDANCE } from './sectionGuidance';
 import type { DSATopic } from './types';
@@ -123,13 +122,6 @@ export const SECTION_DEFS = [
     subtitle: 'NeetCode, LeetCode, Striver, GFG, MIT OCW',
   },
 ];
-
-// The sections the lab settings dialog lists (each with its built-in instructions as the editable prompt).
-export const SETTINGS_SECTIONS = settingsSections(SECTION_DEFS, DSA_DEFAULT_GUIDANCE, {
-  notes: {
-    quiz: 'These instructions and your context are added to the requirements for each new batch of quiz questions.',
-  },
-});
 
 /* ─────────────────────────────── content templates ─────────────────────── */
 export function getContent(sectionId: string, topic: DSATopic): string {

@@ -24,10 +24,9 @@ export const CV_LAB: TopicLabConfig<CVTopic> = {
   wikiDescription: 'Computer vision interview preparation handbook',
   noun: { one: 'topic', many: 'topics' },
   sectionDefs: CV_SECTION_DEFS,
-  quizSettingsNote:
-    'These instructions and your context are added to the requirements for each new batch of quiz questions.',
   defaultContent: getContent,
   fallbackTopics: TOPICS,
   customTopic: { brief: 'Custom topic.', difficulty: 'Medium', prerequisites: [] },
   recentKey: 'cv-lab-recent-topics',
+  guidedPractice: 'cv',
 };

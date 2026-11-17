@@ -29,6 +29,7 @@ import Icon from '@/components/ui/AppIcon';
 import LabCopilot, { LabCopilotRail } from '@/modules/labs/common/LabCopilot';
 import OnDemandSection from '@/modules/labs/common/OnDemandSection';
 import QuizCarousel from '@/modules/labs/common/QuizCarousel';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/http/apiClient';
 import GenerateQuestionsPanel, {
   type GeneratedSubtopic,
@@ -41,11 +42,11 @@ import {
   useLabSheets,
 } from '@/modules/labs/common/LabMobile';
 import { CompleteButton, DoneMark, LabProgressSummary } from '@/modules/labs/common/LabProgressUi';
-import { LabSettingsButton, settingsSections } from '@/modules/labs/common/LabSettings';
-import LabSettingsModal from '@/modules/labs/common/LabSettingsModal';
+import LabSidebarSearch from '@/modules/labs/common/LabSidebarSearch';
+import { labManagementConfig } from '@/modules/labs/common/management/labManagement';
+import { manageHref } from '@/modules/labs/common/management/types';
 import {
   LAB_REVEAL,
-  LabAddRow,
   LabInlineAdd,
   LabRecentList,
   LabSidebarHeader,
@@ -81,6 +82,7 @@ import type {
   TopicTag,
 } from '@/modules/labs/common/topicLabTypes';
 import LabPageVideos from '@/modules/labs/common/LabPageVideos';
+import GuidedPracticeCard from '@/modules/labs/guided/GuidedPracticeCard';
 import { useLabQuiz } from '@/modules/labs/common/useLabQuiz';
 import { useLabSections, type SectionState } from '@/modules/labs/common/useLabSections';
 import { useLabSettings } from '@/modules/labs/common/useLabSettings';
@@ -151,6 +153,7 @@ function TopicLabWikiIndex<T extends TopicLabTopic>({
   onSelectTopic,
   onSelectSub,
   onOpenGuide,
+  managementHref,
 }: {
   config: TopicLabConfig<T>;
   groupedSections: { name: string; topics: T[] }[];
@@ -158,6 +161,7 @@ function TopicLabWikiIndex<T extends TopicLabTopic>({
   onSelectTopic: (id: string) => void;
   onSelectSub: (topicId: string, subId: string) => void;
   onOpenGuide: () => void;
+  managementHref: string;
 }) {
   const totalSubs = allTopics.reduce((a, t) => a + t.subtopics.length, 0);
   const hardCount = allTopics.filter(
@@ -175,6 +179,7 @@ function TopicLabWikiIndex<T extends TopicLabTopic>({
         title={config.wikiTitle}
         description={config.wikiDescription}
         onOpenGuide={onOpenGuide}
+        managementHref={managementHref}
         metrics={[
           { label: 'Categories', value: groupedSections.length },
           { label: nounMany, value: allTopics.length },
@@ -309,12 +314,6 @@ export default function TopicLab<T extends TopicLabTopic>({
       ),
     [sectionDefs]
   );
-  const settingsList = useMemo(
-    () =>
-      settingsSections(sectionDefs, defaultGuidance, { notes: { quiz: config.quizSettingsNote } }),
-    [sectionDefs, defaultGuidance, config.quizSettingsNote]
-  );
-
   // A lab with built-in topics shows them while the server answers (and keeps them if it can't).
   const [topics, setTopics] = useState<T[]>(() => [...(fallbackTopics ?? [])]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -329,9 +328,6 @@ export default function TopicLab<T extends TopicLabTopic>({
   // Categories start collapsed (the open topic's category expands itself, below).
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [sectionsData, setSectionsData] = useState<LabSectionRow[]>([]);
-  const [showAddSec, setShowAddSec] = useState(false);
-  const [customSectionInput, setCustomSectionInput] = useState('');
-  const [addingSection, setAddingSection] = useState(false);
   const [addingTopicToSection, setAddingTopicToSection] = useState<string | null>(null);
   const [newTopicInputSection, setNewTopicInputSection] = useState('');
   const [addingSubtopicTo, setAddingSubtopicTo] = useState<string | null>(null);
@@ -340,7 +336,6 @@ export default function TopicLab<T extends TopicLabTopic>({
   const [recentTopics, setRecentTopics] = useState<Recent[]>([]);
   const [guideOpen, setGuideOpen] = useState(false);
   const [promptModalSection, setPromptModalSection] = useState<SectionDef | null>(null);
-  const [labSettingsModalOpen, setLabSettingsModalOpen] = useState(false);
 
   const sheets = useLabSheets(`${selectedTopicId}|${selectedSubtopicId}`);
   const { leftExpanded, rightExpanded, setLeftOpen, setRightOpen, collapseLeft, collapseRight } =
@@ -415,7 +410,7 @@ export default function TopicLab<T extends TopicLabTopic>({
       );
   }, [currentCategory, currentTopicId]);
 
-  // ── Saving (topics and categories are shared by everyone; a custom category is the user's own) ──
+  // ── Saving (a topic or category a person adds is their own; a change to a shared topic is stored as their own version) ──
   const postTopic = async (topic: Omit<T, 'isCustom'>): Promise<boolean> => {
     setSaveError(null);
     try {
@@ -434,10 +429,10 @@ export default function TopicLab<T extends TopicLabTopic>({
 
   const withoutFlags = ({ isCustom: _isCustom, ...rest }: T): Omit<T, 'isCustom'> => rest;
 
-  const handleAddCustomSection = async () => {
-    const name = customSectionInput.trim();
-    if (!name) return;
-    setAddingSection(true);
+  /** Adds a category. Shown once it is saved; true when it was. */
+  const addCategory = async (name: string): Promise<boolean> => {
+    name = name.trim();
+    if (!name) return false;
     setSaveError(null);
     try {
       const res = await apiFetch(`${apiPrefix}/sections`, {
@@ -445,25 +440,24 @@ export default function TopicLab<T extends TopicLabTopic>({
         body: JSON.stringify({ name, isCustom: true }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSectionsData((prev) =>
-        prev.some((s) => s.name === name)
-          ? prev
-          : [...prev, { id: Date.now(), labName: lab, name, isCustom: true }]
-      );
-      setExpandedSections((prev) => new Set([...prev, name]));
-      setCustomSectionInput('');
-      setShowAddSec(false);
     } catch (err) {
       console.error(`${config.labName}: could not add category`, err);
       setSaveError('Could not add that category. Try again.');
-    } finally {
-      setAddingSection(false);
+      return false;
     }
+    setSectionsData((prev) =>
+      prev.some((s) => s.name === name)
+        ? prev
+        : [...prev, { id: Date.now(), labName: lab, name, isCustom: true }]
+    );
+    setExpandedSections((prev) => new Set([...prev, name]));
+    return true;
   };
 
-  const handleAddTopicToSection = async (sectionName: string) => {
-    const name = newTopicInputSection.trim();
-    if (!name) return;
+  /** Adds a topic to a category. Shown once it is saved; true when it was. */
+  const addTopicTo = async (sectionName: string, rawName: string): Promise<boolean> => {
+    const name = rawName.trim();
+    if (!name) return false;
     const topic = {
       ...config.customTopic,
       id: `custom-${Date.now()}`,
@@ -471,10 +465,17 @@ export default function TopicLab<T extends TopicLabTopic>({
       category: sectionName,
       subtopics: [],
     } as unknown as Omit<T, 'isCustom'>;
-    if (!(await postTopic(topic))) return;
+    if (!(await postTopic(topic))) return false;
     setTopics((prev) => [...prev, { ...topic, isCustom: true } as T]);
-    setNewTopicInputSection('');
-    setAddingTopicToSection(null);
+    setExpandedSections((prev) => new Set([...prev, sectionName]));
+    return true;
+  };
+
+  const handleAddTopicToSection = async (sectionName: string) => {
+    if (await addTopicTo(sectionName, newTopicInputSection)) {
+      setNewTopicInputSection('');
+      setAddingTopicToSection(null);
+    }
   };
 
   const appendSubtopic = async (topicId: string, sub: T['subtopics'][number]) => {
@@ -504,6 +505,7 @@ export default function TopicLab<T extends TopicLabTopic>({
 
   // ── Sections and quiz of the open page ──
   const labSettings = useLabSettings(lab);
+  const management = labManagementConfig(lab);
   const {
     sections: baseSections,
     generate: generateSection,
@@ -640,36 +642,35 @@ export default function TopicLab<T extends TopicLabTopic>({
               collapseLabel={sheets.isMobile ? 'Close sidebar' : undefined}
               onOpenGuide={() => setGuideOpen(true)}
               settings={
-                <LabSettingsButton lab={lab} labName={config.title} sections={settingsList} />
+                <Link
+                  href={manageHref(management, {
+                    topic: selectedTopicId && selectedTopicId !== 'wiki' ? selectedTopicId : null,
+                  })}
+                  title="Lab management"
+                  aria-label="Lab management"
+                  className="todo-focus relative flex-shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground"
+                >
+                  <Icon name="Cog6ToothIcon" size={14} />
+                  {labSettings.hasAny && (
+                    <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
+                  )}
+                </Link>
               }
             />
             {leftExpanded && (
               <div className="px-3 pb-3">
-                {showAddSec ? (
-                  <LabInlineAdd
-                    value={customSectionInput}
-                    onChange={setCustomSectionInput}
-                    onSubmit={() => void handleAddCustomSection()}
-                    onCancel={() => {
-                      setShowAddSec(false);
-                      setCustomSectionInput('');
-                    }}
-                    placeholder="New category…"
-                    ariaLabel="New category name"
-                    busy={addingSection || !customSectionInput.trim()}
-                    submitLabel={addingSection ? 'Adding…' : 'Add'}
-                  />
-                ) : (
-                  <LabAddRow label="Add category" onClick={() => setShowAddSec(true)} />
-                )}
-                {saveError && (
-                  <p
-                    role="alert"
-                    className="mt-2 rounded-md px-2.5 py-2 text-xs font-medium text-error mix-bg-error/10"
-                  >
-                    {saveError}
-                  </p>
-                )}
+                <LabSidebarSearch
+                  groupNoun="category"
+                  groups={allSectionNames}
+                  topics={allTopics}
+                  currentGroup={currentTopic?.category}
+                  error={saveError}
+                  onOpenGroup={(name) => setExpandedSections((prev) => new Set([...prev, name]))}
+                  onOpenTopic={(id) => selectTopic(id)}
+                  onOpenSubtopic={(topicId, subId) => selectSubtopic(topicId, subId)}
+                  onAddTopic={addTopicTo}
+                  onAddGroup={addCategory}
+                />
               </div>
             )}
           </div>
@@ -935,6 +936,7 @@ export default function TopicLab<T extends TopicLabTopic>({
               onSelectTopic={selectTopic}
               onSelectSub={selectSubtopic}
               onOpenGuide={() => setGuideOpen(true)}
+              managementHref={manageHref(management)}
             />
           ) : !currentTopic ? (
             <div className="flex h-full flex-col items-center justify-center px-[1.5rem] text-center">
@@ -965,32 +967,43 @@ export default function TopicLab<T extends TopicLabTopic>({
                   )}
                   {currentTopic.isCustom && <span className={LAB_CHIP}>Custom</span>}
                   <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                    <ProjectSelector />
+                    {/* every control in the row is one height (h-8) and one corner, so they sit on one line */}
+                    <ProjectSelector className="h-8" />
                     <button
                       type="button"
                       onClick={() => setGuideOpen(true)}
-                      className="todo-btn todo-btn-secondary"
+                      className="todo-btn todo-btn-secondary h-8 rounded-lg px-3 text-xs"
                       title={`${config.labName} guide`}
                     >
-                      <Icon name="BookOpenIcon" size={14} className="text-primary" />
-                      <span>Lab Guide</span>
+                      <Icon name="BookOpenIcon" size={14} />
+                      <span>Lab guide</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setLabSettingsModalOpen(true)}
-                      className="todo-btn todo-btn-secondary"
-                      title={`${config.labName} settings & prompts`}
+                    <Link
+                      href={manageHref(management, {
+                        tab: 'topic',
+                        topic: currentTopic.id,
+                        sub: currentSubtopic?.id,
+                      })}
+                      className="todo-btn todo-btn-secondary relative h-8 w-8 rounded-lg px-0"
+                      aria-label="Topic management"
+                      title="Topic management"
                     >
-                      <Icon name="AdjustmentsHorizontalIcon" size={14} className="text-primary" />
-                      <span>Lab Settings</span>
-                      {labSettings.hasAny && (
-                        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      <Icon name="Cog6ToothIcon" size={16} />
+                      {labSettings.hasTopicSettings(currentTopic.id) && (
+                        <>
+                          <span
+                            aria-hidden="true"
+                            className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary"
+                          />
+                          <span className="sr-only">(has topic settings)</span>
+                        </>
                       )}
-                    </button>
+                    </Link>
                     <CompleteButton
                       lab={lab}
                       topicId={currentTopic.id}
                       subtopicId={currentSubtopic?.id ?? ''}
+                      className="h-8"
                     />
                   </div>
                 </div>
@@ -1095,6 +1108,16 @@ export default function TopicLab<T extends TopicLabTopic>({
                 }
               />
 
+              {/* ── Guided Practice: a dedicated page (/<lab>-lab/guided-practice), for the labs that have it ── */}
+              {config.guidedPractice && (
+                <GuidedPracticeCard
+                  lab={config.guidedPractice}
+                  topicId={currentTopic.id}
+                  subtopicId={currentSubtopic?.id ?? ''}
+                  name={currentSubtopic?.name ?? currentTopic.name}
+                />
+              )}
+
               {/* ── On-demand sections ── */}
               <div className="space-y-4">
                 {sectionDefs.map((def, idx) => {
@@ -1193,6 +1216,7 @@ export default function TopicLab<T extends TopicLabTopic>({
                   section={promptModalSection}
                   currentSettings={labSettings.get(promptModalSection.id)}
                   labWideSettings={labSettings.labWide}
+                  topicSettings={labSettings.topic(currentTopic.id)}
                   currentTopic={{
                     name: currentTopic.name,
                     brief: currentSubtopic?.brief ?? currentTopic.brief,
@@ -1213,17 +1237,6 @@ export default function TopicLab<T extends TopicLabTopic>({
                   }}
                 />
               )}
-
-              <LabSettingsModal
-                lab={lab}
-                isOpen={labSettingsModalOpen}
-                onClose={() => setLabSettingsModalOpen(false)}
-                currentTopic={{
-                  name: currentTopic.name,
-                  brief: currentSubtopic?.brief ?? currentTopic.brief,
-                  subtopicName: currentSubtopic?.name,
-                }}
-              />
             </div>
           )}
         </main>

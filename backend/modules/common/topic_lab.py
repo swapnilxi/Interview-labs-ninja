@@ -1,4 +1,4 @@
-"""Storage and routes shared by the topic labs that keep the CV Lab's shape (Communication Lab, Finance Lab).
+"""Storage and routes shared by the topic labs (CV, System Design, Communication, Finance, Python, GenAI).
 
 Each lab has its own `<lab>_topics` table with exactly `cv_topics`' columns, its sidebar categories in the shared
 `lab_sections` table (lab_name = the lab's key), and its seed topics in a `topics.json` beside its module. The
@@ -17,11 +17,21 @@ import sqlite3
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from modules.auth.dependencies import get_current_user_id
-from modules.common.db import fetch_lab_sections, get_db_path, save_lab_section
+from modules.common.db import delete_custom_lab_section, fetch_lab_sections, save_lab_section
+from modules.common.owned_topics import (
+    PREREQUISITES,
+    TopicError,
+    TopicShape,
+    delete_owned,
+    ensure_ownership,
+    fetch_owned,
+    is_admin_user,
+    save_owned,
+)
 
 _TABLE_NAME = re.compile(r"^[a-z_]+_topics$")
 
@@ -49,6 +59,8 @@ def create_topics_table(cursor: sqlite3.Cursor, table: str) -> None:
             is_custom INTEGER NOT NULL DEFAULT 0
         )
     """)
+    # owner_id (NULL = shared with everyone) and the lab's overrides table: see common/owned_topics.py
+    ensure_ownership(cursor, table, PREREQUISITES)
 
 
 def load_seed_topics(path: Path) -> List[dict]:
@@ -80,81 +92,9 @@ def seed_topics(cursor: sqlite3.Cursor, table: str, topics: List[dict]) -> None:
         )
 
 
-# ── Reads / writes (same behaviour as cv_lab/seed.py) ──────────────────────────
-
-
-def fetch_topics(table: str) -> List[dict]:
-    """All topics of one lab, seeded first, then the custom ones in the order they were added."""
-    conn = sqlite3.connect(get_db_path())
-    try:
-        rows = conn.execute(
-            f"""
-            SELECT id, name, brief, category, difficulty, prerequisites_json, subtopics_json, is_custom
-            FROM {_check_table(table)}
-            ORDER BY is_custom ASC, rowid ASC
-            """
-        ).fetchall()
-    finally:
-        conn.close()
-    out = []
-    for r in rows:
-        try:
-            prereqs = json.loads(r[5])
-        except Exception:
-            prereqs = []
-        try:
-            subtopics = json.loads(r[6])
-        except Exception:
-            subtopics = []
-        out.append({
-            "id": r[0],
-            "name": r[1],
-            "brief": r[2],
-            "category": r[3],
-            "difficulty": r[4],
-            "prerequisites": prereqs,
-            "subtopics": subtopics,
-            "isCustom": bool(r[7]),
-        })
-    return out
-
-
-def save_topic(table: str, topic: dict) -> None:
-    """Insert a new (custom) topic, or update an existing one in place.
-
-    An upsert, not CV's INSERT OR REPLACE: REPLACE deletes and re-inserts the row, which gives it a new rowid and so
-    moves an edited lesson (for example one that just got a subtopic) to the end of the lab's ordered path. An
-    existing row keeps its rowid and its is_custom flag.
-    """
-    table = _check_table(table)
-    conn = sqlite3.connect(get_db_path())
-    try:
-        conn.execute(
-            f"""
-            INSERT INTO {table} (
-                id, name, brief, category, difficulty, prerequisites_json, subtopics_json, is_custom
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-            ON CONFLICT(id) DO UPDATE SET
-                name = excluded.name,
-                brief = excluded.brief,
-                category = excluded.category,
-                difficulty = excluded.difficulty,
-                prerequisites_json = excluded.prerequisites_json,
-                subtopics_json = excluded.subtopics_json
-            """,
-            (
-                topic["id"],
-                topic["name"],
-                topic["brief"],
-                topic["category"],
-                topic["difficulty"],
-                json.dumps(topic.get("prerequisites", [])),
-                json.dumps(topic.get("subtopics", [])),
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+# ── Reads / writes ─────────────────────────────────────────────────────────────
+# common/owned_topics.py holds them: the shared topics plus the caller's own, the caller's version of a shared one in its place, and an
+# upsert that keeps an edited lesson's rowid (so it keeps its place in the lab's ordered path) and its is_custom flag.
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -176,6 +116,7 @@ class TopicLabTopicIn(BaseModel):
     difficulty: str
     prerequisites: List[str] = Field(default_factory=list)
     subtopics: List[TopicLabSubtopicIn] = Field(default_factory=list)
+    shared: bool = False  # admin only: make this topic everyone's instead of the caller's own
 
 
 class TopicLabSectionIn(BaseModel):
@@ -183,18 +124,46 @@ class TopicLabSectionIn(BaseModel):
     isCustom: bool = True
 
 
-def build_router(*, prefix: str, tag: str, table: str, section_lab: str) -> APIRouter:
-    """GET/POST `{prefix}/topics` and `{prefix}/sections`, login required (the CV router's routes and shapes)."""
+def build_router(
+    *,
+    prefix: str,
+    tag: str,
+    table: str,
+    section_lab: str,
+    shape: TopicShape = PREREQUISITES,
+    topic_model: type = TopicLabTopicIn,
+) -> APIRouter:
+    """`{prefix}/topics` (GET, POST, DELETE) and `{prefix}/sections` (GET, POST, DELETE), login required.
+
+    A person sees the shared topics plus their own; what a save, a move and a delete do to shared and own topics is in
+    common/owned_topics.py. A lab with its own topic fields passes its `shape` and the request model (`shared` included)."""
     _check_table(table)
     router = APIRouter(prefix=prefix, tags=[tag], dependencies=[Depends(get_current_user_id)])
 
     @router.get("/topics")
-    async def get_topics() -> List[dict]:
-        return fetch_topics(table)
+    async def get_topics(user_id: int = Depends(get_current_user_id)) -> List[dict]:
+        return fetch_owned(table, shape, user_id)
 
-    @router.post("/topics")
-    async def save_topic_endpoint(payload: TopicLabTopicIn) -> dict:
-        save_topic(table, payload.model_dump())
+    async def save_topic_endpoint(payload, user_id: int = Depends(get_current_user_id)) -> dict:
+        data = payload.model_dump()
+        shared = data.pop("shared")
+        try:
+            save_owned(table, shape, data, user_id, is_admin_user(user_id), shared)
+        except TopicError as e:
+            raise HTTPException(status_code=e.status_code, detail=str(e))
+        return {"status": "success"}
+
+    # The request model differs per lab and this module postpones annotations, so FastAPI could not resolve `topic_model` by
+    # name (it would treat `payload` as a query parameter): set the real classes.
+    save_topic_endpoint.__annotations__ = {"payload": topic_model, "user_id": int, "return": dict}
+    router.post("/topics")(save_topic_endpoint)
+
+    @router.delete("/topics")
+    async def delete_topic_endpoint(topic_id: str, user_id: int = Depends(get_current_user_id)) -> dict:
+        try:
+            delete_owned(table, topic_id, user_id, is_admin_user(user_id))
+        except TopicError as e:
+            raise HTTPException(status_code=e.status_code, detail=str(e))
         return {"status": "success"}
 
     @router.get("/sections")
@@ -204,6 +173,12 @@ def build_router(*, prefix: str, tag: str, table: str, section_lab: str) -> APIR
     @router.post("/sections")
     async def save_section(payload: TopicLabSectionIn, user_id: int = Depends(get_current_user_id)) -> dict:
         save_lab_section(user_id, section_lab, payload.name)
+        return {"status": "success"}
+
+    @router.delete("/sections")
+    async def delete_section(name: str, user_id: int = Depends(get_current_user_id)) -> dict:
+        if not delete_custom_lab_section(user_id, section_lab, name):
+            raise HTTPException(status_code=404, detail="Only a pattern or category you added can be removed")
         return {"status": "success"}
 
     return router

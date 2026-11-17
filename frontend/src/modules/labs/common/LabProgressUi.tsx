@@ -54,11 +54,14 @@ export function CompleteButton({
   topicId,
   subtopicId = '',
   size = 'md',
+  className = '',
 }: {
   lab: LabName;
   topicId: string;
   subtopicId?: string;
   size?: 'md' | 'lg';
+  /** Extra classes for the button itself (a row that wants every control the same height passes `h-8`). */
+  className?: string;
 }) {
   const progress = useLabProgress(lab);
   const done = progress.isDone(topicId, subtopicId);
@@ -80,7 +83,7 @@ export function CompleteButton({
             : 'Mark this page as complete'
         }
         data-semantic={done ? 'done' : undefined}
-        className={`todo-focus flex items-center gap-1.5 rounded-lg border font-semibold transition-colors disabled:cursor-wait disabled:opacity-60 ${pad} ${
+        className={`todo-focus flex items-center gap-1.5 rounded-lg border font-semibold transition-colors disabled:cursor-wait disabled:opacity-60 ${pad} ${className} ${
           done
             ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25 dark:text-emerald-400'
             : 'border-border text-foreground hover:mix-bg-muted'

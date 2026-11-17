@@ -130,8 +130,6 @@ export const GENAI_LAB: TopicLabConfig = {
     'Models, APIs and prices change quickly. Treat names and numbers in the lessons as examples and check the official documentation before relying on a detail.',
   noun: { one: 'lesson', many: 'lessons' },
   sectionDefs: GENAI_SECTION_DEFS,
-  quizSettingsNote:
-    'These instructions and your context are added to the requirements for each new batch of quiz questions.',
   ownPrereqTitle: 'Study these lessons first',
   prereqBaseline: {
     'AI Foundations': [
