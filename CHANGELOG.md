@@ -13,6 +13,8 @@ New: `backend/modules/guided_practice/` ↔ `frontend/fe-apis/guidedPractice/` (
 routes `/dsa-lab/guided-practice` and `/cv-lab/guided-practice`, `public/runner/python-worker.js`, `styles/guided-practice.css`, table
 `guided_practice_state`. Touched: the shared `Markdown` renderer (optional code highlighting), `TopicLab` / `topicLabTypes` (the card, one
 config flag), `DSALabModule` (the card), `next.config.mjs` (rewrite and tracing entry).
+Checks: `backend/tests/guided_practice_test.py` (router), `backend/tests/guided_practice_prompts_test.py` (the Python and TypeScript
+prompts compared character by character) and `npm run test:guided` (the game rules).
 
 ### Added — Career Studio module
 

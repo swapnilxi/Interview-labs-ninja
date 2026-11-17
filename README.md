@@ -710,9 +710,10 @@ streak and achievements. Code: `frontend/src/modules/labs/guided/`; twins `front
 - **Checks.** `backend/tests/guided_practice_test.py` (the Python router: state, versions, validation, AI error mapping; 508 checks,
   needs `LABNINJA_TEST_DB_PATH`, a copy of the DB); `backend/tests/guided_practice_prompts_test.py` (every prompt through the Python
   and the TypeScript builders, 1,369 inputs, compared character by character; needs Node 22.18+; no database); the same-requests
-  twin diff described in CLAUDE.md for the endpoints; the pure rules (`parse.ts`, `tree.ts`, `xp.ts`) have no framework here, so compile
-  them with `tsc --module commonjs` and assert in node. In the browser: scratch DB copy + a mock OpenAI-compatible provider
-  (`customBaseUrl`) + Playwright, as CLAUDE.md describes.
+  twin diff described in CLAUDE.md for the endpoints; `npm run test:guided` (from `frontend/`, 30 checks on the pure rules in
+  `parse.ts`, `tree.ts`, `xp.ts` and `labs.ts`: it compiles them with the repo's `tsc` into a temp folder and asserts in Node, no
+  runner needed). In the browser: scratch DB copy + a mock OpenAI-compatible provider (`customBaseUrl`) + Playwright, as CLAUDE.md
+  describes.
 - **Known limits.** FastAPI's provider timeouts are 45 to 60 s while the Next.js twin allows 240 s, so a long lesson from a slow model
   can time out in `fastapi` mode. The first run of an exercise needs the network once (Pyodide). A generated test the reference
   solution also gets wrong still passes verification. The state document grows with tutor threads and STAR versions (1.5M cap).

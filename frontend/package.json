@@ -51,6 +51,7 @@
     "serve": "next start",
     "type-check": "tsc --noEmit",
     "check:tailwind": "node scripts/check-tailwind-traps.mjs",
+    "test:guided": "node scripts/guided-logic-test.mjs",
     "pdfjs:assets": "node scripts/copy-pdfjs-cmaps.mjs",
     "postinstall": "node scripts/copy-pdfjs-cmaps.mjs"
   },

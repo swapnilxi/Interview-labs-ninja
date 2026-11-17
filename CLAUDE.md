@@ -270,8 +270,8 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   builders; needs Node 22.18+), not by eye. A new lab = `guided/labs.ts` + `GUIDED_LABS`/`PROFILES` on both servers + a route + a
   `guidedPractice` flag in its `TopicLabConfig`. The page has its own purple accent (`.gp-accent`, VISUAL-GUIDELINES.md "Module
   notes"); AI results and progress are applied through `useGuidedStore.mutate` (never from a stale closure). Exercises run in the
-  browser (Pyodide, `public/runner/python-worker.js`); the AI's own tests are verified against its reference solution first. README:
-  "Guided Practice".
+  browser (Pyodide, `public/runner/python-worker.js`); the AI's own tests are verified against its reference solution first. The game
+  rules (`parse.ts`, `tree.ts`, `xp.ts`) are pure: `npm run test:guided` (from `frontend/`) checks them. README: "Guided Practice".
 - **Data twins for the rest of the labs and Daily Session** (so nextjs-api mode shows the SQLite data):
   `fe-apis/labs` = topics + sections of DSA/CV/System Design (`/dsa/topics|sections` share the
   `api/dsa/[...path]` route with the week plan; `/cv/*`, `/system-design/*`) and of the Learning Labs (`/communication/*`,
