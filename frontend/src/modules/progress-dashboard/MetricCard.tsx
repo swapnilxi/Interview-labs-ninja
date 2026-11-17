@@ -8,40 +8,29 @@ interface MetricCardProps {
   /** The value is a placeholder (nothing measured yet): drawn in the faint ink. */
   empty?: boolean;
   subtitle: string;
-  icon: string;
+  /** Kept for callers; a stat card no longer draws a symbol (the label, the number and the note carry it). */
+  icon?: string;
   /** Only for a change that is actually measured; nothing passes one today. */
   trend?: {
     value: number;
     isPositive: boolean;
   };
-  color: 'primary' | 'secondary' | 'success' | 'accent';
+  /** Kept for callers; stat cards are neutral (colour is for what changes, like a measured trend). */
+  color?: 'primary' | 'secondary' | 'success' | 'accent';
 }
 
-// Each colour is a Daily Session tone (daily-session.css): action, reward and growth hues, no glow.
-const toneOf = {
-  primary: 'ds-tone-indigo',
-  secondary: 'ds-tone-gold',
-  success: 'ds-tone-jade',
-  accent: 'ds-tone-gold',
-};
-
-/** One overview number: a small tinted symbol and label, the number large, a short note under it. */
+/** One overview number: its label, the number large, a short note under it. */
 export default function MetricCard({
   title,
   value,
   unit,
   empty = false,
   subtitle,
-  icon,
   trend,
-  color,
 }: MetricCardProps) {
   return (
     <div className="ds-card ins-metric">
       <div className="ins-metric-label">
-        <span className={`ds-icon-tile ${toneOf[color]}`} aria-hidden="true">
-          <Icon name={icon} size={15} variant="solid" />
-        </span>
         <span className="min-w-0">{title}</span>
         {trend && (
           <span

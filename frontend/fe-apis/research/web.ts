@@ -19,8 +19,9 @@ const SNIPPET_CHARS = 300;
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_REDIRECTS = 3;
 const SEARCH_URL = 'https://html.duckduckgo.com/html/';
-// DuckDuckGo sometimes answers a burst of queries with a results-free throttling page: retry once after a pause, and
-// remember answers for a while so the same query isn't asked twice. Twin: SEARCH_RETRY_S / SEARCH_CACHE_* in web.py.
+// DuckDuckGo sometimes answers a burst of queries with a results-free throttling page (HTTP 202) for the form POST,
+// while a plain GET of the same endpoint still works: retry once after a pause as a GET, and remember answers for a
+// while so the same query isn't asked twice. Twin: SEARCH_RETRY_S / SEARCH_CACHE_* in web.py.
 const SEARCH_RETRY_MS = 800;
 const SEARCH_CACHE_TTL_MS = 15 * 60_000;
 const SEARCH_CACHE_MAX = 100;
@@ -205,7 +206,9 @@ export async function webSearch(query: string, maxResults = MAX_RESULTS): Promis
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let doc = '';
     try {
-      const { body } = await safeGet(SEARCH_URL, new URLSearchParams({ q }).toString());
+      const form = new URLSearchParams({ q }).toString();
+      const { body } =
+        attempt === 0 ? await safeGet(SEARCH_URL, form) : await safeGet(`${SEARCH_URL}?${form}`);
       doc = new TextDecoder('utf-8', { fatal: false }).decode(body);
     } catch {
       doc = '';

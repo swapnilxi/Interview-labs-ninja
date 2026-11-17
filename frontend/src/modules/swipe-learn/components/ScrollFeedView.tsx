@@ -90,7 +90,7 @@ export default function ScrollFeedView({
 
       {/* Bottom of the feed: the next batch */}
       <div className="rounded-[1.375rem] border border-dashed border-border px-4 py-5 text-center">
-        <p className="text-sm font-semibold text-foreground">Want more?</p>
+        <p className="text-sm font-medium text-foreground">Want more?</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Fresh {deckLabel} cards, written for you.
         </p>

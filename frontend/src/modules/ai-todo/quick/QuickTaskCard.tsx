@@ -12,6 +12,8 @@ import { notifyTopTaskCompleted } from '@/lib/services/paretoService';
 
 import ParetoModal from '@/components/ui/ParetoModal';
 import QuickTaskDetailModal from './QuickTaskDetailModal';
+import type { RoutineGroup } from '@/lib/services/routineService';
+import RoutineGroupMenu from '../routines/RoutineGroupMenu';
 import { QUADRANT_META, QUADRANT_ORDER } from './quadrantMeta';
 
 interface QuickTaskCardProps {
@@ -21,6 +23,7 @@ interface QuickTaskCardProps {
   onDelete: (taskId: number) => void;
   onMoveToSmart?: (taskId: number) => void;
   onMoveToPlan?: (taskId: number) => void;
+  onMoveToRoutine?: (taskId: number, group: RoutineGroup) => void;
   hideDragHandle?: boolean;
   /** Spread on the grip when the list layout drags by grip only (see EisenhowerMatrix `stack`). */
   dragHandle?: DragHandleProps;
@@ -37,12 +40,15 @@ export default function QuickTaskCard({
   onDelete,
   onMoveToSmart,
   onMoveToPlan,
+  onMoveToRoutine,
   hideDragHandle,
   dragHandle,
   onQuadrantChange,
   showQuadrantChip,
 }: QuickTaskCardProps) {
   const [showParetoModal, setShowParetoModal] = useState(false);
+  // The move menu's second page: the routine groups.
+  const [routinePage, setRoutinePage] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
@@ -154,7 +160,7 @@ export default function QuickTaskCard({
           aria-checked={task.done}
           aria-label={`Mark "${task.title}" ${task.done ? 'not done' : 'done'}`}
           onClick={handleCheckbox}
-          className="todo-focus -ml-1 -mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-smooth hover:scale-110"
+          className="todo-focus -ml-1 -mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-smooth hover:mix-bg-foreground/[0.06]"
         >
           <span
             className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-smooth ${
@@ -171,7 +177,7 @@ export default function QuickTaskCard({
             {/* Top 20 Badge — pin icon distinguishes a manual override from an AI-assigned one */}
             {task.is_top_20 && (
               <span
-                className="mt-0.5 flex flex-shrink-0 items-center gap-0.5 rounded-md border border-amber-400/50 bg-amber-400/10 px-1.5 py-0.5 text-xs font-bold text-amber-600 shadow-sm dark:text-amber-400"
+                className="mt-0.5 flex flex-shrink-0 items-center gap-1 px-0.5 py-0.5 text-xs font-medium text-warning"
                 title={task.pareto_locked ? 'Manually pinned as Top 20%' : 'AI-assigned Top 20%'}
               >
                 <FlatIcon name={task.pareto_locked ? 'pin' : 'star'} size={14} /> 20%
@@ -204,7 +210,7 @@ export default function QuickTaskCard({
 
             {/* Source Badge */}
             {task.source !== 'manual' && (
-              <span className="mt-0.5 flex-shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold capitalize text-muted-foreground">
+              <span className="mt-0.5 flex-shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                 {task.source.replace(/_/g, ' ')}
               </span>
             )}
@@ -219,7 +225,7 @@ export default function QuickTaskCard({
                   type="text"
                   value={fieldValue}
                   onChange={e => setFieldValue(e.target.value)}
-                  placeholder="30m, 1h..."
+                  placeholder="30m, 1h"
                   aria-label="Time estimate"
                   className="w-20 rounded-md border border-border bg-input px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                   onKeyDown={e => {
@@ -230,7 +236,7 @@ export default function QuickTaskCard({
                 />
                 <button
                   onClick={() => handleSaveField('time_estimate')}
-                  className="rounded-md bg-primary px-2 py-1 text-xs font-bold text-primary-foreground"
+                  className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground"
                 >
                   Save
                 </button>
@@ -243,7 +249,7 @@ export default function QuickTaskCard({
                 }}
                 className={`items-center gap-1 rounded-md px-2 py-1 transition-smooth hover:bg-muted ${
                   task.time_estimate
-                    ? 'inline-flex bg-amber-500/10 font-semibold text-amber-700 dark:text-amber-300'
+                    ? 'inline-flex font-medium text-foreground'
                     : 'hidden'
                 }`}
                 title="Click to set time estimate"
@@ -278,13 +284,13 @@ export default function QuickTaskCard({
                 }}
                 className={`items-center gap-1 rounded-md px-2 py-1 transition-smooth hover:bg-muted ${
                   task.due_date
-                    ? 'inline-flex bg-blue-500/10 font-semibold text-blue-700 dark:text-blue-300'
+                    ? 'inline-flex font-medium text-foreground'
                     : 'hidden'
                 }`}
                 title="Click to set due date"
               >
                 <Icon name="CalendarIcon" size={13} />
-                <span>{task.due_date || '+ Due Date'}</span>
+                <span>{task.due_date || '+ Due date'}</span>
               </button>
             )}
 
@@ -310,7 +316,7 @@ export default function QuickTaskCard({
                 ref={quadrantBtnRef}
                 type="button"
                 onClick={() => { setShowQuadrantMenu(!showQuadrantMenu); setShowMoveMenu(false); setShowDeleteConfirm(false); }}
-                className={`todo-focus inline-flex h-8 min-w-[7.5rem] items-center justify-between gap-1.5 rounded-full border px-3 text-xs font-semibold transition-smooth ${
+                className={`todo-focus inline-flex h-8 min-w-[7.5rem] items-center justify-between gap-1.5 rounded-full border px-3 text-xs font-medium transition-smooth ${
                   isUnsorted
                     ? 'border-amber-400 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300'
                     : 'border-border text-foreground hover:bg-muted'
@@ -398,7 +404,7 @@ export default function QuickTaskCard({
           <div>
             <button
               ref={moveBtnRef}
-              onClick={() => { setShowMoveMenu(!showMoveMenu); setShowDeleteConfirm(false); setShowQuadrantMenu(false); }}
+              onClick={() => { setShowMoveMenu(!showMoveMenu); setRoutinePage(false); setShowDeleteConfirm(false); setShowQuadrantMenu(false); }}
               className={`${iconButton} text-muted-foreground hover:mix-bg-primary/10 hover:text-primary`}
               title="Move task"
               aria-label="Move task"
@@ -410,24 +416,47 @@ export default function QuickTaskCard({
             <Popover
               open={showMoveMenu}
               anchorRef={moveBtnRef}
-              onClose={() => setShowMoveMenu(false)}
-              label="Move task"
+              onClose={() => { setShowMoveMenu(false); setRoutinePage(false); }}
+              label={routinePage ? 'Move to a routine' : 'Move task'}
               className="todo-popover p-1 min-w-[190px]"
             >
-              <button
-                role="menuitem"
-                onClick={() => { setShowMoveMenu(false); onMoveToSmart?.(task.id); }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
-              >
-                <FlatIcon name="brain" size={20} /> Move to Smart To-Do
-              </button>
-              <button
-                role="menuitem"
-                onClick={() => { setShowMoveMenu(false); onMoveToPlan?.(task.id); }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
-              >
-                <FlatIcon name="plan" size={20} /> Move to Plan & Project
-              </button>
+              {routinePage && onMoveToRoutine ? (
+                <RoutineGroupMenu
+                  title="Move to a routine"
+                  onBack={() => setRoutinePage(false)}
+                  onPick={(group) => {
+                    setShowMoveMenu(false);
+                    setRoutinePage(false);
+                    onMoveToRoutine(task.id, group);
+                  }}
+                />
+              ) : (
+                <>
+                  <button
+                    role="menuitem"
+                    onClick={() => { setShowMoveMenu(false); onMoveToSmart?.(task.id); }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
+                  >
+                    <FlatIcon name="brain" size={20} quiet /> Move to Smart To-Do
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => { setShowMoveMenu(false); onMoveToPlan?.(task.id); }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
+                  >
+                    <FlatIcon name="plan" size={20} quiet /> Move to Plan & Project
+                  </button>
+                  {onMoveToRoutine && (
+                    <button
+                      role="menuitem"
+                      onClick={() => setRoutinePage(true)}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
+                    >
+                      <FlatIcon name="phase" size={20} quiet /> Move to a routine
+                    </button>
+                  )}
+                </>
+              )}
             </Popover>
           </div>
 

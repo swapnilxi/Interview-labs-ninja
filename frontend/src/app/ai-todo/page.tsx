@@ -10,15 +10,16 @@ import { useDistractionShortcutLabel } from '@/modules/ai-todo/shared/useDistrac
 import TodoCopilot from '@/modules/ai-todo/tasks/TodoCopilot';
 import TabSwitcher, { TodoTab } from '@/modules/ai-todo/shared/TabSwitcher';
 import QuickDaily from '@/modules/ai-todo/quick/QuickDaily';
+import RoutinesView from '@/modules/ai-todo/routines/RoutinesView';
 import SmartTodo from '@/modules/ai-todo/tasks/SmartTodo';
 import PlanProject from '@/modules/ai-todo/projects/PlanProject';
 import Goals from '@/modules/ai-todo/goals/Goals';
-import SchedulerView from '@/modules/ai-todo/schedule/SchedulerView';
+import AssistantView from '@/modules/ai-todo/schedule/assistant/AssistantView';
 import TodayView from '@/modules/ai-todo/today/TodayView';
 import VoiceCapture from '@/modules/ai-todo/capture/VoiceCapture';
 import { todoService } from '@/lib/services/todoService';
 
-const VALID_TABS: TodoTab[] = ['today', 'quick', 'smart', 'plan', 'goals', 'schedule'];
+const VALID_TABS: TodoTab[] = ['today', 'quick', 'routines', 'smart', 'plan', 'goals', 'schedule'];
 
 function TodoPageInner() {
   const searchParams = useSearchParams();
@@ -170,16 +171,10 @@ function TodoPageInner() {
               </button>
             )}
             <div className="max-w-[1440px] mx-auto px-4 sm:px-[2rem] lg:pl-[2.5rem] lg:pr-[3.5rem] pt-[1rem] sm:pt-[1.5rem] pb-[7rem]">
-              {/* Page header: a title and one quiet line — no tile, no tagline. The faint violet wash behind it is the
-                  only gradient on the page: it fades to nothing before any edge, so there is no box and no glow. */}
+              {/* Page header: a title and one quiet line — no tile, no tagline, no wash behind it. */}
               <header className="relative mb-[1rem] flex items-center justify-between gap-3 sm:items-start">
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -top-[2rem] left-[-1rem] right-[-1rem] h-[10rem] sm:left-[-2rem] sm:right-[-2rem] lg:left-[-2.5rem] lg:right-[-3.5rem]"
-                  style={{ background: 'radial-gradient(ellipse 42% 78% at 22% 0%, color-mix(in srgb, var(--color-primary) 9%, transparent), transparent)' }}
-                />
                 <div className="relative min-w-0">
-                  <h1 className="font-heading text-[2rem] font-bold leading-[1.1] tracking-[-0.026em] text-foreground sm:text-2xl sm:font-semibold sm:leading-tight">AI To-Do</h1>
+                  <h1 className="font-heading text-[2rem] font-semibold leading-[1.1] tracking-[-0.026em] text-foreground sm:text-2xl sm:leading-tight">AI To-Do</h1>
                   {/* Phones: the large title carries the page; the tagline would wrap beside the buttons. */}
                   <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
                     Say a task. It lands with its date and reminder.
@@ -234,6 +229,10 @@ function TodoPageInner() {
                 <QuickDaily model={model} />
               )}
 
+              {activeTab === 'routines' && (
+                <RoutinesView />
+              )}
+
               {activeTab === 'smart' && (
                 <SmartTodo key={refreshKey} model={model} />
               )}
@@ -247,7 +246,7 @@ function TodoPageInner() {
               )}
 
               {activeTab === 'schedule' && (
-                <SchedulerView />
+                <AssistantView />
               )}
             </div>
           </main>
@@ -298,7 +297,7 @@ function TodoPageInner() {
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-foreground">
                   <Icon name="InboxArrowDownIcon" size={14} className="text-muted-foreground" aria-hidden="true" />
-                  <span>Capture Distraction</span>
+                  <span>Capture a distraction</span>
                   <span className="text-xs font-normal text-muted-foreground">({shortcutLabel})</span>
                 </span>
                 <button
@@ -306,7 +305,7 @@ function TodoPageInner() {
                   onClick={() => { setInboxOpen(true); closeCapture(false); }}
                   className="todo-focus rounded text-xs font-semibold text-primary hover:underline"
                 >
-                  View Inbox ({inboxItems.length})
+                  View inbox ({inboxItems.length})
                 </button>
               </div>
               <form
@@ -360,16 +359,19 @@ function TodoPageInner() {
         </div>
       </div>
 
-      {/* Speak a task from anywhere in the To-Do: the floating mic and its sheet. */}
-      <button
-        type="button"
-        onClick={() => setVoiceSheetOpen(true)}
-        className={`vc-fab ${activeTab === 'today' ? 'vc-fab-today lg:hidden' : ''}`}
-        aria-label="Speak a task"
-        title="Speak a task (Alt/Option + N on Today)"
-      >
-        <Icon name="MicrophoneIcon" size={24} />
-      </button>
+      {/* Speak a task from anywhere in the To-Do: the floating mic and its sheet. Not on the Assistant tab, which has its
+          own voice (and its message box sits where the button would). */}
+      {activeTab !== 'schedule' && (
+        <button
+          type="button"
+          onClick={() => setVoiceSheetOpen(true)}
+          className={`vc-fab ${activeTab === 'today' ? 'vc-fab-today lg:hidden' : ''}`}
+          aria-label="Speak a task"
+          title="Speak a task (Alt/Option + N on Today)"
+        >
+          <Icon name="MicrophoneIcon" size={24} />
+        </button>
+      )}
       <Modal
         isOpen={voiceSheetOpen}
         onClose={closeVoiceSheet}

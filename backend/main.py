@@ -72,6 +72,8 @@ from modules.ai_todo.projects.router import router as projects_router
 from modules.ai_todo.projects.plan_router import router as project_plan_router
 from modules.ai_todo.goals.router import router as goals_router
 from modules.ai_todo.schedules.router import router as schedules_router
+from modules.ai_todo.routines.router import router as routines_router
+from modules.ai_todo.agent.router import router as agent_router
 from modules.ai_todo.pareto.router import router as pareto_router
 from modules.ai_todo.import_data.router import router as import_router
 
@@ -194,6 +196,8 @@ app.include_router(projects_router)
 app.include_router(project_plan_router)
 app.include_router(goals_router)
 app.include_router(schedules_router)
+app.include_router(routines_router)
+app.include_router(agent_router)
 app.include_router(pareto_router)
 app.include_router(import_router)
 app.include_router(pdf_router)

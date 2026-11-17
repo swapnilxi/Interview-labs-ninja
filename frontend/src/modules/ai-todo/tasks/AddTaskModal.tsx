@@ -136,7 +136,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
     >
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <h3 id="todo-add-task-title" className="font-heading text-base font-semibold text-foreground">Add New Task</h3>
+        <h3 id="todo-add-task-title" className="font-heading text-base font-semibold text-foreground">Add task</h3>
         <button type="button" onClick={onClose} className="theme-toggle w-8 h-8" aria-label="Close">
           <Icon name="XMarkIcon" size={16} />
         </button>
@@ -146,7 +146,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
       <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
         {/* Title */}
         <div>
-          <label htmlFor="todo-add-title" className="block text-xs font-medium text-muted-foreground mb-1.5">Task Title *</label>
+          <label htmlFor="todo-add-title" className="block text-xs font-medium text-muted-foreground mb-1.5">Task title *</label>
           <input
             id="todo-add-title"
             type="text"
@@ -175,7 +175,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
             </select>
           </div>
           <div>
-            <label htmlFor={fid('time')} className="block text-xs font-medium text-muted-foreground mb-1.5">Time Estimate</label>
+            <label htmlFor={fid('time')} className="block text-xs font-medium text-muted-foreground mb-1.5">Time estimate</label>
             <input
               id={fid('time')}
               type="text"
@@ -186,7 +186,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
             />
           </div>
           <div>
-            <label htmlFor={fid('due')} className="block text-xs font-medium text-muted-foreground mb-1.5">Due Date</label>
+            <label htmlFor={fid('due')} className="block text-xs font-medium text-muted-foreground mb-1.5">Due date</label>
             <input
               id={fid('due')}
               type="date"
@@ -200,7 +200,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
         {/* Context textarea */}
         <div>
           <label htmlFor={fid('context')} className="block text-xs font-medium text-muted-foreground mb-1.5">
-            Add Context <span>(optional)</span>
+            Add context <span>(optional)</span>
           </label>
           <textarea
             id={fid('context')}
@@ -219,10 +219,10 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
             onClick={() => setShowIntentionFields(!showIntentionFields)}
             aria-expanded={showIntentionFields}
             aria-controls={fid('intention-fields')}
-            className="todo-focus flex items-center gap-1 rounded text-xs font-semibold text-primary hover:underline"
+            className="todo-focus flex items-center gap-1 rounded text-xs font-medium text-primary hover:underline"
           >
             <Icon name={showIntentionFields ? 'ChevronDownIcon' : 'ChevronRightIcon'} size={14} />
-            Intention & Definition of Done (Optional)
+            Intention & definition of done (optional)
           </button>
 
           {showIntentionFields && (
@@ -234,9 +234,9 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
                     type="button"
                     onClick={handleSuggestIntention}
                     disabled={suggesting || !title.trim()}
-                    className="todo-focus rounded text-xs text-primary hover:underline font-semibold disabled:opacity-50"
+                    className="todo-focus rounded text-xs text-primary hover:underline font-medium disabled:opacity-50"
                   >
-                    <span className="inline-flex items-center gap-1"><Icon name="SparklesIcon" size={11} variant="solid" />{suggesting ? 'Suggesting...' : 'Suggest'}</span>
+                    <span className="inline-flex items-center gap-1"><Icon name="SparklesIcon" size={11} variant="solid" />{suggesting ? 'Suggesting…' : 'Suggest'}</span>
                   </button>
                 </div>
                 {suggestError && (
@@ -253,7 +253,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
               </div>
 
               <div>
-                <label htmlFor={fid('dod')} className="block text-xs font-medium text-muted-foreground mb-1">What does done look like? (Definition of Done)</label>
+                <label htmlFor={fid('dod')} className="block text-xs font-medium text-muted-foreground mb-1">What does done look like? (Definition of done)</label>
                 <input
                   id={fid('dod')}
                   type="text"
@@ -269,7 +269,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
 
         {/* Recurring Task toggle (Feature 4) */}
         <div className="space-y-2">
-          <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer [@media(pointer:coarse)]:min-h-10">
+          <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer [@media(pointer:coarse)]:min-h-10">
             <input
               type="checkbox"
               checked={isRecurring}
@@ -283,7 +283,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
           {isRecurring && (
             <div className="space-y-3 p-3 rounded-lg mix-bg-muted/30 border border-border animate-fade-in">
               <div>
-                <label htmlFor={fid('interval')} className="block text-xs font-medium text-muted-foreground mb-1.5">Recurrence Interval</label>
+                <label htmlFor={fid('interval')} className="block text-xs font-medium text-muted-foreground mb-1.5">Recurrence interval</label>
                 <select
                   id={fid('interval')}
                   value={recurrenceInterval}
@@ -292,13 +292,13 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
                 >
                   <option value="daily">Daily (Every day)</option>
                   <option value="weekly">Weekly (Every week)</option>
-                  <option value="custom_days">Custom Days</option>
+                  <option value="custom_days">Custom days</option>
                 </select>
               </div>
 
               {recurrenceInterval === 'custom_days' && (
                 <div>
-                  <label htmlFor={fid('custom-days')} className="block text-xs font-medium text-muted-foreground mb-1">Custom Days (comma-separated)</label>
+                  <label htmlFor={fid('custom-days')} className="block text-xs font-medium text-muted-foreground mb-1">Custom days (comma-separated)</label>
                   <input
                     id={fid('custom-days')}
                     type="text"
@@ -316,13 +316,13 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
         {/* File upload */}
         <div>
           <p id={fid('files-hint')} className="block text-xs font-medium text-muted-foreground mb-1.5">
-            Attach Files <span>(.txt, .pdf, .docx)</span>
+            Attach files <span>(.txt, .pdf, .docx)</span>
           </p>
           {/* The input is visually hidden, not display:none: a keyboard user can still reach it, and the label shows the focus. */}
           <label className="relative inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:mix-border-primary/40 hover:mix-bg-primary/5 transition-smooth focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
             <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
             <span className="text-xs text-muted-foreground">
-              {uploading ? 'Extracting text...' : 'Choose file'}
+              {uploading ? 'Extracting text…' : 'Choose file'}
             </span>
             <input
               type="file"
@@ -382,7 +382,7 @@ export default function AddTaskModal({ initialTitle = '', onClose, onCreated }: 
             ) : (
               <Icon name="PlusIcon" size={14} variant="solid" />
             )}
-            Create Task
+            Create task
           </button>
         </div>
       </form>

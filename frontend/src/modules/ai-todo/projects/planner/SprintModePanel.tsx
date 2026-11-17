@@ -95,7 +95,7 @@ export default function SprintModePanel({
           <Icon name="ArrowPathRoundedSquareIcon" size={18} />
         </span>
         <div className="min-w-0">
-          <h4 id={headingId} className="text-sm font-semibold leading-snug text-foreground">
+          <h4 id={headingId} className="text-sm font-medium leading-snug text-foreground">
             {copy.heading}
           </h4>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{copy.body}</p>
@@ -109,7 +109,7 @@ export default function SprintModePanel({
             aria-pressed={!sprints}
             disabled={disabled}
             onClick={() => onChange('phases', weeks)}
-            className="todo-segment px-3 py-1.5 text-sm font-semibold"
+            className="todo-segment px-3 py-1.5 text-sm font-medium"
           >
             Phases
           </button>
@@ -120,7 +120,7 @@ export default function SprintModePanel({
               aria-pressed={sprints && weeks === n}
               disabled={disabled}
               onClick={() => onChange('sprints', n)}
-              className="todo-segment px-3 py-1.5 text-sm font-semibold"
+              className="todo-segment px-3 py-1.5 text-sm font-medium"
             >
               {n}-week sprints
             </button>

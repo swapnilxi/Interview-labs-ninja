@@ -139,6 +139,7 @@ class TaskUpdate(BaseModel):
     pareto_score: Optional[float] = None
     pareto_reason: Optional[str] = None
     remind_at: Optional[str] = None
+    pinned: Optional[bool] = None
 
 
 # Columns a PATCH can empty by sending `null` (see shared/patch.py). Not title / status / priority /

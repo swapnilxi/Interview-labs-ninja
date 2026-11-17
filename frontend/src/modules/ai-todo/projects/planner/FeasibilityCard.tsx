@@ -59,7 +59,7 @@ export default function FeasibilityCard({ feasibility, startDate, endDate, onUse
     <div className={`rounded-xl border p-[1.25rem] ${meta.panel}`} role="region" aria-label="AI timeline check">
       <div className="flex flex-wrap items-center gap-2">
         <VerdictBadge verdict={feasibility.verdict} stale={stale} />
-        <span className="text-xs font-semibold text-muted-foreground">AI timeline check{feasibility.with_plan ? ' · based on the written plan' : ''}</span>
+        <span className="text-xs font-medium text-muted-foreground">AI timeline check{feasibility.with_plan ? ' · based on the written plan' : ''}</span>
       </div>
 
       {stale && (
@@ -70,12 +70,12 @@ export default function FeasibilityCard({ feasibility, startDate, endDate, onUse
       )}
 
       <div className={stale ? 'opacity-60' : ''}>
-        <p className="mt-3 text-sm font-semibold leading-snug text-foreground">{feasibility.headline}</p>
+        <p className="mt-3 text-sm font-medium leading-snug text-foreground">{feasibility.headline}</p>
         {feasibility.reasoning && <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{feasibility.reasoning}</p>}
 
         {feasibility.concerns.length > 0 && (
           <div className="mt-3">
-            <p className="text-[13px] font-semibold text-muted-foreground">Concerns</p>
+            <p className="text-[13px] font-medium text-muted-foreground">Concerns</p>
             <ul className="mt-1.5 flex flex-col gap-1">
               {feasibility.concerns.map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-foreground">
@@ -89,7 +89,7 @@ export default function FeasibilityCard({ feasibility, startDate, endDate, onUse
 
         {feasibility.recommendations.length > 0 && (
           <div className="mt-3">
-            <p className="text-[13px] font-semibold text-muted-foreground">What the AI would do</p>
+            <p className="text-[13px] font-medium text-muted-foreground">What the AI would do</p>
             <ul className="mt-1.5 flex flex-col gap-1">
               {feasibility.recommendations.map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-foreground">

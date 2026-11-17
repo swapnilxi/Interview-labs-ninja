@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import TaskTree from './TaskTree';
 import EisenhowerMatrix, { MatrixItem } from '@/components/ui/EisenhowerMatrix';
 import WeeklyPlan from './WeeklyPlan';
-import { todoService, withPeriod, getRelativeDueDate, Task } from '@/lib/services/todoService';
+import { todoService, withPeriod, getRelativeDueDate, Task, type ViewMode } from '@/lib/services/todoService';
 import { paretoService } from '@/lib/services/paretoService';
 import TaskNode from './TaskNode';
 import Icon from '@/components/ui/AppIcon';
@@ -18,10 +18,17 @@ interface SmartTodoProps {
   model: 'ollama' | 'gemini';
 }
 
-const SUB_VIEWS: { id: SmartSubView; label: string; short: string; icon: string }[] = [
-  { id: 'tree', label: 'Task Tree', short: 'Tasks', icon: 'QueueListIcon' },
-  { id: 'matrix', label: 'Eisenhower Matrix', short: 'Matrix', icon: 'Squares2X2Icon' },
-  { id: 'weekly', label: 'Weekly Plan', short: 'Weekly', icon: 'CalendarDaysIcon' },
+/**
+ * One switch for every way to see the tasks: the three layouts of the list (Tree, List, Focus), then the two planning
+ * views. They used to be two segmented controls stacked one above the other, which looked alike and read as one.
+ */
+type SmartView = ViewMode | 'matrix' | 'weekly';
+const VIEWS: { id: SmartView; label: string; icon: string; hint: string }[] = [
+  { id: 'tree', label: 'Tree', icon: 'Bars3BottomLeftIcon', hint: 'Tasks with their subtasks' },
+  { id: 'list', label: 'List', icon: 'ListBulletIcon', hint: 'Every task as one flat list' },
+  { id: 'focus', label: 'Focus', icon: 'PlayCircleIcon', hint: 'Only in-progress and overdue tasks' },
+  { id: 'matrix', label: 'Matrix', icon: 'Squares2X2Icon', hint: 'Eisenhower matrix: drag tasks between quadrants' },
+  { id: 'weekly', label: 'Week', icon: 'CalendarDaysIcon', hint: 'Your open tasks spread across the week' },
 ];
 
 /**
@@ -58,6 +65,17 @@ function describeCreated(task: Task): string[] {
 export default function SmartTodo({ model }: SmartTodoProps) {
   const { isGuest } = useAuth();
   const [activeSubView, setActiveSubView] = useState<SmartSubView>('tree');
+  // How the task list is drawn (Tree / List / Focus); the planning views above sit in the same switch.
+  const [layout, setLayout] = useState<ViewMode>('tree');
+  const currentView: SmartView = activeSubView === 'tree' ? layout : activeSubView;
+  const chooseView = (view: SmartView) => {
+    if (view === 'matrix' || view === 'weekly') {
+      setActiveSubView(view);
+      return;
+    }
+    setLayout(view);
+    setActiveSubView('tree');
+  };
 
   // Matrix specific state
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -212,9 +230,9 @@ export default function SmartTodo({ model }: SmartTodoProps) {
   return (
     <div className="flex flex-col h-full gap-[1.5rem] sm:gap-[2rem]">
       {/* Capture + views: the two things you reach for first, kept together */}
-      <div className="flex flex-col gap-[1.25rem]">
+      <div className="flex flex-col gap-[0.75rem]">
         {/* AI Fast Capture — natural language in, structured task out */}
-        <form onSubmit={handleNlpSubmit} aria-label="Add a task with AI" aria-busy={nlpLoading} noValidate className="w-full">
+        <form onSubmit={handleNlpSubmit} aria-label="Add a task with AI" aria-busy={nlpLoading} noValidate className="group/capture w-full">
           <div className="todo-capture" data-invalid={nlpError ? 'true' : undefined}>
             <Icon name="SparklesIcon" size={18} variant="solid" className="shrink-0 text-primary" aria-hidden="true" />
             <label htmlFor="todo-fast-capture" className="sr-only">AI Fast Capture</label>
@@ -271,7 +289,7 @@ export default function SmartTodo({ model }: SmartTodoProps) {
                 </span>
               </p>
             ) : (
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground opacity-0 transition-opacity duration-150 group-focus-within/capture:opacity-100">
                 <span className="sm:hidden">Press Enter to add. Tags #p1–#p4 set priority.</span>
                 <span className="hidden sm:inline">
                   {isGuest
@@ -294,20 +312,20 @@ export default function SmartTodo({ model }: SmartTodoProps) {
           </div>
         )}
 
-        {/* Task intelligence: planning views + 80/20 analysis (applies to every view) */}
+        {/* How to see the tasks (one switch) + 80/20 analysis (applies to every view) */}
         <div className="flex items-center justify-between gap-x-3 gap-y-2">
-          <div className="todo-segmented todo-segmented-quiet todo-segmented-accent min-w-0 flex-1 sm:flex-none" role="group" aria-label="Planning view">
-            {SUB_VIEWS.map(view => (
+          <div className="todo-segmented todo-segmented-quiet todo-segmented-accent min-w-0 flex-1 sm:flex-none" role="group" aria-label="View">
+            {VIEWS.map(view => (
               <button
                 key={view.id}
                 type="button"
-                aria-pressed={activeSubView === view.id}
-                onClick={() => setActiveSubView(view.id)}
-                className="todo-segment flex-1 justify-center sm:flex-none"
+                aria-pressed={currentView === view.id}
+                onClick={() => chooseView(view.id)}
+                title={view.hint}
+                className="todo-segment flex-1 justify-center px-2 sm:flex-none sm:px-3"
               >
-                <Icon name={view.icon} size={15} />
-                <span className="sm:hidden" aria-hidden="true">{view.short}</span>
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">{view.label}</span>
+                <Icon name={view.icon} size={15} className="hidden sm:block" />
+                {view.label}
               </button>
             ))}
           </div>
@@ -323,15 +341,17 @@ export default function SmartTodo({ model }: SmartTodoProps) {
             ) : (
               <Icon name="StarIcon" size={14} />
             )}
-            <span className="hidden sm:inline">{analyzeLoading ? 'Analyzing…' : '80/20 Analyze'}</span>
-            <span className="sr-only sm:hidden">{analyzeLoading ? 'Analyzing' : '80/20 Analyze'}</span>
+            <span className="hidden sm:inline">{analyzeLoading ? 'Analyzing…' : 'Analyze 80/20'}</span>
+            <span className="sr-only sm:hidden">{analyzeLoading ? 'Analyzing' : 'Analyze 80/20'}</span>
           </button>
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 min-h-0">
-        {activeSubView === 'tree' && <TaskTree model={model} refreshSignal={treeRefreshSignal} />}
+        {activeSubView === 'tree' && (
+          <TaskTree model={model} refreshSignal={treeRefreshSignal} layout={layout} onLayoutChange={setLayout} />
+        )}
 
         {activeSubView === 'matrix' && (
           <EisenhowerMatrix

@@ -177,7 +177,7 @@ export default function ProjectNodeDetailModal({
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b mix-border-border/80 mix-bg-muted/20 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="text-xs tabular-nums px-2 py-0.5 rounded bg-muted text-muted-foreground font-semibold shrink-0">
+          <span className="text-xs tabular-nums px-2 py-0.5 rounded bg-muted text-muted-foreground font-medium shrink-0">
             Node #{node.id}
           </span>
           <input
@@ -186,7 +186,7 @@ export default function ProjectNodeDetailModal({
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => saveText('title', title)}
             aria-label="Item title"
-            className="text-base font-semibold bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-smooth truncate w-full"
+            className="text-base font-medium bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-smooth truncate w-full"
           />
         </div>
         <div className="ml-3 flex shrink-0 items-center gap-2">
@@ -224,7 +224,7 @@ export default function ProjectNodeDetailModal({
 
           <div>
             <label htmlFor="node-detail-due" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-              Due Date
+              Due date
             </label>
             <input
               id="node-detail-due"
@@ -237,7 +237,7 @@ export default function ProjectNodeDetailModal({
 
           <div>
             <label htmlFor="node-detail-estimate" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-              Time Estimate
+              Time estimate
             </label>
             <input
               id="node-detail-estimate"
@@ -254,9 +254,9 @@ export default function ProjectNodeDetailModal({
         {/* Context & Description */}
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor="node-detail-context" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <label htmlFor="node-detail-context" className="text-xs font-medium text-foreground flex items-center gap-1.5">
               <Icon name="DocumentTextIcon" size={14} className="text-primary" />
-              Context & Description
+              Context & description
             </label>
             {labLinkFromContext(context) && (
               <Link href={labLinkFromContext(context)!.href} className="pe-chip pe-chip-link">
@@ -269,7 +269,7 @@ export default function ProjectNodeDetailModal({
             value={context}
             onChange={(e) => setContext(e.target.value)}
             onBlur={() => saveText('context', context)}
-            placeholder="Attach background details, notes, links, or instructions for this task..."
+            placeholder="Background details, notes, links or instructions for this task"
             rows={4}
             className="w-full bg-input border border-border rounded-xl p-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:mix-text-muted-foreground/60 leading-relaxed"
           />
@@ -278,7 +278,7 @@ export default function ProjectNodeDetailModal({
           <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:mix-border-primary/40 hover:mix-bg-primary/5 transition-smooth">
             <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
             <span className="text-xs text-muted-foreground">
-              {uploading ? 'Extracting text...' : 'Add context from a PDF, .docx, or .txt file'}
+              {uploading ? 'Extracting text…' : 'Add context from a PDF, .docx, or .txt file'}
             </span>
             <input
               type="file"
@@ -294,30 +294,30 @@ export default function ProjectNodeDetailModal({
         {/* Intention & Definition of Done */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label htmlFor="node-detail-intention" className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <FlatIcon name="idea" size={16} /><span>Intention</span>
+            <label htmlFor="node-detail-intention" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+              <FlatIcon name="idea" size={16} quiet /><span>Intention</span>
             </label>
             <textarea
               id="node-detail-intention"
               value={intention}
               onChange={(e) => setIntention(e.target.value)}
               onBlur={() => saveText('intention', intention)}
-              placeholder="Why are you doing this?..."
+              placeholder="Why are you doing this?"
               rows={2}
               className="w-full bg-input border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:mix-text-muted-foreground/60"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="node-detail-dod" className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <FlatIcon name="done" size={16} /><span>Definition of Done</span>
+            <label htmlFor="node-detail-dod" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+              <FlatIcon name="done" size={16} quiet /><span>Definition of done</span>
             </label>
             <textarea
               id="node-detail-dod"
               value={dod}
               onChange={(e) => setDod(e.target.value)}
               onBlur={() => saveText('definition_of_done', dod)}
-              placeholder="Clear criteria when this is complete..."
+              placeholder="Clear criteria for when this is complete"
               rows={2}
               className="w-full bg-input border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:mix-text-muted-foreground/60"
             />

@@ -115,7 +115,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
         <div id="pareto-sidebar-body" className="overflow-y-auto px-4 pb-3 scrollbar-clean">
           {isGuest ? (
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-              Log in to analyse your tasks.
+              Log in to analyse your tasks
               <button type="button" onClick={() => openLoginModal()} className="todo-focus rounded font-medium text-primary hover:underline">
                 Log in
               </button>
@@ -127,17 +127,17 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
             </p>
           ) : loadFailed && totalTasks === 0 ? (
             <p role="alert" className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-              Couldn&apos;t load your 20%.
+              Couldn’t load your 20%
               <button type="button" onClick={fetchTop20} className="todo-focus rounded font-medium text-primary hover:underline">
                 Try again
               </button>
             </p>
           ) : totalTasks === 0 ? (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              <span className="text-xs text-muted-foreground">No analysis yet.</span>
+              <span className="text-xs text-muted-foreground">No analysis yet</span>
               <button type="button" onClick={runAnalysis} disabled={loading} className="todo-btn todo-btn-quiet">
                 <Icon name="BoltIcon" size={14} />
-                Run 80/20 AI Analysis
+                Run 80/20 analysis
               </button>
             </div>
           ) : (
@@ -146,7 +146,7 @@ export default function ParetoSidebar({ model = 'gemini' }: ParetoSidebarProps) 
                 <div key={key}>
                   {/* The tab's name only matters when more than one tab has results */}
                   {groups.length > 1 && (
-                    <div className="mb-0.5 text-[12px] font-semibold text-muted-foreground">{TAB_LABELS[key]}</div>
+                    <div className="mb-0.5 text-[12px] font-medium text-muted-foreground">{TAB_LABELS[key]}</div>
                   )}
                   <div className="-mx-2 space-y-px">
                     {data![key].map(t => (
@@ -179,7 +179,7 @@ function TaskRow({ task, onFocus }: { task: TopTask; onFocus: (task: TopTask) =>
         <button
           type="button"
           onClick={() => onFocus(task)}
-          className="copilot-tint todo-focus flex-shrink-0 px-2 py-0.5 text-xs font-semibold opacity-0 focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+          className="copilot-tint todo-focus flex-shrink-0 px-2 py-0.5 text-xs font-medium opacity-0 focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
         >
           Focus
         </button>

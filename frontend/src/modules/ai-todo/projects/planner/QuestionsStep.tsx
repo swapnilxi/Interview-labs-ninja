@@ -58,9 +58,9 @@ export default function QuestionsStep({ state, busy, onAnswer, onAskMore, onCont
         {questions.map((q, index) => (
           <li key={q.id} className="todo-glass p-[1.25rem]">
             <div className="flex items-start gap-3">
-              <span className="todo-icon-chip mt-0.5 h-[1.75rem] w-[1.75rem] text-xs font-bold" aria-hidden="true">{index + 1}</span>
+              <span className="todo-icon-chip mt-0.5 h-[1.75rem] w-[1.75rem] text-xs font-medium" aria-hidden="true">{index + 1}</span>
               <div className="min-w-0 flex-1">
-                <label htmlFor={`planner-q-${q.id}`} className="block text-sm font-semibold leading-snug text-foreground">{q.question}</label>
+                <label htmlFor={`planner-q-${q.id}`} className="block text-sm font-medium leading-snug text-foreground">{q.question}</label>
                 {q.why && <p className="mt-0.5 text-xs text-muted-foreground">{q.why}</p>}
 
                 {q.suggestions.length > 0 && (

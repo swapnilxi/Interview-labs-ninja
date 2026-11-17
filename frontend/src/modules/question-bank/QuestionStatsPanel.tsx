@@ -81,7 +81,7 @@ export default function QuestionStatsPanel({ stats, activeFilters }: QuestionSta
               <span key={d.label} className={`ins-key ${toneClass(d.tone)}`}>
                 <i aria-hidden="true" />
                 {d.label}
-                <span className="font-semibold ds-ink ds-num">{d.value}</span>
+                <span className="font-medium ds-ink ds-num">{d.value}</span>
                 <span className="ds-faint ds-num">{pct(d.value)}%</span>
               </span>
             ))}
@@ -93,12 +93,12 @@ export default function QuestionStatsPanel({ stats, activeFilters }: QuestionSta
           {rated ? (
             <span className="inline-flex items-center gap-2">
               <RatingStars value={Math.floor(stats.averagePerformance)} size={14} />
-              <span className="text-[0.88rem] font-semibold ds-ink ds-num">
+              <span className="text-[0.88rem] font-medium ds-ink ds-num">
                 {stats.averagePerformance.toFixed(1)}
               </span>
             </span>
           ) : (
-            <span className="text-[0.8rem] font-semibold ds-muted">Not rated yet</span>
+            <span className="text-[0.8rem] font-medium ds-muted">Not rated yet</span>
           )}
         </div>
       </div>

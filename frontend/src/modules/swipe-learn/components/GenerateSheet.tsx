@@ -106,7 +106,7 @@ export default function GenerateSheet({
           <div className="min-w-0">
             <h2
               id="swipe-generate-title"
-              className="font-heading text-lg font-bold text-foreground"
+              className="font-heading text-lg font-semibold text-foreground"
             >
               Generate cards
             </h2>
@@ -172,7 +172,7 @@ export default function GenerateSheet({
                   aria-pressed={format === f.id}
                   className={`swipe-choice ${f.id === 'random' ? 'col-span-2 sm:col-span-1' : ''}`}
                 >
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
+                  <span className="flex items-center gap-1.5 text-sm font-medium">
                     <Icon
                       name={f.icon}
                       size={16}
@@ -244,7 +244,7 @@ export default function GenerateSheet({
                     onClose();
                     onOpenSettings();
                   }}
-                  className="shrink-0 font-semibold text-foreground underline-offset-2 hover:underline"
+                  className="shrink-0 font-medium text-foreground underline-offset-2 hover:underline"
                 >
                   Change
                 </button>

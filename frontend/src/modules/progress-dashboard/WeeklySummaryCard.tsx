@@ -36,11 +36,11 @@ export default function WeeklySummaryCard({
             <dd>
               {stat.value}
               {stat.unit && (
-                <span className="ml-1 text-[0.8rem] font-semibold ds-faint">{stat.unit}</span>
+                <span className="ml-1 text-[0.8rem] font-medium ds-faint">{stat.unit}</span>
               )}
               {stat.change !== undefined && (
                 <span
-                  className={`ml-1.5 text-[0.75rem] font-semibold ds-tone-text ${stat.change >= 0 ? 'ds-tone-jade' : 'ds-tone-rose'}`}
+                  className={`ml-1.5 text-[0.75rem] font-medium ds-tone-text ${stat.change >= 0 ? 'ds-tone-jade' : 'ds-tone-rose'}`}
                 >
                   {stat.change >= 0 ? '+' : ''}
                   {stat.change}%
@@ -53,7 +53,7 @@ export default function WeeklySummaryCard({
 
       {focusAreas.length > 0 && (
         <div className="mt-4 border-t ds-hairline pt-3">
-          <p className="mb-2 text-[0.8rem] font-semibold ds-muted">Suggested focus</p>
+          <p className="mb-2 text-[0.8rem] font-medium ds-muted">Suggested focus</p>
           <div className="flex flex-wrap gap-1.5">
             {focusAreas.map((area) => (
               <span key={area} className="ds-chip ds-tone-indigo">

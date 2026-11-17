@@ -11,10 +11,11 @@ import { pyJsonDumps } from '../py';
 
 const SCHEDULE_COLUMNS =
   'id, user_id, title, kind, message, rule, timezone, agent_context, add_tasks, enabled, source_text, ' +
-  'last_run_at, last_status, last_output, created_at, updated_at';
+  'last_run_at, last_status, last_output, created_at, updated_at, use_web, write_report';
 
 const RUN_COLUMNS =
-  'id, schedule_id, user_id, scheduled_for, source, status, title, output, created_task_ids, started_at, finished_at';
+  'id, schedule_id, user_id, scheduled_for, source, status, title, output, created_task_ids, started_at, finished_at, ' +
+  'report, sources';
 
 /** Columns `updateSchedule` may write (the PATCH fields). */
 const UPDATABLE = new Set([
@@ -27,7 +28,10 @@ const UPDATABLE = new Set([
   'add_tasks',
   'enabled',
   'source_text',
+  'use_web',
+  'write_report',
 ]);
+const BOOL_COLUMNS = new Set(['add_tasks', 'enabled', 'use_web', 'write_report']);
 
 /** Port of `_schedule_row_to_dict`. */
 function scheduleRowToDict(row: Row): Row {
@@ -48,6 +52,8 @@ function scheduleRowToDict(row: Row): Row {
     last_output: row.last_output,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    use_web: !!row.use_web,
+    write_report: !!row.write_report,
   };
 }
 
@@ -65,6 +71,8 @@ function runRowToDict(row: Row): Row {
     created_task_ids: parseJson<number[]>(row.created_task_ids, []),
     started_at: row.started_at,
     finished_at: row.finished_at,
+    report: row.report,
+    sources: parseJson<Row[]>(row.sources, []),
   };
 }
 
@@ -81,6 +89,8 @@ export function createSchedule(
     add_tasks?: boolean;
     enabled?: boolean;
     source_text?: string | null;
+    use_web?: boolean;
+    write_report?: boolean;
   } = {}
 ): Row {
   const {
@@ -91,12 +101,15 @@ export function createSchedule(
     add_tasks = false,
     enabled = true,
     source_text = null,
+    use_web = false,
+    write_report = false,
   } = opts;
   return withTodoDb((db) => {
     const res = db.run(
       `INSERT INTO todo_schedules
-         (user_id, title, kind, message, rule, timezone, agent_context, add_tasks, enabled, source_text)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (user_id, title, kind, message, rule, timezone, agent_context, add_tasks, enabled, source_text,
+          use_web, write_report)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       userId,
       title,
       kind,
@@ -106,7 +119,9 @@ export function createSchedule(
       agent_context,
       add_tasks ? 1 : 0,
       enabled ? 1 : 0,
-      source_text
+      source_text,
+      use_web ? 1 : 0,
+      write_report ? 1 : 0
     );
     return scheduleRowToDict(
       db.get(`SELECT ${SCHEDULE_COLUMNS} FROM todo_schedules WHERE id = ?`, res.lastInsertRowid)!
@@ -147,7 +162,7 @@ export function updateSchedule(scheduleId: number, userId: number, fields: Row):
       if (!UPDATABLE.has(key)) continue;
       let v: unknown = value;
       if (key === 'rule') v = pyJsonDumps(value);
-      else if (key === 'add_tasks' || key === 'enabled') v = value ? 1 : 0;
+      else if (BOOL_COLUMNS.has(key)) v = value ? 1 : 0;
       sets.push(`${key} = ?`);
       values.push(v);
     }
@@ -231,7 +246,8 @@ export function claimRun(
 
 /**
  * Port of `finish_run`: stores the result and copies it onto the schedule (last_*). A one-time schedule that ran
- * successfully switches itself off (`disable_once`; false for a manual "Run now").
+ * successfully switches itself off (`disable_once`; false for a manual "Run now"). `report` / `sources` are the full
+ * answer and the web pages it read (AI jobs with write_report / use_web); `output` stays the short notification text.
  */
 export function finishRun(
   runId: number,
@@ -239,19 +255,28 @@ export function finishRun(
   status: string,
   title: string | null,
   output: string | null,
-  opts: { created_task_ids?: number[] | null; disable_once?: boolean } = {}
+  opts: {
+    created_task_ids?: number[] | null;
+    disable_once?: boolean;
+    report?: string | null;
+    sources?: Row[] | null;
+  } = {}
 ): Row {
   const createdTaskIds = opts.created_task_ids || [];
+  const sources = opts.sources || [];
   const disableOnce = opts.disable_once ?? true;
   return withTodoDb((db) => {
     db.run(
       `UPDATE todo_schedule_runs
-          SET status = ?, title = ?, output = ?, created_task_ids = ?, finished_at = datetime('now')
+          SET status = ?, title = ?, output = ?, created_task_ids = ?, report = ?, sources = ?,
+              finished_at = datetime('now')
         WHERE id = ?`,
       status,
       title,
       output,
       createdTaskIds.length ? pyJsonDumps(createdTaskIds) : null,
+      opts.report ?? null,
+      sources.length ? pyJsonDumps(sources) : null,
       runId
     );
     db.run(
@@ -288,5 +313,27 @@ export function listRuns(scheduleId: number, userId: number, limit = 20): Row[] 
         limit
       )
       .map(runRowToDict)
+  );
+}
+
+/**
+ * Port of `list_recent_agent_runs`: the user's latest finished AI-job runs across all schedules, newest first, each with
+ * its schedule's title. The Assistant shows them in its conversation (reminder runs would only be noise there).
+ */
+export function listRecentAgentRuns(userId: number, limit = 30): Row[] {
+  const columns = RUN_COLUMNS.split(',')
+    .map((c) => `r.${c.trim()}`)
+    .join(', ');
+  return withTodoDb((db) =>
+    db
+      .all(
+        `SELECT ${columns}, s.title AS schedule_title FROM todo_schedule_runs r
+           JOIN todo_schedules s ON s.id = r.schedule_id AND s.user_id = r.user_id
+          WHERE r.user_id = ? AND s.kind = 'agent' AND r.status IN ('ok', 'error')
+          ORDER BY r.finished_at DESC, r.id DESC LIMIT ?`,
+        userId,
+        limit
+      )
+      .map((row) => ({ ...runRowToDict(row), schedule_title: row.schedule_title }))
   );
 }

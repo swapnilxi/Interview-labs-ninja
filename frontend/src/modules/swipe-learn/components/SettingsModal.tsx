@@ -140,7 +140,7 @@ export default function SettingsModal({
       <span className="swipe-sheet-handle" aria-hidden="true" />
       <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-3 sm:pt-5">
         <div>
-          <h2 id="swipe-settings-title" className="font-heading text-lg font-bold text-foreground">
+          <h2 id="swipe-settings-title" className="font-heading text-lg font-semibold text-foreground">
             SwipeLearn settings
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">The AI that writes your cards</p>
@@ -159,12 +159,12 @@ export default function SettingsModal({
         {/* Which model writes the cards */}
         <div className="rounded-xl border border-border px-4 py-3">
           <p className="swipe-field-label">Model in use</p>
-          <p className="break-words text-sm font-semibold text-foreground">{summary.title}</p>
+          <p className="break-words text-sm font-medium text-foreground">{summary.title}</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             {summary.text}{' '}
             <Link
               href="/config"
-              className="font-semibold text-foreground underline-offset-2 hover:underline"
+              className="font-medium text-foreground underline-offset-2 hover:underline"
             >
               {isGuest ? 'Open Config' : 'Change in Config'}
             </Link>
@@ -176,7 +176,7 @@ export default function SettingsModal({
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <label
               htmlFor="swipe-gemini-key"
-              className="text-xs font-bold tracking-wide text-muted-foreground"
+              className="text-xs font-medium tracking-wide text-muted-foreground"
             >
               {isGuest ? 'Google Gemini API key' : 'Gemini key for SwipeLearn only (optional)'}
             </label>
@@ -184,7 +184,7 @@ export default function SettingsModal({
               href="https://aistudio.google.com/app/apikey"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-foreground underline-offset-2 hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-medium text-foreground underline-offset-2 hover:underline"
             >
               Get a free key
               <Icon name="ArrowTopRightOnSquareIcon" size={13} />
@@ -225,7 +225,7 @@ export default function SettingsModal({
                 Using the Gemini key saved on the{' '}
                 <Link
                   href="/config"
-                  className="font-semibold text-foreground underline-offset-2 hover:underline"
+                  className="font-medium text-foreground underline-offset-2 hover:underline"
                 >
                   Config page
                 </Link>
@@ -237,7 +237,7 @@ export default function SettingsModal({
                 saved on the{' '}
                 <Link
                   href="/config"
-                  className="font-semibold text-foreground underline-offset-2 hover:underline"
+                  className="font-medium text-foreground underline-offset-2 hover:underline"
                 >
                   Config page
                 </Link>{' '}
@@ -287,7 +287,7 @@ export default function SettingsModal({
               className="mt-px shrink-0"
             />
             <span className="min-w-0 break-words">
-              <span className="font-semibold">Connection failed.</span> {errorMessage}
+              <span className="font-medium">Connection failed.</span> {errorMessage}
             </span>
           </div>
         )}

@@ -83,7 +83,7 @@ export default function RunSummary(p: Props) {
 
           <div className="pm-finish-level">
             <div className="flex items-baseline justify-between gap-3 text-left">
-              <span className="text-sm font-semibold ds-ink">
+              <span className="text-sm font-medium ds-ink">
                 Level {after.level}, {after.rank}
               </span>
               <span className="text-xs ds-faint">
@@ -165,10 +165,10 @@ export default function RunSummary(p: Props) {
             return (
               <li key={q.id} className="flex items-start gap-3 py-3">
                 <span className={`ds-icon-tile ds-icon-tile-sm ${meta ? toneClass(meta.tone) : 'ds-tone-neutral'}`}>
-                  {meta ? <Icon name={meta.icon} size={15} /> : <span className="text-xs font-bold">{i + 1}</span>}
+                  {meta ? <Icon name={meta.icon} size={15} /> : <span className="text-xs font-medium">{i + 1}</span>}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold leading-snug ds-ink">{q.questionText}</span>
+                  <span className="block text-sm font-medium leading-snug ds-ink">{q.questionText}</span>
                   <span className="mt-0.5 block text-xs ds-faint">
                     {meta ? meta.label : 'Not graded'}
                     {ev ? `, scored ${ev.overall}` : meta ? ', graded by you' : ''}
@@ -188,8 +188,8 @@ export default function RunSummary(p: Props) {
 
       {p.spiritual && (
         <div className="ds-inset p-4">
-          <p className="text-xs font-semibold ds-faint">Closing blessing</p>
-          <p className="mt-1.5 text-sm font-semibold ds-ink">{MANTRAS.Lakshmi.mantra}</p>
+          <p className="text-xs font-medium ds-faint">Closing blessing</p>
+          <p className="mt-1.5 text-sm font-medium ds-ink">{MANTRAS.Lakshmi.mantra}</p>
           <p className="mt-2 text-sm italic ds-ink">{p.shloka.sanskrit}</p>
           <p className="mt-1 text-xs ds-faint">
             {p.shloka.meaning} ({p.shloka.source})

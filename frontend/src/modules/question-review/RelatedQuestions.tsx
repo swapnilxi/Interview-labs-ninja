@@ -70,12 +70,12 @@ export default function RelatedQuestions({ question }: { question: ReviewQuestio
               className="ds-list-row ds-list-row-top"
             >
               <span className="min-w-0 flex-1">
-                <span className="ds-clamp-2 text-[0.9375rem] font-semibold leading-snug ds-ink">
+                <span className="ds-clamp-2 text-[0.9375rem] font-medium leading-snug ds-ink">
                   {q.questionText}
                 </span>
                 <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ds-faint">
                   <span
-                    className={`inline-flex items-center gap-1.5 font-semibold ${toneClass(difficultyTone(q.difficulty))} ds-tone-text`}
+                    className={`inline-flex items-center gap-1.5 font-medium ${toneClass(difficultyTone(q.difficulty))} ds-tone-text`}
                   >
                     <span className="ds-dot" aria-hidden="true" />
                     {difficultyLabel(q.difficulty)}

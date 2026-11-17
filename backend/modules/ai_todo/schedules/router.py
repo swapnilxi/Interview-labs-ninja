@@ -7,7 +7,12 @@ Endpoints:
   PATCH  /todo/schedules/{id}             — Update a schedule
   DELETE /todo/schedules/{id}             — Delete a schedule (and its runs)
   GET    /todo/schedules/{id}/runs        — Last runs
+  GET    /todo/schedules/activity         — Latest AI-job runs across all schedules (the Assistant's feed)
   POST   /todo/schedules/{id}/run         — Run one occurrence (reminder: record it; agent: ask the AI), deduplicated
+
+An AI job reads nothing, its open tasks ("tasks") or the whole To-Do workspace ("workspace", agent/context.py); with
+use_web it may search the web once per run (agent/web_step.py); with write_report it also writes a full report the app
+shows, while `output` stays the short notification text the phone shows.
 
 TypeScript twin: frontend/fe-apis/todo/schedules/handlers.ts. Prompts, limits, status codes and error texts are
 copied verbatim, so change both. The occurrences themselves are worked out on the device
@@ -29,6 +34,8 @@ from modules.common.ai import AISettings, extract_json_object
 
 from ..shared.ai_helpers import call_ai
 from ..shared.patch import patch_updates
+from ..agent.context import workspace_context
+from ..agent.web_step import run_search, search_query, sources_of, web_block
 from ..tasks.db import create_task, get_all_tasks
 from .db import (
     claim_run,
@@ -36,6 +43,7 @@ from .db import (
     delete_schedule,
     finish_run,
     get_schedule,
+    list_recent_agent_runs,
     list_runs,
     list_schedules,
     update_schedule,
@@ -45,7 +53,7 @@ from .rules import js_slice, js_trim, normalize_rule
 router = APIRouter(prefix="/todo", tags=["schedules"], dependencies=[Depends(get_current_user_id)])
 
 KINDS = ("reminder", "agent")
-CONTEXTS = ("tasks", "none")
+CONTEXTS = ("tasks", "workspace", "none")
 SOURCES = ("web", "app", "manual")
 PRIORITIES = ("p1", "p2", "p3", "p4")
 DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
@@ -53,6 +61,7 @@ LOCAL_DT_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}")
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 TITLE_MAX = 120
 OUTPUT_MAX = 2000
+REPORT_MAX = 8000
 
 # Columns a PATCH can empty by sending `null` (see shared/patch.py). Not title / kind / agent_context / add_tasks /
 # enabled / rule: `null` there still means "no change".
@@ -82,8 +91,10 @@ class ScheduleCreate(BaseModel):
     add_tasks: bool = False
     enabled: bool = True
     source_text: Optional[str] = None
+    use_web: bool = False
+    write_report: bool = False
 
-    check_bools = field_validator("add_tasks", "enabled", mode="before")(_bool_or_01)
+    check_bools = field_validator("add_tasks", "enabled", "use_web", "write_report", mode="before")(_bool_or_01)
 
 
 class ScheduleUpdate(BaseModel):
@@ -95,9 +106,11 @@ class ScheduleUpdate(BaseModel):
     source_text: Optional[str] = None
     add_tasks: Optional[bool] = None
     enabled: Optional[bool] = None
+    use_web: Optional[bool] = None
+    write_report: Optional[bool] = None
     rule: Any = None
 
-    check_bools = field_validator("add_tasks", "enabled", mode="before")(_bool_or_01)
+    check_bools = field_validator("add_tasks", "enabled", "use_web", "write_report", mode="before")(_bool_or_01)
 
 
 class ScheduleParseRequest(AISettings):
@@ -184,7 +197,7 @@ def _checked_kind(value: str) -> str:
 
 def _checked_context(value: str) -> str:
     if value not in CONTEXTS:
-        raise HTTPException(status_code=422, detail="agent_context must be 'tasks' or 'none'.")
+        raise HTTPException(status_code=422, detail="agent_context must be 'tasks', 'workspace' or 'none'.")
     return value
 
 
@@ -213,6 +226,8 @@ async def create_schedule_endpoint(payload: ScheduleCreate, user_id: int = Depen
         add_tasks=payload.add_tasks,
         enabled=payload.enabled,
         source_text=_clean_text(payload.source_text),
+        use_web=payload.use_web,
+        write_report=payload.write_report,
     )
 
 
@@ -247,6 +262,11 @@ async def delete_schedule_endpoint(schedule_id: int, user_id: int = Depends(get_
     if not delete_schedule(schedule_id, user_id):
         raise HTTPException(status_code=404, detail="Schedule not found")
     return {"status": "deleted", "id": schedule_id}
+
+
+@router.get("/schedules/activity")
+async def activity_endpoint(user_id: int = Depends(get_current_user_id)) -> List[dict]:
+    return list_recent_agent_runs(user_id)
 
 
 @router.get("/schedules/{schedule_id}/runs")
@@ -348,12 +368,12 @@ def _open_tasks_for_prompt(user_id: int) -> List[Dict[str, Any]]:
     ]
 
 
-def _clean_agent_tasks(raw: Any) -> List[Dict[str, Any]]:
-    """At most 5 well-formed task suggestions."""
+def _clean_agent_tasks(raw: Any, limit: int = 5) -> List[Dict[str, Any]]:
+    """At most `limit` well-formed task suggestions."""
     if not isinstance(raw, list):
         return []
     out: List[Dict[str, Any]] = []
-    for item in raw[:5]:
+    for item in raw[:limit]:
         if not isinstance(item, dict):
             continue
         title = js_slice(js_trim(item["title"]), 200) if isinstance(item.get("title"), str) else ""
@@ -366,6 +386,66 @@ def _clean_agent_tasks(raw: Any) -> List[Dict[str, Any]]:
             "due_date": due_date if isinstance(due_date, str) and DATE_RE.fullmatch(due_date) else None,
         })
     return out
+
+
+def _json_object(text: str) -> Optional[Dict[str, Any]]:
+    """The reply's JSON object, or None when there is none (the raw text is then the answer)."""
+    try:
+        candidate = extract_json_object(text)
+    except Exception:
+        return None
+    return candidate if isinstance(candidate, dict) else None
+
+
+def _run_budget(schedule: Dict[str, Any]) -> int:
+    """Output tokens for one run: a full report needs room, a notification doesn't."""
+    return 3000 if schedule["write_report"] else 1024
+
+
+def _run_prompt(
+    schedule: Dict[str, Any], now: str, weekday: Optional[str], tasks_block: str, web: str, ask_search: bool
+) -> str:
+    """The run prompt. A job without the newer options (workspace, web, report) gets exactly the original prompt."""
+    report_line = (
+        '\n  "report": "The full report, shown in the app: markdown allowed (### headings, bullet lists, **bold**), '
+        'at most 4000 characters",'
+        if schedule["write_report"]
+        else ""
+    )
+    search_line = (
+        '\n  "web_search": "A short web search query when this run needs current information from the internet, '
+        'else null",'
+        if ask_search
+        else ""
+    )
+    extra_rules = ""
+    if schedule["write_report"]:
+        extra_rules += "- message is the short version for the notification; report is the complete answer.\n"
+    if ask_search:
+        extra_rules += (
+            "- web_search: if you set it, leave the other fields empty; you will get the results and answer then.\n"
+        )
+    if web:
+        extra_rules += "- Use the web results for current facts; never make up news, prices or dates.\n"
+    return f"""You are the scheduled assistant inside LabNinja, a personal to-do app. A job the person scheduled is running now, and your answer is shown to them as a phone notification.
+Current local date and time: {now} ({weekday}).
+
+Job: {schedule['title']}
+Instructions: {schedule['message'] or 'No extra instructions.'}
+
+{tasks_block}{web}Return ONLY a JSON object:
+{{
+  "title": "Notification title, at most 60 characters",
+  "message": "Your answer for the person: plain text, no markdown, at most 700 characters",{report_line}{search_line}
+  "tasks": [
+    {{"title": "Short imperative task title", "due_date": "YYYY-MM-DD or null", "priority": "p1|p2|p3|p4"}}
+  ]
+}}
+Rules:
+- Follow the instructions. Be specific, and use the person's tasks when they matter; never invent tasks they don't have.
+- tasks: new tasks only when the instructions ask you to create, plan or suggest tasks (at most 5); otherwise [].
+{extra_rules}- Keep the person's language.
+No extra text, no markdown blocks, just the raw JSON object."""
 
 
 @router.post("/schedules/{schedule_id}/run")
@@ -402,29 +482,28 @@ async def run_schedule_endpoint(
             if open_tasks
             else "Their open tasks: none.\n\n"
         )
+    elif schedule["agent_context"] == "workspace":
+        tasks_block = f"Their To-Do workspace (JSON):\n{json.dumps(workspace_context(user_id, now[:10]))}\n\n"
 
-    prompt = f"""You are the scheduled assistant inside LabNinja, a personal to-do app. A job the person scheduled is running now, and your answer is shown to them as a phone notification.
-Current local date and time: {now} ({weekday}).
-
-Job: {schedule['title']}
-Instructions: {schedule['message'] or 'No extra instructions.'}
-
-{tasks_block}Return ONLY a JSON object:
-{{
-  "title": "Notification title, at most 60 characters",
-  "message": "Your answer for the person: plain text, no markdown, at most 700 characters",
-  "tasks": [
-    {{"title": "Short imperative task title", "due_date": "YYYY-MM-DD or null", "priority": "p1|p2|p3|p4"}}
-  ]
-}}
-Rules:
-- Follow the instructions. Be specific, and use the person's tasks when they matter; never invent tasks they don't have.
-- tasks: new tasks only when the instructions ask you to create, plan or suggest tasks (at most 5); otherwise [].
-- Keep the person's language.
-No extra text, no markdown blocks, just the raw JSON object."""
-
+    settings = payload
+    query: Optional[str] = None
+    results: List[Dict[str, Any]] = []
     try:
-        response_text = call_ai(prompt, payload, 1024)
+        response_text = call_ai(
+            _run_prompt(schedule, now, weekday, tasks_block, "", ask_search=schedule["use_web"]),
+            settings,
+            _run_budget(schedule),
+        )
+        obj = _json_object(response_text)
+        query = search_query(obj.get("web_search")) if obj is not None and schedule["use_web"] else None
+        if query is not None:
+            results = await run_search(query)
+            response_text = call_ai(
+                _run_prompt(schedule, now, weekday, tasks_block, web_block(query, results), ask_search=False),
+                settings,
+                _run_budget(schedule),
+            )
+            obj = _json_object(response_text)
     except Exception as exc:
         detail = f"AI could not run this job: {exc}"
         finish_run(
@@ -433,17 +512,16 @@ No extra text, no markdown blocks, just the raw JSON object."""
         )
         raise HTTPException(status_code=502, detail=detail)
 
-    try:
-        candidate = extract_json_object(response_text)
-        obj = candidate if isinstance(candidate, dict) else None
-    except Exception:
-        obj = None
+    report: Optional[str] = None
     if obj is not None:
         raw_title = obj.get("title")
         raw_message = obj.get("message")
         title = js_slice(js_trim(_js_string(raw_title) if raw_title is not None else ""), 80) or schedule["title"]
         message = js_slice(js_trim(_js_string(raw_message) if raw_message is not None else ""), OUTPUT_MAX)
         suggestions = _clean_agent_tasks(obj.get("tasks"))
+        raw_report = obj.get("report")
+        if schedule["write_report"] and isinstance(raw_report, str) and js_trim(raw_report):
+            report = js_slice(js_trim(raw_report), REPORT_MAX)
     else:
         title = schedule["title"]
         message = js_slice(js_trim(response_text), OUTPUT_MAX)
@@ -467,5 +545,7 @@ No extra text, no markdown blocks, just the raw JSON object."""
         claimed_run["id"], schedule_id, "ok", title, message,
         created_task_ids=[t["id"] for t in created],
         disable_once=disable_once,
+        report=report,
+        sources=sources_of(results) if query is not None else None,
     )
     return {"run": run, "duplicate": False, "tasks": created if schedule["add_tasks"] else suggestions}

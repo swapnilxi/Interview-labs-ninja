@@ -32,7 +32,9 @@ The bare `/todo` URL is *not* an API path: it redirects to the `/ai-todo` page.
 | `quick/router.py`, `projects/router.py`, `goals/router.py` | `<module>/handlers.ts` |
 | `projects/plan_router.py` (AI Planner: `/projects/{id}/plan`, `…/plan/{questions,feasibility,generate,refine,apply}`) | `projects/planHandlers.ts` |
 | `pareto/router.py` | `pareto/handlers.ts` (mounted at `/pareto`, not `/todo`) |
+| `routines/router.py`, `routines/db.py` (Routines: Dailies + routine groups, the moves in and out of them) | `routines/handlers.ts`, `routines/db.ts` |
 | `schedules/router.py`, `schedules/db.py` (To-Do Scheduler) | `schedules/handlers.ts`, `schedules/db.ts`; rule validation is `src/lib/schedules/scheduleRules.ts` (`normalizeRule`) ↔ `schedules/rules.py` |
+| `agent/router.py`, `agent/context.py`, `agent/web_step.py` (the Assistant chat, the workspace snapshot, the web step) | `agent/handlers.ts`, `agent/context.ts`, `agent/webStep.ts` |
 | `import_data/router.py` | `importData/handlers.ts` |
 | `modules/common/ai`, `modules/auth/dependencies.py` | `_shared.ts` |
 

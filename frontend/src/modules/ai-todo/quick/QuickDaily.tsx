@@ -10,6 +10,8 @@ import { toast } from '@/lib/ui/toast';
 import { useDistractionShortcutLabel } from '../shared/useDistractionShortcutLabel';
 import { QuickTask, ParsedBrainDumpTask, quickTaskService } from '@/lib/services/quickTaskService';
 import { withPeriod } from '@/lib/services/todoService';
+import { routineService, type RoutineGroup } from '@/lib/services/routineService';
+import { reportFailure } from '@/lib/services/mutationFeedback';
 import { paretoService } from '@/lib/services/paretoService';
 import { confirmParetoRun } from '../shared/confirmPareto';
 import { toMatrixQuadrant, UNSORTED, type QuickQuadrant } from '@/lib/services/quickQuadrants';
@@ -156,6 +158,17 @@ export default function QuickDaily({ model }: QuickDailyProps) {
       showToast('Task moved to Plan & Project.');
     }
   }, [handleUpdateTask, showToast]);
+
+  // A real move: the quick task is deleted and becomes an item of the routine group.
+  const handleMoveToRoutine = useCallback(async (id: number, group: RoutineGroup) => {
+    try {
+      await routineService.moveQuickTaskIn(id, group.id);
+      setTasks(prev => prev.filter(t => t.id !== id));
+      showToast(`Moved to ${group.name}.`);
+    } catch (err) {
+      reportFailure('move the task', err);
+    }
+  }, [showToast]);
 
   // `null` is a card dropped back into the unsorted section.
   const handleQuadrantChange = async (itemId: string | number, newQuadrant: QuadrantType | null, newIndex?: number) => {
@@ -312,6 +325,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         onDelete={handleDeleteTask}
         onMoveToSmart={handleMoveToSmart}
         onMoveToPlan={handleMoveToPlan}
+        onMoveToRoutine={handleMoveToRoutine}
         onQuadrantChange={handleCardQuadrantChange}
         showQuadrantChip={extra.chip}
         dragHandle={extra.dragHandle}
@@ -343,10 +357,10 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                 type="button"
                 onClick={openBrainDump}
                 className="flex h-9 w-9 items-center justify-center rounded-full transition-smooth hover:bg-muted"
-                title="Brain Dump — upload handwriting photo"
-                aria-label="Brain Dump — upload handwriting photo"
+                title="Brain dump — upload a handwriting photo"
+                aria-label="Brain dump — upload a handwriting photo"
               >
-                <FlatIcon name="brain" size={20} />
+                <FlatIcon name="brain" size={20} quiet className="text-muted-foreground" />
               </button>
               {/* AI Day Plan — top-20 aware */}
               <button
@@ -357,10 +371,10 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                   setShowDayPlan(true);
                 }}
                 className="flex h-9 w-9 items-center justify-center rounded-full transition-smooth hover:bg-muted"
-                title="AI Day Plan"
-                aria-label="AI Day Plan"
+                title="Day plan"
+                aria-label="Day plan"
               >
-                <FlatIcon name="dayPlan" size={20} />
+                <FlatIcon name="dayPlan" size={20} quiet className="text-muted-foreground" />
               </button>
               <button
                 type="submit"
@@ -391,7 +405,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             </div>
 
             <div className="quick-option">
-              <Icon name="ClockIcon" size={15} className="text-amber-500" />
+              <Icon name="ClockIcon" size={15} className="text-muted-foreground" />
               <label htmlFor="quick-add-time" className="font-medium">Time</label>
               <select
                 id="quick-add-time"
@@ -409,7 +423,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             </div>
 
             <div className="quick-option">
-              <Icon name="CalendarIcon" size={15} className="text-blue-500" />
+              <Icon name="CalendarIcon" size={15} className="text-muted-foreground" />
               <label htmlFor="quick-add-due" className="font-medium">Due</label>
               <input
                 id="quick-add-due"
@@ -464,7 +478,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             className={`todo-btn todo-btn-quiet shrink-0 py-2 ${top20Only ? 'todo-btn-active' : ''}`}
             title="Show only Top 20% high-leverage tasks"
           >
-            <FlatIcon name="star" size={16} /> Top 20%
+            <FlatIcon name="star" size={16} quiet className="text-muted-foreground" /> Top 20%
           </button>
           <button
             type="button"
@@ -473,8 +487,8 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             className="todo-btn todo-btn-quiet shrink-0 py-2"
             title="Run AI 80/20 analysis on today's tasks"
           >
-            {analyzeLoading ? spinner('h-3.5 w-3.5') : <FlatIcon name="star" size={16} />}
-            {analyzeLoading ? 'Identifying your high-leverage tasks...' : '80/20 Analyze'}
+            {analyzeLoading ? spinner('h-3.5 w-3.5') : <FlatIcon name="star" size={16} quiet className="text-muted-foreground" />}
+            {analyzeLoading ? 'Finding your top 20%…' : 'Analyze 80/20'}
           </button>
           <button
             type="button"
@@ -483,15 +497,15 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             className="todo-btn todo-btn-quiet shrink-0 py-2"
             title="AI sorts your unsorted tasks into quadrants"
           >
-            {autoSortLoading ? spinner('h-3.5 w-3.5') : <FlatIcon name="ai" size={16} />}
-            AI Auto-Sort
+            {autoSortLoading ? spinner('h-3.5 w-3.5') : <FlatIcon name="ai" size={16} quiet className="text-muted-foreground" />}
+            Auto-sort
           </button>
         </div>
 
         <div className="flex w-full items-center gap-3 sm:ml-auto sm:w-auto">
           <div className="min-w-[8.5rem] flex-1 sm:flex-none">
             <p className="text-sm text-foreground">
-              <span className="font-semibold tabular-nums">{completedCount}</span> of{' '}
+              <span className="font-medium tabular-nums">{completedCount}</span> of{' '}
               <span className="tabular-nums">{totalCount}</span> done
               {todayLabel && <span className="hidden text-muted-foreground lg:inline"> · {todayLabel}</span>}
             </p>
@@ -503,7 +517,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               aria-valuemax={totalCount || 1}
               aria-valuenow={completedCount}
             >
-              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${doneRatio}%` }} />
+              <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${doneRatio}%` }} />
             </div>
           </div>
           <button
@@ -511,7 +525,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             onClick={() => setShowEndDay(true)}
             className="todo-btn todo-btn-quiet shrink-0 py-2"
           >
-            <FlatIcon name="night" size={16} /> End My Day
+            <FlatIcon name="night" size={16} quiet className="text-muted-foreground" /> End my day
           </button>
         </div>
       </div>
@@ -525,15 +539,16 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         activeTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
             <FlatIcon name="ok" size={60} />
-            <p className="text-base font-medium">Your day is clear.</p>
+            <p className="text-base font-medium">Your day is clear</p>
             <p className="text-sm">Type a task above — it lands in Unsorted, ready to sort.</p>
             <button onClick={openBrainDump} className="text-sm text-primary hover:underline">
-              + Brain Dump to add tasks
+              Brain dump to add tasks
             </button>
           </div>
         ) : (
           <div className="mx-auto w-full max-w-4xl">
             <EisenhowerMatrix
+              tone="calm"
               layout="stack"
               items={matrixItems}
               onQuadrantChange={handleQuadrantChange}
@@ -550,6 +565,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         )
       ) : (
         <EisenhowerMatrix
+          tone="calm"
           items={matrixItems}
           onQuadrantChange={handleQuadrantChange}
           showHeader={false}
@@ -566,12 +582,12 @@ export default function QuickDaily({ model }: QuickDailyProps) {
       {/* Exported tasks (dimmed historical) */}
       {tasks.filter(t => t.is_exported).length > 0 && (
         <div className="border-t border-border pt-3">
-          <p className="mb-2 px-1 text-[13px] font-semibold text-muted-foreground">Moved out</p>
+          <p className="mb-2 px-1 text-[13px] font-medium text-muted-foreground">Moved out</p>
           {tasks.filter(t => t.is_exported).map(task => (
-            <div key={`exp-${task.id}`} className="rounded px-2 py-1.5 text-xs italic text-muted-foreground line-through">
+            <div key={`exp-${task.id}`} className="rounded px-2 py-1.5 text-xs text-muted-foreground line-through">
               {task.title}
-              {task.exported_task_id && <span className="ml-1 not-italic">→ Smart To-Do</span>}
-              {task.exported_project_id && <span className="ml-1 not-italic">→ Plan</span>}
+              {task.exported_task_id && <span className="ml-1">→ Smart To-Do</span>}
+              {task.exported_project_id && <span className="ml-1">→ Plan</span>}
             </div>
           ))}
         </div>
@@ -590,14 +606,14 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-[1.5rem] py-4 border-b border-border mix-bg-primary/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl mix-bg-primary/15 flex items-center justify-center"><FlatIcon name="brain" size={22} /></div>
+            <div className="w-9 h-9 rounded-xl mix-bg-primary/15 flex items-center justify-center"><FlatIcon name="brain" size={22} quiet /></div>
             <div>
-              <h2 id="quick-braindump-title" className="font-heading font-bold text-foreground text-base">Handwriting Brain Dump</h2>
+              <h2 id="quick-braindump-title" className="font-heading font-semibold text-foreground text-base">Handwriting brain dump</h2>
               <p className="text-xs text-muted-foreground">
                 {brainDumpStep === 'upload' && 'Upload a photo of your handwritten notes'}
-                {brainDumpStep === 'processing' && 'Vision AI is reading your handwriting...'}
+                {brainDumpStep === 'processing' && 'Reading your handwriting…'}
                 {brainDumpStep === 'preview' && `AI found ${parsedTasks.length} tasks — review before adding`}
-                {brainDumpStep === 'saving' && 'Adding tasks to your day...'}
+                {brainDumpStep === 'saving' && 'Adding tasks to your day…'}
               </p>
             </div>
           </div>
@@ -641,10 +657,10 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                 className="border-2 border-dashed mix-border-primary/40 hover:mix-border-primary/80 rounded-xl p-10 flex flex-col items-center gap-4 cursor-pointer transition-smooth mix-bg-primary/5 hover:mix-bg-primary/10 group todo-focus"
               >
                 <div className="w-16 h-16 rounded-2xl mix-bg-primary/10 group-hover:mix-bg-primary/20 flex items-center justify-center transition-smooth">
-                  <FlatIcon name="camera" size={38} />
+                  <FlatIcon name="camera" size={38} quiet />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-semibold text-foreground">Drop your handwriting photo here</p>
+                  <p className="text-sm font-medium text-foreground">Drop your handwriting photo here</p>
                   <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
                   <p className="text-xs mix-text-muted-foreground/60 mt-2">Supports: JPG, PNG, WEBP, HEIC, PDF scan</p>
                 </div>
@@ -657,7 +673,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               )}
 
               <div className="flex items-start gap-3 p-3 rounded-lg mix-bg-muted/30 border mix-border-border/50">
-                <FlatIcon name="idea" size={22} />
+                <FlatIcon name="idea" size={22} quiet />
                 <div className="text-xs text-muted-foreground leading-relaxed space-y-1">
                   <p><strong className="text-foreground">Best results:</strong> Good lighting, flat surface, clear handwriting</p>
                   <p>AI will extract all text, then organize it into prioritized Eisenhower tasks</p>
@@ -678,11 +694,11 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               <div className="flex flex-col items-center gap-3">
                 <div className="relative w-14 h-14">
                   <div className="absolute inset-0 rounded-full border-4 mix-border-primary/20 border-t-primary animate-spin" />
-                  <div className="absolute inset-3 rounded-full mix-bg-primary/10 flex items-center justify-center"><FlatIcon name="search" size={20} /></div>
+                  <div className="absolute inset-3 rounded-full mix-bg-primary/10 flex items-center justify-center"><FlatIcon name="search" size={20} quiet /></div>
                 </div>
-                <p className="text-sm font-semibold text-foreground animate-pulse">Reading your handwriting...</p>
+                <p className="text-sm font-medium text-foreground animate-pulse">Reading your handwriting…</p>
                 <p className="text-xs text-muted-foreground text-center max-w-xs">
-                  Vision AI is transcribing your notes, then organizing them into tasks
+                  Transcribing your notes, then sorting them into tasks
                 </p>
               </div>
             </div>
@@ -694,8 +710,8 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               {/* Extracted text accordion */}
               {extractedText && (
                 <details className="border-b border-border">
-                  <summary className="px-[1.5rem] py-3 text-[13px] font-semibold text-muted-foreground cursor-pointer hover:mix-bg-muted/30 transition-smooth flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5"><FlatIcon name="notes" size={16} /> Raw Extracted Text</span>
+                  <summary className="px-[1.5rem] py-3 text-[13px] font-medium text-muted-foreground cursor-pointer hover:mix-bg-muted/30 transition-smooth flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5"><FlatIcon name="notes" size={16} quiet /> Extracted text</span>
                     <span className="text-xs normal-case font-normal">(click to expand)</span>
                   </summary>
                   <div className="px-[1.5rem] py-3 mix-bg-muted/20 max-h-40 overflow-y-auto">
@@ -714,7 +730,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
               {parsedTasks.length > 0 ? (
                 <div className="px-[1.5rem] py-4 space-y-3">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs font-semibold text-foreground">Review tasks to add ({selectedTasks.size}/{parsedTasks.length} selected)</p>
+                    <p className="text-xs font-medium text-foreground">Review tasks to add ({selectedTasks.size}/{parsedTasks.length} selected)</p>
                     <div className="flex gap-2">
                       <button onClick={() => setSelectedTasks(new Set(parsedTasks.map((_, i) => i)))}
                         className="text-xs text-primary hover:underline">Select all</button>
@@ -743,7 +759,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                           <div className="flex-1 min-w-0 space-y-2">
                             {/* Title — inline editable */}
                             <input
-                              className="w-full text-sm font-semibold text-foreground bg-transparent border-0 border-b border-dashed mix-border-border/50 focus:border-primary focus:outline-none pb-0.5"
+                              className="w-full text-sm font-medium text-foreground bg-transparent border-0 border-b border-dashed mix-border-border/50 focus:border-primary focus:outline-none pb-0.5"
                               value={task.title}
                               onChange={e => updateParsedTask(i, 'title', e.target.value)}
                             />
@@ -753,7 +769,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                               <select
                                 value={task.quadrant}
                                 onChange={e => updateParsedTask(i, 'quadrant', e.target.value)}
-                                className={`text-xs font-bold px-2 py-0.5 rounded-full border bg-transparent focus:outline-none cursor-pointer ${conf.color} ${conf.bg}`}
+                                className={`text-xs font-medium px-2 py-0.5 rounded-full border bg-transparent focus:outline-none cursor-pointer ${conf.color} ${conf.bg}`}
                               >
                                 <option value="do_now">Do Now</option>
                                 <option value="schedule">Schedule</option>
@@ -763,7 +779,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
 
                               {/* Time estimate */}
                               {task.time_estimate && (
-                                <span className="text-xs font-medium text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                   <Icon name="ClockIcon" size={10} />
                                   {task.time_estimate}
                                 </span>
@@ -772,7 +788,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
 
                             {/* Context note */}
                             {task.context && (
-                              <p className="text-xs text-muted-foreground italic leading-relaxed">{task.context}</p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{task.context}</p>
                             )}
                           </div>
                         </div>
@@ -782,8 +798,8 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                 </div>
               ) : (
                 <div className="px-[1.5rem] py-10 text-center text-muted-foreground">
-                  <FlatIcon name="question" size={34} className="mx-auto mb-2" />
-                  <p className="text-sm font-medium">No tasks found in the image.</p>
+                  <FlatIcon name="question" size={34} quiet className="mx-auto mb-2" />
+                  <p className="text-sm font-medium">No tasks found in the image</p>
                   <p className="text-xs mt-1">Check the extracted text above, or try a clearer photo.</p>
                 </div>
               )}
@@ -794,7 +810,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
           {brainDumpStep === 'saving' && (
             <div className="p-10 flex flex-col items-center gap-4">
               <div className="w-[3rem] h-[3rem] border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-              <p className="text-sm font-semibold text-foreground">Adding {selectedTasks.size} tasks to your day...</p>
+              <p className="text-sm font-medium text-foreground">Adding {selectedTasks.size} tasks to your day…</p>
             </div>
           )}
         </div>
@@ -807,9 +823,9 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                 <p className="text-xs text-muted-foreground">Tip: {shortcutLabel} opens the distraction inbox</p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-smooth hover:mix-bg-primary/90"
+                  className="flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-smooth hover:mix-bg-primary/90"
                 >
-                  <FlatIcon name="camera" size={18} /> Choose Photo
+                  <FlatIcon name="camera" size={18} quiet /> Choose photo
                 </button>
               </>
             ) : (
@@ -826,7 +842,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                   <button
                     onClick={handleConfirmBrainDump}
                     disabled={selectedTasks.size === 0}
-                    className="px-5 py-2.5 bg-primary hover:mix-bg-primary/90 text-primary-foreground text-sm font-bold rounded-xl transition-smooth disabled:opacity-50 flex items-center gap-2 shadow-lg"
+                    className="px-5 py-2.5 bg-primary hover:mix-bg-primary/90 text-primary-foreground text-sm font-medium rounded-xl transition-smooth disabled:opacity-50 flex items-center gap-2 shadow-lg"
                   >
                     <Icon name="PlusIcon" size={14} variant="solid" />
                     Add {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''} to Today
@@ -847,8 +863,8 @@ export default function QuickDaily({ model }: QuickDailyProps) {
       >
         <div className="flex items-center justify-between pb-3 border-b border-border">
           <div className="flex items-center gap-2">
-            <FlatIcon name="dayPlan" size={26} />
-            <h3 id="quick-dayplan-title" className="font-heading text-lg font-bold text-foreground">AI Day Plan</h3>
+            <FlatIcon name="dayPlan" size={26} quiet />
+            <h3 id="quick-dayplan-title" className="font-heading text-lg font-semibold text-foreground">Day plan</h3>
           </div>
           <button onClick={() => setShowDayPlan(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground">
             <Icon name="XMarkIcon" size={18} />
@@ -877,9 +893,9 @@ export default function QuickDaily({ model }: QuickDailyProps) {
             <button
               onClick={handleGenerateDayPlan}
               disabled={!dayPlanHoursValid}
-              className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg hover:mix-bg-primary/90 transition-smooth disabled:opacity-50"
+              className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:mix-bg-primary/90 transition-smooth disabled:opacity-50"
             >
-              Generate My Day Plan
+              Plan my day
             </button>
           </div>
         )}
@@ -887,19 +903,19 @@ export default function QuickDaily({ model }: QuickDailyProps) {
         {dayPlanStep === 'loading' && (
           <div className="py-[3rem] flex flex-col items-center justify-center gap-3">
             <div className="w-8 h-8 border-3 mix-border-primary/30 border-t-primary rounded-full animate-spin" />
-            <p className="text-xs text-muted-foreground">AI is planning your day...</p>
+            <p className="text-xs text-muted-foreground">Planning your day…</p>
           </div>
         )}
 
         {dayPlanStep === 'result' && dayPlanData && (
           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 scrollbar-clean">
             {(dayPlanData.plan || []).length === 0 ? (
-              <p className="text-xs text-muted-foreground py-[1.5rem] text-center">No tasks available for planning.</p>
+              <p className="text-xs text-muted-foreground py-[1.5rem] text-center">No tasks to plan</p>
             ) : (
               <>
                 {(dayPlanData.plan || []).some((t: any) => t.is_top_20) && (
                   <div>
-                    <h4 className="mb-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-amber-600 dark:text-amber-400"><FlatIcon name="star" size={14} /> High Leverage</h4>
+                    <h4 className="mb-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground"><FlatIcon name="star" size={14} /> High leverage</h4>
                     <div className="space-y-2">
                       {(dayPlanData.plan || []).filter((t: any) => t.is_top_20).map((task: any, idx: number) => (
                         <PlanSlot key={idx} task={task} />
@@ -909,7 +925,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
                 )}
                 {(dayPlanData.plan || []).some((t: any) => !t.is_top_20) && (
                   <div>
-                    <h4 className="mb-2 text-[13px] font-semibold text-muted-foreground">Other Tasks</h4>
+                    <h4 className="mb-2 text-[13px] font-medium text-muted-foreground">Other tasks</h4>
                     <div className="space-y-2">
                       {(dayPlanData.plan || []).filter((t: any) => !t.is_top_20).map((task: any, idx: number) => (
                         <PlanSlot key={idx} task={task} />
@@ -924,7 +940,7 @@ export default function QuickDaily({ model }: QuickDailyProps) {
 
         <div className="pt-2 flex justify-end">
           <button onClick={() => setShowDayPlan(false)}
-            className="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:mix-bg-primary/90 transition-smooth">
+            className="px-4 py-2 bg-primary text-primary-foreground text-xs font-medium rounded-lg hover:mix-bg-primary/90 transition-smooth">
             Close
           </button>
         </div>
@@ -1005,8 +1021,8 @@ function QuickEndDayModal({ incompleteTasks, completedCount, model, onClose, onD
     >
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <FlatIcon name="night" size={26} />
-          <span id="quick-endday-title" className="font-heading text-base font-bold text-foreground">End My Day</span>
+          <FlatIcon name="night" size={26} quiet />
+          <span id="quick-endday-title" className="font-heading text-base font-semibold text-foreground">End my day</span>
         </div>
         <button onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
           <Icon name="XMarkIcon" size={16} />
@@ -1023,43 +1039,43 @@ function QuickEndDayModal({ incompleteTasks, completedCount, model, onClose, onD
         {loading ? (
           <div className="flex flex-col items-center justify-center py-[3rem] space-y-3">
             <span className="w-8 h-8 border-4 mix-border-primary/30 border-t-primary rounded-full animate-spin" />
-            <p className="text-xs text-muted-foreground animate-pulse">Wrapping up your day...</p>
+            <p className="text-xs text-muted-foreground animate-pulse">Wrapping up your day…</p>
           </div>
         ) : (
           <>
             <div className="p-3 rounded-lg mix-bg-muted/40 border border-border flex items-center justify-around text-center">
               <div>
-                <span className="block text-xl font-bold text-primary">{completedCount}</span>
+                <span className="block text-xl font-medium tabular-nums text-foreground">{completedCount}</span>
                 <span className="text-[12px] font-medium text-muted-foreground">Completed</span>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
-                <span className="block text-xl font-bold text-amber-500">{incompleteTasks.length}</span>
+                <span className="block text-xl font-medium tabular-nums text-foreground">{incompleteTasks.length}</span>
                 <span className="text-[12px] font-medium text-muted-foreground">Incomplete</span>
               </div>
             </div>
 
             {incompleteTasks.length > 0 ? (
               <div className="space-y-3">
-                <h4 className="flex items-center gap-1.5 text-xs font-bold text-amber-500"><FlatIcon name="calendar" size={16} /> What should happen to incomplete tasks?</h4>
+                <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><FlatIcon name="calendar" size={16} quiet /> What should happen to incomplete tasks?</h4>
                 <div className="space-y-2 max-h-[280px] overflow-y-auto scrollbar-clean pr-1">
                   {incompleteTasks.map(t => (
                     <div key={t.id} className="p-3 rounded-lg border border-border bg-card space-y-2">
-                      <p className="text-xs font-semibold truncate text-foreground">{t.title}</p>
+                      <p className="text-xs font-medium truncate text-foreground">{t.title}</p>
                       <div className="flex gap-2">
                         {(['tomorrow', 'smart', 'discard'] as const).map(act => (
                           <button
                             key={act}
                             type="button"
                             onClick={() => handleChoice(t.id, act)}
-                            className={`flex flex-1 items-center justify-center gap-1.5 py-1 rounded text-xs font-semibold transition-smooth border ${
+                            className={`flex flex-1 items-center justify-center gap-1.5 py-1 rounded text-xs font-medium transition-smooth border ${
                               choices[t.id] === act
                                 ? 'bg-primary text-primary-foreground border-primary'
                                 : 'mix-bg-muted/30 text-muted-foreground border-border hover:bg-muted'
                             }`}
                           >
-                            <FlatIcon name={act === 'tomorrow' ? 'calendar' : act === 'smart' ? 'brain' : 'trash'} size={16} />
-                            {act === 'tomorrow' ? 'Tomorrow' : act === 'smart' ? 'To Smart Todo' : 'Discard'}
+                            <FlatIcon name={act === 'tomorrow' ? 'calendar' : act === 'smart' ? 'brain' : 'trash'} size={16} quiet />
+                            {act === 'tomorrow' ? 'Tomorrow' : act === 'smart' ? 'To Smart To-Do' : 'Discard'}
                           </button>
                         ))}
                       </div>
@@ -1068,7 +1084,7 @@ function QuickEndDayModal({ incompleteTasks, completedCount, model, onClose, onD
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground text-center py-4">Everything's done. Nice work!</p>
+              <p className="text-xs text-muted-foreground text-center py-4">Everything’s done</p>
             )}
           </>
         )}
@@ -1078,9 +1094,9 @@ function QuickEndDayModal({ incompleteTasks, completedCount, model, onClose, onD
         <div className="p-4 border-t border-border flex justify-end">
           <button
             onClick={handleConfirm}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:mix-bg-primary/90 transition-smooth"
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:mix-bg-primary/90 transition-smooth"
           >
-            End Day
+            End day
           </button>
         </div>
       )}
@@ -1092,12 +1108,12 @@ function PlanSlot({ task }: { task: any }) {
   return (
     <div className={`p-2.5 rounded-lg border bg-card shadow-sm ${task.is_top_20 ? 'border-amber-400/50 ring-1 ring-amber-400/20' : 'border-border'}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+        <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
           {task.is_top_20 && <FlatIcon name="star" size={14} label="Top 20% task" />}
           {task.title}
         </span>
         {task.allocated_time && (
-          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 shrink-0">
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
             {task.allocated_time}
           </span>
         )}

@@ -31,7 +31,7 @@ export default function Missions({ missions, onStart }: { missions: Mission[]; o
                 <Icon name={m.icon} size={16} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-semibold leading-snug ds-ink">{m.title}</span>
+                <span className="block text-[15px] font-medium leading-snug ds-ink">{m.title}</span>
                 <span className="block text-xs leading-snug ds-faint">{m.sub}</span>
               </span>
             </>

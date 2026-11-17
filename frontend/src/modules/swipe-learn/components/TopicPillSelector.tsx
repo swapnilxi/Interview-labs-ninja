@@ -119,9 +119,7 @@ export default function TopicPillSelector({
                 className="swipe-pill"
                 style={{ '--tone': topicHue(topic.id) } as React.CSSProperties}
               >
-                <span className="text-sm leading-none" aria-hidden="true">
-                  {topic.emoji}
-                </span>
+                <span className="swipe-dot" aria-hidden="true" />
                 <span>{topic.label}</span>
               </button>
             ))}
@@ -188,13 +186,12 @@ export default function TopicPillSelector({
                     type="button"
                     onClick={() => onSelectSubTab(st.id)}
                     aria-pressed={active}
-                    className={`flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors ${
+                    className={`flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-medium transition-colors ${
                       active
                         ? 'bg-foreground text-background'
                         : 'mix-bg-muted/70 text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    {st.emoji && <span aria-hidden="true">{st.emoji}</span>}
                     <span>{st.label}</span>
                   </button>
                 );

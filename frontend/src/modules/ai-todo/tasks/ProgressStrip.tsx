@@ -10,18 +10,18 @@ import type { TodoStats } from '@/lib/services/todoService';
 export const DEFAULT_DAILY_TARGET = 3;
 
 /** Same height in every state (numbers, placeholder, "unavailable"), so the list below never jumps when stats arrive. */
-const ROW = 'flex min-h-[2rem] flex-wrap items-center gap-x-[1.75rem] gap-y-2';
+const ROW = 'flex min-h-[1.25rem] flex-wrap items-center gap-x-5 gap-y-1';
 
-// One colour per metric, by meaning: today's progress = the Settings accent (it follows a change of accent), green = a
-// streak and a reached target, cyan = the week. A zero is shown in the muted text colour, not the accent: nothing done
-// yet is a calm state, not a missing one.
+// A quiet line under the list's title: figures in the text colour (a zero in the muted one: nothing done yet is a calm
+// state, not a missing one). The only colour is the daily bar (the accent, green once the target is reached) and today's
+// bar in the week.
 const TONE = {
-  progress: { figure: 'lab-ink', track: 'mix-bg-primary/20', fill: 'bg-primary' },
-  success: { figure: 'text-success', track: 'mix-bg-success/20', fill: 'bg-success' },
-  info: { figure: 'mix-text-info', track: 'mix-bg-info/20', fill: 'mix-bg-info' },
+  progress: { figure: 'text-foreground', track: 'mix-bg-primary/20', fill: 'bg-primary' },
+  success: { figure: 'text-foreground', track: 'mix-bg-success/20', fill: 'bg-success' },
+  info: { figure: 'text-foreground', track: 'mix-bg-info/20', fill: 'mix-bg-info' },
 } as const;
 
-const FIGURE = 'font-heading text-lg font-semibold leading-none tabular-nums';
+const FIGURE = 'text-[13px] font-medium leading-none tabular-nums';
 const CAPTION = 'text-xs text-muted-foreground';
 
 interface ProgressStripProps {
@@ -47,7 +47,7 @@ export default function ProgressStrip({ stats, failed = false, onRetry, dailyTar
   if (!stats) {
     return failed ? (
       <p role="status" className="flex min-h-[2rem] flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-        <span>Progress isn&apos;t available right now.</span>
+        <span>Progress isn’t available right now</span>
         {onRetry && (
           <button type="button" onClick={onRetry} className="todo-focus rounded font-medium text-primary hover:underline">
             Try again
@@ -80,9 +80,9 @@ export default function ProgressStrip({ stats, failed = false, onRetry, dailyTar
     <div role="group" aria-label="Your progress" className={ROW}>
       <div
         className="flex items-center gap-2"
-        title={!hasTarget ? undefined : targetHit ? 'Daily target reached — nice work.' : `${remaining} more to hit your daily goal`}
+        title={!hasTarget ? undefined : targetHit ? 'Daily target reached' : `${remaining} more to hit your daily goal`}
       >
-        <span className={`${CAPTION} font-medium`}>Today</span>
+        <span className={CAPTION}>Today</span>
         <span className="flex items-baseline gap-1">
           <span className={`${FIGURE} ${completed > 0 ? todayTone.figure : 'text-muted-foreground'}`}>{completed}</span>
           {hasTarget && <span className={`${CAPTION} tabular-nums`}>/ {target}</span>}
@@ -97,7 +97,7 @@ export default function ProgressStrip({ stats, failed = false, onRetry, dailyTar
             aria-valuenow={Math.min(completed, target)}
             aria-valuetext={targetHit ? `${completed} of ${target}, target reached` : `${completed} of ${target}, ${remaining} to go`}
           >
-            <div className={`h-full rounded-full transition-all duration-500 motion-reduce:transition-none ${todayTone.fill}`} style={{ width: `${fill * 100}%` }} />
+            <div className={`h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none ${todayTone.fill}`} style={{ width: `${fill * 100}%` }} />
           </div>
         )}
         {targetHit && (
@@ -112,13 +112,13 @@ export default function ProgressStrip({ stats, failed = false, onRetry, dailyTar
         className="flex items-center gap-2"
         title={
           streak === 0
-            ? 'Complete a task today to start a streak.'
+            ? 'Complete a task today to start a streak'
             : completed > 0
-              ? "You're on track today — keep it going."
-              : 'Complete a task today to keep your streak alive.'
+              ? "On track today"
+              : 'Complete a task today to keep your streak'
         }
       >
-        <span className={`${CAPTION} font-medium`}>Streak</span>
+        <span className={CAPTION}>Streak</span>
         <span className="flex items-baseline gap-1">
           <span className={`${FIGURE} ${streak > 0 ? TONE.success.figure : 'text-muted-foreground'}`}>{streak}</span>
           <span className={CAPTION}>{streak === 1 ? 'day' : 'days'}</span>
@@ -126,7 +126,7 @@ export default function ProgressStrip({ stats, failed = false, onRetry, dailyTar
       </div>
 
       <div className="flex items-center gap-2">
-        <span className={`${CAPTION} font-medium`}>Last 7 days</span>
+        <span className={CAPTION}>Last 7 days</span>
         <span className="flex items-baseline gap-1">
           <span className={`${FIGURE} ${weekTotal > 0 ? TONE.info.figure : 'text-muted-foreground'}`}>{weekTotal}</span>
           <span className={CAPTION}>done</span>
@@ -138,8 +138,8 @@ export default function ProgressStrip({ stats, failed = false, onRetry, dailyTar
 }
 
 /**
- * Seven small bars, oldest to today, each with its day's initial underneath. A day with nothing recorded is a short
- * neutral stub (never an invented count); today is the full-strength cyan bar with a brighter initial, no outline.
+ * Seven small bars, oldest to today (each day's name in its tooltip and in the group's label). A day with nothing
+ * recorded is a short neutral stub (never an invented count); the other days are neutral, today is the accent bar.
  */
 function WeekBars({ counts, labels }: { counts: number[]; labels: string[] }) {
   const max = Math.max(...counts, 1);
@@ -147,28 +147,23 @@ function WeekBars({ counts, labels }: { counts: number[]; labels: string[] }) {
   const summary = counts.map((n, i) => `${name(i)}: ${n}`).join(', ');
 
   return (
-    <div className="ml-1 flex items-end gap-[0.5rem]" role="img" aria-label={`Tasks completed per day, oldest to today. ${summary}`}>
+    <div className="ml-1 flex items-end gap-[3px]" role="img" aria-label={`Tasks completed per day, oldest to today. ${summary}`}>
       {counts.map((n, i) => {
         const isToday = i === counts.length - 1;
         return (
-          <div key={i} className="flex flex-col items-center gap-[2px]" title={`${name(i)}: ${n} done`} aria-hidden="true">
-            <div className="flex h-4 w-2 items-end">
-              <div
-                className="w-full rounded-[2px] transition-colors"
-                style={{
-                  height: n > 0 ? `${Math.max(25, (n / max) * 100)}%` : '3px',
-                  background:
-                    n === 0
-                      ? 'color-mix(in srgb, var(--color-foreground) 20%, transparent)'
-                      : isToday
-                        ? 'var(--color-info)'
-                        : 'color-mix(in srgb, var(--color-info) 45%, transparent)',
-                }}
-              />
-            </div>
-            <span className={`text-xs leading-none ${isToday ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
-              {name(i).charAt(0)}
-            </span>
+          <div key={i} className="flex h-3 w-[0.375rem] items-end" title={`${name(i)}: ${n} done`} aria-hidden="true">
+            <div
+              className="w-full rounded-[2px] transition-colors"
+              style={{
+                height: n > 0 ? `${Math.max(34, (n / max) * 100)}%` : '2px',
+                background:
+                  n === 0
+                    ? 'color-mix(in srgb, var(--color-foreground) 18%, transparent)'
+                    : isToday
+                      ? 'var(--color-primary)'
+                      : 'color-mix(in srgb, var(--color-foreground) 35%, transparent)',
+              }}
+            />
           </div>
         );
       })}

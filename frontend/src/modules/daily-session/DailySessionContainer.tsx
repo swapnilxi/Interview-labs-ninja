@@ -62,22 +62,11 @@ const VALID_TABS: DailySessionTab[] = [
 ];
 
 /** "Good evening · Saturday, 14 November". Computed after mount so the server and browser never disagree. */
-function useGreeting() {
+/** Today's date for the line above the title (client-side, so the server's clock and time zone never show). */
+function useToday() {
   const [text, setText] = useState('');
   useEffect(() => {
-    const now = new Date();
-    const h = now.getHours();
-    const part =
-      h < 5
-        ? 'Burning the midnight oil'
-        : h < 12
-          ? 'Good morning'
-          : h < 17
-            ? 'Good afternoon'
-            : 'Good evening';
-    setText(
-      `${part} · ${now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}`
-    );
+    setText(new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }));
   }, []);
   return text;
 }
@@ -86,7 +75,7 @@ function DailySessionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { stats } = useCompanionStats();
-  const greeting = useGreeting();
+  const today = useToday();
 
   const tabParam = searchParams.get('tab') as DailySessionTab | null;
 
@@ -131,7 +120,7 @@ function DailySessionContent() {
           <div className="mx-auto max-w-[1200px] px-4 pt-[1rem] sm:px-[2rem] sm:pt-[2rem]">
             <div className="flex items-end justify-between gap-3 sm:gap-5">
               <div className="min-w-0 flex-1">
-                <p className="ds-eyebrow hidden min-h-[1rem] truncate sm:block">{greeting}</p>
+                <p className="ds-eyebrow hidden min-h-[1rem] truncate sm:block">{today}</p>
                 <h1 className="ds-display sm:mt-1.5">{meta.title}</h1>
                 <p className="ds-body mt-1 hidden max-w-[72ch] md:block">{meta.subtitle}</p>
               </div>

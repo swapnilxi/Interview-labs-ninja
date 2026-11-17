@@ -13,6 +13,11 @@
  *   Saffron = reward: streak, XP, hints (the diya on Deepu's head)
  *   Jade    = growth: answered, correct, complete
  *   Rose is semantic only (Hard, "needs review", errors).
+ *
+ * Visual guideline (2026-11-17, see VISUAL-GUIDELINES.md): the chrome is neutral. Icon tiles, chips and the streak / XP
+ * pills are graphite whatever their tone; hue is kept for what carries meaning: the primary action and selection
+ * (accent), progress fills, difficulty dots, results (jade / rose) and errors (banners). A selected chip shows it by its
+ * fill and a check mark, not by a colour.
  */
 
 .ds-skin {
@@ -130,7 +135,7 @@
 /* Small label above a heading: sentence case, like an iOS grouped-list header (tracked capitals read as chrome). */
 .ds-skin .ds-eyebrow {
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0;
   color: var(--ds-ink-3);
 }
@@ -263,7 +268,7 @@
   padding: 0 0.95rem;
   border-radius: 999px;
   font-size: 0.86rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.005em;
   color: var(--ds-ink-3);
   white-space: nowrap;
@@ -304,16 +309,16 @@
   border-radius: 999px;
   background: var(--color-fill);
   font-size: 0.875rem;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ds-ink);
   font-variant-numeric: tabular-nums;
 }
 .ds-skin .ds-stat svg {
-  color: var(--t);
+  color: var(--ds-ink-3);
 }
 .ds-skin .ds-stat small {
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ds-ink-3);
 }
 
@@ -346,7 +351,7 @@
   padding: 0 1.1rem;
   border-radius: var(--ds-radius-sm);
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.005em;
   white-space: nowrap;
   transition:
@@ -430,7 +435,7 @@
 }
 .ds-skin .ds-link {
   color: var(--ds-indigo-ink);
-  font-weight: 600;
+  font-weight: 500;
   text-underline-offset: 3px;
 }
 .ds-skin .ds-link:hover {
@@ -456,7 +461,7 @@
   padding: 0 0.6rem;
   border-radius: 10px;
   font-size: 0.86rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ds-ink-2);
   transition:
     background-color 0.18s ease,
@@ -482,8 +487,8 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 .ds-skin .ds-seg small {
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--ds-ink-3);
 }
 
@@ -539,8 +544,11 @@
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 12px;
-  background: var(--t-soft, var(--ds-indigo-soft));
-  color: var(--t-ink, var(--ds-indigo-ink));
+  background: var(--color-fill);
+  color: var(--ds-ink-2);
+}
+.ds-skin .ds-icon-tile svg {
+  color: inherit;
 }
 .ds-skin .ds-icon-tile-lg {
   width: 3rem;
@@ -562,11 +570,12 @@
   padding: 0 0.65rem;
   border-radius: 999px;
   font-size: 0.75rem;
-  font-weight: 600;
-  background: var(--t-soft, var(--ds-surface-2));
-  color: var(--t-ink, var(--ds-ink-2));
+  font-weight: 500;
+  background: var(--ds-surface-2);
+  color: var(--ds-ink-2);
   white-space: nowrap;
 }
+/* Every chip is neutral; a chip that carries a meaning (difficulty, a warning) says it with its .ds-dot or icon. */
 .ds-skin .ds-stepnum {
   display: inline-flex;
   align-items: center;
@@ -576,8 +585,8 @@
   border-radius: 999px;
   background: var(--ds-indigo-soft);
   color: var(--ds-indigo-ink);
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .ds-skin .ds-dot {
@@ -623,8 +632,8 @@
   flex-direction: column;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: var(--ds-ink-3);
 }
 .ds-skin .ds-day i {
@@ -639,18 +648,18 @@
   font-style: normal;
 }
 .ds-skin .ds-day[data-done='true'] i {
-  background: var(--ds-gold);
-  color: #fff;
+  background: var(--ds-indigo);
+  color: var(--ds-on-solid);
 }
 .ds-skin .ds-day[data-today='true'] {
   color: var(--ds-ink);
 }
 .ds-skin .ds-day[data-today='true'] i {
-  box-shadow: inset 0 0 0 2px var(--ds-gold);
+  box-shadow: inset 0 0 0 2px var(--ds-indigo);
   background: transparent;
 }
 .ds-skin .ds-day[data-today='true'][data-done='true'] i {
-  background: var(--ds-gold);
+  background: var(--ds-indigo);
   box-shadow: none;
 }
 
@@ -1032,7 +1041,7 @@
 .ds-skin .ds-stat-tile .ds-stat-value {
   margin-top: 0.15rem;
   font-size: 1.3rem;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--ds-ink);
@@ -1120,7 +1129,7 @@
   border: 1px solid var(--ds-line-strong);
   border-bottom-width: 2px;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--ds-ink-3);
   background: var(--ds-surface);
 }
@@ -1345,7 +1354,7 @@
   gap: 0.35rem;
   padding: 0 0.5rem;
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ds-ink-3);
 }
 /* Phones: both bar buttons are plain 44px icon buttons, like the two ends of an iOS navigation bar. */
@@ -1493,7 +1502,7 @@
   padding: 0 0.65rem;
   border-radius: 999px;
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ds-indigo-ink);
   -webkit-tap-highlight-color: transparent;
   transition: background-color 0.18s ease;
@@ -1519,7 +1528,7 @@
 }
 .ds-skin .ds-kind {
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ds-ink-3);
 }
 
@@ -1663,8 +1672,9 @@
   min-height: 2rem;
   padding: 0 0.8rem;
   font-size: 0.8rem;
-  border: 1px solid transparent;
-  background: var(--t-soft, var(--color-fill));
+  border: 1px solid var(--ds-line-strong);
+  background: transparent;
+  color: var(--ds-ink-2);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition:
@@ -1673,8 +1683,8 @@
     transform 0.12s ease;
 }
 .ds-skin .ds-chip-btn:hover {
-  background: var(--t-soft, var(--color-fill-strong));
-  color: var(--t-ink, var(--ds-ink));
+  background: var(--color-fill);
+  color: var(--ds-ink);
 }
 .ds-skin .ds-chip-btn:active {
   transform: scale(0.97);
@@ -1695,8 +1705,11 @@
   outline: 2px solid var(--ds-indigo-ink, currentColor);
   outline-offset: 2px;
 }
-.ds-skin .ds-chip-on {
+.ds-skin .ds-chip-on,
+.ds-skin .ds-chip-on:hover {
   border-color: transparent;
+  background: var(--color-fill-strong);
+  color: var(--ds-ink);
 }
 .ds-skin .ds-chip-custom {
   border-top-right-radius: 0;
@@ -1775,7 +1788,7 @@
 }
 .ds-skin .ds-loader-text {
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.01em;
   background: linear-gradient(100deg, var(--ds-ink-2) 35%, var(--ds-ink, var(--ds-ink-2)) 50%, var(--ds-ink-2) 65%);
   background-size: 250% 100%;

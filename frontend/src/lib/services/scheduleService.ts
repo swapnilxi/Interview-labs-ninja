@@ -19,7 +19,8 @@ import { toLocalStamp, type ScheduleRule } from '../schedules/scheduleRules';
 import type { Task } from './todoService';
 
 export type ScheduleKind = 'reminder' | 'agent';
-export type AgentContext = 'tasks' | 'none';
+/** What an AI job reads: its open tasks, the whole To-Do workspace (projects, goals, finished work), or nothing. */
+export type AgentContext = 'tasks' | 'workspace' | 'none';
 export type RunSource = 'web' | 'app' | 'manual';
 
 export interface Schedule {
@@ -33,6 +34,10 @@ export interface Schedule {
   timezone: string | null;
   agent_context: AgentContext;
   add_tasks: boolean;
+  /** AI job: may search the web once per run (news, prices, weather…). */
+  use_web?: boolean;
+  /** AI job: also writes a full report the app shows; the notification stays short. */
+  write_report?: boolean;
   enabled: boolean;
   source_text: string | null;
   last_run_at: string | null;
@@ -53,6 +58,15 @@ export interface ScheduleRun {
   created_task_ids: number[];
   started_at: string;
   finished_at: string | null;
+  /** The full report (write_report jobs); `output` is the short notification text. */
+  report?: string | null;
+  /** The web pages a use_web run read. */
+  sources?: { title: string; url: string }[];
+}
+
+/** A run in the Assistant's feed (GET /todo/schedules/activity). */
+export interface ActivityRun extends ScheduleRun {
+  schedule_title: string;
 }
 
 export interface ScheduleCreatePayload {
@@ -63,6 +77,8 @@ export interface ScheduleCreatePayload {
   timezone?: string | null;
   agent_context?: AgentContext;
   add_tasks?: boolean;
+  use_web?: boolean;
+  write_report?: boolean;
   enabled?: boolean;
   source_text?: string | null;
 }
@@ -159,6 +175,12 @@ export const scheduleService = {
       await jsonOrThrow(await todoFetch(`/todo/schedules/${id}`, { method: 'DELETE' }));
     }
     emitChanged();
+  },
+
+  /** The latest AI-job runs across all schedules, newest first (the Assistant shows them in its conversation). */
+  async activity(): Promise<ActivityRun[]> {
+    if (!isLoggedIn()) return [];
+    return jsonOrThrow<ActivityRun[]>(await todoFetch('/todo/schedules/activity'));
   },
 
   async runs(id: number): Promise<ScheduleRun[]> {

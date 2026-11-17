@@ -38,7 +38,7 @@ export default function SwipeLearnHeader({
           <Icon name="Square3Stack3DIcon" size={20} variant="solid" />
         </div>
         <div className="leading-tight">
-          <p className="font-heading text-base font-bold text-foreground">SwipeLearn</p>
+          <p className="font-heading text-base font-semibold text-foreground">SwipeLearn</p>
           <p className="text-xs text-muted-foreground">Micro-learning feed</p>
         </div>
       </div>

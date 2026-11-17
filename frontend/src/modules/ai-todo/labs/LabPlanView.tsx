@@ -70,7 +70,7 @@ export default function LabPlanView({ projects, onProjectCreated }: LabPlanViewP
             className="min-w-0 flex-1 text-[14px] leading-tight text-foreground"
             aria-live="polite"
           >
-            <span className="font-semibold">{topicsPicked} selected</span>
+            <span className="font-medium">{topicsPicked} selected</span>
             {items > topicsPicked && (
               // Its own line on phones, so the phrase never breaks in the middle.
               <span className="block text-[13px] text-muted-foreground sm:inline sm:text-[14px]">

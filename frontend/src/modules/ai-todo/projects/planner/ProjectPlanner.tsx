@@ -346,7 +346,7 @@ export default function ProjectPlanner({ project, model }: ProjectPlannerProps) 
           <Icon name="SparklesIcon" size={26} />
         </span>
         <div>
-          <h3 className="font-heading text-base font-semibold text-foreground">Sign in to use the AI Planner</h3>
+          <h3 className="font-heading text-base font-semibold text-foreground">Sign in to use the AI planner</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             The planner reads your requirements, asks questions and writes a plan with you. It uses AI, so it needs an account. Your project and its tasks
             stay available without one.
@@ -368,7 +368,7 @@ export default function ProjectPlanner({ project, model }: ProjectPlannerProps) 
       <div role="alert" className="todo-alert todo-alert-error">
         <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
         <p className="flex-1 leading-relaxed">{loadError}</p>
-        <button type="button" onClick={() => setLoadAttempt((n) => n + 1)} className="todo-focus rounded font-semibold underline">
+        <button type="button" onClick={() => setLoadAttempt((n) => n + 1)} className="todo-focus rounded font-medium underline">
           Try again
         </button>
       </div>
@@ -392,10 +392,10 @@ export default function ProjectPlanner({ project, model }: ProjectPlannerProps) 
               type="button"
               onClick={() => goStep(s)}
               aria-pressed={step === s}
-              className="todo-segment gap-2 px-3 py-2 text-sm font-semibold"
+              className="todo-segment gap-2 px-3 py-2 text-sm font-medium"
             >
               <span
-                className={`flex h-[1.25rem] w-[1.25rem] items-center justify-center rounded-full text-xs font-bold ${
+                className={`flex h-[1.25rem] w-[1.25rem] items-center justify-center rounded-full text-xs font-medium ${
                   done[s] && step !== s ? 'bg-emerald-500 text-white' : 'bg-muted text-muted-foreground'
                 }`}
                 aria-hidden="true"

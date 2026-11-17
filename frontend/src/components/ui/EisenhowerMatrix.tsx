@@ -57,7 +57,7 @@ interface EisenhowerMatrixProps<T extends MatrixItem> {
   unassignedFirst?: boolean;
   /** Let a card be dropped back into the unassigned tray. Leave off where the backend can't hold "no quadrant". */
   allowUnassign?: boolean;
-  /** The built-in title row (with AI Auto-Sort). Turn off when the page supplies its own toolbar. */
+  /** The built-in title row (with Auto-sort). Turn off when the page supplies its own toolbar. */
   showHeader?: boolean;
   unassignedLabel?: string;
   unassignedHint?: string;
@@ -84,9 +84,9 @@ const QUADRANTS: {
   calmDot: string;
   lit: string;
 }[] = [
-  { id: 'do_now',    label: 'DO NOW',    title: 'Do now',    dot: 'bg-red-500', calmDot: 'bg-error',   colorClass: 'text-red-500',   bgClass: 'bg-red-500/5 border-red-500/20',   borderActive: 'border-red-500/60 bg-red-500/10',   desc: 'Urgent & Important', lit: '#ef4444' },
-  { id: 'schedule',  label: 'SCHEDULE',  title: 'Schedule',  dot: 'bg-blue-500', calmDot: 'mix-bg-progress',  colorClass: 'text-blue-500',  bgClass: 'bg-blue-500/5 border-blue-500/20',  borderActive: 'border-blue-500/60 bg-blue-500/10',  desc: 'Important, Not Urgent', lit: '#3b82f6' },
-  { id: 'delegate',  label: 'DELEGATE',  title: 'Delegate',  dot: 'bg-amber-500', calmDot: 'bg-warning', colorClass: 'text-amber-500', bgClass: 'bg-amber-500/5 border-amber-500/20', borderActive: 'border-amber-500/60 bg-amber-500/10', desc: 'Urgent, Not Important', lit: '#f59e0b' },
+  { id: 'do_now',    label: 'DO NOW',    title: 'Do now',    dot: 'bg-red-500', calmDot: 'bg-error',   colorClass: 'text-red-500',   bgClass: 'bg-red-500/5 border-red-500/20',   borderActive: 'border-red-500/60 bg-red-500/10',   desc: 'Urgent and important', lit: '#ef4444' },
+  { id: 'schedule',  label: 'SCHEDULE',  title: 'Schedule',  dot: 'bg-blue-500', calmDot: 'mix-bg-progress',  colorClass: 'text-blue-500',  bgClass: 'bg-blue-500/5 border-blue-500/20',  borderActive: 'border-blue-500/60 bg-blue-500/10',  desc: 'Important, not urgent', lit: '#3b82f6' },
+  { id: 'delegate',  label: 'DELEGATE',  title: 'Delegate',  dot: 'bg-amber-500', calmDot: 'bg-warning', colorClass: 'text-amber-500', bgClass: 'bg-amber-500/5 border-amber-500/20', borderActive: 'border-amber-500/60 bg-amber-500/10', desc: 'Urgent, not important', lit: '#f59e0b' },
   { id: 'eliminate', label: 'ELIMINATE', title: 'Eliminate', dot: 'bg-gray-400', calmDot: 'mix-bg-muted-foreground/60',  colorClass: 'text-gray-500',  bgClass: 'bg-gray-500/5 border-gray-500/20',  borderActive: 'border-gray-400/60 bg-gray-400/10',  desc: 'Neither', lit: '#9ca3af' },
 ];
 
@@ -184,7 +184,7 @@ function QuadrantDropZone<T extends MatrixItem>({
         <div className="flex items-center justify-between gap-2 px-4 py-3">
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${quad.calmDot}`} aria-hidden="true" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-foreground">{quad.label}</span>
+            <span className="text-sm font-medium text-foreground">{quad.title}</span>
             <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>
           </div>
           <span className="text-xs text-muted-foreground">{quad.desc}</span>
@@ -202,7 +202,7 @@ function QuadrantDropZone<T extends MatrixItem>({
               ))
             ) : (
               <div className="flex h-full min-h-[120px] items-center justify-center px-2 text-center">
-                <p className="text-xs text-muted-foreground">Drop here → {quad.label}</p>
+                <p className="text-xs text-muted-foreground">Drop here → {quad.title}</p>
               </div>
             )}
           </SortableContext>
@@ -223,8 +223,8 @@ function QuadrantDropZone<T extends MatrixItem>({
       <div className="px-[1.25rem] py-4 flex items-center justify-between border-b border-black/5 dark:border-white/5 bg-black/[0.03] dark:bg-white/[0.03]">
         <div className="flex items-center gap-2">
           <span className={`h-3 w-3 rounded-full ${quad.dot}`} aria-hidden="true" />
-          <span className={`font-bold text-xs uppercase tracking-wider ${quad.colorClass}`}>
-            {quad.label}
+          <span className={`text-sm font-medium ${quad.colorClass}`}>
+            {quad.title}
           </span>
           <span className="text-xs text-muted-foreground mix-bg-muted/60 px-1.5 py-0.5 rounded font-semibold">
             {items.length}
@@ -252,7 +252,7 @@ function QuadrantDropZone<T extends MatrixItem>({
             >
               <span className={`h-4 w-4 rounded-full ${quad.dot}`} aria-hidden="true" />
               <p className="text-xs font-medium italic text-muted-foreground text-center px-2">
-                Drop here → {quad.label}
+                Drop here → {quad.title}
               </p>
             </div>
           )}
@@ -298,9 +298,9 @@ function StackSection<T extends MatrixItem>({
     <section
       ref={setNodeRef}
       aria-label={`${title} (${items.length})`}
-      className={`rounded-xl border-2 transition-colors ${
+      className={`rounded-xl border transition-colors ${
         isOver
-          ? 'border-blue-400 bg-blue-500/10'
+          ? 'mix-border-primary/60 mix-bg-primary/[0.06]'
           : emphasis && !empty
             ? 'border-dashed border-border bg-muted'
             : 'border-border bg-card'
@@ -308,10 +308,8 @@ function StackSection<T extends MatrixItem>({
     >
       <header className={`flex items-center gap-2.5 px-4 ${empty ? 'py-2.5' : 'pb-1 pt-3'}`}>
         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
-          {items.length}
-        </span>
+        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>
         <span className="ml-auto hidden text-xs text-muted-foreground sm:inline">
           {empty && droppable ? 'Drop a task here' : desc}
         </span>
@@ -507,7 +505,7 @@ export default function EisenhowerMatrix<T extends MatrixItem>({
       {showHeader && calm && (
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <h2 className="font-heading text-sm font-semibold text-foreground">
-            Eisenhower Matrix
+            Eisenhower matrix
             <span className="ml-2 text-xs font-normal text-muted-foreground">Drag cards between quadrants</span>
           </h2>
           {showAutoSort && (
@@ -521,7 +519,7 @@ export default function EisenhowerMatrix<T extends MatrixItem>({
               ) : (
                 <Icon name="SparklesIcon" size={14} />
               )}
-              AI Auto-Sort
+              Auto-sort
             </button>
           )}
         </div>
@@ -541,7 +539,7 @@ export default function EisenhowerMatrix<T extends MatrixItem>({
               {autoSortLoading ? (
                 <span className="w-3 h-3 border border-purple-500 border-t-transparent rounded-full animate-spin" />
               ) : <FlatIcon name="ai" size={16} />}
-              AI Auto-Sort
+              Auto-sort
             </button>
           )}
         </div>

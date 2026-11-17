@@ -527,7 +527,7 @@ export default function QuickPractice() {
               <button
                 type="button"
                 onClick={clearDeck}
-                className="flex-shrink-0 text-xs font-semibold underline underline-offset-2"
+                className="flex-shrink-0 text-xs font-medium underline underline-offset-2"
               >
                 Remove my deck
               </button>
@@ -594,7 +594,7 @@ export default function QuickPractice() {
           {isRevealed && (
             <div className="bs-answer ds-enter">
               <div className="flex items-center justify-between gap-3">
-                <p className="flex items-center gap-1.5 text-[13px] font-semibold ds-tone-jade ds-tone-text">
+                <p className="flex items-center gap-1.5 text-[13px] font-medium ds-tone-jade ds-tone-text">
                   <Icon name="CheckCircleIcon" variant="solid" size={17} />
                   Model answer
                 </p>
@@ -877,7 +877,7 @@ export default function QuickPractice() {
             <div className="ds-banner bs-tone-p ds-tone-jade" role="status">
               <Icon name="CheckCircleIcon" variant="solid" size={18} />
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="font-semibold">
+                <p className="font-medium">
                   Found {importResult.cards.length} card{importResult.cards.length === 1 ? '' : 's'}
                   {importResult.skipped.length > 0 && ` · skipped ${importResult.skipped.length}`}
                 </p>

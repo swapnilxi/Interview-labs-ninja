@@ -17,15 +17,20 @@ from modules.common.db import get_db_path
 
 _SCHEDULE_COLUMNS = (
     "id, user_id, title, kind, message, rule, timezone, agent_context, add_tasks, enabled, source_text, "
-    "last_run_at, last_status, last_output, created_at, updated_at"
+    "last_run_at, last_status, last_output, created_at, updated_at, use_web, write_report"
 )
 
 _RUN_COLUMNS = (
-    "id, schedule_id, user_id, scheduled_for, source, status, title, output, created_task_ids, started_at, finished_at"
+    "id, schedule_id, user_id, scheduled_for, source, status, title, output, created_task_ids, started_at, finished_at, "
+    "report, sources"
 )
 
 # Columns update_schedule may write (the PATCH fields).
-_UPDATABLE = {"title", "kind", "message", "rule", "timezone", "agent_context", "add_tasks", "enabled", "source_text"}
+_UPDATABLE = {
+    "title", "kind", "message", "rule", "timezone", "agent_context", "add_tasks", "enabled", "source_text", "use_web",
+    "write_report",
+}
+_BOOL_COLUMNS = ("add_tasks", "enabled", "use_web", "write_report")
 
 
 def _parse_json(value: Any, fallback: Any) -> Any:
@@ -56,6 +61,8 @@ def _schedule_row_to_dict(row: tuple) -> Dict[str, Any]:
         "last_output": row[13],
         "created_at": row[14],
         "updated_at": row[15],
+        "use_web": bool(row[16]),
+        "write_report": bool(row[17]),
     }
 
 
@@ -72,6 +79,8 @@ def _run_row_to_dict(row: tuple) -> Dict[str, Any]:
         "created_task_ids": _parse_json(row[8], []),
         "started_at": row[9],
         "finished_at": row[10],
+        "report": row[11],
+        "sources": _parse_json(row[12], []),
     }
 
 
@@ -86,6 +95,8 @@ def create_schedule(
     add_tasks: bool = False,
     enabled: bool = True,
     source_text: Optional[str] = None,
+    use_web: bool = False,
+    write_report: bool = False,
 ) -> Dict[str, Any]:
     """Insert a schedule. `rule` is already canonical (rules.normalize_rule)."""
     conn = sqlite3.connect(get_db_path())
@@ -94,12 +105,13 @@ def create_schedule(
         cursor.execute(
             """
             INSERT INTO todo_schedules
-                (user_id, title, kind, message, rule, timezone, agent_context, add_tasks, enabled, source_text)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (user_id, title, kind, message, rule, timezone, agent_context, add_tasks, enabled, source_text,
+                 use_web, write_report)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id, title, kind, message, json.dumps(rule), timezone, agent_context,
-                1 if add_tasks else 0, 1 if enabled else 0, source_text,
+                1 if add_tasks else 0, 1 if enabled else 0, source_text, 1 if use_web else 0, 1 if write_report else 0,
             ),
         )
         conn.commit()
@@ -142,7 +154,7 @@ def update_schedule(schedule_id: int, user_id: int, **fields) -> Optional[Dict[s
             continue
         if key == "rule":
             value = json.dumps(value)
-        elif key in ("add_tasks", "enabled"):
+        elif key in _BOOL_COLUMNS:
             value = 1 if value else 0
         sets.append(f"{key} = ?")
         values.append(value)
@@ -225,9 +237,12 @@ def finish_run(
     output: Optional[str],
     created_task_ids: Optional[List[int]] = None,
     disable_once: bool = True,
+    report: Optional[str] = None,
+    sources: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
     """Stores the result and copies it onto the schedule (last_*). A one-time schedule that ran successfully switches
-    itself off (`disable_once`; False for a manual "Run now")."""
+    itself off (`disable_once`; False for a manual "Run now"). `report` / `sources` are the full answer and the web
+    pages it read (AI jobs with write_report / use_web); `output` stays the short notification text."""
     created_task_ids = created_task_ids or []
     conn = sqlite3.connect(get_db_path())
     try:
@@ -235,10 +250,14 @@ def finish_run(
         cursor.execute(
             """
             UPDATE todo_schedule_runs
-               SET status = ?, title = ?, output = ?, created_task_ids = ?, finished_at = datetime('now')
+               SET status = ?, title = ?, output = ?, created_task_ids = ?, report = ?, sources = ?,
+                   finished_at = datetime('now')
              WHERE id = ?
             """,
-            (status, title, output, json.dumps(created_task_ids) if created_task_ids else None, run_id),
+            (
+                status, title, output, json.dumps(created_task_ids) if created_task_ids else None, report,
+                json.dumps(sources) if sources else None, run_id,
+            ),
         )
         cursor.execute(
             """
@@ -274,5 +293,31 @@ def list_runs(schedule_id: int, user_id: int, limit: int = 20) -> List[Dict[str,
             (schedule_id, user_id, limit),
         )
         return [_run_row_to_dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def list_recent_agent_runs(user_id: int, limit: int = 30) -> List[Dict[str, Any]]:
+    """The user's latest finished AI-job runs across all schedules, newest first, each with its schedule's title.
+    The Assistant shows them in its conversation (reminder runs would only be noise there)."""
+    conn = sqlite3.connect(get_db_path())
+    try:
+        cursor = conn.cursor()
+        columns = ", ".join(f"r.{c.strip()}" for c in _RUN_COLUMNS.split(","))
+        cursor.execute(
+            f"""
+            SELECT {columns}, s.title FROM todo_schedule_runs r
+              JOIN todo_schedules s ON s.id = r.schedule_id AND s.user_id = r.user_id
+             WHERE r.user_id = ? AND s.kind = 'agent' AND r.status IN ('ok', 'error')
+             ORDER BY r.finished_at DESC, r.id DESC LIMIT ?
+            """,
+            (user_id, limit),
+        )
+        out = []
+        for row in cursor.fetchall():
+            run = _run_row_to_dict(row[:-1])
+            run["schedule_title"] = row[-1]
+            out.append(run)
+        return out
     finally:
         conn.close()

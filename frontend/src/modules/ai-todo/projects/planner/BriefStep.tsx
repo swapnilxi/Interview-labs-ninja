@@ -73,7 +73,7 @@ export default function BriefStep({ state, projectDescription, busy, onChange, o
       </div>
 
       <div>
-        <label htmlFor="planner-context" className="mb-1.5 block text-xs font-semibold text-foreground">Requirements and context</label>
+        <label htmlFor="planner-context" className="mb-1.5 block text-xs font-medium text-foreground">Requirements and context</label>
         <textarea
           id="planner-context"
           value={state.context}
@@ -91,7 +91,7 @@ export default function BriefStep({ state, projectDescription, busy, onChange, o
 
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs font-semibold text-foreground">Documents</span>
+          <span className="text-xs font-medium text-foreground">Documents</span>
           <button type="button" onClick={() => fileInput.current?.click()} className="todo-btn todo-btn-secondary">
             <Icon name="PaperClipIcon" size={14} /> Attach documents
           </button>
@@ -138,7 +138,7 @@ export default function BriefStep({ state, projectDescription, busy, onChange, o
       </div>
 
       <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className={`text-xs ${overLimit ? 'font-semibold text-warning' : 'text-muted-foreground'}`}>
+        <p className={`text-xs ${overLimit ? 'font-medium text-warning' : 'text-muted-foreground'}`}>
           {total.toLocaleString()} / {MAX_MATERIAL_CHARS.toLocaleString()} characters
           {overLimit && ' — the AI reads your notes first, then the documents in order, and stops at the limit.'}
         </p>

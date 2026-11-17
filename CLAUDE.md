@@ -44,6 +44,11 @@ further down in `README.md` — check there before assuming a module's shape.
 
 ## Critical gotchas
 
+- **Visual guideline: `VISUAL-GUIDELINES.md`** (repo root). Read it before any UI work: quiet neutral chrome, one accent
+  (`--color-primary`) for the primary action / selection / progress, hue only where it means something, weights 400-600,
+  sentence case, and the shared components (task cards, neutral chips, stat cards, empty states). Check new screens at
+  390 and 1440 px, light and dark.
+
 - **The live SQLite database is `backend/data/lab_ninja.sqlite3`** (`get_db_path()` in
   `backend/modules/common/db.py`; there is no fallback to any other location, only the
   test overrides below). It's tracked in git — `.gitignore` blanket-
@@ -126,10 +131,16 @@ further down in `README.md` — check there before assuming a module's shape.
   login-only (2026-11-16) no guest reaches those pages, so the guest branch is unreachable
   (kept, not deleted; the first login still imports old guest data via `POST /todo/import`).
   Don't add guest branches to new methods.
+- **To-Do Routines** (`/ai-todo?tab=routines`, Dailies + routine groups, ticked per local date) and pinned tasks on
+  Today: `backend/modules/ai_todo/routines/` ↔ `frontend/fe-apis/todo/routines/` (same limits and error texts), plus
+  `tasks.pinned` in both tasks twins. README: "Routines and pinned tasks".
 - **To-Do Scheduler** (`/ai-todo?tab=schedule`): `backend/modules/ai_todo/schedules/` ↔ `frontend/fe-apis/todo/schedules/`
   (prompts byte-identical), and rule validation `frontend/src/lib/schedules/scheduleRules.ts` (`normalizeRule`) ↔
   `schedules/rules.py` (same error texts, same stored JSON). Runs happen on the device (web engine + the native Android
-  plugin in `app/android/.../scheduler/`), never on a server cron. Details: README.md ("Scheduler").
+  plugin in `app/android/.../scheduler/`), never on a server cron. The tab is now the **Assistant** (chat + voice):
+  `backend/modules/ai_todo/agent/` ↔ `frontend/fe-apis/todo/agent/` (`POST /todo/agent/chat`, workspace snapshot, web
+  step; prompts byte-identical, the endpoint never writes: the browser applies the actions). Details: README.md
+  ("Assistant and Scheduler").
 - **Labs: one page, config per lab (`frontend/src/modules/labs/`).** `common/` = everything labs share; one folder per lab
   holds only what is specific to it. CV, System Design, Communication, Finance, Python and GenAI & AI are ALL rendered by
   `common/TopicLab.tsx` from their `<lab>/labConfig.ts` (`TopicLabConfig<T>`: `sectionDefs`, `defaultContent`, `fallbackTopics`,

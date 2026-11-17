@@ -92,7 +92,7 @@ export default function PracticeSetup(p: Props) {
           {p.companion.controls}
         </div>
         <div className="mt-5">
-          <p id={`pm-mood-${where}`} className="text-sm font-semibold ds-ink">
+          <p id={`pm-mood-${where}`} className="text-sm font-medium ds-ink">
             How are you feeling?
           </p>
           <p className="text-xs ds-faint">Deepu sizes the drill to match.</p>
@@ -111,7 +111,7 @@ export default function PracticeSetup(p: Props) {
                 <span className="ds-icon-tile ds-icon-tile-sm">
                   <Icon name={look.icon} size={16} variant={p.mood === m.id ? 'solid' : 'outline'} />
                 </span>
-                <span className="text-xs font-semibold ds-ink">{m.label}</span>
+                <span className="text-xs font-medium ds-ink">{m.label}</span>
               </button>
             );
           })}
@@ -126,7 +126,7 @@ export default function PracticeSetup(p: Props) {
         {p.pending && (
           <section className="ds-card-raised flex flex-wrap items-center gap-4 p-4 ds-enter" aria-label="Drill in progress">
             <Ring value={p.pending.index / p.pending.total} size={48} tone="jade" label={`${p.pending.index} of ${p.pending.total} done`}>
-              <span className="text-[11px] font-bold ds-ink ds-num">
+              <span className="text-[11px] font-medium ds-ink ds-num">
                 {p.pending.index}/{p.pending.total}
               </span>
             </Ring>
@@ -182,7 +182,7 @@ export default function PracticeSetup(p: Props) {
                         <Icon name={c.icon} size={19} />
                       </span>
                       <span>
-                        <span className="block text-sm font-semibold leading-snug ds-ink">{c.label}</span>
+                        <span className="block text-sm font-medium leading-snug ds-ink">{c.label}</span>
                         <span className="block text-xs ds-faint ds-num">
                           {n} question{n === 1 ? '' : 's'}
                         </span>
@@ -239,7 +239,7 @@ export default function PracticeSetup(p: Props) {
                       <Icon name={icon} size={19} />
                     </span>
                     <span className="min-w-0 pr-5">
-                      <span className="block text-sm font-semibold ds-ink">{title}</span>
+                      <span className="block text-sm font-medium ds-ink">{title}</span>
                       <span className="block text-xs leading-snug ds-faint">{sub}</span>
                     </span>
                     <Icon name="CheckCircleIcon" size={18} variant="solid" className="ds-check" />
@@ -296,7 +296,7 @@ export default function PracticeSetup(p: Props) {
                 <Icon name="SunIcon" size={16} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold ds-ink">Today&apos;s thought</span>
+                <span className="block text-sm font-medium ds-ink">Today&apos;s thought</span>
                 <span className="block text-sm italic ds-muted">{p.shloka.sanskrit}</span>
               </span>
               <Icon name="ChevronDownIcon" size={16} className="ds-caret ds-faint" />
@@ -330,10 +330,10 @@ export default function PracticeSetup(p: Props) {
                       tone={score >= 70 ? 'jade' : score >= 40 ? 'gold' : 'rose'}
                       label={h.avgScore !== undefined ? `Average score ${score}` : `${score}% accuracy`}
                     >
-                      <span className="text-[10px] font-bold ds-muted ds-num">{score}</span>
+                      <span className="text-[10px] font-medium ds-muted ds-num">{score}</span>
                     </Ring>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold ds-ink">
+                      <span className="block text-sm font-medium ds-ink">
                         {h.mission ??
                           `${h.category === 'All' ? 'Mixed topics' : topicLabel(h.category)}, ${
                             h.difficulty === 'All' ? 'any level' : h.difficulty.toLowerCase()
@@ -357,7 +357,7 @@ export default function PracticeSetup(p: Props) {
         <div className="ds-actionbar">
           <div className="mx-auto flex max-w-xl items-center gap-3">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold ds-ink">
+              <p className="truncate text-sm font-medium ds-ink">
                 {topicName}, {level.value === 'All' ? 'mixed level' : level.label.toLowerCase()}
               </p>
               <p className="text-xs ds-faint">

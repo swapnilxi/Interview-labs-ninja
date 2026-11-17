@@ -54,7 +54,7 @@ export default function AnswerWorkspace({
     <div className="space-y-4">
       <div>
         <div className="mb-2 flex items-center justify-between gap-3 px-0.5">
-          <label htmlFor="answer-box" className="text-sm font-semibold ds-ink">
+          <label htmlFor="answer-box" className="text-sm font-medium ds-ink">
             Your answer
           </label>
           <span className="ds-kind">{KIND_LABEL[kind]}</span>
@@ -80,7 +80,7 @@ export default function AnswerWorkspace({
           />
           <span className="bs-mic">
             {recording && (
-              <span className="pointer-events-none text-xs font-semibold ds-tone-rose ds-tone-text">
+              <span className="pointer-events-none text-xs font-medium ds-tone-rose ds-tone-text">
                 Listening…
               </span>
             )}

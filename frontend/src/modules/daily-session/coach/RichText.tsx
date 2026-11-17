@@ -63,7 +63,7 @@ export default function RichText({ text, className = '' }: { text: string; class
       flush(`l${k}`);
       if (head)
         blocks.push(
-          <h4 key={k} className="pt-1 font-semibold">
+          <h4 key={k} className="pt-1 font-medium">
             {inline(head[1], k)}
           </h4>
         );

@@ -4,8 +4,9 @@ import { useState, useRef } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import Popover from '@/components/ui/Popover';
 import { GoalNode } from '@/lib/services/goalService';
-import { STATUS_CONFIG, PRIORITY_CONFIG, TaskStatus, TaskPriority } from '@/lib/services/todoService';
+import { STATUS_CONFIG, TaskStatus, TaskPriority } from '@/lib/services/todoService';
 import { exportGoalTreeToCsv } from './exportGoalTree';
+import { PRIORITY_COLOR, STATUS_COLOR, STATUS_TEXT } from '../shared/semanticColors';
 
 interface GoalCardProps {
   node: GoalNode;
@@ -59,8 +60,7 @@ export default function GoalCard({
   // intermediate ancestors, which are what actually add context there.
   const breadcrumb = groupedUnderRoot ? fullChain.slice(1) : fullChain;
   const statusCfg = STATUS_CONFIG[node.status as TaskStatus] || STATUS_CONFIG.backlog;
-  const priorityCfg = PRIORITY_CONFIG[node.priority as TaskPriority] || PRIORITY_CONFIG.p3;
-  const hasExports = node.exported_to_smart_todo || node.exported_to_quick || node.exported_to_plan;
+    const hasExports = node.exported_to_smart_todo || node.exported_to_quick || node.exported_to_plan;
 
   return (
     <div
@@ -81,7 +81,7 @@ export default function GoalCard({
         <button
           type="button"
           aria-pressed={isSelected}
-          className="todo-focus -m-0.5 flex-1 rounded p-0.5 text-left text-[15px] font-semibold leading-snug text-foreground"
+          className="todo-focus -m-0.5 flex-1 rounded p-0.5 text-left text-[15px] font-medium leading-snug text-foreground"
         >
           {node.title}
         </button>
@@ -110,9 +110,12 @@ export default function GoalCard({
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span className={`rounded-full px-2 py-0.5 text-[12px] font-semibold ${statusCfg.bgClass}`}>{statusCfg.label}</span>
-        <span className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
-          <span className={`h-2 w-2 rounded-full ${priorityCfg.dotClass}`} aria-hidden="true" />
+        <span className={`inline-flex items-center gap-1.5 text-[12px] ${STATUS_TEXT[node.status as TaskStatus] || STATUS_TEXT.backlog}`}>
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: STATUS_COLOR[node.status as TaskStatus] || STATUS_COLOR.backlog }} aria-hidden="true" />
+          {statusCfg.label}
+        </span>
+        <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: PRIORITY_COLOR[node.priority as TaskPriority] || PRIORITY_COLOR.p3 }} aria-hidden="true" />
           {node.priority.toUpperCase()}
         </span>
         {node.due_date && (
@@ -121,26 +124,26 @@ export default function GoalCard({
           </span>
         )}
         {node.generation_type !== 'manual' && (
-          <span className="rounded-full px-2 py-0.5 text-xs font-semibold copilot-tint">
+          <span className="rounded-full px-2 py-0.5 text-xs font-medium copilot-tint">
             AI {node.generation_type.replace('_', ' ')}
           </span>
         )}
       </div>
 
       {hasExports && (
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] font-semibold">
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] font-medium">
           {node.exported_to_smart_todo && (
-            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+            <span className="flex items-center gap-1 text-muted-foreground">
               <Icon name="CpuChipIcon" size={13} /> Smart
             </span>
           )}
           {node.exported_to_quick && (
-            <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+            <span className="flex items-center gap-1 text-muted-foreground">
               <Icon name="BoltIcon" size={13} /> Quick
             </span>
           )}
           {node.exported_to_plan && (
-            <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+            <span className="flex items-center gap-1 text-muted-foreground">
               <Icon name="MapIcon" size={13} /> Plan
             </span>
           )}
@@ -202,7 +205,7 @@ export default function GoalCard({
                 }}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[14px] font-medium transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
               >
-                <Icon name="CpuChipIcon" size={16} className="text-emerald-500" /> Smart To-Do
+                <Icon name="CpuChipIcon" size={16} className="text-muted-foreground" /> Smart To-Do
               </button>
               <button
                 role="menuitem"
@@ -212,7 +215,7 @@ export default function GoalCard({
                 }}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[14px] font-medium transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
               >
-                <Icon name="BoltIcon" size={16} className="text-amber-500" /> Quick Daily
+                <Icon name="BoltIcon" size={16} className="text-muted-foreground" /> Quick Daily
               </button>
               <button
                 role="menuitem"
@@ -222,7 +225,7 @@ export default function GoalCard({
                 }}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[14px] font-medium transition-smooth hover:bg-muted focus:outline-none focus-visible:bg-muted"
               >
-                <Icon name="MapIcon" size={16} className="text-blue-500" /> Plan & Project
+                <Icon name="MapIcon" size={16} className="text-muted-foreground" /> Plan & Project
               </button>
             </Popover>
           </div>

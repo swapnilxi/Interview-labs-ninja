@@ -147,16 +147,16 @@ export default function Goals({ model }: GoalsProps) {
       {/* Section header: what this tab is, and its one primary action. */}
       <div className="todo-section-head">
         <div className="min-w-0">
-          <h2 className="todo-section-title">Goals</h2>
+          <h2 className="todo-section-title font-semibold">Goals</h2>
           <p className="todo-section-sub">
-            Set a goal at any time horizon and chunk it down — no fixed flow required.
+            Set a goal at any time horizon, then break it down
           </p>
         </div>
         <button
           onClick={() => handleAddAtLevel('main')}
           className="todo-btn todo-btn-primary shrink-0 px-4"
         >
-          <Icon name="PlusIcon" size={16} /> New Goal
+          <Icon name="PlusIcon" size={16} /> New goal
         </button>
       </div>
 

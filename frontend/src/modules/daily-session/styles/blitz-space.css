@@ -46,7 +46,7 @@
   background: var(--color-fill);
   color: var(--ds-ink);
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 0.18s ease;
 }
@@ -94,7 +94,7 @@
 .ds-skin .bs-stats dd {
   margin-top: 0.2rem;
   font-size: 1.35rem;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
@@ -333,7 +333,7 @@
   background: var(--t-soft);
   color: var(--t-ink);
   font-size: 1.35rem;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
@@ -472,7 +472,7 @@
   background: var(--color-fill);
   color: var(--ds-ink-2);
   font-size: 0.84rem;
-  font-weight: 600;
+  font-weight: 500;
   -webkit-tap-highlight-color: transparent;
   transition:
     background-color 0.18s ease,
@@ -766,7 +766,10 @@
   border-radius: 999px;
 }
 
-/* A toned value in the stats card (My Space "Status") keeps its tone over the card's ink. */
+/* Stats are neutral: a label's icon takes the label's colour, a value the card's ink (tone classes stay harmless). */
+.ds-skin .bs-stats dt .ds-tone-text {
+  color: inherit;
+}
 .ds-skin .bs-stats dd.ds-tone-text {
-  color: var(--t-ink);
+  color: var(--ds-ink);
 }

@@ -261,13 +261,13 @@ export default function AILearnChat({
       {/* Header: who, how deep, read-aloud */}
       <div className="flex items-center gap-3 px-0.5">
         <span
-          className="ds-icon-tile bs-round ds-tone-indigo text-sm font-semibold"
+          className="ds-icon-tile bs-round ds-tone-indigo text-sm font-medium"
           aria-hidden="true"
         >
           {name.replace('Dr. ', '')[0]}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold ds-ink">
+          <p className="text-sm font-medium ds-ink">
             {name} <span className="font-normal ds-faint">· {meta?.tutor.role ?? '…'} (AI)</span>
           </p>
           <div className="bs-depth mt-1.5" aria-label={`Depth ${depth} of 5`} role="img">

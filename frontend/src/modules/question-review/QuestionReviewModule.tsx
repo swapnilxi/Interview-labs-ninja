@@ -524,7 +524,7 @@ function ReviewScreen({ question, from }: { question: ReviewQuestion; from: From
         label="Keyboard shortcuts"
         className="todo-popover lab-page ds-skin qr-pop w-[min(17rem,calc(100vw-1rem))] rounded-[14px] p-3"
       >
-        <p className="mb-2 text-sm font-semibold ds-ink">Keyboard shortcuts</p>
+        <p className="mb-2 text-sm font-medium ds-ink">Keyboard shortcuts</p>
         <dl className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-[13px] ds-muted">
           {[
             [['←', 'K'], 'Previous question'],
@@ -564,7 +564,7 @@ function ReviewScreen({ question, from }: { question: ReviewQuestion; from: From
         </h1>
         <div className="mt-3 flex flex-col gap-3 sm:mt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="qr-status">
-            <span className={mastered ? 'ds-tone-jade ds-tone-text font-semibold' : undefined}>
+            <span className={mastered ? 'ds-tone-jade ds-tone-text font-medium' : undefined}>
               <Icon
                 name={mastered ? 'CheckBadgeIcon' : 'StarIcon'}
                 size={15}
@@ -741,7 +741,7 @@ function ReviewScreen({ question, from }: { question: ReviewQuestion; from: From
             />
           )}
           <div className="flex items-center justify-between gap-3">
-            <label htmlFor="qr-notes" className="text-sm font-semibold ds-ink">
+            <label htmlFor="qr-notes" className="text-sm font-medium ds-ink">
               Your notes
             </label>
             <button

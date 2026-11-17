@@ -25,7 +25,7 @@ function Bullets({ title, items }: { title: string; items: string[] }) {
   if (!items.length) return null;
   return (
     <div>
-      <h5 className="text-[13px] font-semibold text-muted-foreground">{title}</h5>
+      <h5 className="text-[13px] font-medium text-muted-foreground">{title}</h5>
       <ul className="mt-1.5 flex flex-col gap-1">
         {items.map((item, i) => (
           <li
@@ -327,14 +327,14 @@ function SprintCard({
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-[1.25rem] pb-2 pt-[1.25rem]">
         <div className="flex min-w-0 flex-1 items-start gap-2.5">
           <span
-            className="flex h-[1.75rem] w-[1.75rem] shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
+            className="flex h-[1.75rem] w-[1.75rem] shrink-0 items-center justify-center rounded-lg text-xs font-medium text-white"
             style={{ background: color }}
             aria-hidden="true"
           >
             {number}
           </span>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-muted-foreground">Sprint {number}</p>
+            <p className="text-xs font-medium text-muted-foreground">Sprint {number}</p>
             <h4 className="font-heading text-base font-semibold leading-snug text-foreground">
               {sprint.name || <span className="text-muted-foreground">No goal yet</span>}
             </h4>
@@ -391,7 +391,7 @@ function SprintCard({
         )}
 
         <div>
-          <h5 className="mb-1.5 text-[13px] font-semibold text-muted-foreground">
+          <h5 className="mb-1.5 text-[13px] font-medium text-muted-foreground">
             Tasks{organising && sprint.key_tasks.length > 0 ? ` · ${sprint.key_tasks.length}` : ''}
           </h5>
           <Tasks
@@ -414,10 +414,10 @@ function SprintCard({
               </div>
             )}
             {sprint.milestone && (
-              <p className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-300">
-                <FlatIcon name="trophy" size={16} className="mt-px shrink-0" />
+              <p className="flex items-start gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground mix-bg-foreground/[0.05]">
+                <FlatIcon name="trophy" size={16} quiet className="mt-px shrink-0" />
                 <span>
-                  <span className="font-semibold">Sprint review:</span> {sprint.milestone}
+                  <span className="font-medium">Sprint review:</span> {sprint.milestone}
                 </span>
               </p>
             )}

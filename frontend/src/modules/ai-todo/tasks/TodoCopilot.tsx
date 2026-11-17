@@ -50,7 +50,7 @@ export default function TodoCopilot({ model, onModelChange, onCollapse, collapse
       title="Task Copilot"
       subtitle="AI-powered productivity assistant"
       welcome="I can see your tasks, priorities and deadlines. Ask what to do next."
-      placeholder="Ask about your tasks..."
+      placeholder="Ask about your tasks"
       prompts={QUICK_PROMPTS}
       collapseLabel={collapseLabel}
       onAsk={(question) => todoService.askCopilot(question, model)}

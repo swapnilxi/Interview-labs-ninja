@@ -10,6 +10,7 @@ import { smartParse, splitNote, ymd, type SmartPart } from '@/lib/reminders/smar
 import { formatDueDate, formatReminder, localInputToIso } from '@/lib/reminders/reminderTime';
 import ReminderPicker from '../reminders/ReminderPicker';
 import { useVoiceNote, voiceNoteSupported } from './useVoiceNote';
+import { PRIORITY_COLOR, PRIORITY_TEXT } from '../shared/semanticColors';
 
 /**
  * The capture card: say it or type it, and it becomes a task with its date and reminder.
@@ -18,11 +19,12 @@ import { useVoiceNote, voiceNoteSupported } from './useVoiceNote';
  *   speak → live words → "Here's what I heard": one card per task (AI when logged in, quick parsing otherwise) → Add
  */
 
+/** Priority label, flag colour and the Today checkbox ring: the same colours as the task tree (shared/semanticColors). */
 export const PRIORITY_META: Record<TaskPriority, { label: string; className: string; ring: string }> = {
-  p1: { label: 'Urgent', className: 'text-red-500', ring: '#ef4444' },
-  p2: { label: 'High', className: 'text-amber-500', ring: '#f59e0b' },
-  p3: { label: 'Normal', className: 'text-sky-500', ring: '#0ea5e9' },
-  p4: { label: 'Low', className: 'text-slate-400', ring: '#94a3b8' },
+  p1: { label: 'Urgent', className: PRIORITY_TEXT.p1, ring: PRIORITY_COLOR.p1 },
+  p2: { label: 'High', className: PRIORITY_TEXT.p2, ring: PRIORITY_COLOR.p2 },
+  p3: { label: 'Normal', className: PRIORITY_TEXT.p3, ring: PRIORITY_COLOR.p3 },
+  p4: { label: 'Low', className: PRIORITY_TEXT.p4, ring: PRIORITY_COLOR.p4 },
 };
 
 interface Draft {
@@ -392,7 +394,7 @@ export default function VoiceCapture({ model, onAdded, listenOnMount = false, co
               <Icon name="SparklesIcon" size={20} variant="solid" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground">
+              <p className="text-sm font-medium text-foreground">
                 {drafts.length === 1 ? 'Here’s the task I heard' : `I heard ${drafts.length} tasks`}
               </p>
               <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">“{heard}”</p>

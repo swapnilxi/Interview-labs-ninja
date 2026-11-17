@@ -78,7 +78,7 @@ export default function TimelineStep({ state, busy, onChange, onCheck, onGenerat
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Common durations">
-          <span className="mr-1 text-xs font-semibold text-muted-foreground">Quick pick</span>
+          <span className="mr-1 text-xs font-medium text-muted-foreground">Quick pick</span>
           {PRESETS.map((preset) => {
             const active = valid && unit === preset.unit && endFromDuration(start, preset.value, preset.unit) === end;
             return (
@@ -97,12 +97,12 @@ export default function TimelineStep({ state, busy, onChange, onCheck, onGenerat
 
         <div className="grid grid-cols-1 gap-[1rem] sm:grid-cols-[1fr_auto_1fr]">
           <div>
-            <label htmlFor="planner-start" className="mb-1.5 block text-xs font-semibold text-foreground">Start date</label>
+            <label htmlFor="planner-start" className="mb-1.5 block text-xs font-medium text-foreground">Start date</label>
             <input id="planner-start" type="date" value={start} onChange={(e) => setStart(e.target.value)} className="todo-input px-3 py-2 text-sm" />
           </div>
 
           <div>
-            <label htmlFor="planner-duration" className="mb-1.5 block text-xs font-semibold text-foreground">Duration</label>
+            <label htmlFor="planner-duration" className="mb-1.5 block text-xs font-medium text-foreground">Duration</label>
             <div className="flex gap-2">
               <input
                 id="planner-duration"
@@ -132,14 +132,14 @@ export default function TimelineStep({ state, busy, onChange, onCheck, onGenerat
           </div>
 
           <div>
-            <label htmlFor="planner-end" className="mb-1.5 block text-xs font-semibold text-foreground">End date</label>
+            <label htmlFor="planner-end" className="mb-1.5 block text-xs font-medium text-foreground">End date</label>
             <input id="planner-end" type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} className="todo-input px-3 py-2 text-sm" />
           </div>
         </div>
 
         {valid ? (
           <p className="text-sm text-muted-foreground" role="status">
-            <strong className="font-semibold text-foreground">{formatRange(start, end)}</strong> · {days} days · {(days / 7).toFixed(1)} weeks ·
+            <strong className="font-medium text-foreground">{formatRange(start, end)}</strong> · {days} days · {(days / 7).toFixed(1)} weeks ·
             about {months.toFixed(1)} months
           </p>
         ) : (

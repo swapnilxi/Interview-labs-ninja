@@ -9,7 +9,7 @@ import type { TaskPriority, TaskStatus } from '@/lib/services/todoService';
  *   coral  critical / overdue / error  → P1, not done
  *   amber  warning / intermediate      → P2 (P3 is a softer amber), delayed
  *   violet is the primary action / selected / focus colour and is not a status colour.
- *   Depth colours (L1 … L5+) are structural and live in todoService (DEPTH_COLORS); they are never used for status.
+ *   Depth (L1 … L5+) is structural: a neutral ramp from todoService (DEPTH_COLORS), never a status colour.
  *
  * Colours are CSS variables (set in styles/tailwind.css), not hex, so they follow the theme and still resolve inside
  * menus and dialogs that portal to <body>.
@@ -49,4 +49,12 @@ export const PRIORITY_TEXT: Record<TaskPriority, string> = {
   p2: 'text-warning',
   p3: 'text-muted-foreground',
   p4: 'text-muted-foreground',
+};
+
+/** Dot colour for a project's status: blue = active work, green = completed, amber = paused, neutral = archived. */
+export const PROJECT_STATUS_COLOR: Record<string, string> = {
+  active: 'var(--color-progress)',
+  paused: 'var(--color-warning)',
+  completed: 'var(--color-success)',
+  archived: MUTED_DOT,
 };

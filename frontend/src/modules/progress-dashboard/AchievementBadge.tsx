@@ -28,7 +28,7 @@ export default function AchievementBadge({
         <h4 className="ds-h3">{title}</h4>
         <p className="mt-0.5 line-clamp-2 text-[0.8rem] leading-snug ds-faint">{description}</p>
         {isUnlocked && unlockedDate && (
-          <p className="mt-1.5 text-[0.75rem] font-semibold ds-tone-jade ds-tone-text">
+          <p className="mt-1.5 text-[0.75rem] font-medium ds-tone-jade ds-tone-text">
             Unlocked {unlockedDate}
           </p>
         )}

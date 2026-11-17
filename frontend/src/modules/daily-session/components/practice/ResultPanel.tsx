@@ -57,7 +57,7 @@ export function CheckingPanel({ chat }: { chat: boolean }) {
     <div className="pm-result pm-result-checking" role="status" aria-live="polite">
       <Mascot mood="think" size={44} className="flex-shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold ds-ink">{chat ? 'Scoring your chat' : 'Checking your answer'}</p>
+        <p className="text-sm font-medium ds-ink">{chat ? 'Scoring your chat' : 'Checking your answer'}</p>
         <p className="text-xs ds-faint">Against a rubric for this kind of question. This can take a few seconds.</p>
         <div className="pm-shimmer mt-3" aria-hidden="true">
           <span />
@@ -73,7 +73,7 @@ export function CheckError({ message, onRetry, onSelf }: { message: string; onRe
     <div className="ds-banner ds-tone-rose items-start" role="alert">
       <Icon name="ExclamationTriangleIcon" size={17} variant="solid" />
       <div className="min-w-0 flex-1">
-        <p className="font-semibold">The answer could not be checked</p>
+        <p className="font-medium">The answer could not be checked</p>
         <p className="mt-0.5 text-[13px]">{message}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={onRetry} className="ds-btn ds-btn-secondary ds-btn-sm">
@@ -227,7 +227,7 @@ export function SelfCheck({
   const kind = detectKind(question.subType, question.category, question.questionText);
   return (
     <div className="pm-result">
-      <p className="text-sm font-semibold ds-ink">Check your answer against this</p>
+      <p className="text-sm font-medium ds-ink">Check your answer against this</p>
       <p className="text-xs ds-faint">What a strong {KIND_LABEL[kind]} answer usually covers. Then pick how it went.</p>
       <ul className="pm-takeaways">
         {SELF_CHECK[kind].map((t) => (
@@ -239,7 +239,7 @@ export function SelfCheck({
       </ul>
       {draft.trim() && (
         <div className="mt-4 border-t ds-hairline pt-3">
-          <p className="text-xs font-semibold ds-faint">Your answer</p>
+          <p className="text-xs font-medium ds-faint">Your answer</p>
           <p className="mt-1 whitespace-pre-wrap text-sm ds-muted">{draft}</p>
         </div>
       )}

@@ -1,0 +1,850 @@
+/*
+ * To-Do → Assistant (modules/ai-todo/schedule/assistant): a chat that answers from your data, schedules things and
+ * talks. Plain CSS on the shared tokens (tailwind.css): one accent (--color-primary), hairlines, neutral fills, no
+ * gradients and no coloured shadows. Kept in its own file and imported after tailwind.css by index.css, so these
+ * classes win over utilities: don't put a conflicting utility on an .agt-* element.
+ */
+
+/* ── Layout: chat + "Scheduled" side panel (lg and up); one of the two at a time below that ── */
+.agt-view {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .agt-view {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  }
+  .agt-side {
+    position: sticky;
+    top: calc(var(--chrome-top, 0px) + 1rem);
+    max-height: calc(100vh - var(--chrome-top, 0px) - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+}
+@media (max-width: 1099px) {
+  .agt-view[data-pane='chat'] .agt-side,
+  .agt-view[data-pane='scheduled'] .agt-main {
+    display: none;
+  }
+}
+
+.agt-main {
+  display: flex;
+  min-width: 0;
+  min-height: calc(100vh - var(--chrome-top, 0px) - 14rem);
+  flex-direction: column;
+}
+
+.agt-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+.agt-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ── Thread ── */
+.agt-thread {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1.375rem;
+  padding-bottom: 1.5rem;
+}
+
+.agt-day {
+  align-self: center;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+
+.agt-user {
+  align-self: flex-end;
+  max-width: min(85%, 36rem);
+  border-radius: 1.25rem 1.25rem 0.375rem 1.25rem;
+  padding: 0.625rem 0.9375rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--color-foreground);
+  background: var(--color-fill);
+}
+.agt-user-meta {
+  align-self: flex-end;
+  margin-top: -1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--color-muted-foreground);
+}
+
+.agt-bot {
+  display: flex;
+  min-width: 0;
+  gap: 0.75rem;
+}
+.agt-avatar {
+  display: inline-flex;
+  height: 1.875rem;
+  width: 1.875rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: var(--color-foreground);
+  background: var(--color-card);
+  border: 1px solid var(--color-separator);
+}
+.agt-bot-body {
+  min-width: 0;
+  flex: 1;
+  padding-top: 0.2rem;
+}
+.agt-bot[data-failed='true'] .agt-md {
+  color: var(--color-destructive);
+}
+
+/* Small icon buttons under a reply: read aloud, copy, retry. */
+.agt-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem;
+  margin-top: 0.375rem;
+  margin-left: -0.375rem;
+}
+.agt-tool {
+  display: inline-flex;
+  height: 2rem;
+  min-width: 2rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  border-radius: 0.5rem;
+  padding: 0 0.4rem;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+.agt-tool:hover {
+  color: var(--color-foreground);
+  background: var(--color-fill);
+}
+.agt-tool[aria-pressed='true'] {
+  color: var(--color-foreground);
+  background: var(--color-fill);
+}
+.agt-tool:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 1px;
+}
+
+.agt-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.625rem;
+}
+.agt-source {
+  display: inline-flex;
+  max-width: 16rem;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  padding: 0.25rem 0.625rem 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+  border: 1px solid var(--color-separator);
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+.agt-source span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agt-source:hover {
+  color: var(--color-foreground);
+  background: var(--color-fill);
+}
+.agt-searched {
+  margin-bottom: 0.375rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+.agt-note {
+  margin-top: 0.5rem;
+  display: flex;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-warning);
+}
+
+/* Thinking: three dots, calm. */
+.agt-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 1.875rem;
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+}
+.agt-dots {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.agt-dots i {
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.35;
+  animation: agt-dot 1.2s var(--ease-out) infinite;
+}
+.agt-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.agt-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes agt-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 0.9;
+    transform: translateY(-2px);
+  }
+}
+
+/* ── Markdown inside a reply ── */
+.agt-md {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-foreground);
+  overflow-wrap: anywhere;
+}
+.agt-md > * + * {
+  margin-top: 0.625rem;
+}
+.agt-md h1,
+.agt-md h2,
+.agt-md h3,
+.agt-md h4 {
+  margin-top: 1rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.agt-md > :first-child {
+  margin-top: 0;
+}
+.agt-md ul,
+.agt-md ol {
+  padding-left: 1.25rem;
+}
+.agt-md ul {
+  list-style: disc;
+}
+.agt-md ol {
+  list-style: decimal;
+}
+.agt-md li + li {
+  margin-top: 0.25rem;
+}
+.agt-md li::marker {
+  color: var(--color-muted-foreground);
+}
+.agt-md strong {
+  font-weight: 600;
+}
+.agt-md a {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-foreground) 30%, transparent);
+  text-underline-offset: 2px;
+}
+.agt-md a:hover {
+  text-decoration-color: currentColor;
+}
+.agt-md code {
+  border-radius: 0.375rem;
+  padding: 0.05rem 0.3rem;
+  font-family: var(--font-code, ui-monospace, monospace);
+  font-size: 0.85em;
+  background: var(--color-fill);
+}
+.agt-md pre {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+  background: var(--color-fill);
+}
+.agt-md pre code {
+  padding: 0;
+  background: none;
+}
+.agt-md blockquote {
+  border-left: 2px solid var(--color-separator);
+  padding-left: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+.agt-md table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.agt-md th,
+.agt-md td {
+  border-bottom: 1px solid var(--color-separator);
+  padding: 0.375rem 0.75rem 0.375rem 0;
+  text-align: left;
+}
+.agt-md th {
+  font-weight: 600;
+}
+
+/* ── Cards: what it did, and scheduled-job results ── */
+.agt-card {
+  margin-top: 0.75rem;
+  border-radius: 1rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--color-separator);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
+}
+.agt-card[data-state='undone'],
+.agt-card[data-state='kept'] {
+  box-shadow: none;
+  background: transparent;
+}
+.agt-card[data-state='undone'] .agt-card-title,
+.agt-card[data-state='kept'] .agt-card-title {
+  color: var(--color-muted-foreground);
+}
+.agt-card[data-state='failed'] {
+  border-color: color-mix(in srgb, var(--color-destructive) 35%, var(--color-separator));
+}
+.agt-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.agt-card-icon {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  color: var(--color-foreground);
+  background: var(--color-fill);
+}
+.agt-card-kicker {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+.agt-card-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--color-foreground);
+  overflow-wrap: anywhere;
+}
+.agt-card-meta {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-muted-foreground);
+}
+.agt-card-next {
+  color: var(--color-foreground);
+}
+.agt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+.agt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+  background: var(--color-fill);
+}
+.agt-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.625rem;
+}
+.agt-task-list {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+.agt-task-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.agt-task-list li::before {
+  content: '';
+  height: 0.375rem;
+  width: 0.375rem;
+  flex-shrink: 0;
+  transform: translateY(-0.1rem);
+  border-radius: 9999px;
+  background: var(--color-muted-foreground);
+}
+
+/* A scheduled job's result in the conversation. */
+.agt-run {
+  border-radius: 1.125rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--color-separator);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
+}
+.agt-run[data-status='error'] {
+  border-color: color-mix(in srgb, var(--color-destructive) 35%, var(--color-separator));
+}
+.agt-run-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+.agt-run-title {
+  margin-top: 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-foreground);
+  overflow-wrap: anywhere;
+}
+.agt-run-body {
+  margin-top: 0.375rem;
+}
+.agt-run-body[data-clamped='true'] {
+  max-height: 14rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+
+/* ── Empty state ── */
+.agt-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.5rem 0 2rem;
+}
+.agt-empty-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-foreground);
+}
+.agt-empty-sub {
+  margin-top: 0.375rem;
+  max-width: 34rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+}
+.agt-suggest-groups {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 1.25rem;
+}
+@media (min-width: 640px) {
+  .agt-suggest-groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.agt-suggest-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+}
+.agt-suggest {
+  display: block;
+  width: 100%;
+  border-radius: 0.875rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--color-foreground);
+  border: 1px solid var(--color-separator);
+  background: var(--color-card);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.agt-suggest + .agt-suggest {
+  margin-top: 0.375rem;
+}
+.agt-suggest:hover {
+  background: var(--color-fill);
+}
+.agt-suggest:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+/* ── Composer: pinned to the bottom of the view (above the phone tab bar) ── */
+.agt-dock {
+  position: sticky;
+  bottom: max(var(--mobile-tab-h, 0px), calc(var(--safe-bottom, 0px) + 0.75rem));
+  z-index: 20;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  background: linear-gradient(to bottom, transparent, var(--color-background) 0.75rem);
+}
+html.keyboard-open .agt-dock {
+  bottom: 0.5rem;
+}
+/* Phones: the band between the box and the floating tab bar is page colour, so the conversation doesn't show
+   through under the box (it still scrolls behind the tab bar's glass, which sits above this). */
+@media (max-width: 767px) {
+  .agt-dock::after {
+    content: '';
+    position: absolute;
+    left: -1rem;
+    right: -1rem;
+    top: 100%;
+    height: var(--mobile-tab-h, 0px);
+    background: var(--color-background);
+    pointer-events: none;
+  }
+  html.keyboard-open .agt-dock::after {
+    display: none;
+  }
+}
+.agt-composer {
+  border-radius: 1.5rem;
+  padding: 0.375rem;
+  border: 1px solid var(--color-separator);
+  background: var(--color-card);
+  box-shadow: var(--shadow-float, var(--shadow-card));
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.agt-composer:focus-within {
+  border-color: color-mix(in srgb, var(--color-foreground) 22%, var(--color-separator));
+}
+.agt-input {
+  display: block;
+  width: 100%;
+  max-height: 12rem;
+  min-height: 2.75rem;
+  resize: none;
+  border: 0;
+  background: transparent;
+  padding: 0.625rem 0.75rem 0.25rem;
+  font-size: 1rem; /* 16px: iPhone doesn't zoom the page on focus */
+  line-height: 1.45;
+  color: var(--color-foreground);
+  outline: none;
+}
+.agt-input::placeholder {
+  color: var(--color-muted-foreground);
+}
+.agt-composer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.125rem 0.125rem 0.25rem;
+}
+.agt-hint {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+.agt-round {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.agt-round:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.agt-round:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+.agt-round-primary {
+  color: var(--color-background);
+  background: var(--color-foreground);
+}
+.agt-round-primary:disabled {
+  opacity: 0.35;
+}
+@media (pointer: coarse) {
+  .agt-round {
+    height: 2.5rem;
+    width: 2.5rem;
+  }
+}
+
+/* ── Voice mode ── */
+.agt-voice {
+  display: flex;
+  width: 100%;
+  max-width: 30rem;
+  min-height: min(40rem, 88vh);
+  flex-direction: column;
+  border-radius: var(--radius-sheet, 1.5rem);
+  padding: 1rem 1.25rem calc(1.25rem + var(--safe-bottom, 0px));
+  background: var(--color-card);
+  box-shadow: var(--shadow-float, var(--shadow-card));
+}
+@media (max-width: 639px) {
+  .agt-voice {
+    max-width: none;
+    min-height: 92vh;
+    min-height: 92dvh;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}
+.agt-voice-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.agt-voice-stage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+  text-align: center;
+}
+.agt-orb {
+  --level: 0;
+  position: relative;
+  display: inline-flex;
+  height: 9.5rem;
+  width: 9.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: var(--color-primary-foreground);
+  background: var(--color-primary);
+  transform: scale(calc(1 + var(--level) * 0.16));
+  transition:
+    transform 90ms linear,
+    background-color var(--dur-base, 240ms) var(--ease-out);
+}
+.agt-orb:focus-visible {
+  outline: 3px solid var(--color-ring);
+  outline-offset: 6px;
+}
+.agt-orb::before,
+.agt-orb::after {
+  content: '';
+  position: absolute;
+  inset: -0.75rem;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 14%, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+.agt-orb[data-phase='speaking']::before,
+.agt-orb[data-phase='speaking']::after {
+  animation: agt-ring 2.4s var(--ease-out) infinite;
+}
+.agt-orb[data-phase='speaking']::after {
+  animation-delay: 1.2s;
+}
+@keyframes agt-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+.agt-orb[data-phase='thinking'] {
+  animation: agt-breathe 1.6s ease-in-out infinite;
+}
+@keyframes agt-breathe {
+  0%,
+  100% {
+    transform: scale(0.96);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+.agt-orb[data-phase='paused'],
+.agt-orb[data-phase='error'],
+.agt-orb[data-phase='off'] {
+  color: var(--color-foreground);
+  background: var(--color-fill-strong, var(--color-fill));
+}
+.agt-voice-state {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+.agt-voice-caption {
+  max-width: 24rem;
+  min-height: 3rem;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+  overflow-wrap: anywhere;
+}
+.agt-voice-caption[data-you='true'] {
+  color: var(--color-foreground);
+}
+.agt-voice-answer {
+  max-height: 12rem;
+  overflow-y: auto;
+  border-radius: 1rem;
+  padding: 0.75rem 0.875rem;
+  text-align: left;
+  background: var(--color-fill);
+}
+.agt-voice-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+.agt-voice-btn {
+  display: inline-flex;
+  height: 3.5rem;
+  width: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: var(--color-foreground);
+  background: var(--color-fill);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.agt-voice-btn:hover {
+  background: var(--color-fill-strong, var(--color-fill));
+}
+.agt-voice-btn:active {
+  transform: scale(0.94);
+}
+.agt-voice-btn:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+.agt-voice-btn[data-tone='end'] {
+  color: #fff;
+  background: var(--color-destructive);
+}
+
+/* Voice settings popover rows. */
+.agt-set-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.agt-set-row + .agt-set-row {
+  margin-top: 0.875rem;
+}
+.agt-set-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agt-dots i,
+  .agt-orb,
+  .agt-orb::before,
+  .agt-orb::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* The schedule editor in its dialog (SchedulerView): the dialog is the card. */
+.agt-editor-modal {
+  border-radius: 1.25rem;
+  background: var(--color-card);
+  box-shadow: var(--shadow-float, var(--shadow-card));
+}
+.agt-editor-modal .sch-editor {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 1.125rem;
+}
+.sch-run-report .agt-md {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+/* Phones: the sheet rule (tailwind.css, data-mobile-sheet) sets only the safe-area padding; keep room under the controls. */
+[data-modal-root][data-mobile-sheet] > .ui-modal-panel.agt-voice {
+  padding-bottom: calc(1.5rem + var(--safe-bottom, 0px));
+}
+
+/* The scroll target for "show the latest": below the box, clear of the phone tab bar. */
+.agt-end {
+  height: 1px;
+  scroll-margin-bottom: var(--mobile-tab-h, 0px);
+}

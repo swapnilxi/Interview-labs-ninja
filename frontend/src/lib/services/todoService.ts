@@ -44,6 +44,8 @@ export interface Task {
   eisenhower_quadrant?: string | null;
   /** When to remind (UTC ISO 8601, e.g. 2026-11-15T11:30:00.000Z); null = no reminder. */
   remind_at?: string | null;
+  /** Pinned to the top of Today (sorted there by priority). */
+  pinned?: boolean;
   /**
    * Set only on the copy of a task that a search or filter has pruned: `children` then holds just the matches, so these
    * carry the real number of subtasks and how many are done. Progress is a fact about the task, not about the view.
@@ -100,6 +102,8 @@ export interface TaskUpdatePayload {
   pareto_score?: number | null;
   pareto_reason?: string | null;
   remind_at?: string | null;
+  /** Pinned tasks sit at the top of Today, highest priority first. */
+  pinned?: boolean;
 }
 
 /** One task the AI read out of a spoken note. `remind_at` is LOCAL time ("YYYY-MM-DDTHH:MM"). */
@@ -116,10 +120,10 @@ export interface VoiceCaptureTask {
 
 export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bgClass: string }> = {
   backlog:      { label: 'Backlog',     color: '#9ca3af', bgClass: 'bg-gray-400/15 text-gray-500 dark:text-gray-400' },
-  in_progress:  { label: 'In Progress', color: '#3b82f6', bgClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400' },
+  in_progress:  { label: 'In progress', color: '#3b82f6', bgClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400' },
   delayed:      { label: 'Delayed',     color: '#f59e0b', bgClass: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
   done:         { label: 'Done',        color: '#22c55e', bgClass: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
-  not_done:     { label: 'Not Done',    color: '#ef4444', bgClass: 'bg-red-500/15 text-red-600 dark:text-red-400' },
+  not_done:     { label: 'Not done',    color: '#ef4444', bgClass: 'bg-red-500/15 text-red-600 dark:text-red-400' },
 };
 
 export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; dotClass: string }> = {
@@ -131,8 +135,9 @@ export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: strin
 
 /**
  * Task-tree depth. Level 1 is a root task (no parent); each parent → child link adds one; anything from level 5 down
- * shares the last entry ("L5+"). The colours are CSS tokens (--color-depth-1 … -5 in styles/tailwind.css) so the
- * rails, branch lines and the depth legend draw exactly the same colours, in light and dark.
+ * shares the last entry ("L5+"). The tones are CSS tokens (--color-depth-1 … -5 in styles/tailwind.css, one neutral ramp
+ * that fades with depth: depth is an order, not a category) so the rails, branch lines and the depth legend draw
+ * exactly the same tones, in light and dark.
  */
 export const DEPTH_COLORS = [
   'var(--color-depth-1)',
@@ -141,8 +146,7 @@ export const DEPTH_COLORS = [
   'var(--color-depth-4)',
   'var(--color-depth-5)',
 ];
-export const DEPTH_LABELS = ['blue', 'violet', 'cyan', 'amber', 'pink'];
-/** What each level is called in tooltips and for screen readers: the colour is never the only cue. */
+/** What each level is called in tooltips and for screen readers: the tone is never the only cue. */
 export const DEPTH_NAMES = ['Parent', 'Breakdown', 'Subtask', 'Nested subtask', 'Deep task'];
 
 function depthIndex(depth: number): number {

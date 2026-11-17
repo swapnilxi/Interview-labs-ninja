@@ -402,7 +402,6 @@ export default function SwipeDeckView({
           onClick={onUndo}
           disabled={!canUndo}
           className="swipe-act h-11 w-11"
-          style={{ '--tone': '#f59e0b' } as React.CSSProperties}
           title="Undo (Z)"
           aria-label="Undo last swipe"
         >
@@ -412,7 +411,6 @@ export default function SwipeDeckView({
           type="button"
           onClick={() => commit('left')}
           className="swipe-act h-[3.75rem] w-[3.75rem]"
-          style={{ '--tone': 'var(--color-error)' } as React.CSSProperties}
           title="Skip (←)"
           aria-label="Skip card"
         >
@@ -421,8 +419,7 @@ export default function SwipeDeckView({
         <button
           type="button"
           onClick={() => commit('right')}
-          className="swipe-act h-[3.75rem] w-[3.75rem]"
-          style={{ '--tone': 'var(--color-success)' } as React.CSSProperties}
+          className="swipe-act swipe-act-primary h-[3.75rem] w-[3.75rem]"
           title="Save (→)"
           aria-label={topSaved ? 'Already saved, keep and continue' : 'Save card'}
         >

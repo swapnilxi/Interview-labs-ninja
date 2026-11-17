@@ -4,10 +4,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import FlatIcon from '@/components/ui/FlatIcon';
+import Modal from '@/components/ui/Modal';
 import { toast } from '@/lib/ui/toast';
 import { confirmDialog } from '@/lib/ui/confirm';
 import { isLoggedIn, onAuthChange } from '@/lib/auth/tokenStore';
-import { isMissingKeyError } from '@/lib/services/settingsService';
 import {
   scheduleService,
   parseServerTime,
@@ -22,19 +22,17 @@ import { nativeSchedulerAvailable, nativeSchedulerStatus } from '@/lib/schedules
 import { isNativeApp } from '@/lib/reminders/nativeReminders';
 import { formatReminder } from '@/lib/reminders/reminderTime';
 import ScheduleEditor, { blankEditor, editorFrom, type EditorValue } from './ScheduleEditor';
+import AssistantMarkdown from './assistant/AssistantMarkdown';
 
 /**
- * To-Do → Scheduler: reminders and AI jobs that run on a schedule. Describe one in your own words (the AI turns it into
- * a schedule you confirm) or set it up with the options. The list shows when each runs next and what it said last
- * time. Runs happen in lib/schedules/scheduleEngine.ts (open tab) and the native alarms (Android app, app closed).
+ * To-Do → Assistant → "Scheduled": the reminders and AI jobs that run on a schedule, beside the Assistant chat (which is
+ * where you describe new ones in your own words). The list shows when each runs next and what it said last time; "New"
+ * sets one up with the options. Runs happen in lib/schedules/scheduleEngine.ts (open tab) and the native alarms
+ * (Android app, app closed).
  */
 
-const EXAMPLES = [
-  'Every weekday at 8:30am, plan my day from my tasks',
-  'Remind me to drink water every 2 hours',
-  'Every Sunday at 7pm, review my week and add 3 tasks for next week',
-  'Tomorrow at 6pm remind me to call the bank',
-];
+/** The Assistant's "Edit" on a schedule card: `new CustomEvent(EDIT_SCHEDULE_EVENT, { detail: id })`. */
+export const EDIT_SCHEDULE_EVENT = 'todo:schedule-edit';
 
 type EditorState = {
   mode: 'new' | 'edit';
@@ -43,7 +41,12 @@ type EditorState = {
   heading: string;
 } | null;
 
-export default function SchedulerView() {
+interface Props {
+  /** Reports how many schedules there are (the phone switch shows it). */
+  onCount?: (count: number) => void;
+}
+
+export default function SchedulerView({ onCount }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const focusId = Number(params.get('schedule')) || null;
@@ -53,14 +56,12 @@ export default function SchedulerView() {
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [text, setText] = useState('');
-  const [parsing, setParsing] = useState(false);
-  const [parseError, setParseError] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(null);
   const [saving, setSaving] = useState(false);
   const [now, setNow] = useState(() => new Date());
-  const editorRef = useRef<HTMLDivElement>(null);
   const runNowDone = useRef<string | null>(null);
+  const schedulesRef = useRef<Schedule[] | null>(null);
+  schedulesRef.current = schedules;
 
   const load = useCallback(async () => {
     try {
@@ -88,6 +89,26 @@ export default function SchedulerView() {
     };
   }, [load]);
 
+  useEffect(() => {
+    if (schedules) onCount?.(schedules.length);
+  }, [schedules, onCount]);
+
+  // "Edit" on one of the Assistant's cards.
+  useEffect(() => {
+    const onEdit = async (e: Event) => {
+      const id = Number((e as CustomEvent).detail);
+      const list = schedulesRef.current ?? (await scheduleService.list().catch(() => []));
+      const s =
+        list.find((x) => x.id === id) ??
+        (await scheduleService.list().catch(() => [])).find((x) => x.id === id);
+      if (s)
+        setEditor({ mode: 'edit', id: s.id, initial: editorFrom(s), heading: 'Edit schedule' });
+      else toast.error('That schedule no longer exists.');
+    };
+    window.addEventListener(EDIT_SCHEDULE_EVENT, onEdit);
+    return () => window.removeEventListener(EDIT_SCHEDULE_EVENT, onEdit);
+  }, []);
+
   // A phone notification that couldn't run the job opens `…&run_now=<occurrence>`: run it here, once.
   useEffect(() => {
     if (!runNow || !schedules || runNowDone.current === runNow) return;
@@ -99,34 +120,6 @@ export default function SchedulerView() {
     next.delete('run_now');
     router.replace(`/ai-todo?${next.toString()}`);
   }, [runNow, schedules, focusId, params, router]);
-
-  useEffect(() => {
-    if (editor)
-      requestAnimationFrame(() =>
-        editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      );
-  }, [editor]);
-
-  const describe = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const request = text.trim();
-    if (!request || parsing) return;
-    setParseError(null);
-    setParsing(true);
-    try {
-      const draft = await scheduleService.parse(request);
-      setEditor({ mode: 'new', initial: editorFrom(draft), heading: 'Check and save' });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'The AI could not read that.';
-      setParseError(
-        isMissingKeyError(message)
-          ? 'Add an AI key in Config (or pick “Use .env default”), then try again.'
-          : message
-      );
-    } finally {
-      setParsing(false);
-    }
-  };
 
   const save = async (payload: ScheduleCreatePayload) => {
     if (!editor) return;
@@ -141,7 +134,6 @@ export default function SchedulerView() {
         toast.success(
           next ? `Scheduled · next ${formatReminder(next.toISOString())}` : 'Scheduled'
         );
-        setText('');
       }
       setEditor(null);
     } catch (err) {
@@ -151,195 +143,126 @@ export default function SchedulerView() {
     }
   };
 
-  const { active, inactive, nextLabel } = useMemo(() => {
+  const { active, inactive } = useMemo(() => {
     const list = schedules ?? [];
     const withNext = list.map((s) => ({ s, next: s.enabled ? nextOccurrence(s.rule, now) : null }));
     const on = withNext
       .filter((x) => x.s.enabled)
       .sort((a, b) => (a.next?.getTime() ?? Infinity) - (b.next?.getTime() ?? Infinity));
-    const soonest = on.find((x) => x.next);
-    return {
-      active: on,
-      inactive: withNext.filter((x) => !x.s.enabled),
-      nextLabel: soonest?.next
-        ? `${soonest.s.title} · ${formatReminder(soonest.next.toISOString(), now)}`
-        : null,
-    };
+    return { active: on, inactive: withNext.filter((x) => !x.s.enabled) };
   }, [schedules, now]);
 
+  const openEdit = (s: Schedule) =>
+    setEditor({ mode: 'edit', id: s.id, initial: editorFrom(s), heading: 'Edit schedule' });
+
   return (
-    <div className="today-layout">
-      <div className="min-w-0">
-        <div className="mb-[1rem] flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-          <div>
-            <p className="text-[13px] font-semibold text-muted-foreground">Scheduler</p>
-            <h2 className="font-heading mt-0.5 text-[1.625rem] font-bold leading-tight tracking-[-0.022em] text-foreground sm:text-[1.85rem]">
-              Put it on a schedule
-            </h2>
-          </div>
-          {nextLabel && <p className="text-sm text-muted-foreground">Next: {nextLabel}</p>}
-        </div>
-
-        {/* Describe it */}
-        <form onSubmit={describe} className="vc-card sch-composer">
-          <label htmlFor="sch-describe" className="sr-only">
-            Describe what to schedule
-          </label>
-          <textarea
-            id="sch-describe"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void describe();
-              }
-            }}
-            rows={2}
-            maxLength={500}
-            disabled={!loggedIn}
-            placeholder={
-              loggedIn
-                ? 'Describe it: “every weekday at 8:30, plan my day from my tasks”'
-                : 'Sign in to describe a schedule in your own words'
-            }
-            className="sch-describe"
-          />
-          <div className="flex flex-wrap items-center gap-2 px-[0.5rem] pb-[0.25rem]">
-            <button
-              type="button"
-              onClick={() =>
-                setEditor({
-                  mode: 'new',
-                  initial: blankEditor(loggedIn ? 'agent' : 'reminder'),
-                  heading: 'New schedule',
-                })
-              }
-              className="todo-btn todo-btn-ghost h-9 px-2.5 text-sm"
-            >
-              <Icon name="AdjustmentsHorizontalIcon" size={15} />
-              Set it up yourself
-            </button>
-            <button
-              type="submit"
-              disabled={!loggedIn || !text.trim() || parsing}
-              className="todo-btn todo-btn-primary ml-auto h-9 px-3.5 text-sm"
-            >
-              <Icon name="SparklesIcon" size={15} variant="solid" />
-              {parsing ? 'Reading…' : 'Schedule it'}
-            </button>
-          </div>
-        </form>
-
-        {loggedIn && !text && !editor && (
-          <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Examples">
-            {EXAMPLES.map((example) => (
-              <button
-                key={example}
-                type="button"
-                onClick={() => setText(example)}
-                className="sch-example"
-              >
-                {example}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {parseError && (
-          <div role="alert" className="todo-alert todo-alert-error mt-3">
-            <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
-            <p className="flex-1">{parseError}</p>
-          </div>
-        )}
-
-        {editor && (
-          <div ref={editorRef} className="mt-4">
-            <ScheduleEditor
-              key={`${editor.mode}-${editor.id ?? 'new'}-${editor.initial.source_text ?? ''}`}
-              initial={editor.initial}
-              heading={editor.heading}
-              saveLabel={editor.mode === 'edit' ? 'Save changes' : 'Save schedule'}
-              canUseAgent={loggedIn}
-              saving={saving}
-              onSave={(payload) => void save(payload)}
-              onCancel={() => setEditor(null)}
-            />
-          </div>
-        )}
-
-        {loadError && (
-          <div role="alert" className="todo-alert todo-alert-error mt-4">
-            <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
-            <p className="flex-1">{loadError}</p>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="todo-btn todo-btn-ghost h-8 px-2"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        <div className="mt-[1.75rem] flex flex-col gap-[1.5rem]">
-          {schedules && schedules.length === 0 && (
-            <div className="agenda-empty">
-              <FlatIcon name="clock" size={28} />
-              <p className="font-heading mt-3 text-base font-semibold text-foreground">
-                Nothing scheduled yet
-              </p>
-              <p className="mt-1 max-w-[24rem] text-sm text-muted-foreground">
-                A reminder tells you something at a time. An AI job thinks for you at that time
-                (plans your morning, reviews your week, checks what’s overdue) and sends you its
-                answer.
-              </p>
-            </div>
+    <div>
+      <div className="mb-[0.75rem] flex items-center justify-between gap-3">
+        <h3 className="flex items-baseline gap-2 text-base font-semibold text-foreground">
+          Scheduled
+          {schedules && schedules.length > 0 && (
+            <span className="text-[13px] font-normal text-muted-foreground">
+              {schedules.length}
+            </span>
           )}
-          {active.length > 0 && (
-            <ScheduleGroup
-              id="active"
-              title="Active"
-              items={active}
-              now={now}
-              focusId={focusId}
-              focusRun={focusRun}
-              loggedIn={loggedIn}
-              onEdit={(s) =>
-                setEditor({
-                  mode: 'edit',
-                  id: s.id,
-                  initial: editorFrom(s),
-                  heading: 'Edit schedule',
-                })
-              }
-            />
-          )}
-          {inactive.length > 0 && (
-            <ScheduleGroup
-              id="paused"
-              title="Paused or done"
-              items={inactive}
-              now={now}
-              focusId={focusId}
-              focusRun={focusRun}
-              loggedIn={loggedIn}
-              onEdit={(s) =>
-                setEditor({
-                  mode: 'edit',
-                  id: s.id,
-                  initial: editorFrom(s),
-                  heading: 'Edit schedule',
-                })
-              }
-            />
-          )}
-        </div>
+        </h3>
+        <button
+          type="button"
+          onClick={() =>
+            setEditor({
+              mode: 'new',
+              initial: blankEditor(loggedIn ? 'agent' : 'reminder'),
+              heading: 'New schedule',
+            })
+          }
+          className="todo-btn todo-btn-quiet h-9 px-3 text-sm"
+        >
+          <Icon name="PlusIcon" size={15} />
+          New
+        </button>
       </div>
 
-      <aside className="today-aside" aria-label="Where schedules run">
+      <Modal
+        isOpen={!!editor}
+        onClose={() => setEditor(null)}
+        label={editor?.heading ?? 'Schedule'}
+        closeOnBackdrop={false}
+        className="agt-editor-modal max-h-[90vh] w-full max-w-[34rem] overflow-y-auto"
+      >
+        {editor && (
+          <ScheduleEditor
+            key={`${editor.mode}-${editor.id ?? 'new'}-${editor.initial.source_text ?? ''}`}
+            initial={editor.initial}
+            heading={editor.heading}
+            saveLabel={editor.mode === 'edit' ? 'Save changes' : 'Save schedule'}
+            canUseAgent={loggedIn}
+            saving={saving}
+            onSave={(payload) => void save(payload)}
+            onCancel={() => setEditor(null)}
+          />
+        )}
+      </Modal>
+
+      {loadError && (
+        <div role="alert" className="todo-alert todo-alert-error mb-3">
+          <Icon name="ExclamationTriangleIcon" size={14} className="mt-px shrink-0" />
+          <p className="flex-1">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="todo-btn todo-btn-ghost h-8 px-2"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-[1.25rem]">
+        {schedules === null && !loadError && (
+          <div className="flex flex-col gap-2" aria-hidden>
+            <div className="skeleton h-[4.5rem] rounded-[1.125rem]" />
+            <div className="skeleton h-[4.5rem] rounded-[1.125rem]" />
+          </div>
+        )}
+        {schedules && schedules.length === 0 && (
+          <div className="agenda-empty">
+            <FlatIcon name="clock" size={28} quiet className="text-muted-foreground" />
+            <p className="font-heading mt-3 text-base font-semibold text-foreground">
+              Nothing scheduled yet
+            </p>
+            <p className="mt-1 max-w-[24rem] text-sm text-muted-foreground">
+              Tell the Assistant what to do and when (“every Friday at 6pm, write my weekly
+              report”), or set one up with New. A reminder tells you something; an AI job thinks for
+              you at that time and sends you its answer.
+            </p>
+          </div>
+        )}
+        {active.length > 0 && (
+          <ScheduleGroup
+            id="active"
+            title="Active"
+            items={active}
+            now={now}
+            focusId={focusId}
+            focusRun={focusRun}
+            loggedIn={loggedIn}
+            onEdit={openEdit}
+          />
+        )}
+        {inactive.length > 0 && (
+          <ScheduleGroup
+            id="paused"
+            title="Paused or done"
+            items={inactive}
+            now={now}
+            focusId={focusId}
+            focusRun={focusRun}
+            loggedIn={loggedIn}
+            onEdit={openEdit}
+          />
+        )}
         <SchedulerStatusCard loggedIn={loggedIn} />
-      </aside>
+      </div>
     </div>
   );
 }
@@ -482,7 +405,7 @@ function ScheduleItem({ schedule: s, next, now, focused, focusRun, loggedIn, onE
           {s.kind === 'agent' ? (
             <Icon name="SparklesIcon" size={18} variant="solid" className="lab-ink" />
           ) : (
-            <FlatIcon name="clock" size={18} />
+            <FlatIcon name="clock" size={18} quiet />
           )}
         </span>
         <button
@@ -491,7 +414,7 @@ function ScheduleItem({ schedule: s, next, now, focused, focusRun, loggedIn, onE
           aria-expanded={open}
           className="todo-focus min-w-0 flex-1 rounded-lg text-left"
         >
-          <p className="break-words text-[15px] font-semibold leading-snug text-foreground">
+          <p className="break-words text-[15px] font-medium leading-snug text-foreground">
             {s.title}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -534,17 +457,14 @@ function ScheduleItem({ schedule: s, next, now, focused, focusRun, loggedIn, onE
         <div className="mt-3 pl-0 sm:pl-[3.25rem]">
           {s.message && (
             <p className="whitespace-pre-line break-words text-[13px] leading-relaxed text-foreground">
-              <span className="font-semibold text-muted-foreground">
+              <span className="font-medium text-muted-foreground">
                 {s.kind === 'agent' ? 'Instructions: ' : 'Text: '}
               </span>
               {s.message}
             </p>
           )}
           {s.kind === 'agent' && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              {s.agent_context === 'tasks' ? 'Reads your open tasks' : 'Doesn’t read your tasks'}
-              {s.add_tasks ? ' · adds the tasks it suggests' : ''}
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{jobSummary(s)}</p>
           )}
 
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -575,7 +495,7 @@ function ScheduleItem({ schedule: s, next, now, focused, focusRun, loggedIn, onE
             </button>
           </div>
 
-          <h4 className="mt-4 text-xs font-semibold text-muted-foreground">History</h4>
+          <h4 className="mt-4 text-xs font-medium text-muted-foreground">History</h4>
           {runs === null ? (
             <p className="mt-1 text-xs text-muted-foreground">Loading…</p>
           ) : runs.length === 0 ? (
@@ -597,6 +517,24 @@ function ScheduleItem({ schedule: s, next, now, focused, focusRun, loggedIn, onE
   );
 }
 
+/** What an AI job reads and does, in one line. */
+export function jobSummary(
+  s: Pick<Schedule, 'agent_context' | 'use_web' | 'write_report' | 'add_tasks'>
+): string {
+  return [
+    s.agent_context === 'workspace'
+      ? 'Reads all of your To-Do'
+      : s.agent_context === 'tasks'
+        ? 'Reads your open tasks'
+        : 'Doesn’t read your tasks',
+    s.use_web && 'searches the web',
+    s.write_report && 'writes a full report',
+    s.add_tasks && 'adds the tasks it suggests',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 const SOURCE_LABEL: Record<string, string> = { web: 'browser', app: 'phone', manual: 'run now' };
 
 function RunRow({ run, highlight, now }: { run: ScheduleRun; highlight: boolean; now: Date }) {
@@ -616,12 +554,39 @@ function RunRow({ run, highlight, now }: { run: ScheduleRun; highlight: boolean;
           ? ` · added ${run.created_task_ids.length} task${run.created_task_ids.length > 1 ? 's' : ''}`
           : ''}
       </p>
-      {run.output && (
-        <p className="mt-0.5 whitespace-pre-line break-words text-[13px] leading-relaxed text-foreground">
-          {run.title && run.title !== run.output ? (
-            <span className="font-semibold">{run.title}. </span>
-          ) : null}
-          {run.output}
+      {run.report ? (
+        <div className="mt-1">
+          {run.title && <p className="text-[13px] font-medium text-foreground">{run.title}</p>}
+          <div className="sch-run-report">
+            <AssistantMarkdown text={run.report} />
+          </div>
+        </div>
+      ) : (
+        run.output && (
+          <p className="mt-0.5 whitespace-pre-line break-words text-[13px] leading-relaxed text-foreground">
+            {run.title && run.title !== run.output ? (
+              <span className="font-medium">{run.title}. </span>
+            ) : null}
+            {run.output}
+          </p>
+        )
+      )}
+      {run.sources && run.sources.length > 0 && (
+        <p className="mt-1 break-words text-xs text-muted-foreground">
+          Sources:{' '}
+          {run.sources.map((src, i) => (
+            <React.Fragment key={src.url}>
+              {i > 0 && ', '}
+              <a
+                href={src.url}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="underline"
+              >
+                {src.title}
+              </a>
+            </React.Fragment>
+          ))}
         </p>
       )}
     </li>
@@ -657,7 +622,7 @@ function SchedulerStatusCard({ loggedIn }: { loggedIn: boolean }) {
       <div className="flex items-start gap-3">
         <span className="rem-status-dot" aria-hidden />
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">
+          <p className="text-sm font-medium text-foreground">
             {native.app
               ? phoneReady
                 ? 'Runs on this phone, even closed'

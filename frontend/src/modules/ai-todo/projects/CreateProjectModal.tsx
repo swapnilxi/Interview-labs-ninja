@@ -66,7 +66,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
     >
       <div className="flex items-center justify-between p-4 border-b mix-border-border/50">
         <h2 id="create-project-title" className="font-heading font-semibold text-lg flex items-center gap-2 text-foreground">
-          <FlatIcon name="roadmap" size={26} /> New Project
+          <FlatIcon name="roadmap" size={26} quiet /> New project
         </h2>
         <button 
           onClick={onClose}
@@ -80,7 +80,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
       <form onSubmit={handleSubmit} className="p-4 space-y-4">
         <div>
           <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-            Project Name *
+            Project name *
           </label>
           <input
             type="text"
@@ -122,7 +122,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
           </div>
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-              Due Date
+              Due date
             </label>
             <input
               type="date"
@@ -135,7 +135,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
 
         <div>
           <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-            Icon & Color
+            Icon & color
           </label>
           <div className="flex gap-4 items-center">
             <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-clean flex-1 border mix-border-border/50 rounded-lg p-1 mix-bg-muted/20">
@@ -161,7 +161,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
                   type="button"
                   onClick={() => setColor(c)}
                   className={`w-4 h-4 rounded-full transition-smooth ${
-                    color === c ? 'ring-2 ring-primary ring-offset-1 ring-offset-card scale-110' : 'hover:scale-110 opacity-70 hover:opacity-100'
+                    color === c ? 'ring-2 ring-primary ring-offset-2 ring-offset-card' : 'opacity-70 hover:opacity-100'
                   }`}
                   style={{ backgroundColor: c }}
                 />
@@ -175,17 +175,17 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-smooth"
+            className="px-4 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted transition-smooth"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!title.trim() || loading}
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:mix-bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:mix-bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
           >
             {loading && <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />}
-            Create Project
+            Create project
           </button>
         </div>
       </form>

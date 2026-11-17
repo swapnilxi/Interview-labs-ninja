@@ -37,9 +37,9 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
     <div className="flex h-full flex-col">
       <div className="mb-[1.5rem] flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-heading text-base font-semibold leading-tight text-foreground">AI Weekly Plan</h2>
+          <h2 className="font-heading text-base font-semibold leading-tight text-foreground">Weekly plan</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Let AI distribute your open tasks across the week, prioritizing high-leverage work.
+            Spread your open tasks across the week, high-leverage first
           </p>
         </div>
         <button
@@ -52,7 +52,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
           ) : (
             <Icon name="SparklesIcon" size={14} variant="solid" />
           )}
-          Generate My Week
+          Plan my week
         </button>
       </div>
 
@@ -66,14 +66,14 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
       {!plan && !loading && (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center text-muted-foreground">
           <Icon name="CalendarDaysIcon" size={28} />
-          <p className="text-sm">Generate your plan to see your week at a glance.</p>
+          <p className="text-sm">Generate a plan to see your week at a glance</p>
         </div>
       )}
 
       {loading && (
         <div className="flex flex-1 flex-col items-center justify-center space-y-4 text-muted-foreground">
           <span className="h-8 w-8 animate-spin rounded-full border-4 mix-border-primary/20 border-t-primary" />
-          <p className="animate-pulse text-xs font-medium">AI is planning your week...</p>
+          <p className="animate-pulse text-xs font-medium">Planning your week…</p>
         </div>
       )}
 
@@ -87,7 +87,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
                     {day}
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    <span className="font-semibold tabular-nums mix-text-info">{plan[day]?.length || 0}</span> tasks
+                    <span className="font-medium tabular-nums mix-text-info">{plan[day]?.length || 0}</span> tasks
                   </p>
                 </div>
 
@@ -111,7 +111,7 @@ export default function WeeklyPlan({ model }: WeeklyPlanProps) {
                                 {task.time_estimate}
                               </span>
                             )}
-                            <span className="text-[11px] font-semibold uppercase text-muted-foreground">
+                            <span className="text-xs font-medium text-muted-foreground">
                               {task.priority || 'P3'}
                             </span>
                           </div>

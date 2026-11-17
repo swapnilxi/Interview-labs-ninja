@@ -91,7 +91,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     topic: 'ai',
     type: 'concept',
     title: 'What is RAG?',
-    hook: 'Grounding LLMs in reality 📚',
+    hook: 'Grounding LLMs in reality',
     content: 'Retrieve relevant knowledge before generating an answer.',
     depth: {
       howItWorks:
@@ -118,7 +118,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     topic: 'ai',
     type: 'quiz',
     title: 'LoRA: Low-Rank Adaptation',
-    hook: 'Cut fine-tuning VRAM by 95% ⚡',
+    hook: 'Cut fine-tuning VRAM by 95%',
     content: 'How does LoRA dramatically reduce GPU memory during model fine-tuning?',
     quiz: {
       question: 'How does LoRA drastically cut GPU memory during LLM fine-tuning?',
@@ -157,7 +157,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     topic: 'ai',
     type: 'concept',
     title: 'Temperature vs Top-P Sampling',
-    hook: 'Controlling LLM creativity 🎛️',
+    hook: 'Controlling LLM creativity',
     content: 'Temperature scales probability sharpness; Top-P caps selection to top cumulative mass P.',
     depth: {
       howItWorks:
@@ -186,7 +186,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     topic: 'python',
     type: 'code',
     title: 'Why use enumerate()?',
-    hook: 'Stop doing this 👇',
+    hook: 'Stop doing this',
     content: 'enumerate() gives you both the index and value while iterating.',
     code: {
       language: 'python',
@@ -251,7 +251,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     topic: 'python',
     type: 'code',
     title: 'List Comprehension Magic',
-    hook: 'One-liner efficiency ⚡',
+    hook: 'One-liner efficiency',
     content: 'Transform loops into elegant one-liners with list comprehensions.',
     code: {
       language: 'python',
@@ -271,7 +271,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     topic: 'python',
     type: 'code',
     title: 'Dictionary Default Pattern',
-    hook: 'Avoid KeyError exceptions 🛡️',
+    hook: 'Avoid KeyError exceptions',
     content: 'Use .get() with a default to avoid KeyError exceptions.',
     code: {
       language: 'python',
@@ -326,7 +326,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     topic: 'computer-vision',
     type: 'concept',
     title: 'Intersection over Union (IoU)',
-    hook: 'The gold standard detection metric 📐',
+    hook: 'The gold standard detection metric',
     content: 'IoU measures the ratio of overlap area to union area between bounding boxes.',
     depth: {
       howItWorks:
@@ -355,7 +355,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     topic: 'finance',
     type: 'concept',
     title: 'Discounted Cash Flow (DCF)',
-    hook: 'Time value of money 💵',
+    hook: 'Time value of money',
     content: 'Valuing an investment today based on projections of future cash flows discounted back.',
     depth: {
       howItWorks:
@@ -418,7 +418,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     subCategory: 'system-design',
     type: 'concept',
     title: 'CAP Theorem in Practice',
-    hook: 'Consistency vs Availability 🌐',
+    hook: 'Consistency vs Availability',
     content: 'Since network partitions are unavoidable, systems must choose between CP and AP.',
     depth: {
       howItWorks:
@@ -446,7 +446,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     subCategory: 'dsa',
     type: 'concept',
     title: 'Monotonic Stack Pattern',
-    hook: 'O(N) Next Greater Element 📈',
+    hook: 'O(N) Next Greater Element',
     content: 'A stack maintaining elements in monotonic order solves nearest greater element queries in O(N) time.',
     depth: {
       howItWorks:
@@ -474,7 +474,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     subCategory: 'behavioral',
     type: 'tip',
     title: 'STAR Method for Stories',
-    hook: 'Structure your behavioral answers 🎯',
+    hook: 'Structure your behavioral answers',
     content: 'Structure every behavioral interview response: Situation, Task, Action, Result.',
     depth: {
       howItWorks:
@@ -502,7 +502,7 @@ export const DEFAULT_CONTENT_CARDS: ContentCard[] = [
     subCategory: 'leadership',
     type: 'concept',
     title: 'Blameless Post-Mortems',
-    hook: 'System failure, not human fault 🛡️',
+    hook: 'System failure, not human fault',
     content: 'Outages happen because systemic safeguards failed, not because an engineer made a typo.',
     depth: {
       howItWorks:

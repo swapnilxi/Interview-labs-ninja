@@ -93,7 +93,7 @@ function ChartTooltip({
   if (!rows.length) return null;
   return (
     <div className="ins-tooltip">
-      <p className="mb-1 font-semibold ds-ink">{label}</p>
+      <p className="mb-1 font-medium ds-ink">{label}</p>
       {rows.map((entry) => (
         <p key={String(entry.dataKey)}>
           <span

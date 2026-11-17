@@ -268,7 +268,7 @@ export default function MySpace() {
           <div className="flex w-full min-w-0 flex-1 items-start gap-2.5 sm:w-auto">
             <Icon name="InformationCircleIcon" variant="solid" size={18} />
             <p>
-              <span className="font-semibold">Make this space yours. </span>
+              <span className="font-medium">Make this space yours. </span>
               Sign in to keep your notes, targets and added questions tied to your profile.
             </p>
           </div>
@@ -342,7 +342,7 @@ export default function MySpace() {
                     <label htmlFor="ms-goal" className="bs-row-label">
                       Daily goal
                     </label>
-                    <span className="text-sm font-semibold ds-ink ds-num">
+                    <span className="text-sm font-medium ds-ink ds-num">
                       {targets.dailyGoal} question{targets.dailyGoal === 1 ? '' : 's'} a day
                     </span>
                   </div>

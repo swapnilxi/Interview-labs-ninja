@@ -149,7 +149,7 @@ export default function AnswerCoach({ input, onUseExpanded, onAddTodo }: Props) 
             />
           </span>
           <div className="min-w-0" aria-live="polite">
-            <p className="text-sm font-semibold ds-ink">AI coach</p>
+            <p className="text-sm font-medium ds-ink">AI coach</p>
             <p className="mt-0.5 text-[13px] leading-snug ds-muted">{bubble}</p>
           </div>
         </div>
@@ -229,7 +229,7 @@ export default function AnswerCoach({ input, onUseExpanded, onAddTodo }: Props) 
                 {ex.corrections.map((c, i) => (
                   <li key={i}>
                     <span className="ds-muted line-through">{c.claim}</span>
-                    <div className="font-semibold ds-ink">{c.correction}</div>
+                    <div className="font-medium ds-ink">{c.correction}</div>
                   </li>
                 ))}
               </ul>
@@ -268,14 +268,14 @@ export function EvaluationView({
           label={`${ev.overall} out of 100`}
         >
           <span className="text-center">
-            <span className="block text-xl font-semibold leading-none ds-ink ds-num">
+            <span className="block text-xl font-medium leading-none ds-ink ds-num">
               {ev.overall}
             </span>
             <span className="block text-[11px] font-medium ds-faint ds-num">/ 100</span>
           </span>
         </Ring>
         <div className="min-w-0">
-          <div className={`text-lg font-semibold ds-tone-text ${toneClass(levelTone[ev.level])}`}>
+          <div className={`text-lg font-medium ds-tone-text ${toneClass(levelTone[ev.level])}`}>
             {ev.level}
           </div>
           <p className="mt-0.5 text-[13px] leading-snug ds-muted">
@@ -288,7 +288,7 @@ export function EvaluationView({
         <div className="space-y-3">
           {ev.criteria.map((c) => (
             <div key={c.key}>
-              <div className="flex items-center justify-between gap-2 text-[13px] font-semibold ds-ink">
+              <div className="flex items-center justify-between gap-2 text-[13px] font-medium ds-ink">
                 <span>
                   {c.label} <span className="font-medium ds-faint ds-num">· {c.weight}%</span>
                 </span>
@@ -322,7 +322,7 @@ export function EvaluationView({
                   {f.severity}
                 </span>
                 <span className="ds-muted line-through">{f.claim}</span>
-                <div className="mt-1 font-semibold ds-ink">
+                <div className="mt-1 font-medium ds-ink">
                   {f.correction}
                   <AddTodo text={f.correction} onAdd={onAddTodo} />
                 </div>

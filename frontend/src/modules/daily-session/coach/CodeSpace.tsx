@@ -48,7 +48,7 @@ export default function CodeSpace({ kind, value, onChange, language, onLanguageC
           <span className={`ds-tone-text ${isDesign ? 'ds-tone-jade' : 'ds-tone-indigo'}`}>
             <Icon name={isDesign ? 'CubeTransparentIcon' : 'CodeBracketIcon'} size={17} />
           </span>
-          <span className="text-sm font-semibold ds-ink">
+          <span className="text-sm font-medium ds-ink">
             {isDesign ? 'Design sketch' : 'Code'}
           </span>
           {isDesign && (

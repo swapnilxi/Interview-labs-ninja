@@ -405,10 +405,10 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
 
       <QuestionStatsPanel stats={stats} activeFilters={filters} />
 
-      {/* Toolbar: search and the list / grid switch, then the filter and sort menus (one sideways-scrolling line
-          on a phone, all on one row from the laptop up). */}
-      <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
-        <div className="ins-search order-1 min-w-0 flex-1 lg:max-w-[22rem]">
+      {/* Toolbar, two rows at every width: search with the list / grid switch, then the filter and sort menus (one
+          sideways-scrolling line on a phone). Squeezing all of it into one row made the menus wrap into a ragged pile. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="ins-search order-1 min-w-0 flex-1">
           <Icon name="MagnifyingGlassIcon" size={17} variant="outline" />
           <input
             type="search"
@@ -429,7 +429,7 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
           )}
         </div>
 
-        <div role="group" aria-label="View" className="ds-seg ins-seg order-2 lg:order-3">
+        <div role="group" aria-label="View" className="ds-seg ins-seg order-2">
           {(
             [
               ['list', 'ListBulletIcon', 'List'],
@@ -450,7 +450,7 @@ export default function QuestionBankInteractive({ embedded = false }: { embedded
           ))}
         </div>
 
-        <div className="ins-pills order-3 w-full lg:order-2 lg:w-auto lg:flex-1">
+        <div className="ins-pills order-3 w-full">
           {filterMenus.map((menu) => {
             const active = filters[menu.key] !== menu.options[0].value;
             return (

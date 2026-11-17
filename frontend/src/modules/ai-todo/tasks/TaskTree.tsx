@@ -11,8 +11,7 @@ import { isTopLayer, popLayer, pushLayer } from '@/lib/ui/layers';
 import {
   type Task,
   type TodoStats,
-  DEPTH_COLORS,
-  DEPTH_NAMES,
+  type ViewMode,
   buildDepthMap,
   flattenTree,
   getRelativeDueDate,
@@ -26,6 +25,9 @@ interface TaskTreeProps {
   model: 'ollama' | 'gemini';
   /** Bumped by the parent after it adds or re-scores tasks; reloads in place so search & filters survive. */
   refreshSignal?: number;
+  /** Tree / List / Focus, when the page's view switch drives it (SmartTodo). Without it the list keeps its own. */
+  layout?: ViewMode;
+  onLayoutChange?: (layout: ViewMode) => void;
 }
 
 const DEFAULT_FILTERS: TaskFilters = {
@@ -47,7 +49,7 @@ function Spinner({ className = '' }: { className?: string }) {
   );
 }
 
-export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
+export default function TaskTree({ model, refreshSignal = 0, layout, onLayoutChange }: TaskTreeProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -60,7 +62,16 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
   const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const quickAddSubmittingRef = useRef(false);
   const quickAddInputRef = useRef<HTMLInputElement>(null);
-  const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
+  const [filterState, setFilterState] = useState<TaskFilters>(DEFAULT_FILTERS);
+  // The layout can come from the page's one view switch; search and the narrowing filters always live here.
+  const filters = useMemo<TaskFilters>(() => (layout ? { ...filterState, view: layout } : filterState), [filterState, layout]);
+  const setFilters = useCallback(
+    (next: TaskFilters) => {
+      if (onLayoutChange && next.view !== filters.view) onLayoutChange(next.view);
+      setFilterState(next);
+    },
+    [filters.view, onLayoutChange]
+  );
   // The latest full tree (not the search-pruned one the rows draw), for handlers that must not trust what a row saw.
   const tasksRef = useRef<Task[]>([]);
   const [undoInfo, setUndoInfo] = useState<{ parentId: number; previousChildren: Task[] } | null>(null);
@@ -418,20 +429,39 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
   const planDone = activePlan?.tasks ? activePlan.tasks.filter((t: any) => t.status === 'done').length : 0;
 
   const dueStripShown = todayTasks.length > 0 && filters.view !== 'focus';
-  const showLegend = !loading && !loadError && filteredTasks.length > 0;
+
+  // The list as cards. Tree: a task with subtasks is a card of its own (it heads the card, its subtasks hang beneath it);
+  // the tasks around it without subtasks share a card. List and Focus are flat: one card.
+  const listGroups = useMemo(() => {
+    if (filters.view !== 'tree') return [{ key: 'flat', tasks: filters.view === 'list' ? listTasks : filteredTasks }];
+    const groups: { key: string; tasks: Task[] }[] = [];
+    let loose: Task[] = [];
+    const flush = () => {
+      if (loose.length) groups.push({ key: `loose-${loose[0].id}`, tasks: loose });
+      loose = [];
+    };
+    for (const task of filteredTasks) {
+      if (task.children?.length) {
+        flush();
+        groups.push({ key: `tree-${task.id}`, tasks: [task] });
+      } else {
+        loose.push(task);
+      }
+    }
+    flush();
+    return groups;
+  }, [filters.view, listTasks, filteredTasks]);
 
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col gap-[1.5rem] sm:gap-[2rem]">
-      {/* Progress — one quiet line of real numbers; a placeholder while loading, a plain note if it can't load */}
-      <ProgressStrip stats={stats} failed={statsFailed} onRetry={loadStats} />
-
       <section aria-labelledby="todo-tasks-heading" className="flex flex-col gap-[1rem]">
-        {/* Workspace header: the one section heading on the page, with its actions */}
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        {/* Section header: the list's title and counts, today's progress as one quiet line under them, and the actions */}
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+          <div className="min-w-0">
           <div className="flex items-baseline gap-2">
-            <h2 id="todo-tasks-heading" className="font-heading text-base font-semibold leading-tight text-foreground">
+            <h2 id="todo-tasks-heading" className="font-heading text-lg font-semibold leading-tight text-foreground">
               Tasks
             </h2>
             {!loading && !loadError && allTasks.length > 0 && (
@@ -448,6 +478,11 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
             )}
             {!loading && !loadError && allTasks.length > 0 && spokenCount && <span role="status" className="sr-only">{spokenCount}</span>}
           </div>
+          {/* Progress: real numbers only; a placeholder while loading, a plain note if it can't load */}
+          <div className="mt-2">
+            <ProgressStrip stats={stats} failed={statsFailed} onRetry={loadStats} />
+          </div>
+          </div>
           <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
@@ -456,8 +491,8 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
               className="todo-btn todo-btn-ghost h-9"
             >
               <Icon name="LightBulbIcon" size={14} />
-              <span className="hidden sm:inline">Brain Dump</span>
-              <span className="sr-only sm:hidden">Brain Dump</span>
+              <span className="hidden sm:inline">Brain dump</span>
+              <span className="sr-only sm:hidden">Brain dump</span>
             </button>
             {!activePlan ? (
               <button
@@ -467,8 +502,8 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                 className="todo-btn todo-btn-ghost h-9"
               >
                 <Icon name="SunIcon" size={14} />
-                <span className="hidden sm:inline">Start Day</span>
-                <span className="sr-only sm:hidden">Start Day</span>
+                <span className="hidden sm:inline">Start day</span>
+                <span className="sr-only sm:hidden">Start day</span>
               </button>
             ) : (
               <button
@@ -478,8 +513,8 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                 className="todo-btn todo-btn-ghost h-9"
               >
                 <Icon name="MoonIcon" size={14} />
-                <span className="hidden sm:inline">End Day</span>
-                <span className="sr-only sm:hidden">End Day</span>
+                <span className="hidden sm:inline">End day</span>
+                <span className="sr-only sm:hidden">End day</span>
               </button>
             )}
             <button
@@ -492,7 +527,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
               className="todo-btn todo-btn-primary ml-1 h-9 px-4"
             >
               <Icon name="PlusIcon" size={14} variant="solid" />
-              New Todo
+              New task
             </button>
           </div>
         </div>
@@ -566,7 +601,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
           <div className="todo-surface px-[1.25rem] py-4">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <div className="flex items-baseline gap-2">
-                <h3 className="font-heading text-sm font-semibold leading-tight text-foreground">Today&apos;s Focus</h3>
+                <h3 className="font-heading text-sm font-semibold leading-tight text-foreground">Today’s focus</h3>
                 <span className="text-xs text-muted-foreground">{activePlan.plan_date}</span>
               </div>
               <span className="text-xs font-medium tabular-nums text-muted-foreground">
@@ -582,7 +617,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
               aria-valuenow={planDone}
             >
               <div
-                className="h-full rounded-full bg-primary transition-all duration-500 motion-reduce:transition-none"
+                className="h-full rounded-full bg-primary transition-[width] duration-500 motion-reduce:transition-none"
                 style={{ width: `${(planDone / activePlan.tasks.length) * 100}%` }}
               />
             </div>
@@ -610,7 +645,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                       {task.title}
                     </span>
                     {activePlan.reasoning[task.id] && (
-                      <span className="hidden truncate text-xs italic text-muted-foreground md:inline">
+                      <span className="hidden truncate text-xs text-muted-foreground md:inline">
                         · {activePlan.reasoning[task.id]}
                       </span>
                     )}
@@ -631,11 +666,11 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
         {undoInfo && (
           <div role="status" className="todo-alert todo-alert-info items-center animate-fade-in">
             <Icon name="ArrowUturnLeftIcon" size={14} className="shrink-0 text-primary" />
-            <span className="flex-1">AI subtasks generated.</span>
+            <span className="flex-1">Subtasks added</span>
             <button
               type="button"
               onClick={handleUndo}
-              className="todo-focus rounded font-semibold text-primary hover:underline"
+              className="todo-focus rounded font-medium text-primary hover:underline"
             >
               Undo
             </button>
@@ -643,28 +678,21 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
           </div>
         )}
 
-        {/* Today section (feedback #6) and the depth legend: one quiet line; the due list unfolds beneath it */}
-        {(dueStripShown || showLegend) && (
+        {/* Due today & overdue: one quiet line; the list unfolds beneath it */}
+        {dueStripShown && (
           <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-              {dueStripShown ? (
-                <button
-                  type="button"
-                  onClick={() => setShowDue(open => !open)}
-                  aria-expanded={showDue}
-                  aria-controls="todo-due-list"
-                  className="todo-focus -ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium text-warning transition-smooth hover:mix-bg-warning/10"
-                >
-                  <Icon name="ExclamationTriangleIcon" size={14} className="shrink-0" />
-                  Due today &amp; overdue ({todayTasks.length})
-                  <Icon name="ChevronDownIcon" size={12} className={`shrink-0 transition-transform ${showDue ? 'rotate-180' : ''}`} />
-                </button>
-              ) : (
-                <span />
-              )}
-              {showLegend && <DepthLegend />}
-            </div>
-            {dueStripShown && showDue && (
+            <button
+              type="button"
+              onClick={() => setShowDue(open => !open)}
+              aria-expanded={showDue}
+              aria-controls="todo-due-list"
+              className="todo-focus -ml-1.5 inline-flex items-center gap-1.5 self-start rounded-md px-1.5 py-1 text-xs font-medium text-warning transition-smooth hover:mix-bg-warning/10"
+            >
+              <Icon name="ExclamationTriangleIcon" size={14} className="shrink-0" />
+              Due today &amp; overdue ({todayTasks.length})
+              <Icon name="ChevronDownIcon" size={12} className={`shrink-0 transition-transform ${showDue ? 'rotate-180' : ''}`} />
+            </button>
+            {showDue && (
               <ul id="todo-due-list" className="space-y-1.5 pl-[1.5rem] text-xs animate-fade-in">
                 {todayTasks.map(t => {
                   const due = getRelativeDueDate(t.due_date);
@@ -710,25 +738,28 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
 
         {/* Task list */}
         {!loading && !loadError && filteredTasks.length > 0 && (
-          <div>
-            {/* List flattens the tree; Focus is already a flat list; Tree renders nested. */}
-            {(filters.view === 'list' ? listTasks : filteredTasks).map(task => (
-              <TaskNode
-                key={task.id}
-                task={task}
-                depth={depthById.get(task.id) ?? 1}
-                model={model}
-                onUpdate={updateTaskInTree}
-                onDelete={deleteTaskFromTree}
-                onChildrenGenerated={handleChildrenGenerated}
-                onUndoAvailable={handleUndoAvailable}
-                onChildAdded={handleChildAdded}
-                searchQuery={filters.search}
-                autoExpand={resultsNarrowed}
-                parentTitle={filters.view !== 'tree' ? parentTitleById.get(task.id) : undefined}
-                onResumeTask={setResumeTask}
-                flat={filters.view !== 'tree'}
-              />
+          <div className="flex flex-col gap-3">
+            {listGroups.map(group => (
+              <div key={group.key} className="todo-group">
+                {group.tasks.map(task => (
+                  <TaskNode
+                    key={task.id}
+                    task={task}
+                    depth={depthById.get(task.id) ?? 1}
+                    model={model}
+                    onUpdate={updateTaskInTree}
+                    onDelete={deleteTaskFromTree}
+                    onChildrenGenerated={handleChildrenGenerated}
+                    onUndoAvailable={handleUndoAvailable}
+                    onChildAdded={handleChildAdded}
+                    searchQuery={filters.search}
+                    autoExpand={resultsNarrowed}
+                    parentTitle={filters.view !== 'tree' ? parentTitleById.get(task.id) : undefined}
+                    onResumeTask={setResumeTask}
+                    flat={filters.view !== 'tree'}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         )}
@@ -739,20 +770,20 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
             <Icon name="ClipboardDocumentCheckIcon" size={28} className="text-muted-foreground" />
             <div>
               <h3 className="font-heading text-base font-semibold leading-tight text-foreground">
-                Your next accomplishment starts here
+                No tasks yet
               </h3>
               <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-                Add a task, capture your ideas, or let AI help break down a bigger goal.
+                Add a task, paste a brain dump, or let AI break a bigger goal into steps.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button type="button" onClick={() => openAddModal()} className="todo-btn todo-btn-primary px-4 py-2 text-sm">
                 <Icon name="PlusIcon" size={16} variant="solid" />
-                Add First Task
+                Add your first task
               </button>
               <button type="button" onClick={() => setShowBrainDumpModal(true)} className="todo-btn todo-btn-quiet px-4 py-2 text-sm">
                 <Icon name="LightBulbIcon" size={16} />
-                Brain Dump
+                Brain dump
               </button>
             </div>
           </div>
@@ -784,7 +815,7 @@ export default function TaskTree({ model, refreshSignal = 0 }: TaskTreeProps) {
                       ? 'No in-progress or overdue tasks match these filters.'
                       : 'No tasks are in progress or overdue. Pick something from your backlog to get started.'
                     : filters.top20 && !hasNarrowingFilterBesidesTop20(filters)
-                      ? 'Run 80/20 Analyze above to score your tasks and surface the high-leverage ones.'
+                      ? 'Use Analyze 80/20 above to score your tasks and surface the high-leverage ones.'
                       : 'Try adjusting your filters to see more tasks.'}
               </p>
             </div>
@@ -899,30 +930,6 @@ function hasNarrowingFilterBesidesTop20(f: TaskFilters): boolean {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Depth legend — the key to the coloured rail on the left edge of every row
-// ────────────────────────────────────────────────────────────────────────────
-
-/** Draws each level with the same token the rails use (DEPTH_COLORS), so legend and rails can never drift apart. */
-function DepthLegend() {
-  return (
-    <div role="group" aria-label="Task depth" className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-muted-foreground">
-      <span className="text-[12px] font-semibold">Depth</span>
-      {DEPTH_COLORS.map((color, i) => (
-        <span
-          key={i}
-          className="inline-flex items-center gap-1.5"
-          title={`Level ${i + 1}${i === 4 ? ' and deeper' : ''} — ${DEPTH_NAMES[i]}`}
-        >
-          <span className="h-3 w-[3px] shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
-          <span>L{i + 1}{i === 4 ? '+' : ''}</span>
-          <span className="sr-only xl:not-sr-only">{DEPTH_NAMES[i]}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
 // Daily plan sub-components (Feature 1)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -1025,7 +1032,7 @@ function StartDayModal({ model, onClose, onPlanAccepted }: StartDayModalProps) {
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="todo-icon-chip h-8 w-8"><Icon name="SunIcon" size={16} /></span>
-          <span id="todo-kickstart-title" className="font-heading text-base font-bold text-foreground">Daily Kickstart: Plan Your Day</span>
+          <span id="todo-kickstart-title" className="font-heading text-base font-semibold text-foreground">Plan your day</span>
         </div>
         <button onClick={onClose} className="todo-btn todo-btn-ghost p-1" aria-label="Close">
           <Icon name="XMarkIcon" size={16} />
@@ -1043,10 +1050,10 @@ function StartDayModal({ model, onClose, onPlanAccepted }: StartDayModalProps) {
         {suggestions.length === 0 && !loading ? (
           <div className="space-y-4">
             <p className="text-xs text-muted-foreground leading-normal">
-              How many hours of focused productivity do you have available today? AI will curate the optimal plan.
+              How many focused hours do you have today? AI will suggest the tasks that fit.
             </p>
             <div>
-              <label htmlFor="todo-kickstart-hours" className="block text-xs font-semibold text-muted-foreground mb-1.5">Available Hours</label>
+              <label htmlFor="todo-kickstart-hours" className="block text-xs font-medium text-muted-foreground mb-1.5">Available hours</label>
               <input
                 id="todo-kickstart-hours"
                 type="number"
@@ -1073,21 +1080,21 @@ function StartDayModal({ model, onClose, onPlanAccepted }: StartDayModalProps) {
               className="todo-btn todo-btn-primary w-full py-2.5"
             >
               <Icon name="SparklesIcon" size={14} variant="solid" />
-              AI Curate Plan
+              Suggest a plan
             </button>
           </div>
         ) : loading ? (
           <div className="flex flex-col items-center justify-center py-[3rem] space-y-3">
             <span className="w-8 h-8 border-4 mix-border-primary/30 border-t-primary rounded-full animate-spin" />
-            <p className="text-xs text-muted-foreground animate-pulse">Productivity Coach is crafting your plan...</p>
+            <p className="text-xs text-muted-foreground animate-pulse">Planning your day…</p>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Suggested tasks */}
             <div>
-              <h4 className="text-xs font-bold text-primary mb-2 flex items-center gap-1">
+              <h4 className="text-xs font-medium text-foreground mb-2 flex items-center gap-1">
                 <Icon name="SparklesIcon" size={14} variant="solid" />
-                <span>AI Suggested Tasks</span>
+                <span>Suggested tasks</span>
                 <span className="text-xs text-muted-foreground normal-case font-normal">(Curated for {hours} hrs)</span>
               </h4>
               <div className="space-y-2">
@@ -1105,10 +1112,10 @@ function StartDayModal({ model, onClose, onPlanAccepted }: StartDayModalProps) {
                       className="h-4 w-4 mt-0.5 rounded border-border text-primary cursor-pointer"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold truncate text-foreground">{s.task.title}</p>
-                      <p className="text-xs text-muted-foreground italic mt-0.5">Coach: &ldquo;{s.reason}&rdquo;</p>
+                      <p className="text-xs font-medium truncate text-foreground">{s.task.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Coach: &ldquo;{s.reason}&rdquo;</p>
                     </div>
-                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground self-start">
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground self-start">
                       {s.task.time_estimate || 'no est'}
                     </span>
                   </label>
@@ -1119,7 +1126,7 @@ function StartDayModal({ model, onClose, onPlanAccepted }: StartDayModalProps) {
             {/* Alternative tasks */}
             {alternatives.length > 0 && (
               <div>
-                <h4 className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1"><Icon name="InboxArrowDownIcon" size={14} /> Add Alternatives from Backlog</h4>
+                <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><Icon name="InboxArrowDownIcon" size={14} /> Add alternatives from backlog</h4>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto scrollbar-clean pr-1">
                   {alternatives.map(t => (
                     <label
@@ -1137,7 +1144,7 @@ function StartDayModal({ model, onClose, onPlanAccepted }: StartDayModalProps) {
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium truncate text-foreground">{t.title}</p>
                       </div>
-                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                      <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
                         {t.time_estimate || 'no est'}
                       </span>
                     </label>
@@ -1158,11 +1165,11 @@ function StartDayModal({ model, onClose, onPlanAccepted }: StartDayModalProps) {
             className="todo-btn todo-btn-primary flex-1 py-2"
           >
             {saving && <Spinner />}
-            Accept Daily Plan & Lock In
+            Use this plan
           </button>
           <button
             onClick={() => { setSuggestions([]); setAlternatives([]); }}
-            className="py-2 px-4 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted transition-smooth font-semibold"
+            className="py-2 px-4 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted transition-smooth font-medium"
           >
             Back
           </button>
@@ -1241,7 +1248,7 @@ function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="todo-icon-chip h-8 w-8"><Icon name="MoonIcon" size={16} /></span>
-          <span id="todo-endday-title" className="font-heading text-base font-bold text-foreground">End Day: Reschedule & Reflect</span>
+          <span id="todo-endday-title" className="font-heading text-base font-semibold text-foreground">End day: reschedule and reflect</span>
         </div>
         {!summary && (
           <button onClick={onClose} className="todo-btn todo-btn-ghost p-1" aria-label="Close">
@@ -1261,23 +1268,23 @@ function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-[3rem] space-y-3">
             <span className="w-8 h-8 border-4 mix-border-primary/30 border-t-primary rounded-full animate-spin" />
-            <p className="text-xs text-muted-foreground animate-pulse">Productivity Coach is summarizing your day...</p>
+            <p className="text-xs text-muted-foreground animate-pulse">Summarizing your day…</p>
           </div>
         ) : summary ? (
           <div className="text-center py-[1.5rem] space-y-4">
             <span className="todo-icon-chip mx-auto h-14 w-14 rounded-2xl"><Icon name="TrophyIcon" size={28} variant="solid" /></span>
-            <h3 className="font-heading text-lg font-bold text-foreground">Day Completed!</h3>
-            <div className="p-4 rounded-xl mix-bg-primary/5 border mix-border-primary/10 text-sm italic text-foreground leading-relaxed">
+            <h3 className="font-heading text-lg font-semibold text-foreground">Day complete</h3>
+            <div className="p-4 rounded-xl mix-bg-primary/5 border mix-border-primary/10 text-sm text-foreground leading-relaxed">
               &ldquo;{summary}&rdquo;
             </div>
             {top20Warning && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs font-semibold text-amber-600 dark:text-amber-400 text-left">
+              <div role="alert" className="todo-alert todo-alert-warning text-left">
                 {top20Warning}
               </div>
             )}
             <button
               onClick={onDayEnded}
-              className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:mix-bg-primary/95 transition-smooth"
+              className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-xs hover:mix-bg-primary/95 transition-smooth"
             >
               Done
             </button>
@@ -1287,12 +1294,12 @@ function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
             {/* Stats */}
             <div className="p-3 rounded-lg mix-bg-muted/40 border border-border flex items-center justify-around text-center">
               <div>
-                <span className="block text-xl font-bold text-primary">{completedTasks.length}</span>
+                <span className="block text-xl font-medium tabular-nums text-foreground">{completedTasks.length}</span>
                 <span className="text-[12px] font-medium text-muted-foreground">Completed</span>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
-                <span className="block text-xl font-bold text-amber-500">{incompleteTasks.length}</span>
+                <span className="block text-xl font-medium tabular-nums text-foreground">{incompleteTasks.length}</span>
                 <span className="text-[12px] font-medium text-muted-foreground">Incomplete</span>
               </div>
             </div>
@@ -1300,7 +1307,7 @@ function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
             {/* Completed List */}
             {completedTasks.length > 0 && (
               <div>
-                <h4 className="text-xs font-bold text-success mb-2 flex items-center gap-1"><Icon name="CheckCircleIcon" size={14} variant="solid" /> Knocked Out Today:</h4>
+                <h4 className="text-xs font-medium text-foreground mb-2 flex items-center gap-1"><Icon name="CheckCircleIcon" size={14} variant="solid" className="text-success" /> Done today</h4>
                 <ul className="list-disc pl-4 text-xs space-y-1 text-muted-foreground">
                   {completedTasks.map((t: any) => (
                     <li key={t.id}>{t.title}</li>
@@ -1312,25 +1319,25 @@ function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
             {/* Incomplete / Rescheduling */}
             {incompleteTasks.length > 0 && (
               <div className="space-y-3">
-                <h4 className="text-xs font-bold text-warning flex items-center gap-1"><Icon name="CalendarDaysIcon" size={14} /> Reschedule Remaining Tasks:</h4>
+                <h4 className="text-xs font-medium text-foreground flex items-center gap-1"><Icon name="CalendarDaysIcon" size={14} className="text-muted-foreground" /> Reschedule what’s left</h4>
                 <div className="space-y-2 max-h-[220px] overflow-y-auto scrollbar-clean pr-1">
                   {incompleteTasks.map((t: any) => (
                     <div key={t.id} className="p-3 rounded-lg border border-border bg-card space-y-2">
-                      <p className="text-xs font-semibold truncate text-foreground">{t.title}</p>
+                      <p className="text-xs font-medium truncate text-foreground">{t.title}</p>
                       <div className="flex gap-2">
                         {(['tomorrow', 'next_week', 'remove'] as const).map(act => (
                           <button
                             key={act}
                             type="button"
                             onClick={() => handleActionChange(t.id, act)}
-                            className={`flex-1 py-1 rounded text-xs font-semibold transition-smooth border ${
+                            className={`flex-1 py-1 rounded text-xs font-medium transition-smooth border ${
                               incompleteReschedule[t.id] === act
                                 ? 'bg-primary text-primary-foreground border-primary'
                                 : 'mix-bg-muted/30 text-muted-foreground border-border hover:bg-muted'
                             }`}
                           >
                             <Icon name={act === 'tomorrow' ? 'SunIcon' : act === 'next_week' ? 'CalendarDaysIcon' : 'TrashIcon'} size={11} className="inline -mt-px mr-1" />
-                            {act === 'tomorrow' ? 'Tomorrow' : act === 'next_week' ? 'Next Week' : 'Remove'}
+                            {act === 'tomorrow' ? 'Tomorrow' : act === 'next_week' ? 'Next week' : 'Remove'}
                           </button>
                         ))}
                       </div>
@@ -1351,7 +1358,7 @@ function EndDayModal({ plan, model, onClose, onDayEnded }: EndDayModalProps) {
             className="todo-btn todo-btn-primary w-full py-2"
           >
             <Icon name="MoonIcon" size={14} />
-            Complete Day & Reflect
+            Finish day
           </button>
         </div>
       )}
@@ -1427,12 +1434,12 @@ function ResumePanel({ task, model, onClose, onStartWorking }: ResumePanelProps)
   }, [task.id, model]);
 
   return (
-    <div role="complementary" aria-label="Task briefing" className="fixed top-[var(--chrome-top)] right-0 bottom-[var(--mobile-tab-h,0px)] w-full sm:w-[450px] bg-card border-l border-border shadow-2xl z-50 flex flex-col transition-all duration-300 animate-slide-in">
+    <div role="complementary" aria-label="Task briefing" className="fixed top-[var(--chrome-top)] right-0 bottom-[var(--mobile-tab-h,0px)] w-full sm:w-[450px] bg-card border-l border-border shadow-2xl z-50 flex flex-col animate-slide-in">
       {/* Panel Header */}
       <div className="p-4 border-b border-border flex items-center justify-between mix-bg-muted/30">
         <div className="flex items-center gap-2">
-          <Icon name="BoltIcon" size={18} className="text-amber-500" variant="solid" />
-          <span className="font-heading text-sm font-semibold text-foreground">Task Briefing: Resume Context</span>
+          <Icon name="BoltIcon" size={18} className="text-muted-foreground" variant="solid" />
+          <span className="font-heading text-sm font-semibold text-foreground">Task briefing</span>
         </div>
         <button onClick={onClose} className="todo-btn todo-btn-ghost p-1" aria-label="Close briefing">
           <Icon name="XMarkIcon" size={16} />
@@ -1441,18 +1448,18 @@ function ResumePanel({ task, model, onClose, onStartWorking }: ResumePanelProps)
 
       {/* Briefing Text */}
       <div className="flex-1 p-5 overflow-y-auto scrollbar-clean space-y-4">
-        <h3 className="font-heading text-base font-bold text-foreground">{task.title}</h3>
+        <h3 className="font-heading text-base font-semibold text-foreground">{task.title}</h3>
         
         {task.intention && (
           <div className="p-3 rounded-lg mix-bg-primary/5 border mix-border-primary/10 text-xs">
-            <span className="font-bold text-primary mb-1 flex items-center gap-1"><Icon name="FlagIcon" size={12} variant="solid" /> Why this matters:</span>
+            <span className="font-medium text-primary mb-1 flex items-center gap-1"><Icon name="FlagIcon" size={12} variant="solid" /> Why this matters:</span>
             <p className="text-muted-foreground leading-normal">{task.intention}</p>
           </div>
         )}
 
         {task.definition_of_done && (
-          <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-xs">
-            <span className="font-bold text-success mb-1 flex items-center gap-1"><Icon name="CheckCircleIcon" size={12} variant="solid" /> Done when:</span>
+          <div className="rounded-lg p-3 text-xs mix-bg-foreground/[0.04]">
+            <span className="font-medium text-success mb-1 flex items-center gap-1"><Icon name="CheckCircleIcon" size={12} variant="solid" /> Done when:</span>
             <p className="text-muted-foreground leading-normal">{task.definition_of_done}</p>
           </div>
         )}
@@ -1460,7 +1467,7 @@ function ResumePanel({ task, model, onClose, onStartWorking }: ResumePanelProps)
         <div className="border-t border-border pt-4">
           {loading ? (
             <div className="space-y-2.5">
-              <p className="text-xs text-muted-foreground animate-pulse">Streaming briefing from Coach...</p>
+              <p className="text-xs text-muted-foreground animate-pulse">Writing the briefing…</p>
               <div className="h-3 rounded bg-muted animate-pulse w-full" />
               <div className="h-3 rounded bg-muted animate-pulse w-5/6" />
               <div className="h-3 rounded bg-muted animate-pulse w-4/5" />
@@ -1469,7 +1476,7 @@ function ResumePanel({ task, model, onClose, onStartWorking }: ResumePanelProps)
             <div className="text-xs leading-relaxed whitespace-pre-wrap text-foreground">
               {briefing.split('\n').map((line, idx) => {
                 if (line.startsWith('1.') || line.startsWith('2.') || line.startsWith('3.')) {
-                  return <p key={idx} className="font-bold text-primary mt-3 mb-1">{line}</p>;
+                  return <p key={idx} className="font-medium text-primary mt-3 mb-1">{line}</p>;
                 }
                 return <p key={idx} className={idx > 0 ? 'mt-1' : ''}>{line}</p>;
               })}
@@ -1482,10 +1489,10 @@ function ResumePanel({ task, model, onClose, onStartWorking }: ResumePanelProps)
       <div className="p-4 border-t border-border mix-bg-muted/20 flex gap-3">
         <button
           onClick={onStartWorking}
-          className="flex-1 py-2 px-4 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:mix-bg-primary/95 transition-smooth flex items-center justify-center gap-1.5"
+          className="flex-1 py-2 px-4 rounded-lg bg-primary text-primary-foreground font-medium text-xs hover:mix-bg-primary/95 transition-smooth flex items-center justify-center gap-1.5"
         >
           <Icon name="PlayIcon" size={14} variant="solid" />
-          Start Working
+          Start working
         </button>
         <button
           onClick={onClose}
@@ -1591,7 +1598,7 @@ function BrainDumpModal({ model, onClose, onTasksSaved }: BrainDumpModalProps) {
       <div className="p-4 border-b border-border flex items-center justify-between mix-bg-muted/30">
         <div className="flex items-center gap-2">
           <span className="todo-icon-chip h-8 w-8"><Icon name="LightBulbIcon" size={16} /></span>
-          <span id="todo-braindump-title" className="font-heading text-base font-bold text-foreground">Brain Dump Mode</span>
+          <span id="todo-braindump-title" className="font-heading text-base font-semibold text-foreground">Brain dump</span>
         </div>
         <button onClick={onClose} className="todo-btn todo-btn-ghost p-1" aria-label="Close">
           <Icon name="XMarkIcon" size={16} />
@@ -1625,24 +1632,24 @@ function BrainDumpModal({ model, onClose, onTasksSaved }: BrainDumpModalProps) {
               className="todo-btn todo-btn-primary w-full py-2.5"
             >
               <Icon name="SparklesIcon" size={14} variant="solid" />
-              Analyze Dump & Generate Tasks
+              Turn into tasks
             </button>
           </div>
         ) : loading ? (
           <div className="flex flex-col items-center justify-center py-16 space-y-3">
             <span className="w-8 h-8 border-4 mix-border-primary/30 border-t-primary rounded-full animate-spin" />
-            <p className="text-xs text-muted-foreground animate-pulse font-medium">AI is parsing your thoughts into structured tasks...</p>
+            <p className="text-xs text-muted-foreground animate-pulse font-medium">Turning your dump into tasks…</p>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-foreground flex items-center gap-1"><Icon name="ClipboardDocumentListIcon" size={14} /> Review Parsed Tasks ({parsedTasks.length})</h4>
+              <h4 className="text-xs font-medium text-foreground flex items-center gap-1"><Icon name="ClipboardDocumentListIcon" size={14} /> Review tasks ({parsedTasks.length})</h4>
               <button
                 onClick={() => { setParsedTasks([]); setError(null); }}
-                className="todo-focus rounded text-xs text-primary hover:underline font-semibold"
+                className="todo-focus rounded text-xs text-primary hover:underline font-medium"
                 title="Go back and edit your text (it's kept)"
               >
-                Edit Text
+                Edit text
               </button>
             </div>
 
@@ -1660,13 +1667,13 @@ function BrainDumpModal({ model, onClose, onTasksSaved }: BrainDumpModalProps) {
                     type="text"
                     value={t.title}
                     onChange={e => handleEditField(idx, 'title', e.target.value)}
-                    className="w-full text-xs font-bold bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none text-foreground py-0.5"
+                    className="w-full text-xs font-medium bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none text-foreground py-0.5"
                   />
                   <div className="flex flex-wrap gap-2 items-center">
                     <select
                       value={t.priority || 'p3'}
                       onChange={e => handleEditField(idx, 'priority', e.target.value)}
-                      className="bg-input border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus-ring font-semibold"
+                      className="bg-input border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus-ring font-medium"
                     >
                       <option value="p1">P1 (High)</option>
                       <option value="p2">P2</option>
@@ -1689,7 +1696,7 @@ function BrainDumpModal({ model, onClose, onTasksSaved }: BrainDumpModalProps) {
                   <input
                     type="text"
                     value={t.context || ''}
-                    placeholder="Add context notes..."
+                    placeholder="Add context notes"
                     onChange={e => handleEditField(idx, 'context', e.target.value)}
                     className="w-full text-xs text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none py-0.5 placeholder:text-muted-foreground"
                   />
@@ -1713,11 +1720,11 @@ function BrainDumpModal({ model, onClose, onTasksSaved }: BrainDumpModalProps) {
             ) : (
               <Icon name="CheckIcon" size={14} variant="solid" />
             )}
-            Save Tasks ({parsedTasks.length})
+            Save tasks ({parsedTasks.length})
           </button>
           <button
             onClick={onClose}
-            className="py-2 px-4 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted transition-smooth font-semibold"
+            className="py-2 px-4 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted transition-smooth font-medium"
           >
             Cancel
           </button>

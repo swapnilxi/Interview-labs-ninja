@@ -154,7 +154,7 @@ export function SaveIndicator({
               <button
                 type="button"
                 onClick={onRetry}
-                className="todo-focus rounded font-semibold underline"
+                className="todo-focus rounded font-medium underline"
               >
                 Retry
               </button>

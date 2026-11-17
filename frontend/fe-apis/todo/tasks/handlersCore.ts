@@ -136,6 +136,7 @@ const TASK_UPDATE: Record<string, FieldSpec> = {
   pareto_score: { kind: 'float', nullable: true },
   pareto_reason: optStr,
   remind_at: optStr,
+  pinned: { kind: 'bool', nullable: true },
 };
 
 /** TASK_NULLABLE in tasks/router.py: columns a PATCH can empty by sending `null`; `null` elsewhere = no change. */

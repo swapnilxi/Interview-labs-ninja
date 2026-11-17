@@ -693,7 +693,7 @@ export default function PracticeMode(_props: PracticeModeProps) {
     return (
       <div className="flex h-[22rem] flex-col items-center justify-center gap-3">
         <Mascot mood="think" size={80} />
-        <p className="text-sm font-semibold ds-muted">Deepu is lighting the lamp…</p>
+        <p className="text-sm font-medium ds-muted">Deepu is lighting the lamp…</p>
       </div>
     );
   }

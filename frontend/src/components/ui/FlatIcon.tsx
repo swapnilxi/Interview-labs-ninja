@@ -156,10 +156,13 @@ interface FlatIconProps {
   className?: string;
   /** Only when the icon stands alone and carries meaning. Next to text it is decorative and stays hidden. */
   label?: string;
+  /** Drop the meaning colour: the glyph is muted text (or any `text-*` class you pass, `text-current` to follow the label). */
+  quiet?: boolean;
 }
 
-export default function FlatIcon({ name, size = 16, className = '', label }: FlatIconProps) {
-  const [Glyph, tone] = ICONS[name];
+export default function FlatIcon({ name, size = 16, className = '', label, quiet = false }: FlatIconProps) {
+  const [Glyph, meaning] = ICONS[name];
+  const tone = quiet ? (/(^|\s)text-/.test(className) ? '' : 'text-muted-foreground') : meaning;
   return (
     <Glyph
       width={size}

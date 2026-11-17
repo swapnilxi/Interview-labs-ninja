@@ -153,7 +153,7 @@ export default function QuickTaskDetailModal({
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b mix-border-border/80 mix-bg-muted/20 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="text-xs tabular-nums px-2 py-0.5 rounded bg-muted text-muted-foreground font-semibold shrink-0">
+          <span className="text-xs tabular-nums px-2 py-0.5 rounded bg-muted text-muted-foreground font-medium shrink-0">
             Task #{task.id}
           </span>
           <input
@@ -162,7 +162,7 @@ export default function QuickTaskDetailModal({
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => saveText('title', title)}
             aria-label="Task title"
-            className="text-base font-semibold bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-smooth truncate w-full"
+            className="text-base font-medium bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-smooth truncate w-full"
           />
         </div>
         <div className="ml-3 flex shrink-0 items-center gap-2">
@@ -184,7 +184,7 @@ export default function QuickTaskDetailModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mix-bg-muted/20 p-3 rounded-xl border mix-border-border/60">
           <div>
             <label htmlFor="quick-detail-due" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-              Due Date
+              Due date
             </label>
             <input
               id="quick-detail-due"
@@ -197,7 +197,7 @@ export default function QuickTaskDetailModal({
 
           <div>
             <label htmlFor="quick-detail-estimate" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-              Time Estimate
+              Time estimate
             </label>
             <input
               id="quick-detail-estimate"
@@ -213,16 +213,16 @@ export default function QuickTaskDetailModal({
 
         {/* Context & Description */}
         <div className="space-y-1.5">
-          <label htmlFor="quick-detail-context" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+          <label htmlFor="quick-detail-context" className="text-xs font-medium text-foreground flex items-center gap-1.5">
             <Icon name="DocumentTextIcon" size={14} className="text-primary" />
-            Context & Description
+            Context & description
           </label>
           <textarea
             id="quick-detail-context"
             value={context}
             onChange={(e) => setContext(e.target.value)}
             onBlur={() => saveText('context', context)}
-            placeholder="Attach background details, notes, links, or instructions for this task..."
+            placeholder="Background details, notes, links or instructions for this task"
             rows={4}
             className="w-full bg-input border border-border rounded-xl p-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:mix-text-muted-foreground/60 leading-relaxed"
           />
@@ -231,7 +231,7 @@ export default function QuickTaskDetailModal({
           <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:mix-border-primary/40 hover:mix-bg-primary/5 transition-smooth">
             <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
             <span className="text-xs text-muted-foreground">
-              {uploading ? 'Extracting text...' : 'Add context from a PDF, .docx, or .txt file'}
+              {uploading ? 'Extracting text…' : 'Add context from a PDF, .docx, or .txt file'}
             </span>
             <input
               type="file"

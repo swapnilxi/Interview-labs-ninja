@@ -52,7 +52,7 @@ export default function PlayerCard({ xp, todayXp, goal, onGoalChange }: Props) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="pm-goal-line">
-            <span className="font-semibold ds-ink">{goalDone ? 'Daily goal reached' : 'Daily goal'}</span>
+            <span className="font-medium ds-ink">{goalDone ? 'Daily goal reached' : 'Daily goal'}</span>
             <span className="ds-num ds-muted">
               {Math.min(todayXp, 9999)} of {goal} XP
             </span>
@@ -92,7 +92,7 @@ export default function PlayerCard({ xp, todayXp, goal, onGoalChange }: Props) {
                 className="ds-list-row w-full text-left"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-semibold ds-ink">
+                  <span className="block text-[15px] font-medium ds-ink">
                     {o.label}, <span className="ds-num">{o.xp}</span> XP
                   </span>
                   <span className="block text-xs ds-faint">{o.sub}</span>

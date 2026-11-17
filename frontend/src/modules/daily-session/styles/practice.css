@@ -27,19 +27,19 @@
 }
 .ds-skin .pm-player-level small {
   font-size: 0.625rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ds-ink-3);
 }
 .ds-skin .pm-player-level b {
   margin-top: 2px;
   font-size: 1.6rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.03em;
   color: var(--ds-ink);
 }
 .ds-skin .pm-player-rank {
   font-size: clamp(1.2rem, 1.05rem + 0.6vw, 1.45rem);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.022em;
   line-height: 1.2;
   color: var(--ds-ink);
@@ -88,7 +88,7 @@
   border-radius: 999px;
   background: var(--color-fill);
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.5rem;
   text-align: center;
   color: var(--ds-ink-2);
@@ -115,7 +115,7 @@
   padding: 0 0.6rem;
   border-radius: 999px;
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   animation: pm-bump 0.42s var(--ease-ios, ease) both;
 }
 .ds-skin .pm-xp {
@@ -190,7 +190,7 @@
 }
 .ds-skin .pm-result-grade {
   font-size: 1.35rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
@@ -202,14 +202,14 @@
 }
 .ds-skin .pm-score b {
   font-size: 1.75rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.03em;
   color: var(--ds-ink);
 }
 .ds-skin .pm-score small {
   margin-top: 3px;
   font-size: 0.625rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ds-ink-3);
 }
 .ds-skin .pm-xp-line {
@@ -228,7 +228,7 @@
   background: var(--ds-gold-soft);
   color: var(--ds-gold-ink);
   font-size: 0.875rem;
-  font-weight: 750;
+  font-weight: 600;
   animation: pm-xp-in 0.6s 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 @keyframes pm-xp-in {
@@ -276,7 +276,7 @@
   list-style: none;
   cursor: pointer;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ds-ink-2);
 }
 .ds-skin .pm-more > summary::-webkit-details-marker {
@@ -345,7 +345,7 @@
   gap: 0.4rem;
   padding: 0 0.6rem 0 0.9rem;
   font-size: 0.9375rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--t-ink);
 }
 /* The result takes over the bar's colour. */
@@ -367,7 +367,7 @@
 .ds-skin .pm-finish-xp {
   margin-top: 1.1rem;
   font-size: clamp(2.6rem, 2rem + 2.5vw, 3.4rem);
-  font-weight: 750;
+  font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1;
   color: color-mix(in srgb, var(--ds-gold) 78%, var(--ds-ink));
@@ -375,7 +375,7 @@
 .ds-skin .pm-finish-xp small {
   margin-left: 0.2em;
   font-size: 0.4em;
-  font-weight: 650;
+  font-weight: 500;
   letter-spacing: 0;
   color: var(--ds-ink-3);
 }

@@ -39,6 +39,7 @@ def _task_row_to_dict(row: tuple) -> Dict[str, Any]:
         "pareto_reason": row[23] if len(row) > 23 else None,
         "pareto_locked": bool(row[24]) if len(row) > 24 and row[24] is not None else False,
         "remind_at": row[25] if len(row) > 25 else None,
+        "pinned": bool(row[26]) if len(row) > 26 and row[26] is not None else False,
     }
 
 
@@ -47,7 +48,7 @@ _TASK_COLUMNS = (
     "generation_type, depth_level, context, attachments, created_at, updated_at, "
     "last_activity_at, is_recurring, recurrence_interval, recurrence_custom_days, "
     "recurrence_template_id, intention, definition_of_done, eisenhower_quadrant, "
-    "pareto_score, is_top_20, pareto_reason, pareto_locked, remind_at"
+    "pareto_score, is_top_20, pareto_reason, pareto_locked, remind_at, pinned"
 )
 
 
@@ -243,7 +244,7 @@ def update_task(task_id: int, user_id: int, **fields) -> Optional[Dict[str, Any]
                "recurrence_interval", "recurrence_custom_days",
                "recurrence_template_id", "intention", "definition_of_done",
                "eisenhower_quadrant", "pareto_score", "is_top_20",
-               "pareto_reason", "pareto_locked", "remind_at"}
+               "pareto_reason", "pareto_locked", "remind_at", "pinned"}
     updates = {k: v for k, v in fields.items() if k in allowed}
 
     if not updates:
@@ -292,6 +293,9 @@ def update_task(task_id: int, user_id: int, **fields) -> Optional[Dict[str, Any]
                 )
                 # Clone the task tree
                 new_task_id = clone_recurring_task(task_id, user_id, next_due)
+                # A pinned repeating task stays pinned: the next one takes the pin.
+                if current_task.get("pinned"):
+                    cursor.execute("UPDATE tasks SET pinned = 1 WHERE id = ?", (new_task_id,))
                 # Turn off recurrence on the completed task
                 cursor.execute("UPDATE tasks SET is_recurring = 0 WHERE id = ?", (task_id,))
                 conn.commit()

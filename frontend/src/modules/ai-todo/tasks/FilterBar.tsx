@@ -58,11 +58,6 @@ const LEVERAGE_CHIPS: ChipDef[] = [
   { key: 'top20', label: 'Top 20%' },
 ];
 
-const VIEW_MODES: { key: ViewMode; label: string; icon: string; hint: string }[] = [
-  { key: 'tree', label: 'Tree', icon: 'Bars3BottomLeftIcon', hint: 'Nested tasks and subtasks' },
-  { key: 'list', label: 'List', icon: 'ListBulletIcon', hint: 'Every task as one flat list' },
-  { key: 'focus', label: 'Focus', icon: 'PlayCircleIcon', hint: 'Only in-progress and overdue tasks' },
-];
 
 /** How many narrowing filters are on. Search and the layout are not filters; Top 20% is. */
 export function countActiveFilters(f: TaskFilters): number {
@@ -93,7 +88,7 @@ function ChipGroup({ label, chips, activeKey, onPick }: {
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`${label} filter`}>
-      <span className="mr-2 w-[4.5rem] shrink-0 text-[12px] font-semibold text-muted-foreground">{label}</span>
+      <span className="mr-2 w-[4.5rem] shrink-0 text-[12px] font-medium text-muted-foreground">{label}</span>
       {chips.map(chip => {
         const isActive = activeKey === chip.key;
         return (
@@ -153,10 +148,9 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* One row: find, narrow, then choose how the list is drawn. It wraps by the column's width (not the viewport):
-          the Copilot panel can halve the column at lg. On a phone, search takes a row and the other two share the next. */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
-        <div className="relative min-w-0 flex-[1_1_11rem]">
+      {/* One row: find, then narrow. How the list is drawn is the page's view switch (SmartTodo). */}
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
           <Icon name="MagnifyingGlassIcon" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="search"
@@ -178,7 +172,7 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
           )}
         </div>
 
-        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
+        <div className="flex items-center">
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
@@ -190,7 +184,7 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
             Filters
             {activeFilterCount > 0 && (
               <span
-                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-xs font-semibold leading-none text-primary-foreground"
+                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-xs font-medium leading-none text-primary-foreground"
                 aria-label={`${activeFilterCount} active`}
               >
                 {activeFilterCount}
@@ -199,24 +193,6 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
             <Icon name="ChevronDownIcon" size={12} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
           </button>
 
-          <span className="hidden h-5 w-px bg-border sm:block" aria-hidden="true" />
-
-          {/* Layout: how the task list is drawn. The one place to switch it. */}
-          <div className="todo-segmented todo-segmented-quiet todo-segmented-accent h-9" role="group" aria-label="Task view">
-            {VIEW_MODES.map(mode => (
-              <button
-                key={mode.key}
-                type="button"
-                aria-pressed={filters.view === mode.key}
-                onClick={() => update('view', mode.key)}
-                className="todo-segment h-full justify-center"
-                title={mode.hint}
-              >
-                <Icon name={mode.icon} size={14} />
-                {mode.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 

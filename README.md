@@ -737,15 +737,63 @@ Anytime). The other tabs are unchanged; a floating mic (`.vc-fab`) opens the sam
   The user-facing setup guide and the done/pending list live in `frontend/public/notification-setup.html`
   (served at `/notification-setup.html`, linked from the app).
 
-### Scheduler (reminders and AI jobs on a schedule)
+### Routines and pinned tasks
 
-`/ai-todo?tab=schedule` (`modules/ai-todo/schedule/`). A schedule is either a **reminder** (a notification with your
-text) or an **AI job** (at each run the AI follows your instructions, can read your open tasks, optionally adds the
-tasks it suggests, and its answer becomes the notification). You can describe one in your own words, or set it up with
-options:
+`/ai-todo?tab=routines` (`modules/ai-todo/routines/`) holds **routine groups**: lists you tick off each day. Every user
+has **Dailies** (`kind='dailies'`, on every day, can be renamed but not deleted, made on the first read). Other groups
+are on their weekdays (`days`, 0 = Sunday … 6 = Saturday, e.g. Weekdays or Weekend) and/or on one date the user
+switched them on for (`active_on`, e.g. the day before a deployment). A tick is the local date in `done_on`, so a
+routine is fresh again tomorrow without a reset job. Today shows the groups that are on today in a collapsible
+"Routine" section (`TodayRoutine.tsx`).
 
-- **Describe it.** `POST /todo/schedules/parse` turns "every weekday at 8:30, plan my day" into a draft. The draft opens
-  in the editor so you can check it before saving. The **options** cover once, every N minutes/hours/days (at least
+- **Moves are real moves** (the source row is deleted, like the other To-Do moves): an item to another group
+  (`PATCH group_id`, lands at the end), out to the To-Do as a task due on the browser's today or to Quick Daily
+  (`POST /todo/routines/items/{id}/move-out`), and a task or quick task in (`POST /todo/tasks/{id}/move-to-routine`,
+  `POST /todo/quick-tasks/{id}/move-to-routine`, from the menus on Today, Smart To-Do and Quick Daily). A task's
+  subtasks are deleted with it, so the UI asks first.
+- **Twins:** `backend/modules/ai_todo/routines/` (`router.py`, `db.py`) ↔ `frontend/fe-apis/todo/routines/`
+  (`handlers.ts`, `db.ts`); tables `routine_groups` / `routine_items` in both schema files. Limits (60-char names,
+  200-char items, 30 groups, 100 items per group), error texts and status codes are identical; lengths count code
+  points on both sides. In nextjs-api mode a GET skips the Neon push, so the routines GET pushes once itself when it
+  has just made the user's Dailies.
+- **Pinned tasks:** `tasks.pinned` (both twins, PATCH `{pinned: true|false}`, a repeating task's next copy keeps the pin).
+  Today lists open pinned tasks first, whatever their date, highest priority first and then the soonest date; a pinned
+  task is not repeated in its date group.
+
+### Assistant and Scheduler (chat, reports, reminders and AI jobs on a schedule)
+
+`/ai-todo?tab=schedule` is the **Assistant** tab (`modules/ai-todo/schedule/assistant/`): a chat, like ChatGPT with
+tasks, beside the list of what's scheduled (below 1100px a Chat / Scheduled switch shows one at a time).
+
+- **Chat:** `POST /todo/agent/chat` (`backend/modules/ai_todo/agent/router.py` ↔ `frontend/fe-apis/todo/agent/handlers.ts`,
+  prompts byte-identical). Each turn reads a fresh snapshot of your To-Do workspace (counts, open tasks, what you finished
+  in the last 14 days, today's Quick list, projects, goals: `agent/context.py` ↔ `context.ts`) and your schedules. The
+  model may ask for **one web search** (`agent/web_step.py` ↔ `webStep.ts`, through the SSRF-guarded research module)
+  and may propose **actions**: create, change, pause/resume, run or delete a schedule, add tasks, complete a task. The
+  endpoint only validates them (ids must be yours, rules go through `normalize_rule`) and never writes; the browser
+  carries them out through the ordinary endpoints (`lib/services/agentService.ts`), so each one re-syncs the alarms and
+  can be undone from its card. A delete waits for a tap.
+- **The conversation** is kept in this browser (localStorage, per account, last 80 messages; "New chat" clears it).
+  Results of scheduled AI jobs come from `GET /todo/schedules/activity` and appear in the conversation; the last two
+  days of them are sent with each message, so "what did my report say?" works.
+- **Voice** (`assistant/voice.ts`, `useVoiceConversation.ts`): the mic dictates into the box (a dictated message is
+  answered aloud when that setting is on); **voice mode** listens until you stop talking, answers out loud and listens
+  again (tap to finish or interrupt; it pauses after silence, an error, or a delete that needs confirming). Hearing uses
+  the browser's recognizer, or the mic + `/api/voice/stt` when Deepgram is on. Speaking uses the device voice or the
+  server voice (`/api/voice/tts`): "Auto" picks the server voice when Deepgram is on, and a device without voices (the
+  Android WebView) falls back to it. Each reply carries a short `speech` version for this. Settings are per browser.
+- The To-Do route's `maxDuration` is 180 s: a web-search turn is two AI calls with page fetches in between.
+
+A schedule is either a **reminder** (a notification with your text) or an **AI job** (at each run the AI follows your
+instructions and its answer becomes the notification). An AI job reads nothing, your open tasks, or **everything**
+(`agent_context` `none | tasks | workspace`, the same snapshot as the chat), may **search the web** once per run
+(`use_web`) and may **write a full report** (`write_report`: the run keeps `report` and the `sources` it read; `output`
+stays the short notification text, which is all the Android plugin reads). A job without these options gets exactly
+the prompt it always did. It can also add the tasks it suggests. You can ask the Assistant for one, or set it up with
+options (Scheduled → New):
+
+- **Describe it.** The Assistant creates it (above). `POST /todo/schedules/parse` (a sentence → a draft, no longer used by
+  the page) still exists in both twins. The **options** cover once, every N minutes/hours/days (at least
   15 min), daily, weekdays, weekly on chosen days, monthly on a day, or a custom 5-field cron, plus an optional end date.
 - **Rules** (`src/lib/schedules/scheduleRules.ts`) are always read in the device's local time.
   - `normalizeRule` validates a rule and gives it a canonical shape. The server stores it with that shape. Its Python

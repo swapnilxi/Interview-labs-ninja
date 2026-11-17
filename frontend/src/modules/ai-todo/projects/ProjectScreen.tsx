@@ -9,6 +9,7 @@ import ProjectIcon from './ProjectIcon';
 import ProjectExplorer from './ProjectExplorer';
 import ProjectPlanner from './planner/ProjectPlanner';
 import { planUrls, type ProjectSection } from './projectUrls';
+import { PROJECT_STATUS_COLOR } from '../shared/semanticColors';
 
 interface ProjectScreenProps {
   project: Project;
@@ -17,7 +18,7 @@ interface ProjectScreenProps {
 
 const SECTIONS: { id: ProjectSection; label: string; icon: string }[] = [
   { id: 'explore', label: 'Explorer', icon: 'FolderOpenIcon' },
-  { id: 'planner', label: 'AI Planner', icon: 'SparklesIcon' },
+  { id: 'planner', label: 'AI planner', icon: 'SparklesIcon' },
 ];
 
 /**
@@ -42,16 +43,19 @@ export default function ProjectScreen({ project, model }: ProjectScreenProps) {
             <ProjectIcon icon={project.icon} size={24} />
           </div>
           <div className="min-w-0">
-            <h2 className="flex flex-wrap items-center gap-2 font-heading text-[22px] font-bold leading-tight tracking-[-0.02em] text-foreground sm:text-xl">
+            <h2 className="flex flex-wrap items-center gap-2 font-heading text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-xl">
               <span className="min-w-0 break-words">{project.title}</span>
               {project.is_top_20 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-2 py-0.5 text-xs font-semibold tracking-normal text-amber-600 dark:text-amber-400">
+                <span className="inline-flex items-center gap-1 text-xs font-medium tracking-normal text-warning">
                   <FlatIcon name="star" size={12} /> Top 20%
                 </span>
               )}
             </h2>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground">
-              <span className="font-semibold capitalize" style={{ color: 'var(--color-success)' }}>{project.status}</span>
+              <span className="inline-flex items-center gap-1.5 capitalize">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: PROJECT_STATUS_COLOR[project.status] || PROJECT_STATUS_COLOR.archived }} aria-hidden="true" />
+                {project.status}
+              </span>
               <span aria-hidden="true">·</span>
               <span>{project.priority.toUpperCase()}</span>
               {project.due_date && (
@@ -71,7 +75,7 @@ export default function ProjectScreen({ project, model }: ProjectScreenProps) {
               type="button"
               onClick={() => update({ section: s.id === 'planner' ? 'planner' : null, step: null })}
               aria-pressed={section === s.id}
-              className="todo-segment flex-1 gap-2 px-4 py-2 text-sm font-semibold sm:flex-none"
+              className="todo-segment flex-1 gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
             >
               <Icon name={s.icon} size={15} variant={section === s.id ? 'solid' : 'outline'} />
               {s.label}

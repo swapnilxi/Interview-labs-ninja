@@ -41,7 +41,7 @@ export default function EmptyDeckState({
       >
         <Icon name={fresh ? 'SparklesIcon' : 'CheckBadgeIcon'} size={32} variant="solid" />
       </div>
-      <h3 className="mt-4 font-heading text-xl font-bold text-foreground">
+      <h3 className="mt-4 font-heading text-xl font-semibold text-foreground">
         {fresh ? `No ${deckLabel} cards yet` : "You're all caught up"}
       </h3>
       <p className="mt-1.5 max-w-[19rem] text-sm leading-relaxed text-muted-foreground">

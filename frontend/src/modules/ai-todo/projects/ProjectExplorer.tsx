@@ -733,7 +733,7 @@ export default function ProjectExplorer({ project, model }: ProjectExplorerProps
               <Icon name="RectangleStackIcon" size={26} />
             </span>
             <div>
-              <p className="text-[15px] font-semibold text-foreground">
+              <p className="text-[15px] font-medium text-foreground">
                 Nothing in this project yet
               </p>
               <p className="mt-1 text-[13px] text-muted-foreground">
@@ -772,7 +772,7 @@ export default function ProjectExplorer({ project, model }: ProjectExplorerProps
         >
           <div className="todo-glass flex items-center gap-3 rounded-full px-4 py-2.5 shadow-lg">
             <span className="h-4 w-4 animate-spin rounded-full border-2 mix-border-primary/20 border-t-primary" />
-            <span className="text-[13px] font-semibold text-foreground">
+            <span className="text-[13px] font-medium text-foreground">
               {actionLoading.startsWith('dive') || actionLoading.startsWith('chunk')
                 ? 'AI is breaking it down…'
                 : 'Working…'}

@@ -30,7 +30,7 @@ export default function BulkActionsBar({
         <Icon name="XMarkIcon" size={18} variant="outline" />
       </button>
       <p
-        className="mr-auto min-w-0 truncate pr-1 text-[0.88rem] font-semibold ds-ink ds-num"
+        className="mr-auto min-w-0 truncate pr-1 text-[0.88rem] font-medium ds-ink ds-num"
         aria-live="polite"
       >
         {selectedCount} selected

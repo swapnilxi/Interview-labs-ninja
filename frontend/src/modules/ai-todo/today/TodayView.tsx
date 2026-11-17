@@ -6,7 +6,12 @@ import Icon from '@/components/ui/AppIcon';
 import FlatIcon, { type FlatIconName } from '@/components/ui/FlatIcon';
 import Popover from '@/components/ui/Popover';
 import { toast } from '@/lib/ui/toast';
+import { confirmDialog } from '@/lib/ui/confirm';
+import { reportFailure } from '@/lib/services/mutationFeedback';
 import { TASKS_CHANGED_EVENT, todoService, triggerConfetti, type Task } from '@/lib/services/todoService';
+import { routineService, type RoutineGroup } from '@/lib/services/routineService';
+import RoutineGroupMenu from '../routines/RoutineGroupMenu';
+import TodayRoutine from '../routines/TodayRoutine';
 import { ymd } from '@/lib/reminders/smartParse';
 import { canAddToCalendar, downloadIcs, formatDueDate, googleCalendarUrl, isPast } from '@/lib/reminders/reminderTime';
 import VoiceCapture, { PRIORITY_META } from '../capture/VoiceCapture';
@@ -24,9 +29,11 @@ interface TodayViewProps {
   model: 'ollama' | 'gemini';
 }
 
-type GroupId = 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'anytime';
+type GroupId = 'pinned' | 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'anytime';
 
 const GROUPS: { id: GroupId; label: string; icon: FlatIconName; empty?: string }[] = [
+  // Pinned tasks stay on top whatever their date, highest priority first.
+  { id: 'pinned', label: 'Pinned', icon: 'pin' },
   { id: 'overdue', label: 'Overdue', icon: 'warning' },
   { id: 'today', label: 'Today', icon: 'calendar' },
   { id: 'tomorrow', label: 'Tomorrow', icon: 'next' },
@@ -62,14 +69,6 @@ function serverTime(value: string): Date | null {
   if (!/(Z|[+-]\d\d:?\d\d)$/.test(v)) v += 'Z';
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function greeting(now: Date): string {
-  const h = now.getHours();
-  if (h < 5) return 'Good night';
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
 }
 
 export default function TodayView({ model }: TodayViewProps) {
@@ -148,14 +147,15 @@ export default function TodayView({ model }: TodayViewProps) {
   const byId = useMemo(() => new Map((tasks ?? []).map((t) => [t.id, t])), [tasks]);
 
   const groups = useMemo(() => {
-    const out: Record<GroupId, Task[]> = { overdue: [], today: [], tomorrow: [], upcoming: [], anytime: [] };
+    const out: Record<GroupId, Task[]> = { pinned: [], overdue: [], today: [], tomorrow: [], upcoming: [], anytime: [] };
     if (!tasks) return out;
     const today = ymd(now);
     const tomorrow = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
     for (const t of tasks) {
       if (!isOpen(t)) continue;
       const day = dayOf(t);
-      if (!day) {
+      if (t.pinned) out.pinned.push(t);
+      else if (!day) {
         // Only whole tasks, not the AI's sub-steps: "Anytime" is what you captured, not every breakdown leaf.
         if (t.parent_id === null) out.anytime.push(t);
       } else if (day < today) out.overdue.push(t);
@@ -170,6 +170,14 @@ export default function TodayView({ model }: TodayViewProps) {
       a.id - b.id;
     (Object.keys(out) as GroupId[]).forEach((g) => out[g].sort(byTime));
     out.anytime.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || b.id - a.id);
+    // Priority first; within a priority, the one due soonest (no date last).
+    out.pinned.sort(
+      (a, b) =>
+        PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] ||
+        (dayOf(a) ?? '9999').localeCompare(dayOf(b) ?? '9999') ||
+        sortKey(a) - sortKey(b) ||
+        a.id - b.id,
+    );
     return out;
   }, [tasks, now]);
 
@@ -183,8 +191,13 @@ export default function TodayView({ model }: TodayViewProps) {
     });
   }, [tasks, now]);
 
-  const remindersToday = groups.today.filter((t) => t.remind_at && !isPast(t.remind_at, now)).length;
-  const openToday = groups.today.length + groups.overdue.length;
+  // Counted over every open task, pinned ones included (they are still due when they are due).
+  const dueByToday = (tasks ?? []).filter((t) => {
+    const day = isOpen(t) ? dayOf(t) : null;
+    return day !== null && day <= ymd(now);
+  });
+  const remindersToday = dueByToday.filter((t) => dayOf(t) === ymd(now) && t.remind_at && !isPast(t.remind_at, now)).length;
+  const openToday = dueByToday.length;
 
   const setDone = async (task: Task, done: boolean, origin?: HTMLElement | null) => {
     setTasks((list) => list?.map((t) => (t.id === task.id ? { ...t, status: done ? 'done' : 'backlog' } : t)) ?? list);
@@ -241,6 +254,37 @@ export default function TodayView({ model }: TodayViewProps) {
     else toast.info(`Deleted “${task.title}”`);
   };
 
+  const setPinned = async (task: Task, pinned: boolean) => {
+    setTasks((list) => list?.map((t) => (t.id === task.id ? { ...t, pinned } : t)) ?? list);
+    const saved = await todoService.updateTask(task.id, { pinned });
+    if (!saved) void load();
+    else if (pinned) toast.success(`Pinned: ${task.title}`);
+  };
+
+  const moveToRoutine = async (task: Task, group: RoutineGroup) => {
+    const subtasks = task.children?.length ?? 0;
+    if (
+      subtasks > 0 &&
+      !(await confirmDialog({
+        title: `Move “${task.title}” to ${group.name}?`,
+        message: `A routine item has no subtasks, so its ${subtasks} subtask${subtasks === 1 ? '' : 's'} will be deleted.`,
+        confirmLabel: 'Move',
+        tone: 'danger',
+      }))
+    )
+      return;
+    setTasks((list) => list?.filter((t) => t.id !== task.id && t.parent_id !== task.id) ?? list);
+    try {
+      await routineService.moveTaskIn(task.id, group.id);
+      toast.success(`Moved to ${group.name}`, {
+        action: { label: 'Open', onClick: () => router.push('/ai-todo?tab=routines') },
+      });
+    } catch (err) {
+      reportFailure('move the task', err);
+      void load();
+    }
+  };
+
   const onAdded = (created: Task[]) => {
     if (created.length) setJustAdded(new Set(created.map((t) => t.id)));
     void load();
@@ -251,16 +295,11 @@ export default function TodayView({ model }: TodayViewProps) {
   return (
     <div className="today-layout">
       <div className="min-w-0">
-        {/* Greeting: the day at a glance */}
+        {/* The day at a glance: the date is the title */}
         <div className="mb-[1rem] flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-          <div>
-            <p className="text-[13px] font-semibold text-muted-foreground">
-              {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
-            </p>
-            <h2 className="font-heading mt-0.5 text-[1.625rem] font-bold leading-tight tracking-[-0.022em] text-foreground sm:text-[1.85rem]">
-              {greeting(now)}
-            </h2>
-          </div>
+          <h2 className="todo-section-title font-semibold">
+            {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+          </h2>
           {tasks && (
             <p className="text-sm text-muted-foreground">
               {openToday === 0 ? 'Nothing due today' : `${openToday} to do today`}
@@ -290,22 +329,27 @@ export default function TodayView({ model }: TodayViewProps) {
           {tasks === null ? (
             <AgendaSkeleton />
           ) : totalOpen === 0 ? (
-            <div className="agenda-empty">
-              <FlatIcon name="ok" size={44} />
-              <p className="font-heading mt-3 text-base font-semibold text-foreground">You’re all clear</p>
-              <p className="mt-1 max-w-[22rem] text-sm text-muted-foreground">
-                Tap the mic and say what’s on your mind — “remind me to pay rent on Friday at 10” — and it lands here with its reminder.
-              </p>
-            </div>
+            <>
+              <TodayRoutine now={now} />
+              <div className="agenda-empty">
+                <FlatIcon name="ok" size={44} />
+                <p className="font-heading mt-3 text-base font-semibold text-foreground">You’re all clear</p>
+                <p className="mt-1 max-w-[22rem] text-sm text-muted-foreground">
+                  Tap the mic and say what’s on your mind — “remind me to pay rent on Friday at 10” — and it lands here with its reminder.
+                </p>
+              </div>
+            </>
           ) : (
             GROUPS.map((group) => {
               const all = groups[group.id];
-              if (!all.length) return null;
+              // Today's routine sits right under the pinned tasks (or first, when nothing is pinned).
+              const routine = group.id === 'pinned' ? <TodayRoutine key="routine" now={now} /> : null;
+              if (!all.length) return routine;
               const list = group.id === 'anytime' && !showAllAnytime ? all.slice(0, ANYTIME_LIMIT) : all;
-              return (
+              const section = (
                 <section key={group.id} aria-labelledby={`agenda-${group.id}`} className="agenda-group" data-group={group.id}>
                   <header className="agenda-head">
-                    <FlatIcon name={group.icon} size={18} />
+                    <FlatIcon name={group.icon} size={18} quiet={group.id !== 'overdue'} className={group.id === 'overdue' ? '' : 'text-muted-foreground'} />
                     <h3 id={`agenda-${group.id}`} className="agenda-title">
                       {group.label}
                     </h3>
@@ -324,12 +368,14 @@ export default function TodayView({ model }: TodayViewProps) {
                         task={task}
                         parent={task.parent_id ? byId.get(task.parent_id) ?? null : null}
                         now={now}
-                        showDay={group.id === 'upcoming' || group.id === 'overdue'}
+                        showDay={group.id === 'upcoming' || group.id === 'overdue' || group.id === 'pinned'}
                         fresh={justAdded.has(task.id)}
                         onToggle={(done, el) => void setDone(task, done, el)}
                         onOpen={() => setDetailId(task.id)}
                         onReminder={(iso) => void setReminder(task, iso)}
                         onTomorrow={() => void moveToTomorrow(task)}
+                        onPin={(pinned) => void setPinned(task, pinned)}
+                        onMoveToRoutine={(g) => void moveToRoutine(task, g)}
                         onDelete={() => void remove(task)}
                       />
                     ))}
@@ -340,6 +386,14 @@ export default function TodayView({ model }: TodayViewProps) {
                     </button>
                   )}
                 </section>
+              );
+              return routine ? (
+                <React.Fragment key={group.id}>
+                  {section}
+                  {routine}
+                </React.Fragment>
+              ) : (
+                section
               );
             })
           )}
@@ -352,7 +406,7 @@ export default function TodayView({ model }: TodayViewProps) {
                 aria-expanded={showDone}
                 className="agenda-head todo-focus w-full rounded-lg text-left"
               >
-                <FlatIcon name="done" size={18} />
+                <FlatIcon name="done" size={18} quiet className="text-muted-foreground" />
                 <h3 id="agenda-done" className="agenda-title">
                   Completed today
                 </h3>
@@ -397,14 +451,22 @@ interface AgendaRowProps {
   onOpen: () => void;
   onReminder?: (iso: string | null) => void;
   onTomorrow?: () => void;
+  onPin?: (pinned: boolean) => void;
+  onMoveToRoutine?: (group: RoutineGroup) => void;
   onDelete: () => void;
 }
 
-function AgendaRow({ task, parent, now, showDay, fresh, onToggle, onOpen, onReminder, onTomorrow, onDelete }: AgendaRowProps) {
+function AgendaRow({ task, parent, now, showDay, fresh, onToggle, onOpen, onReminder, onTomorrow, onPin, onMoveToRoutine, onDelete }: AgendaRowProps) {
   const done = task.status === 'done';
   const prio = PRIORITY_META[task.priority] ?? PRIORITY_META.p3;
   const checkRef = useRef<HTMLButtonElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpenState] = useState(false);
+  // The menu's second page: the routine groups to move the task into.
+  const [routinePage, setRoutinePage] = useState(false);
+  const setMenuOpen = (next: boolean | ((open: boolean) => boolean)) => {
+    setMenuOpenState(next);
+    setRoutinePage(false);
+  };
   const menuRef = useRef<HTMLButtonElement>(null);
   const due = task.due_date ? formatDueDate(task.due_date, now) : '';
   const overdueDay = !done && task.due_date && task.due_date.slice(0, 10) < ymd(now);
@@ -478,26 +540,46 @@ function AgendaRow({ task, parent, now, showDay, fresh, onToggle, onOpen, onRemi
       >
         <Icon name="EllipsisHorizontalIcon" size={18} />
       </button>
-      <Popover open={menuOpen} anchorRef={menuRef} onClose={() => setMenuOpen(false)} label={`Actions for ${task.title}`} className="todo-popover w-56 p-1">
-        <MenuItem icon="PencilSquareIcon" label="Open details" onClick={() => (setMenuOpen(false), onOpen())} />
-        {onTomorrow && !done && <MenuItem icon="ArrowUturnRightIcon" label="Move to tomorrow" onClick={() => (setMenuOpen(false), onTomorrow())} />}
-        {canAddToCalendar(task) && (
-          <MenuItem icon="CalendarDaysIcon" label="Add to calendar (.ics)" onClick={() => (setMenuOpen(false), downloadIcs(task))} />
+      <Popover
+        open={menuOpen}
+        anchorRef={menuRef}
+        onClose={() => setMenuOpen(false)}
+        label={routinePage ? 'Move to a routine' : `Actions for ${task.title}`}
+        className={`todo-popover p-1 ${routinePage ? '' : 'w-56'}`}
+      >
+        {routinePage && onMoveToRoutine ? (
+          <RoutineGroupMenu title="Move to a routine" onBack={() => setRoutinePage(false)} onPick={(g) => (setMenuOpen(false), onMoveToRoutine(g))} />
+        ) : (
+          <>
+            <MenuItem icon="PencilSquareIcon" label="Open details" onClick={() => (setMenuOpen(false), onOpen())} />
+            {onPin && !done && (
+              <MenuItem
+                icon={task.pinned ? 'BookmarkSlashIcon' : 'BookmarkIcon'}
+                label={task.pinned ? 'Unpin' : 'Pin to top'}
+                onClick={() => (setMenuOpen(false), onPin(!task.pinned))}
+              />
+            )}
+            {onTomorrow && !done && <MenuItem icon="ArrowUturnRightIcon" label="Move to tomorrow" onClick={() => (setMenuOpen(false), onTomorrow())} />}
+            {onMoveToRoutine && !done && <MenuItem icon="ArrowPathRoundedSquareIcon" label="Move to a routine" onClick={() => setRoutinePage(true)} />}
+            {canAddToCalendar(task) && (
+              <MenuItem icon="CalendarDaysIcon" label="Add to calendar (.ics)" onClick={() => (setMenuOpen(false), downloadIcs(task))} />
+            )}
+            {gcal && (
+              <a
+                role="menuitem"
+                href={gcal}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuOpen(false)}
+                className="todo-focus flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-md px-2.5 text-sm text-foreground hover:bg-muted"
+              >
+                <Icon name="ArrowTopRightOnSquareIcon" size={16} className="text-muted-foreground" />
+                Google Calendar
+              </a>
+            )}
+            <MenuItem icon="TrashIcon" label="Delete" danger onClick={() => (setMenuOpen(false), onDelete())} />
+          </>
         )}
-        {gcal && (
-          <a
-            role="menuitem"
-            href={gcal}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setMenuOpen(false)}
-            className="todo-focus flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-md px-2.5 text-sm text-foreground hover:bg-muted"
-          >
-            <Icon name="ArrowTopRightOnSquareIcon" size={16} className="text-muted-foreground" />
-            Google Calendar
-          </a>
-        )}
-        <MenuItem icon="TrashIcon" label="Delete" danger onClick={() => (setMenuOpen(false), onDelete())} />
       </Popover>
     </li>
   );

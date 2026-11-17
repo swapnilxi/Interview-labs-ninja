@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import type { ContentCard, QuizDisplayMode, TopicMeta } from '../types';
 import SwipeCardItem from './SwipeCardItem';
 import Icon from '@/components/ui/AppIcon';
+import { topicHue } from '../utils/topicHue';
 
 interface SavedCardsViewProps {
   cards: ContentCard[];
@@ -48,7 +49,7 @@ export default function SavedCardsView({
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl mix-bg-muted/80 text-muted-foreground">
           <Icon name="BookmarkIcon" size={30} />
         </div>
-        <h3 className="mt-4 font-heading text-xl font-bold text-foreground">Nothing saved yet</h3>
+        <h3 className="mt-4 font-heading text-xl font-semibold text-foreground">Nothing saved yet</h3>
         <p className="mt-1.5 max-w-[18rem] text-sm leading-relaxed text-muted-foreground">
           Swipe a card right, or tap Save in the scroll feed, to keep it here.
         </p>
@@ -93,7 +94,7 @@ export default function SavedCardsView({
                   data-active={activeFilter === id}
                   className="swipe-pill"
                 >
-                  {meta && <span aria-hidden="true">{meta.emoji}</span>}
+                  {meta && <span className="swipe-dot" style={{ '--tone': topicHue(id) } as React.CSSProperties} aria-hidden="true" />}
                   <span>{id === 'all' ? 'All' : (meta?.label ?? id)}</span>
                   <span className="tabular-nums opacity-70">{count}</span>
                 </button>

@@ -9,8 +9,13 @@
  *   PATCH  /todo/schedules/{id}            update
  *   DELETE /todo/schedules/{id}            delete (and its runs)
  *   GET    /todo/schedules/{id}/runs       last runs
+ *   GET    /todo/schedules/activity        latest AI-job runs across all schedules (the Assistant's feed)
  *   POST   /todo/schedules/parse           AI: a sentence -> a schedule draft (not saved)
  *   POST   /todo/schedules/{id}/run        run one occurrence (reminder: record it; agent: ask the AI), deduplicated
+ *
+ * An AI job reads nothing, its open tasks ("tasks") or the whole To-Do workspace ("workspace", agent/context.ts); with
+ * use_web it may search the web once per run (agent/webStep.ts); with write_report it also writes a full report the app
+ * shows, while `output` stays the short notification text the phone shows.
  */
 
 import {
@@ -25,33 +30,37 @@ import { errMsg, pyJsonDumps } from '../py';
 import type { TodoCtx, TodoRoute } from '../router';
 import { normalizeRule } from '@/lib/schedules/scheduleRules';
 import { getAllTasks, createTask } from '../tasks/db';
+import { workspaceContext } from '../agent/context';
+import { runSearch, searchQuery, sourcesOf, webBlock } from '../agent/webStep';
 import {
   claimRun,
   createSchedule,
   deleteSchedule,
   finishRun,
   getSchedule,
+  listRecentAgentRuns,
   listRuns,
   listSchedules,
   updateSchedule,
 } from './db';
 
-const KINDS = new Set(['reminder', 'agent']);
-const CONTEXTS = new Set(['tasks', 'none']);
+export const KINDS = new Set(['reminder', 'agent']);
+export const CONTEXTS = new Set(['tasks', 'workspace', 'none']);
 const SOURCES = new Set(['web', 'app', 'manual']);
-const PRIORITIES = new Set(['p1', 'p2', 'p3', 'p4']);
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const PRIORITIES = new Set(['p1', 'p2', 'p3', 'p4']);
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const LOCAL_DT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TITLE_MAX = 120;
 const OUTPUT_MAX = 2000;
+const REPORT_MAX = 8000;
 
 /** SCHEDULE_NULLABLE in schedules/router.py: PATCH fields a `null` empties. */
 const SCHEDULE_NULLABLE: ReadonlySet<string> = new Set(['message', 'timezone', 'source_text']);
 
 // ── Body helpers (Pydantic stand-ins) ──────────────────────────────────────────────────────────────────────────
 
-async function jsonBody(ctx: TodoCtx): Promise<Row> {
+export async function jsonBody(ctx: TodoCtx): Promise<Row> {
   const body = await ctx.json<unknown>();
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new HttpError(422, 'Input should be a valid dictionary');
@@ -59,7 +68,7 @@ async function jsonBody(ctx: TodoCtx): Promise<Row> {
   return body as Row;
 }
 
-function strField(
+export function strField(
   body: Row,
   key: string,
   opts: { required?: boolean; nullable?: boolean } = {}
@@ -84,7 +93,7 @@ function boolField(body: Row, key: string): boolean | undefined {
 }
 
 /** Python's `strptime(now, "%Y-%m-%dT%H:%M").strftime("%A")`, or null for an impossible date/time. */
-function weekdayOf(localDt: string): string | null {
+export function weekdayOf(localDt: string): string | null {
   const [y, mo, d] = localDt.slice(0, 10).split('-').map(Number);
   const hh = Number(localDt.slice(11, 13));
   const mi = Number(localDt.slice(14, 16));
@@ -98,7 +107,7 @@ function weekdayOf(localDt: string): string | null {
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** `_local_now(sent)`: the client's local "YYYY-MM-DDTHH:MM" when valid, else the server's. */
-function localNow(sent: unknown): string {
+export function localNow(sent: unknown): string {
   if (typeof sent === 'string' && LOCAL_DT_RE.test(sent) && weekdayOf(sent)) return sent;
   const d = new Date();
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -109,11 +118,11 @@ function utcNowIso(): string {
   return new Date().toISOString();
 }
 
-function cleanTitle(value: unknown): string {
+export function cleanTitle(value: unknown): string {
   return typeof value === 'string' ? value.trim().slice(0, TITLE_MAX) : '';
 }
 
-function cleanText(value: unknown): string | null {
+export function cleanText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
@@ -135,7 +144,8 @@ function checkedKind(value: string): string {
 }
 
 function checkedContext(value: string): string {
-  if (!CONTEXTS.has(value)) throw new HttpError(422, "agent_context must be 'tasks' or 'none'.");
+  if (!CONTEXTS.has(value))
+    throw new HttpError(422, "agent_context must be 'tasks', 'workspace' or 'none'.");
   return value;
 }
 
@@ -155,6 +165,8 @@ async function createScheduleHandler(ctx: TodoCtx) {
     add_tasks: boolField(body, 'add_tasks') ?? false,
     enabled: boolField(body, 'enabled') ?? true,
     source_text: cleanText(strField(body, 'source_text', { nullable: true })),
+    use_web: boolField(body, 'use_web') ?? false,
+    write_report: boolField(body, 'write_report') ?? false,
   });
 }
 
@@ -177,7 +189,7 @@ async function updateScheduleHandler(ctx: TodoCtx) {
   for (const key of ['message', 'timezone', 'source_text']) {
     if (key in body) sent[key] = cleanText(strField(body, key, { nullable: true }));
   }
-  for (const key of ['add_tasks', 'enabled']) {
+  for (const key of ['add_tasks', 'enabled', 'use_web', 'write_report']) {
     if (key in body && body[key] !== null) sent[key] = boolField(body, key);
   }
   if ('rule' in body && body.rule !== null) sent.rule = checkedRule(body.rule);
@@ -303,10 +315,10 @@ function openTasksForPrompt(userId: number): Row[] {
 }
 
 /** `_clean_agent_tasks`: at most 5 well-formed task suggestions. */
-function cleanAgentTasks(raw: unknown): Row[] {
+export function cleanAgentTasks(raw: unknown, limit = 5): Row[] {
   if (!Array.isArray(raw)) return [];
   const out: Row[] = [];
-  for (const item of raw.slice(0, 5)) {
+  for (const item of raw.slice(0, limit)) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
     const title = typeof item.title === 'string' ? item.title.trim().slice(0, 200) : '';
     if (!title) continue;
@@ -318,6 +330,70 @@ function cleanAgentTasks(raw: unknown): Row[] {
     });
   }
   return out;
+}
+
+/** `_json_object`: the reply's JSON object, or null when there is none (the raw text is then the answer). */
+export function jsonObject(text: string): Row | null {
+  try {
+    const candidate = extractJsonObject(text);
+    return candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+      ? candidate
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `_run_budget`: output tokens for one run: a full report needs room, a notification doesn't. */
+function runBudget(schedule: Row): number {
+  return schedule.write_report ? 3000 : 1024;
+}
+
+/** `_run_prompt`. A job without the newer options (workspace, web, report) gets exactly the original prompt. */
+function runPrompt(
+  schedule: Row,
+  now: string,
+  weekday: string | null,
+  tasksBlock: string,
+  web: string,
+  askSearch: boolean
+): string {
+  const reportLine = schedule.write_report
+    ? '\n  "report": "The full report, shown in the app: markdown allowed (### headings, bullet lists, **bold**), ' +
+      'at most 4000 characters",'
+    : '';
+  const searchLine = askSearch
+    ? '\n  "web_search": "A short web search query when this run needs current information from the internet, ' +
+      'else null",'
+    : '';
+  let extraRules = '';
+  if (schedule.write_report)
+    extraRules +=
+      '- message is the short version for the notification; report is the complete answer.\n';
+  if (askSearch)
+    extraRules +=
+      '- web_search: if you set it, leave the other fields empty; you will get the results and answer then.\n';
+  if (web)
+    extraRules += '- Use the web results for current facts; never make up news, prices or dates.\n';
+  return `You are the scheduled assistant inside LabNinja, a personal to-do app. A job the person scheduled is running now, and your answer is shown to them as a phone notification.
+Current local date and time: ${now} (${weekday}).
+
+Job: ${schedule.title}
+Instructions: ${schedule.message || 'No extra instructions.'}
+
+${tasksBlock}${web}Return ONLY a JSON object:
+{
+  "title": "Notification title, at most 60 characters",
+  "message": "Your answer for the person: plain text, no markdown, at most 700 characters",${reportLine}${searchLine}
+  "tasks": [
+    {"title": "Short imperative task title", "due_date": "YYYY-MM-DD or null", "priority": "p1|p2|p3|p4"}
+  ]
+}
+Rules:
+- Follow the instructions. Be specific, and use the person's tasks when they matter; never invent tasks they don't have.
+- tasks: new tasks only when the instructions ask you to create, plan or suggest tasks (at most 5); otherwise [].
+${extraRules}- Keep the person's language.
+No extra text, no markdown blocks, just the raw JSON object.`;
 }
 
 async function runScheduleHandler(ctx: TodoCtx) {
@@ -348,31 +424,32 @@ async function runScheduleHandler(ctx: TodoCtx) {
     tasksBlock = open.length
       ? `Their open tasks (JSON, soonest due first):\n${pyJsonDumps(open, 2)}\n\n`
       : 'Their open tasks: none.\n\n';
+  } else if (schedule.agent_context === 'workspace') {
+    tasksBlock = `Their To-Do workspace (JSON):\n${pyJsonDumps(workspaceContext(ctx.userId, now.slice(0, 10)))}\n\n`;
   }
 
-  const prompt = `You are the scheduled assistant inside LabNinja, a personal to-do app. A job the person scheduled is running now, and your answer is shown to them as a phone notification.
-Current local date and time: ${now} (${weekday}).
-
-Job: ${schedule.title}
-Instructions: ${schedule.message || 'No extra instructions.'}
-
-${tasksBlock}Return ONLY a JSON object:
-{
-  "title": "Notification title, at most 60 characters",
-  "message": "Your answer for the person: plain text, no markdown, at most 700 characters",
-  "tasks": [
-    {"title": "Short imperative task title", "due_date": "YYYY-MM-DD or null", "priority": "p1|p2|p3|p4"}
-  ]
-}
-Rules:
-- Follow the instructions. Be specific, and use the person's tasks when they matter; never invent tasks they don't have.
-- tasks: new tasks only when the instructions ask you to create, plan or suggest tasks (at most 5); otherwise [].
-- Keep the person's language.
-No extra text, no markdown blocks, just the raw JSON object.`;
-
+  const settings = aiSettings(body);
+  let query: string | null = null;
+  let results: Row[] = [];
   let responseText: string;
+  let obj: Row | null;
   try {
-    responseText = await callAi(prompt, aiSettings(body), 1024);
+    responseText = await callAi(
+      runPrompt(schedule, now, weekday, tasksBlock, '', schedule.use_web),
+      settings,
+      runBudget(schedule)
+    );
+    obj = jsonObject(responseText);
+    query = obj && schedule.use_web ? searchQuery(obj.web_search) : null;
+    if (query !== null) {
+      results = await runSearch(query);
+      responseText = await callAi(
+        runPrompt(schedule, now, weekday, tasksBlock, webBlock(query, results), false),
+        settings,
+        runBudget(schedule)
+      );
+      obj = jsonObject(responseText);
+    }
   } catch (err) {
     const detail = `AI could not run this job: ${errMsg(err)}`;
     finishRun(claimedRun.id, scheduleId, 'error', schedule.title, detail.slice(0, OUTPUT_MAX), {
@@ -381,17 +458,10 @@ No extra text, no markdown blocks, just the raw JSON object.`;
     throw new HttpError(502, detail);
   }
 
-  let obj: Row | null = null;
-  try {
-    const candidate = extractJsonObject(responseText);
-    obj =
-      candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? candidate : null;
-  } catch {
-    obj = null;
-  }
   let title: string;
   let message: string;
   let suggestions: Row[];
+  let report: string | null = null;
   if (obj) {
     title =
       (obj.title !== null && obj.title !== undefined ? String(obj.title) : '')
@@ -401,6 +471,9 @@ No extra text, no markdown blocks, just the raw JSON object.`;
       .trim()
       .slice(0, OUTPUT_MAX);
     suggestions = cleanAgentTasks(obj.tasks);
+    if (schedule.write_report && typeof obj.report === 'string' && obj.report.trim()) {
+      report = obj.report.trim().slice(0, REPORT_MAX);
+    }
   } else {
     title = schedule.title;
     message = responseText.trim().slice(0, OUTPUT_MAX);
@@ -423,12 +496,15 @@ No extra text, no markdown blocks, just the raw JSON object.`;
   const run = finishRun(claimedRun.id, scheduleId, 'ok', title, message, {
     created_task_ids: created.map((t) => t.id),
     disable_once: disableOnce,
+    report,
+    sources: query !== null ? sourcesOf(results) : null,
   });
   return { run, duplicate: false, tasks: schedule.add_tasks ? created : suggestions };
 }
 
 export const routes: TodoRoute[] = [
   { method: 'GET', path: '/schedules', handler: (ctx) => listSchedules(ctx.userId) },
+  { method: 'GET', path: '/schedules/activity', handler: (ctx) => listRecentAgentRuns(ctx.userId) },
   { method: 'POST', path: '/schedules', handler: createScheduleHandler },
   { method: 'POST', path: '/schedules/parse', handler: parseScheduleHandler },
   { method: 'PATCH', path: '/schedules/:schedule_id', handler: updateScheduleHandler },

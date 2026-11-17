@@ -94,7 +94,7 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
     >
       <div className="flex items-center justify-between p-4 border-b mix-border-border/50">
         <h2 id="create-goal-title" className="font-heading font-semibold text-lg flex items-center gap-2 text-foreground">
-          <Icon name="ViewfinderCircleIcon" size={20} className="text-primary" /> New Goal
+          <Icon name="ViewfinderCircleIcon" size={20} className="text-primary" /> New goal
         </h2>
         <button onClick={onClose} aria-label="Close" className="p-1 rounded-md text-muted-foreground hover:bg-muted transition-smooth">
           <Icon name="XMarkIcon" size={16} />
@@ -104,7 +104,7 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
       <form onSubmit={handleSubmit} className="p-4 space-y-4">
         <div>
           <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-            Goal Title *
+            Goal title *
           </label>
           <input
             type="text"
@@ -156,7 +156,7 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
               <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:mix-border-primary/40 hover:mix-bg-primary/5 transition-smooth">
                 <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  {uploading ? 'Extracting text...' : 'Choose file (.txt, .pdf, .docx)'}
+                  {uploading ? 'Extracting text…' : 'Choose file (.txt, .pdf, .docx)'}
                 </span>
                 <input
                   type="file"
@@ -196,7 +196,7 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-              Time Horizon
+              Time horizon
             </label>
             <select
               value={level}
@@ -229,7 +229,7 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
 
         <div>
           <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-            Parent Goal (optional)
+            Parent goal (optional)
           </label>
           <select
             value={parentId ?? ''}
@@ -250,7 +250,7 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
 
         <div>
           <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-            Due Date
+            Due date
           </label>
           <input
             type="date"
@@ -272,17 +272,17 @@ export default function CreateGoalModal({ defaultLevel, allGoals, onClose, onSuc
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-smooth"
+            className="px-4 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted transition-smooth"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!title.trim() || loading}
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:mix-bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:mix-bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
           >
             {loading && <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />}
-            Create Goal
+            Create goal
           </button>
         </div>
       </form>

@@ -16,6 +16,8 @@ import { routes as projectRoutes } from './projects/handlers';
 import { routes as projectPlanRoutes } from './projects/planHandlers';
 import { routes as goalRoutes } from './goals/handlers';
 import { routes as scheduleRoutes } from './schedules/handlers';
+import { routes as routineRoutes } from './routines/handlers';
+import { routes as agentRoutes } from './agent/handlers';
 import { routes as importRoutes } from './importData/handlers';
 import { routes as paretoRoutes } from './pareto/handlers';
 
@@ -27,6 +29,8 @@ const TODO_ROUTES = compileRoutes([
   ...projectPlanRoutes,
   ...goalRoutes,
   ...scheduleRoutes,
+  ...routineRoutes,
+  ...agentRoutes,
   ...importRoutes,
 ]);
 
@@ -44,8 +48,12 @@ async function dispatchPareto(req: Request, segments: string[]): Promise<Respons
 const writeTodo = withNeonSync(dispatchTodo);
 const writePareto = withNeonSync(dispatchPareto);
 
+/** POSTs that only read (the Assistant chat): no Neon push afterwards. */
+const READ_ONLY_POSTS = new Set(['agent/chat']);
+
 export function handleTodo(req: Request, segments: string[]): Promise<Response> {
-  return req.method === 'GET' ? dispatchTodo(req, segments) : writeTodo(req, segments);
+  const readOnly = req.method === 'GET' || READ_ONLY_POSTS.has(segments.join('/'));
+  return readOnly ? dispatchTodo(req, segments) : writeTodo(req, segments);
 }
 
 export function handlePareto(req: Request, segments: string[]): Promise<Response> {

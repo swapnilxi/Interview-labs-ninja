@@ -160,7 +160,7 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
       {/* ── Topics ── */}
       <div>
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-          <p id="ds-topics" className="text-sm font-semibold ds-ink">
+          <p id="ds-topics" className="text-sm font-medium ds-ink">
             Topics
           </p>
           {value.length > 0 ? (
@@ -225,7 +225,7 @@ export default function TopicPicker({ value, onChange, companies, onCompaniesCha
       {/* ── Companies ── */}
       <div ref={companyRef} className="relative">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-          <p id="ds-companies" className="text-sm font-semibold ds-ink">
+          <p id="ds-companies" className="text-sm font-medium ds-ink">
             Target Companies
           </p>
           {companies.length > 0 ? (

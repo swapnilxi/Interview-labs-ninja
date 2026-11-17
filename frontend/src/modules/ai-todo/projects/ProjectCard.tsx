@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import ProjectIcon from './ProjectIcon';
 import { planUrls } from './projectUrls';
+import { PRIORITY_COLOR, PROJECT_STATUS_COLOR } from '../shared/semanticColors';
 import { Project } from '@/lib/services/projectService';
 
 interface ProjectCardProps {
@@ -33,20 +34,6 @@ export default function ProjectCard({ project, onDelete, isCompact = false }: Pr
   const progressPct = nodeCount > 0 ? Math.round((exportedCount / nodeCount) * 100) : 0;
   const ringCircumference = 87.96;
   const ringOffset = ringCircumference * (1 - progressPct / 100);
-
-  const statusColors: Record<string, string> = {
-    active: 'bg-emerald-500/10 text-emerald-500',
-    paused: 'bg-amber-500/10 text-amber-500',
-    completed: 'bg-blue-500/10 text-blue-500',
-    archived: 'bg-muted text-muted-foreground',
-  };
-
-  const priorityColors: Record<string, string> = {
-    p1: 'bg-red-500',
-    p2: 'bg-amber-500',
-    p3: 'bg-blue-500',
-    p4: 'bg-muted-foreground',
-  };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -89,24 +76,23 @@ export default function ProjectCard({ project, onDelete, isCompact = false }: Pr
               <h3 className="font-heading font-semibold text-foreground truncate text-base">
                 {project.title}
               </h3>
-              <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusColors[project.status] || 'bg-muted text-muted-foreground'}`}>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 capitalize">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: PROJECT_STATUS_COLOR[project.status] || PROJECT_STATUS_COLOR.archived }} aria-hidden="true" />
                   {project.status}
                 </span>
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <div className={`w-2 h-2 rounded-full ${priorityColors[project.priority] || priorityColors.p3}`} />
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: PRIORITY_COLOR[project.priority] || PRIORITY_COLOR.p3 }} aria-hidden="true" />
                   {project.priority.toUpperCase()}
                 </span>
                 {project.due_date && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Icon name="CalendarIcon" size={10} />
+                  <span className="inline-flex items-center gap-1">
+                    <Icon name="CalendarIcon" size={12} />
                     {project.due_date}
                   </span>
                 )}
                 {project.node_count !== undefined && (
-                  <span className="text-xs text-muted-foreground bg-muted px-1.5 rounded-sm">
-                    {project.node_count} nodes
-                  </span>
+                  <span className="tabular-nums">{project.node_count} nodes</span>
                 )}
               </div>
             </div>
@@ -115,16 +101,16 @@ export default function ProjectCard({ project, onDelete, isCompact = false }: Pr
           {/* Right: badges */}
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             {project.is_top_20 && (
-              <span className="copilot-tint px-2 py-0.5 text-xs font-bold">
-                <Icon name="StarIcon" size={10} variant="solid" /> Top 20%
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
+                <Icon name="StarIcon" size={12} variant="solid" /> Top 20%
               </span>
             )}
             <div className="relative w-8 h-8 flex items-center justify-center" title={`${exportedCount}/${nodeCount} plan nodes exported to action`}>
               <svg className="w-full h-full transform -rotate-90">
                 <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="3" fill="transparent" className="mix-text-muted/30" />
-                <circle cx="16" cy="16" r="14" stroke={color} strokeWidth="3" fill="transparent" strokeDasharray={ringCircumference} strokeDashoffset={ringOffset} className="transition-all duration-1000" />
+                <circle cx="16" cy="16" r="14" stroke={color} strokeWidth="3" fill="transparent" strokeDasharray={ringCircumference} strokeDashoffset={ringOffset} className="transition-[stroke-dashoffset] duration-500" />
               </svg>
-              <span className="absolute text-xs font-bold text-foreground">{progressPct}%</span>
+              <span className="absolute text-xs font-medium text-foreground">{progressPct}%</span>
             </div>
           </div>
         </div>
@@ -138,16 +124,16 @@ export default function ProjectCard({ project, onDelete, isCompact = false }: Pr
 
       {/* ── Action footer — always visible, NOT part of the clickable area ── */}
       {!isCompact && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border px-[1rem] py-3" style={{ background: 'color-mix(in srgb, var(--color-foreground) 4%, transparent)' }}>
+        <div className="flex flex-wrap items-center gap-1 border-t border-border px-[0.5rem] py-3" style={{ background: 'color-mix(in srgb, var(--color-foreground) 4%, transparent)' }}>
           {/* Left: each one is a link to its own screen */}
           <div className="flex flex-wrap items-center gap-1">
-            <Link href={planUrls.project(project.id)} className="todo-focus copilot-tint px-1.5 py-1.5 text-xs font-semibold">
+            <Link href={planUrls.project(project.id)} className="todo-focus copilot-tint px-1.5 py-1.5 text-xs font-medium">
               <Icon name="MagnifyingGlassIcon" size={12} /> Explore
             </Link>
-            <Link href={planUrls.project(project.id, 'planner')} className="todo-focus copilot-tint px-1.5 py-1.5 text-xs font-semibold">
-              <Icon name="SparklesIcon" size={12} /> AI Planner
+            <Link href={planUrls.project(project.id, 'planner')} className="todo-focus copilot-tint px-1.5 py-1.5 text-xs font-medium">
+              <Icon name="SparklesIcon" size={12} /> AI planner
             </Link>
-            <Link href={planUrls.roadmap(project.id)} className="todo-focus copilot-tint px-1.5 py-1.5 text-xs font-semibold">
+            <Link href={planUrls.roadmap(project.id)} className="todo-focus copilot-tint px-1.5 py-1.5 text-xs font-medium">
               <Icon name="MapIcon" size={12} /> Roadmap
             </Link>
           </div>
@@ -157,16 +143,16 @@ export default function ProjectCard({ project, onDelete, isCompact = false }: Pr
             <div className="ml-auto flex items-center gap-1.5">
               {confirmDelete ? (
                 <>
-                  <span className="text-xs text-red-500 font-semibold">Sure?</span>
+                  <span className="text-xs font-medium text-error">Sure?</span>
                   <button
                     onClick={handleConfirmDelete}
-                    className="text-xs font-bold px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600 transition-smooth"
+                    className="rounded-md bg-error px-2 py-1 text-xs font-medium text-white transition-colors hover:opacity-90"
                   >
                     Yes, delete
                   </button>
                   <button
                     onClick={handleCancelDelete}
-                    className="text-xs font-semibold px-2 py-1 rounded bg-muted text-muted-foreground hover:mix-bg-muted/80 transition-smooth"
+                    className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:mix-bg-foreground/[0.06] hover:text-foreground"
                   >
                     Cancel
                   </button>
@@ -174,9 +160,11 @@ export default function ProjectCard({ project, onDelete, isCompact = false }: Pr
               ) : (
                 <button
                   onClick={handleDeleteClick}
-                  className="text-xs font-semibold px-2 py-1 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-smooth flex items-center gap-1"
+                  className="todo-focus flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:mix-bg-error/10 hover:text-error"
+                  title="Delete project"
+                  aria-label={`Delete project ${project.title}`}
                 >
-                  <Icon name="TrashIcon" size={10} /> Delete
+                  <Icon name="TrashIcon" size={14} />
                 </button>
               )}
             </div>

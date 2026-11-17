@@ -241,7 +241,7 @@ export default function LabContentPicker({
           <Icon name="BeakerIcon" size={24} />
         </span>
         <div>
-          <p className="text-[15px] font-semibold text-foreground">
+          <p className="text-[15px] font-medium text-foreground">
             Sign in to plan from your labs
           </p>
           <p className="mt-1 text-[13px] text-muted-foreground">
@@ -461,7 +461,7 @@ export default function LabContentPicker({
         {/* The lab: what it is, how far along you are, and a way into it */}
         <div className="flex items-start justify-between gap-3 px-1">
           <div className="min-w-0">
-            <p className="text-[17px] font-semibold leading-tight text-foreground">{entry.label}</p>
+            <p className="text-[17px] font-medium leading-tight text-foreground">{entry.label}</p>
             <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground">
               {load.status === 'ready'
                 ? progress.loaded && doneCount > 0

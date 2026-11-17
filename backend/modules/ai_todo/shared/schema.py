@@ -436,6 +436,20 @@ def register(cursor) -> None:
         );
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_todo_schedule_runs_schedule ON todo_schedule_runs(schedule_id);")
+    # Assistant upgrade (2026-11-17): an AI job may search the web and write a full report; a run keeps that report
+    # and the pages it read. `output` stays the short notification text the phone shows.
+    cursor.execute("PRAGMA table_info(todo_schedules);")
+    sch_cols = [row[1] for row in cursor.fetchall()]
+    if "use_web" not in sch_cols:
+        cursor.execute("ALTER TABLE todo_schedules ADD COLUMN use_web INTEGER NOT NULL DEFAULT 0;")
+    if "write_report" not in sch_cols:
+        cursor.execute("ALTER TABLE todo_schedules ADD COLUMN write_report INTEGER NOT NULL DEFAULT 0;")
+    cursor.execute("PRAGMA table_info(todo_schedule_runs);")
+    run_cols = [row[1] for row in cursor.fetchall()]
+    if "report" not in run_cols:
+        cursor.execute("ALTER TABLE todo_schedule_runs ADD COLUMN report TEXT DEFAULT NULL;")
+    if "sources" not in run_cols:
+        cursor.execute("ALTER TABLE todo_schedule_runs ADD COLUMN sources TEXT DEFAULT NULL;")
 
     # 2. quick_tasks table
     cursor.execute("PRAGMA table_info(quick_tasks);")
@@ -507,3 +521,49 @@ def register(cursor) -> None:
         cursor.execute("ALTER TABLE projects ADD COLUMN pareto_reason TEXT DEFAULT NULL;")
     if "pareto_locked" not in proj_cols:
         cursor.execute("ALTER TABLE projects ADD COLUMN pareto_locked INTEGER DEFAULT 0;")
+
+    # ── Routines (2026-11-17, routines/db.py) ─────────────────────────────────
+    # Lists you tick off each day. kind 'dailies' = the group every user gets (on every day, never deleted; the partial
+    # unique index keeps it to one per user), 'custom' = one the user made. `days` = the weekdays a custom group is on,
+    # comma-separated 0-6 with 0 = Sunday (JavaScript's getDay()), NULL = none; `active_on` = a local date the user
+    # switched it on for (the day before a deployment). An item counts as done on the local date in `done_on`, so
+    # nothing has to be reset at midnight.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS routine_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'custom',
+            days TEXT DEFAULT NULL,
+            active_on TEXT DEFAULT NULL,
+            order_index INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_routine_groups_user_id ON routine_groups(user_id);")
+    cursor.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_routine_groups_dailies ON routine_groups(user_id) WHERE kind = 'dailies';"
+    )
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS routine_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            group_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            priority TEXT NOT NULL DEFAULT 'p3',
+            notes TEXT DEFAULT NULL,
+            done_on TEXT DEFAULT NULL,
+            order_index INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (group_id) REFERENCES routine_groups(id) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_routine_items_user_id ON routine_items(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_routine_items_group_id ON routine_items(group_id);")
+
+    # Pinned tasks sit at the top of Today, highest priority first (2026-11-17).
+    cursor.execute("PRAGMA table_info(tasks);")
+    if "pinned" not in [row[1] for row in cursor.fetchall()]:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;")

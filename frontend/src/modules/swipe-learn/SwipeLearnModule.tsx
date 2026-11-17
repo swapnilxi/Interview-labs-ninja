@@ -682,7 +682,7 @@ export default function SwipeLearnModule() {
     return Array.from(new Set([top.title, ...(top.tags ?? []).slice(0, 2)])).filter(Boolean);
   }, [top]);
   const targetLabel =
-    `${activeTopic?.emoji ?? ''} ${feedMode === 'mixed' ? 'all topics' : (activeTopic?.label ?? feedMode)}${
+    `${feedMode === 'mixed' ? 'all topics' : (activeTopic?.label ?? feedMode)}${
       activeSub ? ` · ${activeSub.label}` : ''
     }`.trim();
 

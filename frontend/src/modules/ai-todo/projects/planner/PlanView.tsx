@@ -23,7 +23,7 @@ function PhaseTimeline({ phases, start, end, sprints }: { phases: PlanPhase[]; s
   const total = daysBetween(start, end) || 1;
   return (
     <div className="todo-glass p-[1.25rem]">
-      <h4 className="text-[13px] font-semibold text-muted-foreground">Timeline</h4>
+      <h4 className="text-[13px] font-medium text-muted-foreground">Timeline</h4>
       <ol className="mt-3 flex flex-col gap-2">
         {phases.map((phase, index) => {
           const from = Math.max(0, daysBetween(start, phase.start_date) - 1);
@@ -57,7 +57,7 @@ function Bullets({ title, items, check = false }: { title: string; items: string
   if (!items.length) return null;
   return (
     <div>
-      <h5 className="text-[13px] font-semibold text-muted-foreground">{title}</h5>
+      <h5 className="text-[13px] font-medium text-muted-foreground">{title}</h5>
       <ul className="mt-1.5 flex flex-col gap-1">
         {items.map((item, i) => (
           <li key={`${i}-${item}`} className="flex items-start gap-2 text-sm leading-snug text-foreground">
@@ -81,7 +81,7 @@ function PhaseCard({ phase, index }: { phase: PlanPhase; index: number }) {
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 px-[1.25rem] pb-2 pt-[1.25rem]">
         <div className="flex min-w-0 items-center gap-2.5">
           <span
-            className="flex h-[1.75rem] w-[1.75rem] shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
+            className="flex h-[1.75rem] w-[1.75rem] shrink-0 items-center justify-center rounded-lg text-xs font-medium text-white"
             style={{ background: color }}
             aria-hidden="true"
           >
@@ -107,9 +107,9 @@ function PhaseCard({ phase, index }: { phase: PlanPhase; index: number }) {
         </div>
 
         {phase.milestone && (
-          <p className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-300">
-            <FlatIcon name="trophy" size={16} className="mt-px shrink-0" />
-            <span><span className="font-semibold">Milestone:</span> {phase.milestone}</span>
+          <p className="flex items-start gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground mix-bg-foreground/[0.05]">
+            <FlatIcon name="trophy" size={16} quiet className="mt-px shrink-0" />
+            <span><span className="font-medium">Milestone:</span> {phase.milestone}</span>
           </p>
         )}
       </div>
@@ -286,11 +286,11 @@ export default function PlanView({
           <Bullets title="Assumptions" items={plan.assumptions} />
           {plan.risks.length > 0 && (
             <div>
-              <h5 className="text-[13px] font-semibold text-muted-foreground">Risks and how to handle them</h5>
+              <h5 className="text-[13px] font-medium text-muted-foreground">Risks and how to handle them</h5>
               <ul className="mt-1.5 flex flex-col gap-2">
                 {plan.risks.map((risk, i) => (
                   <li key={`${i}-${risk.risk}`} className="text-sm leading-snug text-foreground">
-                    <span className="font-semibold">{risk.risk}</span>
+                    <span className="font-medium">{risk.risk}</span>
                     {risk.mitigation && <span className="text-muted-foreground"> — {risk.mitigation}</span>}
                   </li>
                 ))}

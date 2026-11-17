@@ -66,10 +66,10 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-[1.5rem]">
         <div>
           <h2 className="font-heading font-semibold text-lg flex items-center gap-2">
-            <FlatIcon name="roadmap" size={24} /> AI Project Roadmap
+            <FlatIcon name="roadmap" size={24} quiet /> Project roadmap
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Generate a phased execution plan for any project.
+            A phased plan for any project
           </p>
         </div>
         
@@ -82,7 +82,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
               if (p) onSelectProject(p);
             }}
           >
-            <option value="" disabled>Select a project...</option>
+            <option value="" disabled>Select a project</option>
             {projects.map(p => (
               <option key={p.id} value={p.id}>{p.icon} {p.title}</option>
             ))}
@@ -91,22 +91,22 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
           <button
             onClick={handleGenerate}
             disabled={!project || loading}
-            className="px-4 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg hover:bg-emerald-600 transition-smooth disabled:opacity-50 flex items-center gap-2"
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-smooth hover:mix-bg-primary/90 disabled:opacity-50"
           >
             {loading ? (
-              <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 mix-border-primary-foreground/30 border-t-primary-foreground" />
             ) : <FlatIcon name="ai" size={16} />}
-            Generate Roadmap
+            Generate roadmap
           </button>
         </div>
       </div>
 
       {/* AI action error */}
       {error && (
-        <div className="mb-4 p-2.5 rounded-md bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+        <div role="alert" className="todo-alert todo-alert-error mb-4">
           <FlatIcon name="warning" size={16} className="mt-px" />
-          <p className="text-xs text-red-600 dark:text-red-400 flex-1 leading-relaxed">{error}</p>
-          <button onClick={() => setError(null)} className="text-red-500/70 hover:text-red-500 shrink-0">
+          <p className="flex-1 text-xs leading-relaxed">{error}</p>
+          <button onClick={() => setError(null)} aria-label="Dismiss" className="shrink-0 opacity-70 hover:opacity-100">
             <Icon name="XMarkIcon" size={12} />
           </button>
         </div>
@@ -115,22 +115,22 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
       {/* Content Area */}
       {!project && (
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground space-y-4 opacity-70">
-          <FlatIcon name="explore" size={52} />
-          <p className="text-sm font-medium">Select a project to view its roadmap.</p>
+          <FlatIcon name="explore" size={32} quiet />
+          <p className="text-sm font-medium">Select a project to view its roadmap</p>
         </div>
       )}
 
       {project && loading && (
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground space-y-4">
-          <span className="w-8 h-8 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-          <p className="text-xs font-bold animate-pulse">Mapping out {project.title}...</p>
+          <span className="h-8 w-8 animate-spin rounded-full border-4 mix-border-primary/20 border-t-primary" />
+          <p className="text-xs font-medium animate-pulse">Mapping out {project.title}…</p>
         </div>
       )}
 
       {project && !loading && !roadmap && (
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground space-y-4 opacity-70">
-          <FlatIcon name="roadmap" size={52} />
-          <p className="text-sm font-medium">No roadmap generated yet. Click generate to start.</p>
+          <FlatIcon name="roadmap" size={32} quiet />
+          <p className="text-sm font-medium">No roadmap yet. Click Generate roadmap to start.</p>
         </div>
       )}
 
@@ -152,20 +152,20 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                 )}
 
                 {/* Phase Card */}
-                <div className="bg-card border-2 border-emerald-500/30 rounded-xl overflow-hidden shadow-sm hover:border-emerald-500/60 transition-smooth">
+                <div className="overflow-hidden rounded-xl border border-border bg-card transition-colors hover:mix-border-foreground/25">
                   {/* Header */}
-                  <div className="p-3 bg-emerald-500/10 border-b border-emerald-500/20">
+                  <div className="border-b border-border p-3 mix-bg-foreground/[0.04]">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="text-[12px] font-medium text-muted-foreground">
                         Phase {index + 1}
                       </span>
                       {phase.duration && (
-                        <span className="text-xs font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        <span className="text-xs text-muted-foreground">
                           {phase.duration}
                         </span>
                       )}
                     </div>
-                    <h3 className="text-sm font-bold text-foreground">
+                    <h3 className="text-sm font-semibold text-foreground">
                       {phase.name}
                     </h3>
                   </div>
@@ -174,9 +174,9 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                   <div className="p-3 space-y-3 mix-bg-muted/10">
                     {/* Milestone */}
                     {phase.milestone && (
-                      <div className="flex items-start gap-1.5 p-2 rounded bg-amber-500/10 border border-amber-500/20">
-                        <FlatIcon name="trophy" size={16} className="mt-px" />
-                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 leading-snug">
+                      <div className="flex items-start gap-1.5 rounded-lg p-2 mix-bg-foreground/[0.05]">
+                        <FlatIcon name="trophy" size={16} quiet className="mt-px" />
+                        <p className="text-xs font-medium leading-snug text-foreground">
                           {phase.milestone}
                         </p>
                       </div>
@@ -184,7 +184,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
 
                     {/* Tasks */}
                     <div>
-                      <h4 className="mb-2 text-[12px] font-semibold text-muted-foreground">Key Tasks</h4>
+                      <h4 className="mb-2 text-[12px] font-medium text-muted-foreground">Key tasks</h4>
                       <ul className="space-y-1.5">
                         {phase.key_tasks?.map((task: string, tIndex: number) => {
                           const key = `${index}-${tIndex}`;
@@ -199,7 +199,7 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
 
                               {/* Actions (Hidden until hover) */}
                               {moved ? (
-                                <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-bold text-emerald-500"><FlatIcon name="check" size={14} /> moved</span>
+                                <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-medium text-success"><FlatIcon name="check" size={14} /> moved</span>
                               ) : (
                                 <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 ml-auto shrink-0 transition-opacity">
                                   <button
@@ -207,18 +207,18 @@ export default function ProjectRoadmap({ project, projects, onSelectProject, mod
                                     title="Move to Smart To-Do"
                                     disabled={moving}
                                     onClick={() => handleMoveTask(key, phase, task, 'smart')}
-                                    className="p-1 rounded text-muted-foreground hover:bg-blue-500/10 hover:text-blue-500 transition-smooth disabled:opacity-50"
+                                    className="p-1 rounded text-muted-foreground hover:mix-bg-foreground/[0.06] hover:text-foreground transition-smooth disabled:opacity-50"
                                   >
-                                    <FlatIcon name="brain" size={18} />
+                                    <FlatIcon name="brain" size={18} quiet />
                                   </button>
                                   <button
                                     type="button"
                                     title="Move to Quick Daily"
                                     disabled={moving}
                                     onClick={() => handleMoveTask(key, phase, task, 'quick')}
-                                    className="p-1 rounded text-muted-foreground hover:bg-amber-500/10 hover:text-amber-500 transition-smooth disabled:opacity-50"
+                                    className="p-1 rounded text-muted-foreground hover:mix-bg-foreground/[0.06] hover:text-foreground transition-smooth disabled:opacity-50"
                                   >
-                                    <FlatIcon name="quick" size={18} />
+                                    <FlatIcon name="quick" size={18} quiet />
                                   </button>
                                 </div>
                               )}

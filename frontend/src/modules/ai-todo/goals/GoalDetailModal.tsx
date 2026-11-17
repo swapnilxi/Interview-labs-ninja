@@ -123,7 +123,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
     >
       <div className="flex items-center justify-between p-4 border-b mix-border-border/50">
         <h2 id="edit-goal-title" className="font-heading font-semibold text-lg flex items-center gap-2 text-foreground">
-          <Icon name="PencilSquareIcon" size={18} className="text-primary" /> Edit Goal
+          <Icon name="PencilSquareIcon" size={18} className="text-primary" /> Edit goal
         </h2>
         <button onClick={onClose} aria-label="Close" className="p-1 rounded-md text-muted-foreground hover:bg-muted transition-smooth">
           <Icon name="XMarkIcon" size={16} />
@@ -133,7 +133,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
       <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-clean">
         <div>
           <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-            Goal Title *
+            Goal title *
           </label>
           <input
             type="text"
@@ -183,7 +183,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
               <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:mix-border-primary/40 hover:mix-bg-primary/5 transition-smooth">
                 <Icon name="PaperClipIcon" size={14} className="text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  {uploading ? 'Extracting text...' : 'Choose file (.txt, .pdf, .docx)'}
+                  {uploading ? 'Extracting text…' : 'Choose file (.txt, .pdf, .docx)'}
                 </span>
                 <input
                   type="file"
@@ -223,7 +223,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-              Time Horizon
+              Time horizon
             </label>
             <select
               value={level}
@@ -247,10 +247,10 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
               className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
             >
               <option value="backlog">Backlog</option>
-              <option value="in_progress">In Progress</option>
+              <option value="in_progress">In progress</option>
               <option value="delayed">Delayed</option>
               <option value="done">Done</option>
-              <option value="not_done">Not Done</option>
+              <option value="not_done">Not done</option>
             </select>
           </div>
         </div>
@@ -273,7 +273,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
           </div>
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-              Due Date
+              Due date
             </label>
             <input
               type="date"
@@ -286,7 +286,7 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
 
         <div>
           <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-            Parent Goal
+            Parent goal
           </label>
           <select
             value={parentId ?? ''}
@@ -314,17 +314,17 @@ export default function GoalDetailModal({ goal, allGoals, onClose, onSaved }: Go
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-smooth"
+            className="px-4 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted transition-smooth"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!title.trim() || loading}
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:mix-bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:mix-bg-primary/90 transition-smooth disabled:opacity-50 flex items-center gap-2"
           >
             {loading && <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />}
-            Save Changes
+            Save changes
           </button>
         </div>
       </form>

@@ -43,6 +43,7 @@ function taskRowToDict(row: Row): Row {
     pareto_reason: row.pareto_reason ?? null,
     pareto_locked: !!row.pareto_locked,
     remind_at: row.remind_at ?? null,
+    pinned: !!row.pinned,
   };
 }
 
@@ -51,7 +52,7 @@ const TASK_COLUMNS =
   'generation_type, depth_level, context, attachments, created_at, updated_at, ' +
   'last_activity_at, is_recurring, recurrence_interval, recurrence_custom_days, ' +
   'recurrence_template_id, intention, definition_of_done, eisenhower_quadrant, ' +
-  'pareto_score, is_top_20, pareto_reason, pareto_locked, remind_at';
+  'pareto_score, is_top_20, pareto_reason, pareto_locked, remind_at, pinned';
 
 /** Assemble flat task dicts into a forest (adds `children` to each, in place). */
 function buildTree(tasks: Row[]): Row[] {
@@ -196,7 +197,7 @@ const TASK_UPDATE_FIELDS = new Set([
   'recurrence_interval', 'recurrence_custom_days',
   'recurrence_template_id', 'intention', 'definition_of_done',
   'eisenhower_quadrant', 'pareto_score', 'is_top_20',
-  'pareto_reason', 'pareto_locked', 'remind_at',
+  'pareto_reason', 'pareto_locked', 'remind_at', 'pinned',
 ]);
 
 /**
@@ -246,7 +247,9 @@ export function updateTask(taskId: number, userId: number, fields: Row): Row | n
             currentTask.recurrence_interval || 'daily',
             currentTask.recurrence_custom_days,
           );
-          cloneRecurringTask(taskId, userId, nextDue);
+          const newTaskId = cloneRecurringTask(taskId, userId, nextDue);
+          // A pinned repeating task stays pinned: the next one takes the pin.
+          if (currentTask.pinned) db.run('UPDATE tasks SET pinned = 1 WHERE id = ?', newTaskId);
           // Turn off recurrence on the completed task
           db.run('UPDATE tasks SET is_recurring = 0 WHERE id = ?', taskId);
         }

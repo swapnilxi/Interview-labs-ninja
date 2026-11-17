@@ -39,7 +39,7 @@ function SourceLink({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noreferrer noopener"
-      className="mt-3 inline-flex max-w-full items-center gap-1 text-xs font-semibold text-foreground underline-offset-2 hover:underline"
+      className="mt-3 inline-flex max-w-full items-center gap-1 text-xs font-medium text-foreground underline-offset-2 hover:underline"
     >
       <Icon name="GlobeAltIcon" size={13} />
       <span className="truncate">Source: {host}</span>
@@ -120,8 +120,8 @@ export default function SwipeCardItem({
     >
       {/* Banner: topic on the left, kind + level on the right */}
       <header className="swipe-banner flex shrink-0 items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
-        <div className="swipe-banner-label flex min-w-0 items-center gap-1.5 text-sm font-semibold">
-          <span aria-hidden="true">{topic?.emoji ?? '💡'}</span>
+        <div className="swipe-banner-label flex min-w-0 items-center gap-1.5 text-sm font-medium">
+          <span className="swipe-dot" aria-hidden="true" />
           <span className="truncate">{topicLabel}</span>
           {subCategoryLabel && (
             <span className="swipe-banner-chip hidden truncate text-xs sm:inline">
@@ -129,7 +129,7 @@ export default function SwipeCardItem({
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1 text-xs font-semibold">
+        <div className="flex shrink-0 items-center gap-1 text-xs font-medium">
           {card.source === 'generated' && (
             <span
               className="swipe-banner-chip inline-flex items-center gap-1"
@@ -160,10 +160,10 @@ export default function SwipeCardItem({
         }`}
       >
         {card.hook && (
-          <p className="swipe-hook mb-1.5 text-[13px] font-semibold leading-snug">{card.hook}</p>
+          <p className="swipe-hook mb-1.5 text-[13px] font-medium leading-snug">{card.hook}</p>
         )}
 
-        <h2 className="font-heading text-[1.3rem] font-bold leading-tight tracking-tight text-foreground sm:text-2xl">
+        <h2 className="font-heading text-[1.3rem] font-semibold leading-tight tracking-tight text-foreground sm:text-2xl">
           {card.title}
         </h2>
 
@@ -194,14 +194,14 @@ export default function SwipeCardItem({
         {/* Quiz: multiple choice, or a flip card in flashcard mode */}
         {quiz && quizMode === 'flashcard' && (
           <div className="mt-4 rounded-xl border border-dashed border-border mix-bg-muted/40 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               Flashcard
             </p>
-            <p className="mt-1 text-[15px] font-semibold text-foreground">{quiz.question}</p>
+            <p className="mt-1 text-[15px] font-medium text-foreground">{quiz.question}</p>
             {revealed ? (
               <div className="mt-3 space-y-1.5 animate-fadeIn">
                 <p className="text-sm text-emerald-700 dark:text-emerald-300">
-                  <span className="font-semibold">Answer:</span> {quiz.options[quiz.correctAnswer]}
+                  <span className="font-medium">Answer:</span> {quiz.options[quiz.correctAnswer]}
                 </p>
                 <p className="text-[13px] leading-relaxed text-muted-foreground">
                   {quiz.explanation}
@@ -230,7 +230,7 @@ export default function SwipeCardItem({
         {quiz && quizMode !== 'flashcard' && (
           <div className="mt-4">
             {quiz.question && quiz.question !== card.content && (
-              <p className="mb-2.5 text-[15px] font-semibold leading-snug text-foreground">
+              <p className="mb-2.5 text-[15px] font-medium leading-snug text-foreground">
                 {quiz.question}
               </p>
             )}
@@ -290,7 +290,7 @@ export default function SwipeCardItem({
                 }`}
                 role="status"
               >
-                <p className="font-semibold">
+                <p className="font-medium">
                   {!answered
                     ? `Answer: ${String.fromCharCode(65 + quiz.correctAnswer)}`
                     : selectedOption === quiz.correctAnswer
@@ -330,7 +330,7 @@ export default function SwipeCardItem({
                 {depthRows.map((row) => (
                   <div key={row.key}>
                     <dt
-                      className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide ${
+                      className={`flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide ${
                         row.tone ?? 'text-foreground'
                       }`}
                     >

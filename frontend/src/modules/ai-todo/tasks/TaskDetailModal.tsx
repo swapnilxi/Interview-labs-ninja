@@ -251,7 +251,7 @@ export default function TaskDetailModal({
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b mix-border-border/80 mix-bg-muted/20 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="text-xs tabular-nums px-2 py-0.5 rounded bg-muted text-muted-foreground font-semibold shrink-0">
+          <span className="text-xs tabular-nums px-2 py-0.5 rounded bg-muted text-muted-foreground font-medium shrink-0">
             Task #{taskId}
           </span>
 
@@ -261,7 +261,7 @@ export default function TaskDetailModal({
             onChange={(e) => setTitle(e.target.value)}
             onBlur={saveTitle}
             aria-label="Task title"
-            className="text-base font-semibold bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-smooth truncate w-full"
+            className="text-base font-medium bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-smooth truncate w-full"
           />
         </div>
 
@@ -282,10 +282,10 @@ export default function TaskDetailModal({
       {loading ? (
         <div className="p-[3rem] flex flex-col items-center justify-center text-muted-foreground space-y-3">
           <span className="w-[1.5rem] h-[1.5rem] border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
-          <span className="text-xs font-medium">Loading task details...</span>
+          <span className="text-xs font-medium">Loading task details…</span>
         </div>
       ) : !task ? (
-        <div className="p-[3rem] text-center text-muted-foreground">Task not found.</div>
+        <div className="p-[3rem] text-center text-muted-foreground">Task not found</div>
       ) : (
         <div className="flex-1 overflow-y-auto p-5 space-y-[1.5rem] scrollbar-clean">
           {/* Status & Priority Row */}
@@ -331,7 +331,7 @@ export default function TaskDetailModal({
             {/* Due Date */}
             <div>
               <label htmlFor="task-detail-due" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-                Due Date
+                Due date
               </label>
               <input
                 id="task-detail-due"
@@ -345,7 +345,7 @@ export default function TaskDetailModal({
             {/* Time Estimate */}
             <div>
               <label htmlFor="task-detail-estimate" className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
-                Time Estimate
+                Time estimate
               </label>
               <input
                 id="task-detail-estimate"
@@ -389,16 +389,16 @@ export default function TaskDetailModal({
 
           {/* Context & Description */}
           <div className="space-y-1.5">
-            <label htmlFor="task-detail-context" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <label htmlFor="task-detail-context" className="text-xs font-medium text-foreground flex items-center gap-1.5">
               <Icon name="DocumentTextIcon" size={14} className="text-primary" />
-              Context & Description
+              Context & description
             </label>
             <textarea
               id="task-detail-context"
               value={context}
               onChange={(e) => setContext(e.target.value)}
               onBlur={() => saveText('context', context)}
-              placeholder="Attach background details, notes, links, or instructions for this task..."
+              placeholder="Background details, notes, links or instructions for this task"
               rows={3}
               className="w-full bg-input border border-border rounded-xl p-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground leading-relaxed"
             />
@@ -407,30 +407,30 @@ export default function TaskDetailModal({
           {/* Intention & Definition of Done */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="task-detail-intention" className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <FlatIcon name="idea" size={16} /><span>Intention</span>
+              <label htmlFor="task-detail-intention" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                <FlatIcon name="idea" size={16} quiet /><span>Intention</span>
               </label>
               <textarea
                 id="task-detail-intention"
                 value={intention}
                 onChange={(e) => setIntention(e.target.value)}
                 onBlur={() => saveText('intention', intention)}
-                placeholder="Why are you doing this task?..."
+                placeholder="Why are you doing this task?"
                 rows={2}
                 className="w-full bg-input border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="task-detail-dod" className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <FlatIcon name="done" size={16} /><span>Definition of Done</span>
+              <label htmlFor="task-detail-dod" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                <FlatIcon name="done" size={16} quiet /><span>Definition of done</span>
               </label>
               <textarea
                 id="task-detail-dod"
                 value={dod}
                 onChange={(e) => setDod(e.target.value)}
                 onBlur={() => saveText('definition_of_done', dod)}
-                placeholder="Clear criteria when this task is complete..."
+                placeholder="Clear criteria for when this task is complete"
                 rows={2}
                 className="w-full bg-input border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />
@@ -439,7 +439,7 @@ export default function TaskDetailModal({
 
           {/* Subtasks Section */}
           <div className="space-y-3 pt-2 border-t mix-border-border/60">
-            <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
               <Icon name="FolderIcon" size={14} className="text-primary" />
               Subtasks ({task.children?.length || 0})
             </h3>
@@ -455,15 +455,15 @@ export default function TaskDetailModal({
                 }}
                 aria-label="New subtask title"
                 aria-invalid={subtaskError ? true : undefined}
-                placeholder="Add a subtask..."
+                placeholder="Add a subtask"
                 className="flex-1 bg-input border mix-border-border/80 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />
               <button
                 type="submit"
                 disabled={!subtaskTitle.trim() || addingSubtask}
-                className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:mix-bg-primary/90 transition-smooth disabled:opacity-50 shrink-0"
+                className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-lg hover:mix-bg-primary/90 transition-smooth disabled:opacity-50 shrink-0"
               >
-                {addingSubtask ? '...' : '+ Add Subtask'}
+                {addingSubtask ? '...' : '+ Add subtask'}
               </button>
             </form>
             {subtaskError && (
@@ -482,7 +482,7 @@ export default function TaskDetailModal({
                     <span className={sub.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'}>
                       {sub.title}
                     </span>
-                    <span className="text-[12px] font-semibold capitalize text-muted-foreground">
+                    <span className="text-[12px] font-medium capitalize text-muted-foreground">
                       {sub.status}
                     </span>
                   </div>
@@ -493,8 +493,8 @@ export default function TaskDetailModal({
 
           {/* Notes / Journal Section */}
           <div className="space-y-3 pt-2 border-t mix-border-border/60">
-            <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <FlatIcon name="notes" size={16} /> Notes & Journal ({notes.length})
+            <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <FlatIcon name="notes" size={16} quiet /> Notes & Journal ({notes.length})
             </h3>
 
             <form onSubmit={handleAddNote} className="flex flex-col gap-2">
@@ -502,16 +502,16 @@ export default function TaskDetailModal({
                 value={newNoteContent}
                 onChange={(e) => setNewNoteContent(e.target.value)}
                 aria-label="New note"
-                placeholder="Add a progress note or journal entry..."
+                placeholder="Add a progress note or journal entry"
                 rows={2}
                 className="w-full bg-input border mix-border-border/80 rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />
               <button
                 type="submit"
                 disabled={!newNoteContent.trim() || addingNote}
-                className="self-end px-3 py-1 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:mix-bg-primary/90 transition-smooth disabled:opacity-50"
+                className="self-end px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-lg hover:mix-bg-primary/90 transition-smooth disabled:opacity-50"
               >
-                {addingNote ? 'Saving...' : 'Add Note'}
+                {addingNote ? 'Saving…' : 'Add note'}
               </button>
             </form>
 

@@ -234,7 +234,7 @@ export default function GoalTimelineBoard({
         <div className="todo-glass mb-[1.25rem] flex items-center gap-3 px-4 py-3.5 text-[14px] text-muted-foreground">
           <Icon name="SparklesIcon" size={16} className="lab-ink shrink-0" />
           <span>
-            <strong className="text-foreground font-semibold">Start with what matters</strong> — create a
+            <strong className="text-foreground font-medium">Start with what matters</strong> — create a
             goal for any time horizon, from your bigger vision to your next milestone.
           </span>
         </div>
@@ -252,7 +252,7 @@ export default function GoalTimelineBoard({
             'hidden sm:flex items-center justify-center',
             'h-9 w-9 rounded-full border border-border bg-card shadow-lg',
             'text-muted-foreground hover:text-foreground hover:bg-muted',
-            'transition-all duration-200',
+            'transition-[opacity,background-color,color] duration-200',
             canScrollLeft ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
           ].join(' ')}
         >
@@ -268,7 +268,7 @@ export default function GoalTimelineBoard({
             'hidden sm:flex items-center justify-center',
             'h-9 w-9 rounded-full border border-border bg-card shadow-lg',
             'text-muted-foreground hover:text-foreground hover:bg-muted',
-            'transition-all duration-200',
+            'transition-[opacity,background-color,color] duration-200',
             canScrollRight ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
           ].join(' ')}
         >
@@ -303,7 +303,7 @@ export default function GoalTimelineBoard({
             >
               <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-1 pt-4">
                 <span className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">{col.label}</span>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[12px] font-semibold tabular-nums text-muted-foreground">
+                <span className="text-[12px] tabular-nums text-muted-foreground">
                   {col.count}
                 </span>
               </div>
@@ -333,10 +333,10 @@ export default function GoalTimelineBoard({
                             collapsed ? '' : 'rotate-90'
                           }`}
                         />
-                        <span className="flex-1 truncate text-[12px] font-semibold text-muted-foreground">
+                        <span className="flex-1 truncate text-[12px] font-medium text-muted-foreground">
                           ↳ {group.root.title}
                         </span>
-                        <span className="shrink-0 rounded-full bg-muted px-1.5 text-xs font-semibold tabular-nums text-muted-foreground">
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                           {group.items.length}
                         </span>
                       </button>
@@ -354,7 +354,7 @@ export default function GoalTimelineBoard({
               <div className="shrink-0 p-3 pt-0">
                 <button
                   onClick={() => onAddAtLevel(col.id)}
-                  className="todo-add-slot todo-focus flex w-full items-center justify-center gap-1.5 rounded-[12px] py-2.5 text-[13px] font-semibold"
+                  className="todo-add-slot todo-focus flex w-full items-center justify-center gap-1.5 rounded-[12px] py-2.5 text-[13px] font-medium"
                 >
                   <Icon name="PlusIcon" size={15} /> Add {col.label}
                 </button>

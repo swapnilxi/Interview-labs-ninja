@@ -117,7 +117,7 @@ export default function AddTopicModal({
           <div>
             <h2
               id="swipe-add-topic-title"
-              className="font-heading text-lg font-bold text-foreground"
+              className="font-heading text-lg font-semibold text-foreground"
             >
               Add a topic
             </h2>

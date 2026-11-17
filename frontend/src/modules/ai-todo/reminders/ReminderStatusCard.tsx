@@ -106,11 +106,11 @@ export default function ReminderStatusCard() {
     <div className="rem-status" data-tone={state.tone}>
       <div className="flex items-start gap-3">
         <span className="rem-status-icon" aria-hidden>
-          <FlatIcon name="clock" size={22} />
+          <FlatIcon name="clock" size={22} quiet />
         </span>
         <div className="min-w-0">
-          <p className="text-[12px] font-semibold text-muted-foreground">Reminders</p>
-          <p className="mt-0.5 text-sm font-semibold text-foreground">{state.title}</p>
+          <p className="text-[12px] font-medium text-muted-foreground">Reminders</p>
+          <p className="mt-0.5 text-sm font-medium text-foreground">{state.title}</p>
         </div>
         <span className="rem-status-dot ml-auto" aria-hidden />
       </div>
@@ -136,9 +136,9 @@ export default function ReminderStatusCard() {
       </div>
 
       <div className="rem-tip">
-        <FlatIcon name="calendar" size={18} />
+        <FlatIcon name="calendar" size={18} quiet />
         <p>
-          <span className="font-semibold text-foreground">App closed?</span> Phones pause web apps in the background. For a must-not-miss
+          <span className="font-medium text-foreground">App closed?</span> Phones pause web apps in the background. For a must-not-miss
           reminder, open the task’s <span className="font-medium text-foreground">⋯ → Add to calendar</span> — your phone’s calendar will ring.
         </p>
       </div>

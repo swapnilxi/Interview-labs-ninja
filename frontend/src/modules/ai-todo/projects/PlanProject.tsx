@@ -37,39 +37,39 @@ interface PlanProjectProps {
 
 const TAB_GUIDE: Record<PlanSubView, { title: string; steps: string[] }> = {
   projects: {
-    title: 'Projects — Your Planning Hub',
+    title: 'Projects',
     steps: [
-      'Click a project card to open it. Every project has its own address you can bookmark or share.',
-      'Use Explore to build the node tree, AI Planner to plan it with AI from your requirements, or Roadmap for a quick phase outline.',
-      'Inside Explorer: use Dive Deeper (strategic subtopics) or Chunk It (actionable tasks) on any node.',
-      'Push nodes to Smart To-Do or Quick Daily with a single click.',
-      'Click Delete on any card footer to permanently remove the project and all its nodes.',
+      'Open a project card. Each project has its own address you can bookmark or share.',
+      'Explore builds the node tree, AI planner writes a plan from your requirements, and Roadmap gives a quick phase outline.',
+      'In Explorer, Dive deeper splits a node into subtopics and Chunk it into actionable tasks.',
+      'Send nodes to Smart To-Do or Quick Daily with one click.',
+      'Delete, on a card’s footer, removes the project and all its nodes for good.',
     ],
   },
   matrix: {
-    title: 'Eisenhower Matrix — Project Tasks & Subtasks',
+    title: 'Eisenhower matrix',
     steps: [
-      'Drag tasks & subtasks from across all active projects between the four quadrants.',
-      'Each card shows the task title, project name, node type, and export status.',
-      'Click any task card to jump straight into its Project Explorer.',
-      'Do Now — urgent + important: tackle these first.',
-      'Schedule — important, not urgent: plan dedicated time.',
-      'Delegate — urgent, not important: hand off if possible.',
-      'Eliminate — neither: consider dropping.',
-      'Click AI Auto-Sort to let AI categorize all project tasks & subtasks into quadrants.',
+      'Drag tasks and subtasks from all active projects between the four quadrants.',
+      'Each card shows the task title, project, node type and export status.',
+      'Click a card to open it in its Project Explorer.',
+      'Do now: urgent and important. Start here.',
+      'Schedule: important, not urgent. Set time aside.',
+      'Delegate: urgent, not important. Hand off if you can.',
+      'Eliminate: neither. Consider dropping.',
+      'Auto-sort lets AI place every project task and subtask in a quadrant.',
     ],
   },
   roadmap: {
-    title: 'Roadmap — AI-Generated Phase Plan',
+    title: 'Roadmap',
     steps: [
       'Select a project from the dropdown.',
-      'Click Generate Roadmap — AI creates 3-5 structured phases with tasks & milestones.',
-      'Each phase card shows duration, key tasks, and a milestone target.',
-      'Hover a task row to push it directly to Smart To-Do or Quick Daily.',
+      'Click Generate roadmap. AI writes 3–5 phases with tasks and milestones.',
+      'Each phase card shows its duration, key tasks and a milestone.',
+      'Hover a task to send it to Smart To-Do or Quick Daily.',
     ],
   },
   labs: {
-    title: 'Lab plan — Plan your study from the labs',
+    title: 'Lab plan',
     steps: [
       'Pick a lab, then tick the topics you want to work through. Open a topic to choose its lessons.',
       'Mix labs freely: the bar at the bottom keeps everything you picked.',
@@ -88,7 +88,7 @@ function ProjectNodeMatrixCard({ node }: { node: ProjectNodeFlat }) {
       {/* Project Pill Header */}
       <div className="flex items-center justify-between gap-2">
         <div
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold truncate max-w-[200px]"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium truncate max-w-[200px]"
           style={{
             backgroundColor: `${color}15`,
             border: `1px solid ${color}35`,
@@ -100,33 +100,33 @@ function ProjectNodeMatrixCard({ node }: { node: ProjectNodeFlat }) {
         </div>
 
         {node.is_top_20 && (
-          <span className="text-xs font-bold px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400 shrink-0 flex items-center gap-0.5">
+          <span className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-warning">
             <FlatIcon name="star" size={12} /> 20%
           </span>
         )}
       </div>
 
       {/* Task Title */}
-      <div className="text-xs font-semibold text-foreground group-hover:text-primary transition-smooth leading-snug">
+      <div className="text-xs font-medium text-foreground group-hover:text-primary transition-smooth leading-snug">
         {node.title}
       </div>
 
       {/* Footer Badges */}
       <div className="flex items-center gap-1.5 flex-wrap text-xs font-medium text-muted-foreground pt-1.5 border-t mix-border-border/40">
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold capitalize">
+        <span className="text-xs font-medium capitalize">
           {node.node_type}
         </span>
-        <span className="mix-bg-muted/70 px-1.5 py-0.5 rounded text-xs">
+        <span className="text-xs">
           L{node.depth_level}
         </span>
         {node.exported_to_smart_todo && (
-          <span className="text-emerald-500 font-bold flex items-center gap-0.5 ml-auto text-xs">
-            <FlatIcon name="brain" size={14} /> Smart
+          <span className="ml-auto flex items-center gap-0.5 text-xs font-medium">
+            <FlatIcon name="brain" size={14} quiet /> Smart
           </span>
         )}
         {node.exported_to_quick && (
-          <span className="text-amber-500 font-bold flex items-center gap-0.5 ml-auto text-xs">
-            <FlatIcon name="quick" size={14} /> Quick
+          <span className="ml-auto flex items-center gap-0.5 text-xs font-medium">
+            <FlatIcon name="quick" size={14} quiet /> Quick
           </span>
         )}
       </div>
@@ -287,7 +287,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
               type="button"
               onClick={() => setActiveSubView(view)}
               aria-pressed={activeSubView === view}
-              className="todo-segment flex-1 gap-1.5 px-2 py-2 text-sm font-semibold sm:flex-none sm:px-4"
+              className="todo-segment flex-1 gap-1.5 px-2 py-2 text-sm font-medium sm:flex-none sm:px-4"
             >
               {/* Phones fit four segments by dropping the icons */}
               <Icon name={VIEW_META[view].icon} size={15} variant={activeSubView === view ? 'solid' : 'outline'} className="hidden sm:block" />
@@ -308,13 +308,13 @@ export default function PlanProject({ model }: PlanProjectProps) {
             ) : (
               <Icon name="StarIcon" size={14} variant="solid" className="text-primary" />
             )}
-            <span>80/20 Analyze</span>
+            <span>Analyze 80/20</span>
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
             className="todo-btn todo-btn-primary flex-1 px-4 py-2.5 sm:flex-none"
           >
-            <Icon name="PlusIcon" size={16} /> New Project
+            <Icon name="PlusIcon" size={16} /> New project
           </button>
         </div>
       </div>
@@ -350,11 +350,11 @@ export default function PlanProject({ model }: PlanProjectProps) {
               <Icon name="LightBulbIcon" size={18} />
             </span>
             <div>
-              <p className="mb-2 text-[15px] font-semibold text-foreground">{guide.title}</p>
+              <p className="mb-2 text-[15px] font-medium text-foreground">{guide.title}</p>
               <ol className="space-y-2">
                 {guide.steps.map((step, i) => (
                   <li key={i} className="flex items-start gap-2 text-[13px] leading-relaxed text-muted-foreground">
-                    <span className="lab-ink mt-px shrink-0 font-semibold tabular-nums">{i + 1}.</span>
+                    <span className="lab-ink mt-px shrink-0 font-medium tabular-nums">{i + 1}.</span>
                     <span>{step}</span>
                   </li>
                 ))}
@@ -379,7 +379,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
                 </span>
                 <div className="text-center">
                   <p className="font-heading text-base font-semibold text-foreground">No projects yet</p>
-                  <p className="mt-1.5 text-sm">Click <strong className="text-foreground">New Project</strong> to start planning.</p>
+                  <p className="mt-1.5 text-sm">Click <strong className="text-foreground">New project</strong> to start planning.</p>
                 </div>
               </div>
             ) : (
@@ -401,7 +401,7 @@ export default function PlanProject({ model }: PlanProjectProps) {
             {nodesLoading ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3">
                 <span className="w-[1.5rem] h-[1.5rem] border-2 mix-border-primary/20 border-t-primary rounded-full animate-spin" />
-                <span className="text-xs">Loading project tasks & subtasks...</span>
+                <span className="text-xs">Loading project tasks…</span>
               </div>
             ) : projectNodes.length === 0 ? (
               <div className="todo-glass mx-auto mt-4 flex max-w-xl flex-col items-center gap-4 px-[2rem] py-[3rem] text-center text-muted-foreground">
@@ -409,12 +409,13 @@ export default function PlanProject({ model }: PlanProjectProps) {
                   <Icon name="Squares2X2Icon" size={26} />
                 </span>
                 <div className="text-center">
-                  <p className="text-sm font-medium">No project tasks found.</p>
+                  <p className="text-sm font-medium">No project tasks yet</p>
                   <p className="text-xs mt-1">Open a project in the <strong>Projects</strong> tab to add topics & tasks.</p>
                 </div>
               </div>
             ) : (
               <EisenhowerMatrix
+                tone="calm"
                 items={matrixNodeItems}
                 onQuadrantChange={handleNodeQuadrantChange}
                 showAutoSort={true}

@@ -31,8 +31,9 @@ SNIPPET_CHARS = 300
 FETCH_TIMEOUT_S = 8
 MAX_REDIRECTS = 3
 SEARCH_URL = "https://html.duckduckgo.com/html/"
-# DuckDuckGo sometimes answers a burst of queries with a results-free throttling page: retry once after a pause, and
-# remember answers for a while so the same query isn't asked twice. Twin: SEARCH_RETRY_MS / SEARCH_CACHE_* in web.ts.
+# DuckDuckGo sometimes answers a burst of queries with a results-free throttling page (HTTP 202) for the form POST,
+# while a plain GET of the same endpoint still works: retry once after a pause as a GET, and remember answers for a
+# while so the same query isn't asked twice. Twin: SEARCH_RETRY_MS / SEARCH_CACHE_* in web.ts.
 SEARCH_RETRY_S = 0.8
 SEARCH_CACHE_TTL_S = 15 * 60
 SEARCH_CACHE_MAX = 100
@@ -150,7 +151,8 @@ def web_search(query: str, max_results: int = MAX_RESULTS) -> List[dict]:
     links, snippets = [], []
     for attempt in range(2):
         try:
-            _, _, body = safe_get(SEARCH_URL, data=urllib.parse.urlencode({"q": query}).encode())
+            form = urllib.parse.urlencode({"q": query})
+            _, _, body = safe_get(SEARCH_URL, data=form.encode()) if attempt == 0 else safe_get(f"{SEARCH_URL}?{form}")
         except Exception:
             body = b""
         doc = body.decode("utf-8", errors="replace")

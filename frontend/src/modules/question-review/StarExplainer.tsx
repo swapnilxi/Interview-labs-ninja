@@ -144,7 +144,7 @@ export default function StarExplainer({
               {isMissingKeyError(error) && (
                 <>
                   {' '}
-                  <Link href="/config" className="font-semibold underline underline-offset-2">
+                  <Link href="/config" className="font-medium underline underline-offset-2">
                     Open Config
                   </Link>
                 </>

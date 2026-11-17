@@ -54,12 +54,13 @@
        blue = daily progress / active work, cyan = informational metrics / weekly summaries. */
     --color-progress: #0a63d6;
     --color-info: #0b6e82;
-    /* Task-tree depth, L1 … L5+ (to-do tree rails, branch lines and the depth legend all read these). */
-    --color-depth-1: #2b7de9;
-    --color-depth-2: #8a63f0;
-    --color-depth-3: #0891a5;
-    --color-depth-4: #cc7400;
-    --color-depth-5: #d9559f;
+    /* Task-tree depth, L1 … L5+ (to-do tree rails, branch lines and the depth legend all read these). One neutral
+       ramp, strongest at L1 and fading with depth; the lightest step still clears 3:1 on the page. */
+    --color-depth-1: color-mix(in srgb, var(--color-foreground) 80%, transparent);
+    --color-depth-2: color-mix(in srgb, var(--color-foreground) 68%, transparent);
+    --color-depth-3: color-mix(in srgb, var(--color-foreground) 58%, transparent);
+    --color-depth-4: color-mix(in srgb, var(--color-foreground) 50%, transparent);
+    --color-depth-5: color-mix(in srgb, var(--color-foreground) 46%, transparent);
     /* iOS-style materials and lines. --color-separator is the list hairline; --material is the translucent bar fill
        (nav bar, tab bar, sticky headers), always paired with backdrop-filter and an opaque fallback. */
     --color-separator: rgba(17, 24, 39, 0.08);
@@ -166,11 +167,11 @@
     --color-glow: rgba(166, 243, 106, 0.16);
     --color-progress: #4da3ff;
     --color-info: #3ccfe0;
-    --color-depth-1: #5ca6ff;
-    --color-depth-2: #a889ff;
-    --color-depth-3: #2cd6e5;
-    --color-depth-4: #ffb547;
-    --color-depth-5: #e879b9;
+    --color-depth-1: color-mix(in srgb, var(--color-foreground) 80%, transparent);
+    --color-depth-2: color-mix(in srgb, var(--color-foreground) 68%, transparent);
+    --color-depth-3: color-mix(in srgb, var(--color-foreground) 58%, transparent);
+    --color-depth-4: color-mix(in srgb, var(--color-foreground) 50%, transparent);
+    --color-depth-5: color-mix(in srgb, var(--color-foreground) 46%, transparent);
     --color-separator: rgba(255, 255, 255, 0.07);
     --color-fill: rgba(118, 118, 128, 0.2);
     --color-fill-strong: rgba(118, 118, 128, 0.3);
@@ -1428,9 +1429,31 @@
     .todo-row:focus-within .todo-reveal,
     .todo-row[data-expanded='true'] .todo-reveal,
     .todo-reveal:focus-visible,
-    .todo-reveal[aria-expanded='true'] {
+    .todo-reveal[aria-expanded='true'],
+    .todo-reveal:has([aria-expanded='true']) {
       opacity: 1;
     }
+  }
+
+  /*
+   * The task list's cards (TaskTree): one for each task that heads subtasks, one for the tasks around it, one for the
+   * flat layouts. The card colour on the page, a hairline round it: the list reads as content, apart from the controls
+   * above it. Inside, the dividers sit between rows (on top of every row but the first), never against the card's edge.
+   */
+  .todo-group {
+    border-radius: 1rem;
+    border: 1px solid color-mix(in srgb, var(--color-foreground) 8%, transparent);
+    background: var(--color-card);
+    padding: 0.25rem;
+  }
+
+  .todo-group .todo-row::after {
+    top: 0;
+    bottom: auto;
+  }
+
+  .todo-group > .task-node:first-child > .todo-row::after {
+    display: none;
   }
 
   /* A card that has to read as one draggable object (Eisenhower matrix). */
@@ -1442,14 +1465,11 @@
   }
 
   /*
-   * Hierarchy rails. A task row carries a slim rounded bar on its left edge in the colour of its depth (L1 blue …
-   * L5+ pink); an expanded parent also draws a dimmer bar of its own colour down beside its children, so the colours
-   * of the whole ancestry stay visible next to a deep row. They are positioned against the row, so they stretch when a
-   * title wraps, and the tinted bar is the only colour a row gets (no coloured card, border or title).
-   * `--rail` is set inline from the shared depth tokens (todoService DEPTH_COLORS).
+   * `.todo-rail`: the labs' active-row rail (a slim rounded bar on a row's left edge, `--rail` = the lab accent). The
+   * To-Do tree no longer draws per-row rails: its depth reads from the indent, the type (a parent heads its card) and
+   * the `.todo-branch` guide line below.
    */
-  .todo-rail,
-  .todo-branch {
+  .todo-rail {
     position: absolute;
     left: 0.125rem;
     width: 3px;
@@ -1469,16 +1489,25 @@
     inset: 0 -0.4rem;
   }
 
-  /* Starts where the parent's rail ends, so rail and branch read as one continuous line. */
+  /* To-Do tree: a hairline guide that hangs from the parent's lead (its chevron) down beside its subtasks. */
   .todo-branch {
-    top: -0.625rem;
-    bottom: 0.625rem;
-    opacity: 0.3;
+    position: absolute;
+    top: 0;
+    bottom: 0.75rem;
+    left: 1.25rem;
+    width: 1px;
+    background: color-mix(in srgb, var(--color-foreground) 12%, transparent);
     pointer-events: none;
   }
 
-  /* Visible but quieter on a finished task: 65% keeps every level at 3.5:1 or better against the dark page (55% dropped
-     violet and pink under 3:1). The light theme's rails only just clear 3:1 at full strength, so there they are not dimmed. */
+  @media (min-width: 640px) {
+    .todo-branch {
+      left: 1.125rem;
+    }
+  }
+
+  /* Visible but quieter on a finished task: 65% keeps every level above 3:1 against the dark page. The light theme's
+     rails only just clear 3:1 at full strength, so there they are not dimmed. */
   .todo-row[data-done='true'] .todo-rail {
     opacity: 0.65;
   }
@@ -1555,12 +1584,14 @@
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 28%, transparent);
   }
 
+  /* A small AI-action chip (To-Do): a neutral fill, so a card with three of them does not read as three buttons in the
+     accent colour. The accent stays on the one primary action of a screen. */
   .copilot-tint {
-    @apply inline-flex items-center gap-1 rounded-md text-primary transition-colors;
-    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    @apply inline-flex items-center gap-1 rounded-md text-foreground transition-colors;
+    background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
   }
   .copilot-tint:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-primary) 22%, transparent);
+    background: color-mix(in srgb, var(--color-foreground) 11%, transparent);
   }
 
   .copilot-bubble-ai {
@@ -1633,67 +1664,82 @@
   }
 
   /*
-   * SwipeLearn tinted-glass tones. Each element sets --tone; fills are color-mix()ed tints of it
-   * over the card surface, so nothing is a flat saturated block.
+   * SwipeLearn. The card is the one place with colour: its topic's hue (--tone, set per card) tints the banner. The
+   * chrome around it is neutral: the action buttons are plain rounds with the save button in the accent, the topic
+   * pills are neutral with the topic's hue as a small dot (.swipe-dot). No glows, no gradients, no hover lift.
    */
   .swipe-act {
-    @apply flex shrink-0 items-center justify-center rounded-full transition-all duration-200;
-    color: var(--tone, var(--color-primary));
-    background: color-mix(in srgb, var(--tone, var(--color-primary)) 12%, var(--color-card));
-    border: 1px solid color-mix(in srgb, var(--tone, var(--color-primary)) 38%, transparent);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
-      0 0 18px -6px color-mix(in srgb, var(--tone, var(--color-primary)) 55%, transparent);
+    @apply flex shrink-0 items-center justify-center rounded-full;
+    color: var(--color-foreground);
+    background: var(--color-card);
+    border: 1px solid color-mix(in srgb, var(--color-foreground) 12%, transparent);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      transform 120ms ease;
   }
   .swipe-act:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--tone, var(--color-primary)) 22%, var(--color-card));
-    border-color: color-mix(in srgb, var(--tone, var(--color-primary)) 60%, transparent);
-    transform: translateY(-2px);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, white 14%, transparent),
-      0 0 26px -4px color-mix(in srgb, var(--tone, var(--color-primary)) 70%, transparent);
+    background: color-mix(in srgb, var(--color-foreground) 5%, var(--color-card));
+    border-color: color-mix(in srgb, var(--color-foreground) 20%, transparent);
   }
   .swipe-act:active:not(:disabled) {
-    transform: scale(0.94);
+    transform: scale(0.96);
   }
   .swipe-act:disabled {
     opacity: 0.4;
   }
+  /* The one filled action of the deck: save. */
+  .swipe-act-primary,
+  .swipe-act-primary:hover:not(:disabled) {
+    color: var(--color-primary-foreground);
+    background: var(--color-primary);
+    border-color: transparent;
+  }
 
   .swipe-pill {
-    @apply flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-all duration-200 active:scale-95 sm:text-[13px];
+    @apply flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-medium sm:text-[13px];
     --tone: var(--color-primary);
     color: var(--color-muted-foreground);
-    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+    background: transparent;
     border: 1px solid color-mix(in srgb, var(--color-foreground) 12%, transparent);
+    transition:
+      background-color 150ms ease,
+      color 150ms ease,
+      border-color 150ms ease;
   }
   .swipe-pill:hover {
     color: var(--color-foreground);
-    border-color: color-mix(in srgb, var(--tone) 40%, transparent);
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
   }
   .swipe-pill[data-active='true'] {
-    color: color-mix(in srgb, var(--tone) 80%, white);
-    background: color-mix(in srgb, var(--tone) 16%, transparent);
-    border-color: color-mix(in srgb, var(--tone) 55%, transparent);
-    box-shadow: 0 0 16px -4px color-mix(in srgb, var(--tone) 55%, transparent);
+    color: var(--color-foreground);
+    background: var(--color-fill-strong);
+    border-color: transparent;
+  }
+
+  /* A topic's hue as a small dot: in the pills, the card banner and the saved list. */
+  .swipe-dot {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--tone, var(--color-primary));
   }
 
   .swipe-banner {
-    background: linear-gradient(
-      100deg,
-      color-mix(in srgb, var(--tone) 20%, transparent),
-      color-mix(in srgb, var(--tone) 6%, transparent)
-    );
-    border-bottom: 1px solid color-mix(in srgb, var(--tone) 28%, transparent);
+    background: color-mix(in srgb, var(--tone) 12%, var(--color-card));
+    border-bottom: 1px solid color-mix(in srgb, var(--tone) 24%, transparent);
   }
   .swipe-banner-label {
     color: color-mix(in srgb, var(--tone) 80%, white);
   }
   .swipe-banner-chip {
     @apply rounded-full px-2.5 py-0.5;
-    color: color-mix(in srgb, var(--tone) 70%, white);
-    background: color-mix(in srgb, var(--tone) 14%, transparent);
-    border: 1px solid color-mix(in srgb, var(--tone) 28%, transparent);
+    color: var(--color-muted-foreground);
+    background: color-mix(in srgb, var(--color-card) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-foreground) 10%, transparent);
   }
 
   /* Dashed "add" slot used in board columns. */
@@ -3189,8 +3235,8 @@
 /*
  * AI To-Do — voice capture, Today agenda and reminders (TickTick/ClickUp-calm).
  *
- * One accent (the Settings colour, --color-primary) with a faint cyan partner for the only gradients: the capture
- * card's wash, the mic button and the reminder card. Everything else is flat tokens, hairlines and soft fills.
+ * One accent (the Settings colour, --color-primary). Flat tokens, hairlines and soft fills: no gradients, no coloured
+ * shadows.
  * Every tint is color-mix()ed (theme colours are bare var()s, so Tailwind opacity modifiers would compile to nothing).
  */
 @layer components {
@@ -3279,7 +3325,7 @@
     border-radius: 9999px;
     color: var(--color-primary-foreground);
     background: var(--color-primary);
-    box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--color-primary) 70%, transparent);
+    box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.35);
     transition: transform var(--dur-press) var(--ease-out), box-shadow var(--dur-fast) ease, filter var(--dur-fast) ease;
   }
   .vc-mic:hover:not(:disabled) {
@@ -3301,7 +3347,7 @@
     transform: scale(calc(1 + var(--vc-level, 0) * 0.1));
     color: #fff;
     background: #ef4459;
-    box-shadow: 0 8px 20px -10px rgba(239, 68, 89, 0.75);
+    box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.4);
   }
   .vc-mic[data-state='listening']::before,
   .vc-mic[data-state='listening']::after {
@@ -3413,15 +3459,14 @@
   }
   .vc-chip[data-set='true'] {
     color: var(--color-foreground);
-    background: color-mix(in srgb, var(--color-primary) 9%, transparent);
-    border-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+    background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
   }
   button.vc-chip:hover,
   .vc-chip > button:hover {
     color: var(--color-foreground);
   }
   button.vc-chip:hover {
-    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+    background: color-mix(in srgb, var(--color-foreground) 12%, transparent);
   }
   button.vc-chip:focus-visible {
     outline: none;
@@ -3520,7 +3565,7 @@
     border-bottom: 1px solid transparent;
     background: transparent;
     font-size: 0.9375rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--color-foreground);
     outline: none;
   }
@@ -3620,7 +3665,7 @@
   }
   .agenda-title {
     font-size: 0.8125rem;
-    font-weight: 650;
+    font-weight: 500;
     letter-spacing: 0.01em;
     color: var(--color-foreground);
   }
@@ -3628,13 +3673,10 @@
     color: var(--color-error);
   }
   .agenda-count {
-    border-radius: 9999px;
-    padding: 0.1rem 0.45rem;
-    font-size: 0.6875rem;
-    font-weight: 600;
+    font-size: 0.75rem;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
     color: var(--color-muted-foreground);
-    background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
   }
   .agenda-list {
     display: flex;
@@ -3697,9 +3739,7 @@
     border-radius: 1.25rem;
     padding: 2.75rem 1.25rem;
     text-align: center;
-    background:
-      radial-gradient(80% 120% at 50% 0%, color-mix(in srgb, var(--color-primary) 7%, transparent), transparent 70%),
-      color-mix(in srgb, var(--color-foreground) 3%, transparent);
+    background: color-mix(in srgb, var(--color-foreground) 3%, transparent);
   }
 
   /* Round check, TickTick-style: ring in the priority colour, filled when done. The button is the real 40px target;
@@ -3753,20 +3793,9 @@
     }
   }
 
-  /* ── Tabs: the flat icon is colour on the current tab, quieter on the rest ── */
+  /* ── Tabs: the icon takes the label's colour (muted, foreground on the hovered and the current tab) ── */
   .todo-tab-icon {
-    filter: grayscale(0.55);
-    opacity: 0.75;
-    transition: filter 200ms ease, opacity 200ms ease, transform 200ms ease;
-  }
-  .todo-tab:hover .todo-tab-icon {
-    filter: none;
-    opacity: 1;
-  }
-  .todo-tab[aria-current='page'] .todo-tab-icon {
-    filter: none;
-    opacity: 1;
-    transform: scale(1.06);
+    transition: color 160ms var(--ease-out);
   }
 
   /* ── "Turn on notifications" right under the capture card (below xl, where the side card is far down) ── */
@@ -3886,7 +3915,7 @@
     display: block;
     margin: 0.875rem 0 0.375rem;
     font-size: 0.8125rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--color-muted-foreground);
   }
   .sch-check {
@@ -3907,7 +3936,7 @@
     flex-shrink: 0;
     border-radius: 9999px;
     font-size: 0.8125rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--color-muted-foreground);
     background: var(--color-fill);
   }

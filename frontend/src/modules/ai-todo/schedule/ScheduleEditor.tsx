@@ -32,6 +32,8 @@ export interface EditorValue {
   message: string;
   agent_context: AgentContext;
   add_tasks: boolean;
+  use_web: boolean;
+  write_report: boolean;
   repeat: ScheduleRepeat;
   at: string;
   time: string;
@@ -55,6 +57,16 @@ const REPEAT_OPTIONS: { id: ScheduleRepeat; label: string }[] = [
   { id: 'cron', label: 'Custom (cron)' },
 ];
 
+const CONTEXT_OPTIONS: { id: AgentContext; label: string; hint: string }[] = [
+  { id: 'none', label: 'Nothing', hint: 'Only your instructions (and the web, if allowed).' },
+  { id: 'tasks', label: 'Open tasks', hint: 'Your open Smart To-Do tasks, soonest due first.' },
+  {
+    id: 'workspace',
+    label: 'Everything',
+    hint: 'Tasks, what you finished lately, today’s Quick list, projects and goals: for reports and reviews.',
+  },
+];
+
 const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -75,6 +87,8 @@ export function blankEditor(kind: ScheduleKind = 'reminder'): EditorValue {
     message: '',
     agent_context: 'tasks',
     add_tasks: false,
+    use_web: false,
+    write_report: false,
     repeat: 'daily',
     at: toLocalStamp(tomorrow9),
     time: '09:00',
@@ -96,6 +110,8 @@ export function editorFrom(input: {
   message: string | null;
   agent_context: AgentContext;
   add_tasks: boolean;
+  use_web?: boolean;
+  write_report?: boolean;
   rule: ScheduleRule;
   source_text?: string | null;
 }): EditorValue {
@@ -109,6 +125,8 @@ export function editorFrom(input: {
     message: input.message ?? '',
     agent_context: input.agent_context,
     add_tasks: input.add_tasks,
+    use_web: !!input.use_web,
+    write_report: !!input.write_report,
     repeat: r.repeat,
     at: r.at ?? v.at,
     time: r.time ?? v.time,
@@ -146,6 +164,8 @@ export function payloadFrom(v: EditorValue, rule: ScheduleRule): ScheduleCreateP
     rule,
     agent_context: v.agent_context,
     add_tasks: v.kind === 'agent' && v.add_tasks,
+    use_web: v.kind === 'agent' && v.use_web,
+    write_report: v.kind === 'agent' && v.write_report,
     source_text: v.source_text,
   };
 }
@@ -236,7 +256,7 @@ export default function ScheduleEditor({
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         {v.kind === 'agent'
-          ? 'At each run the AI follows your instructions (it can read your tasks) and sends you its answer.'
+          ? 'At each run the AI follows your instructions (it can read your To-Do and search the web) and sends you its answer.'
           : 'A notification with your text, at the time you pick.'}
       </p>
       {agentBlocked && (
@@ -276,13 +296,38 @@ export default function ScheduleEditor({
 
       {v.kind === 'agent' && (
         <div className="mt-3 flex flex-col gap-2">
+          <p className="sch-label mb-0 mt-1">What it can read</p>
+          <div className="todo-segmented w-full" role="group" aria-label="What it can read">
+            {CONTEXT_OPTIONS.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                className="todo-segment flex-1"
+                aria-pressed={v.agent_context === o.id}
+                onClick={() => set({ agent_context: o.id })}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {CONTEXT_OPTIONS.find((o) => o.id === v.agent_context)?.hint}
+          </p>
+          <label className="sch-check mt-1">
+            <input
+              type="checkbox"
+              checked={v.use_web}
+              onChange={(e) => set({ use_web: e.target.checked })}
+            />
+            <span>Search the web when it needs current information</span>
+          </label>
           <label className="sch-check">
             <input
               type="checkbox"
-              checked={v.agent_context === 'tasks'}
-              onChange={(e) => set({ agent_context: e.target.checked ? 'tasks' : 'none' })}
+              checked={v.write_report}
+              onChange={(e) => set({ write_report: e.target.checked })}
             />
-            <span>Let it read my open tasks</span>
+            <span>Write a full report (the notification stays short)</span>
           </label>
           <label className="sch-check">
             <input
@@ -440,7 +485,7 @@ export default function ScheduleEditor({
       <div className="sch-preview" aria-live="polite">
         {checked.rule ? (
           <>
-            <p className="font-semibold text-foreground">{describeRule(checked.rule)}</p>
+            <p className="font-medium text-foreground">{describeRule(checked.rule)}</p>
             {upcoming.length ? (
               <p className="mt-0.5">
                 Next: {upcoming.map((d) => formatReminder(d.toISOString())).join(' · ')}

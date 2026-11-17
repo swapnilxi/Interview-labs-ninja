@@ -960,7 +960,7 @@ export default function DailySessionInteractive() {
                 <Icon name={l.icon} size={17} variant="solid" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold ds-ink">{l.title}</span>
+                <span className="block text-sm font-medium ds-ink">{l.title}</span>
                 <span className="block text-xs ds-faint">{l.sub}</span>
               </span>
               <Icon name="ChevronRightIcon" size={16} className="ds-chevron" />
@@ -993,7 +993,7 @@ export default function DailySessionInteractive() {
                 tone={todaySession.answered >= todaySession.total ? 'jade' : 'indigo'}
                 label={`${todaySession.answered} of ${todaySession.total} answered`}
               >
-                <span className="text-[11px] font-bold ds-ink ds-num">
+                <span className="text-[11px] font-medium ds-ink ds-num">
                   {todaySession.answered}/{todaySession.total}
                 </span>
               </Ring>
@@ -1037,7 +1037,7 @@ export default function DailySessionInteractive() {
 
               <form onSubmit={handleStartSession} className="mt-[1.5rem] space-y-[1.5rem]">
                 <div>
-                  <p id="ds-level" className="mb-2 text-sm font-semibold ds-ink">
+                  <p id="ds-level" className="mb-2 text-sm font-medium ds-ink">
                     Level
                   </p>
                   <div className="ds-seg" role="group" aria-labelledby="ds-level">
@@ -1051,13 +1051,13 @@ export default function DailySessionInteractive() {
 
                 <TopicPicker value={topics} onChange={setTopics} companies={companies} onCompaniesChange={setCompanies} />
 
-                <details className="ds-disclosure ds-list" open>
+                <details className="ds-disclosure ds-list" open={tailored}>
                   <summary className="ds-list-row">
                     <span className="ds-icon-tile ds-icon-tile-sm ds-tone-neutral">
                       <Icon name="BriefcaseIcon" size={16} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold ds-ink">Tailor to your resume and role</span>
+                      <span className="block text-sm font-medium ds-ink">Tailor to your resume and role</span>
                       <span className="block text-xs ds-faint">
                         {tailored
                           ? [cvText.trim() && 'Resume added', jdText.trim() && 'Job added'].filter(Boolean).join(' · ')
@@ -1069,7 +1069,7 @@ export default function DailySessionInteractive() {
                   <div className="space-y-4 px-4 pb-4 pt-1">
                     <div>
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <label htmlFor="cv-text" className="text-sm font-semibold ds-ink">
+                        <label htmlFor="cv-text" className="text-sm font-medium ds-ink">
                           Resume or project context
                         </label>
                         <label className="ds-btn ds-btn-secondary ds-btn-sm cursor-pointer">
@@ -1085,7 +1085,7 @@ export default function DailySessionInteractive() {
                         </label>
                       </div>
                       {uploadedFileName && (
-                        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold ds-tone-jade ds-tone-text">
+                        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium ds-tone-jade ds-tone-text">
                           <Icon name="CheckCircleIcon" size={14} variant="solid" />
                           {uploadedFileName}
                         </p>
@@ -1100,7 +1100,7 @@ export default function DailySessionInteractive() {
                       />
                     </div>
                     <div>
-                      <label htmlFor="jd-text" className="mb-2 block text-sm font-semibold ds-ink">
+                      <label htmlFor="jd-text" className="mb-2 block text-sm font-medium ds-ink">
                         Job description
                       </label>
                       <textarea
@@ -1136,7 +1136,7 @@ export default function DailySessionInteractive() {
             <div role="alert" className="ds-banner ds-tone-gold flex-wrap">
               <Icon name="KeyIcon" size={18} />
               <span className="min-w-0 flex-1">
-                <span className="block font-semibold">Add an AI key to generate questions</span>
+                <span className="block font-medium">Add an AI key to generate questions</span>
                 <span className="block text-sm">
                   Every session is written fresh by the model you pick in Config, so questions don&apos;t repeat. Keys stay in
                   this browser.
@@ -1181,7 +1181,7 @@ export default function DailySessionInteractive() {
                           {done && <Icon name="CheckIcon" size={14} className="ds-tone-jade ds-tone-text" />}
                         </Ring>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-semibold ds-ink">{relativeDay(r.date)}</span>
+                          <span className="block text-sm font-medium ds-ink">{relativeDay(r.date)}</span>
                           <span className="block text-xs ds-faint ds-num">
                             {done ? 'Completed' : `${r.answered} of ${r.total} answered`}
                             {r.offline ? ' · this browser only' : ''}
@@ -1252,7 +1252,7 @@ export default function DailySessionInteractive() {
                 <span className="ds-icon-tile ds-icon-tile-lg ds-tone-neutral">
                   <Icon name="InboxIcon" size={22} />
                 </span>
-                <p className="mt-3 text-sm font-semibold ds-ink">No questions yet</p>
+                <p className="mt-3 text-sm font-medium ds-ink">No questions yet</p>
                 <p className="mt-1 text-sm ds-faint">Start your first session and its questions will appear here.</p>
               </div>
             ) : (
@@ -1266,9 +1266,9 @@ export default function DailySessionInteractive() {
                       title="Open the full review"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="ds-clamp-2 text-[0.9rem] font-semibold leading-snug ds-ink">{q.questionText}</span>
+                        <span className="ds-clamp-2 text-[0.9rem] font-medium leading-snug ds-ink">{q.questionText}</span>
                         <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ds-faint">
-                          <span className={`inline-flex items-center gap-1.5 font-semibold ${toneClass(difficultyTone(q.difficulty))} ds-tone-text`}>
+                          <span className={`inline-flex items-center gap-1.5 font-medium ${toneClass(difficultyTone(q.difficulty))} ds-tone-text`}>
                             <span className="ds-dot" aria-hidden="true" />
                             {q.difficulty}
                           </span>
@@ -1349,7 +1349,7 @@ export default function DailySessionInteractive() {
 
             {(topics.length > 0 || levels.length > 0) && (
               <div className="mt-[1.5rem]">
-                <p className="mb-2 text-sm font-semibold ds-ink">What&apos;s inside</p>
+                <p className="mb-2 text-sm font-medium ds-ink">What&apos;s inside</p>
                 <div className="flex flex-wrap gap-2">
                   {levels.map((l) => (
                     <span key={l.d} className={`ds-chip ${toneClass(difficultyTone(l.d))}`}>
@@ -1676,7 +1676,7 @@ export default function DailySessionInteractive() {
                     type="button"
                     onClick={handleGenerateHint}
                     disabled={isGeneratingHint}
-                    className="ds-btn ds-btn-soft mt-4 w-full"
+                    className="ds-btn ds-btn-secondary mt-4 w-full"
                   >
                     <Icon name="SparklesIcon" size={16} />
                     {isGeneratingHint ? 'Thinking…' : 'Show a model answer'}
@@ -1696,7 +1696,7 @@ export default function DailySessionInteractive() {
                     )}
                   </div>
                 )}
-                {hintError && <p className="mt-3 text-xs font-semibold ds-tone-rose ds-tone-text">{hintError}</p>}
+                {hintError && <p className="mt-3 text-xs font-medium ds-tone-rose ds-tone-text">{hintError}</p>}
               </div>
             </section>
 
@@ -1705,14 +1705,14 @@ export default function DailySessionInteractive() {
                 <span className="ds-icon-tile ds-icon-tile-sm ds-tone-neutral">
                   <Icon name="ArrowDownTrayIcon" size={16} />
                 </span>
-                <span className="flex-1 text-sm font-semibold ds-ink">Export as Markdown</span>
+                <span className="flex-1 text-sm font-medium ds-ink">Export as Markdown</span>
               </button>
               <button type="button" onClick={handleClearSession} className="ds-list-row">
                 <span className="ds-icon-tile ds-icon-tile-sm ds-tone-neutral">
                   <Icon name="XMarkIcon" size={16} />
                 </span>
                 <span className="flex-1">
-                  <span className="block text-sm font-semibold ds-ink">Close this session</span>
+                  <span className="block text-sm font-medium ds-ink">Close this session</span>
                   <span className="block text-xs ds-faint">Saved answers stay in Recent sessions</span>
                 </span>
               </button>
