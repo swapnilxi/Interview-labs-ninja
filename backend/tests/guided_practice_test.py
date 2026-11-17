@@ -5,7 +5,8 @@ the other backend/tests scripts; no AI provider is called, the model call is rep
 Runs against a COPY of the real database (never the live file): copy backend/data/lab_ninja.sqlite3 somewhere, point
 LABNINJA_TEST_DB_PATH at the copy and run
     cd backend && LABNINJA_TEST_DB_PATH=/tmp/guided-practice.sqlite3 uv run python tests/guided_practice_test.py
-It refuses to run without LABNINJA_TEST_DB_PATH, or when that names the live database. Exits non-zero if any check fails.
+It refuses to run without LABNINJA_TEST_DB_PATH, or when that names the live database, and it empties the guided table of the
+copy first, so one copy can be used for repeated runs. Exits non-zero if any check fails.
 
 The app under test is only this module's router with a stand-in for the login (the X-Test-User header is the user id,
 no header is a guest), so it needs no accounts. The prompts are compared with the Next.js twin
@@ -71,6 +72,14 @@ check(
     {r[0] for r in rows("SELECT name FROM sqlite_master WHERE name IN ('guided_practice_state', 'idx_guided_practice_state_user')")}
     == {"guided_practice_state", "idx_guided_practice_state_user"},
 )
+# The copy may still hold the rows of an earlier run (this script leaves its test rows behind): start from an empty table,
+# so the same copy can be used again. Safe: the guard above already refused the live database.
+_reset = sqlite3.connect(DB)
+try:
+    _reset.execute("DELETE FROM guided_practice_state")
+    _reset.commit()
+finally:
+    _reset.close()
 main_tree = ast.parse((ROOT / "main.py").read_text(encoding="utf-8"))
 check(
     "main.py imports the router",
