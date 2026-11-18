@@ -4,7 +4,7 @@ import ModuleLandingModule from '@/modules/ai-lms/ModuleLandingModule';
 import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
-  title: 'AI LMS - About | InterviewNinja',
+  title: 'AI LMS - About | Lab Ninja',
   description: 'What AI LMS is, how it works, and every class currently available.',
 };
 

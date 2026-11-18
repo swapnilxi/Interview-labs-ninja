@@ -132,7 +132,7 @@ export default function QueuePanel({
       ref={setNodeRef}
       aria-labelledby="org-queue-title"
       data-org-pane="queue"
-      className={`relative flex min-h-0 flex-col rounded-lg border bg-card transition-shadow duration-200 ${
+      className={`lab-edge relative flex min-h-0 flex-col rounded-lg border bg-card transition-shadow duration-200 ${
         dropActive ? 'ring-2 mix-ring-primary/60' : ''
       } ${className}`}
     >

@@ -6,7 +6,7 @@ import LabsProjectModule from '@/modules/labs/project/LabsProjectModule';
 import LabsProjectGuideHeader from '@/modules/labs/project/LabsProjectGuideHeader';
 
 export const metadata: Metadata = {
-  title: 'Labs Project — InterviewNinja',
+  title: 'Labs Project — Lab Ninja',
   description:
     'Create projects, give the labs their context, and keep the sections you save from any lab in one place.',
 };

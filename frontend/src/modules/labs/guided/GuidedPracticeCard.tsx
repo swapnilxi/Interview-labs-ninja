@@ -9,8 +9,8 @@ import { fetchGuidedSummary } from './service';
 import type { GuidedSummary } from './types';
 
 /**
- * The "Guided Practice" card on a lab topic's page (DSA, CV), under "Generate practice material". It is a real link: it
- * opens the lab's dedicated page (`/dsa-lab/guided-practice`, `/cv-lab/guided-practice`) for this topic or subtopic, carrying
+ * The "Guided Practice" card on a lab topic's page (every lab), under "Generate practice material". It is a real link: it
+ * opens the lab's dedicated page (`/dsa-lab/guided-practice`, `/cv-lab/guided-practice`, ...) for this topic or subtopic, carrying
  * the lab view the topic was opened from so Back returns to the same place. With progress it shows where the learner is;
  * without, what the page offers.
  */
@@ -52,7 +52,7 @@ export default function GuidedPracticeCard({
     <Link
       href={href}
       aria-label={`Guided Practice for ${name}${started ? `, ${summary?.percent}% complete` : ''}`}
-      className="todo-focus group lab-card flex items-center gap-4 p-4 transition-colors hover:mix-border-primary/40 sm:p-[1.25rem]"
+      className="todo-focus group lab-card lab-edge-link flex items-center gap-4 p-4 sm:p-[1.25rem]"
     >
       <span className="lab-tile h-11 w-11 shrink-0" aria-hidden="true">
         <Icon name="MapIcon" size={22} />

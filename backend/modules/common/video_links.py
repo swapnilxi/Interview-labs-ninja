@@ -27,6 +27,17 @@ TITLE_NOT_TEXT = "A title must be text."
 LIMIT_ERROR = f"At most {MAX_PER_ITEM} videos per item."
 DUPLICATE_ERROR = "That video is already added."
 
+# Presentation of a lab link (an admin sets it): a rectangular card shape and a preview image. Not used by AI LMS.
+SHAPES = ("wide", "side", "slim")
+DEFAULT_SHAPE = "wide"
+PREVIEW_BYTES_MAX = 204800  # the decoded size of an uploaded image: 200 KB
+PREVIEW_PAYLOAD_MAX = (PREVIEW_BYTES_MAX + 2) // 3 * 4  # ...as base64 characters (273068)
+SHAPE_ERROR = "A shape must be wide, side or slim."
+PREVIEW_ERROR = "A preview image must be an https:// link or a JPEG, PNG, WebP or GIF image."
+PREVIEW_URL_TOO_LONG = f"That image link is too long. Links can be at most {URL_MAX} characters."
+PREVIEW_TOO_BIG = "That image is too large. A preview image can be at most 200 KB."
+SHARED_ERROR = "Shared must be true or false."
+
 
 class VideoError(Exception):
     """A request the caller can fix. `status_code` and `detail` go straight into the HTTP response."""
@@ -78,6 +89,52 @@ def clean_title(value: Any) -> str:
     if len(title) > TITLE_MAX:
         raise VideoError(422, TITLE_TOO_LONG)
     return title
+
+
+# A preview image is an https link or an uploaded image as a data URL. Nothing else (no http, no svg, no other scheme).
+_HTTPS_PREFIX = re.compile(r"https://", re.IGNORECASE | re.ASCII)
+_HTTPS_SHAPE = re.compile(rf"https://{_LABEL}(?:\.{_LABEL})*(?::([0-9]{{1,5}}))?(?:[/?#].*)?", re.IGNORECASE | re.ASCII)
+_DATA_IMAGE = re.compile(r"data:image/(?:jpeg|png|webp|gif);base64,([A-Za-z0-9+/]+={0,2})", re.ASCII)
+
+
+def clean_shape(value: Any) -> str | None:
+    """None (not sent) stays None; otherwise one of SHAPES, or VideoError(422)."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in SHAPES:
+        raise VideoError(422, SHAPE_ERROR)
+    return value
+
+
+def clean_preview_image(value: Any) -> str:
+    """'' for no image (None and '' both mean that); else the https link or data URL as it will be stored.
+    Raises VideoError(422) for anything else, or for an upload over PREVIEW_BYTES_MAX."""
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise VideoError(422, PREVIEW_ERROR)
+    text = _EDGE_WHITESPACE.sub("", value)
+    if text == "":
+        return ""
+    data = _DATA_IMAGE.fullmatch(text)
+    if data:
+        payload = data.group(1)
+        if len(payload) % 4 != 0:
+            raise VideoError(422, PREVIEW_ERROR)
+        if len(payload) > PREVIEW_PAYLOAD_MAX:
+            raise VideoError(422, PREVIEW_TOO_BIG)
+        return text
+    if not _HTTPS_PREFIX.match(text) or _FORBIDDEN.search(text):
+        raise VideoError(422, PREVIEW_ERROR)
+    if len(text) > URL_MAX:
+        raise VideoError(422, PREVIEW_URL_TOO_LONG)
+    match = _HTTPS_SHAPE.fullmatch(text)
+    if not match:
+        raise VideoError(422, PREVIEW_ERROR)
+    port = match.group(1)
+    if port is not None and not 1 <= int(port) <= 65535:
+        raise VideoError(422, PREVIEW_ERROR)
+    return text
 
 
 def now_iso() -> str:

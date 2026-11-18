@@ -489,8 +489,11 @@ export default function WeekPlanView({
         </div>
       </div>
 
-      {/* Header: a plain hairline card (the signature wash belongs to the wiki hero) */}
-      <header ref={headerRef} className="rounded-lg border bg-card p-[1.25rem] sm:p-[1.5rem]">
+      {/* Header: a glow-edge card (the signature wash belongs to the wiki hero) */}
+      <header
+        ref={headerRef}
+        className="lab-edge lab-rim rounded-lg border bg-card p-[1.25rem] sm:p-[1.5rem]"
+      >
         <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
           <div className="min-w-0 flex-1 basis-[15rem]">
             <div className="flex flex-wrap items-baseline gap-x-2.5">

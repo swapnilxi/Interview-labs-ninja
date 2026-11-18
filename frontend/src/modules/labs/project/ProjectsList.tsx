@@ -168,7 +168,7 @@ export default function ProjectsList({
                 className={`group flex flex-col rounded-2xl border bg-card transition-all ${
                   inUse
                     ? 'mix-border-primary/50 shadow-sm mix-ring-primary/20 ring-1'
-                    : 'border-border hover:mix-border-foreground/20 hover:shadow-sm'
+                    : 'lab-edge lab-edge-link'
                 }`}
               >
                 <Link href={projectHref(p.id)} className="todo-focus flex-1 rounded-t-2xl p-4">

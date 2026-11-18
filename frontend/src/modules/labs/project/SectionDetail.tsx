@@ -164,7 +164,7 @@ export default function SectionDetail({
       ) : !section ? (
         <LoadingBlock label="Loading section…" />
       ) : (
-        <article className="rounded-2xl border border-border bg-card">
+        <article className="lab-edge rounded-2xl border bg-card">
           <header className="border-b border-border p-4 sm:p-5">
             {editing ? (
               <div>

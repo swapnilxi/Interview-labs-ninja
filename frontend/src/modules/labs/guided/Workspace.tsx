@@ -9,6 +9,7 @@ import { DEEPER_LEVELS, XP } from './constants';
 import ExercisePanel from './ExercisePanel';
 import HelpPanel from './HelpPanel';
 import { highlightFence } from './highlight';
+import { labConfig } from './labs';
 import { usePrefs } from './prefs';
 import type { PathCtx } from './QuestionRow';
 import StarPanel from './StarPanel';
@@ -362,6 +363,7 @@ export default function Workspace({
           onRetry={() => actions.tutorRetry(id)}
           onClearError={() => actions.clearError(`tutor:${id}`)}
           onComplete={() => actions.completeViaTutor(id)}
+          exerciseLabel={labConfig(state.topic.lab).exerciseLabel}
         />
       )}
       {mode === 'star' && (
@@ -378,6 +380,7 @@ export default function Workspace({
             void actions.tutorSend(id, 'star');
           }}
           onClearError={() => actions.clearError(`star:${id}`)}
+          kindNotes={labConfig(state.topic.lab).kindNotes}
         />
       )}
 

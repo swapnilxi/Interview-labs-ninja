@@ -4,7 +4,7 @@ import LabsProjectFrame from '@/modules/labs/project/LabsProjectFrame';
 import ProjectForm from '@/modules/labs/project/ProjectForm';
 
 export const metadata: Metadata = {
-  title: 'New project — Labs Project — InterviewNinja',
+  title: 'New project — Labs Project — Lab Ninja',
   description:
     'Create a project: a name, a line about it and the context every lab can generate with.',
 };

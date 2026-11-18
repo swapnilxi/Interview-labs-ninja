@@ -7,7 +7,40 @@
  * see fe-apis/ai/index.ts for what other modules should import.
  */
 
-export const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'gemma2-9b-it', 'mixtral-8x7b-32768'];
+export const GROQ_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'gemma2-9b-it',
+  'mixtral-8x7b-32768',
+];
+
+// A connection that never got going (a dropped packet, a DNS hiccup, a refused or reset connect) is worth another try; a request
+// the provider answered, or one that waited a long time for its answer, is not. Twin: _urlopen_retrying() in
+// backend/modules/common/ai/utils.py (same retries, same wait, same quick-failure rule).
+const CONNECT_RETRIES = 2;
+const CONNECT_QUICK_FAIL_MS = 20_000;
+
+/**
+ * fetch that tries again (after 1 s, then 2 s) when the connection could not be made. Node's fetch reports every such failure
+ * as `TypeError: fetch failed` and hides the reason in `cause`, so the final error names the cause ("fetch failed
+ * (UND_ERR_CONNECT_TIMEOUT)") instead of leaving a person to guess. `init` is a function because a timeout signal is used up
+ * by the attempt it was made for. Timeouts, HTTP statuses and failures after a long wait are returned or thrown as they are.
+ */
+async function fetchRetrying(url: string, init: () => RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const started = Date.now();
+    try {
+      return await fetch(url, init());
+    } catch (err) {
+      if (!(err instanceof TypeError) || err.message !== 'fetch failed') throw err;
+      const code = (err.cause as { code?: string } | undefined)?.code;
+      if (attempt >= CONNECT_RETRIES || Date.now() - started > CONNECT_QUICK_FAIL_MS) {
+        throw new Error(code ? `fetch failed (${code})` : 'fetch failed', { cause: err });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+    }
+  }
+}
 
 /**
  * Mirrors Python's _provider_order(model) in ai_client.py: puts whichever provider
@@ -19,7 +52,8 @@ export function providerOrder(model: string): string[] {
   if (model.includes('/') || model.startsWith('openrouter')) {
     // OpenRouter's DeepSeek ids ("deepseek/deepseek-chat"): without an OpenRouter key, DeepSeek's own API comes
     // next, before Gemini (twin of the same rule in Python's _provider_order).
-    if (model.startsWith('deepseek/')) return ['openrouter', 'deepseek', 'gemini', 'groq', 'openai', 'anthropic', 'custom'];
+    if (model.startsWith('deepseek/'))
+      return ['openrouter', 'deepseek', 'gemini', 'groq', 'openai', 'anthropic', 'custom'];
     return ['openrouter', 'gemini', 'deepseek', 'groq', 'openai', 'anthropic', 'custom'];
   }
   if (model.startsWith('gemini') || model.startsWith('gemma')) {
@@ -61,30 +95,65 @@ export async function callOpenAiCompatible(
   /** Provider-specific body fields (e.g. DeepSeek's reasoning_effort). */
   extra: Record<string, unknown> = {}
 ): Promise<string> {
-  const res = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      // Omitting this isn't "use the provider's generous default" -- live-tested
-      // against DeepSeek and confirmed it silently truncates mid-document without
-      // it (verified via a real generate call: 24471 chars in, cut off mid-tag,
-      // no error, just missing </html>). Every OpenAI-compatible provider here
-      // (OpenAI, DeepSeek, Groq, OpenRouter, custom) shares this one function, so
-      // they all need an explicit budget, not just Gemini/Anthropic.
-      max_tokens: maxTokens,
-      ...extra,
-    }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  const post = async (tokens: number): Promise<{ text: string; finish: string | null }> => {
+    const res = await fetchRetrying(`${baseUrl.replace(/\/$/, '')}/chat/completions`, () => ({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        // Omitting this isn't "use the provider's generous default" -- live-tested
+        // against DeepSeek and confirmed it silently truncates mid-document without
+        // it (verified via a real generate call: 24471 chars in, cut off mid-tag,
+        // no error, just missing </html>). Every OpenAI-compatible provider here
+        // (OpenAI, DeepSeek, Groq, OpenRouter, custom) shares this one function, so
+        // they all need an explicit budget, not just Gemini/Anthropic.
+        max_tokens: tokens,
+        ...extra,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    }));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const choice = (await res.json()).choices?.[0];
+    const content = choice?.message?.content;
+    return {
+      text: typeof content === 'string' ? content : '',
+      finish: choice?.finish_reason ?? null,
+    };
+  };
+
+  // A reply with no text is a failure, not an answer, so callAIText moves on to the next provider and, when there is none,
+  // the error says why. A reasoning model's hidden thinking counts against max_tokens: when that used the whole budget
+  // (finish_reason "length") the call is retried once with room for the thinking.
+  // Twin: _call_openai_compatible() in backend/modules/common/ai/providers.py (same retry, same message).
+  let { text, finish } = await post(maxTokens);
+  if (!text.trim() && finish === 'length') {
+    try {
+      ({ text, finish } = await post(maxTokens + EMPTY_RETRY_HEADROOM));
+    } catch {
+      // the first reply's diagnosis is the useful one
+    }
+  }
+  if (!text.trim()) throw new Error(noTextMessage(model, finish, maxTokens));
+  return text;
+}
+
+/** Extra tokens for the one retry of an OpenAI-compatible call whose whole budget went on hidden reasoning. */
+const EMPTY_RETRY_HEADROOM = 8192;
+
+/** Why an OpenAI-compatible reply had no text. Twin: _no_text_message() in backend/modules/common/ai/providers.py. */
+function noTextMessage(model: string, finish: string | null, maxTokens: number): string {
+  if (finish === 'length') {
+    return (
+      `${model} used its whole ${maxTokens}-token budget before writing an answer ` +
+      "(a reasoning model's hidden thinking counts against it). Pick a non-reasoning model in Config."
+    );
+  }
+  return `${model} returned no text (finish_reason: ${finish || 'none'}).`;
 }
 
 export async function callAnthropicText(
@@ -94,7 +163,7 @@ export async function callAnthropicText(
   timeoutMs: number,
   maxTokens: number
 ): Promise<string> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetchRetrying('https://api.anthropic.com/v1/messages', () => ({
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -107,7 +176,7 @@ export async function callAnthropicText(
       messages: [{ role: 'user', content: prompt }],
     }),
     signal: AbortSignal.timeout(timeoutMs),
-  });
+  }));
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   return data.content?.[0]?.text || '';
@@ -121,24 +190,33 @@ export async function callGeminiText(
   maxTokens: number
 ): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.7,
-        // A full interactive lesson document (styling + objectives + concepts + code
-        // examples + quiz) empirically needs well past 8192 output tokens to finish --
-        // confirmed against the equivalent Python path, where 8192 reliably cut
-        // generations off mid-document (verified truncated after cleanup, not just an
-        // unclosed markdown fence) and 16000 reliably completed them.
-        maxOutputTokens: maxTokens,
-      },
-    }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  // thinkingBudget 0 turns off Gemini 2.5's hidden reasoning, which otherwise can spend the whole maxOutputTokens and leave
+  // no text part. Not every model/alias accepts the field (some 400 on it), so a 400 retries once without it.
+  // Twin: _generation_config() and _post_generate_content() in backend/modules/common/ai/providers.py.
+  let res: Response | null = null;
+  for (const thinking of [true, false]) {
+    res = await fetchRetrying(url, () => ({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          // A full interactive lesson document (styling + objectives + concepts + code
+          // examples + quiz) empirically needs well past 8192 output tokens to finish --
+          // confirmed against the equivalent Python path, where 8192 reliably cut
+          // generations off mid-document (verified truncated after cleanup, not just an
+          // unclosed markdown fence) and 16000 reliably completed them.
+          maxOutputTokens: maxTokens,
+          ...(thinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+        },
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    }));
+    if (thinking && res.status === 400) continue;
+    break;
+  }
+  if (!res || !res.ok) throw new Error(`HTTP ${res?.status}`);
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Empty response');

@@ -436,7 +436,7 @@ Output rules:
   return (
     <div className="space-y-[1.25rem]">
       {picker}
-      <div className="rounded-2xl border bg-card p-[1.25rem] sm:p-[1.5rem]">{body}</div>
+      <div className="lab-edge rounded-2xl border bg-card p-[1.25rem] sm:p-[1.5rem]">{body}</div>
       {footer}
     </div>
   );

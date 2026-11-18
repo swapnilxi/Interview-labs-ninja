@@ -7,7 +7,7 @@ import RequireAuth from '@/modules/auth/RequireAuth';
 import { LabScreenLoading } from '@/modules/labs/common/labNavigation';
 
 export const metadata: Metadata = {
-  title: 'Communication Lab — InterviewNinja',
+  title: 'Communication Lab — Lab Ninja',
   description:
     'Business English, effective communication and leadership: phrases, frameworks, role-plays and an AI copilot.',
 };

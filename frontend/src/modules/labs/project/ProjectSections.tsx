@@ -155,7 +155,7 @@ export default function ProjectSections({ project }: { project: LabProject }) {
           <p>Try a different search or choose "All labs".</p>
         </EmptyState>
       ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+        <ul className="lab-edge divide-y divide-border overflow-hidden rounded-2xl border bg-card">
           {shown.map((s) => (
             <li key={s.id}>
               <Link

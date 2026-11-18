@@ -3,7 +3,7 @@ import Header from '@/components/common/Header';
 import LabsHomeModule from '@/modules/labs/home/LabsHomeModule';
 
 export const metadata: Metadata = {
-  title: 'Labs — InterviewNinja',
+  title: 'Labs — Lab Ninja',
   description:
     'Every lab in one place: DSA, System Design, Computer Vision, Communication, Finance, Python and GenAI & AI.',
 };

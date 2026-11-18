@@ -16,7 +16,7 @@ import { labTileStyle } from '@/modules/labs/common/labSectionDefaults';
  */
 
 const CARD =
-  'lab-glow todo-focus group flex h-full flex-col rounded-lg border bg-card p-[1.25rem] transition-smooth hover:mix-border-primary/40';
+  'lab-glow todo-focus group flex h-full flex-col rounded-lg border bg-card p-[1.25rem] lab-edge lab-edge-link';
 
 function LabCard({ lab }: { lab: LabCatalogEntry }) {
   return (
@@ -52,7 +52,7 @@ export default function LabsHomeModule() {
     <div className="space-y-[2rem]">
       <header className="lab-hero">
         <div className="relative flex flex-wrap items-start gap-4">
-          <span className="lab-tile h-[3rem] w-[3rem]" aria-hidden="true">
+          <span className="lab-tile lab-tile-duo h-[3rem] w-[3rem]" aria-hidden="true">
             <Icon name="BeakerIcon" size={24} />
           </span>
           <div className="min-w-0 flex-1">

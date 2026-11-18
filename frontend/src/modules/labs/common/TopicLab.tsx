@@ -957,7 +957,7 @@ export default function TopicLab<T extends TopicLabTopic>({
           ) : (
             <div className="lab-container max-w-card space-y-[1.5rem]">
               {/* ── Header ── */}
-              <header className="rounded-lg border bg-card p-[1.25rem] sm:p-[1.5rem]">
+              <header className="lab-edge lab-rim rounded-lg border bg-card p-[1.25rem] sm:p-[1.5rem]">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <span className={LAB_CHIP_ACCENT}>{currentTopic.category}</span>
                   <DifficultyTag difficulty={currentTopic.difficulty} />
@@ -1071,7 +1071,7 @@ export default function TopicLab<T extends TopicLabTopic>({
               )}
 
               {/* ── Your video links for this page (personal) ── */}
-              <LabPageVideos lab={lab} topicId={currentTopic.id} subtopicId={currentSubtopic?.id ?? ''} />
+              <LabPageVideos lab={lab} topic={currentTopic} subtopic={currentSubtopic ?? null} />
 
               {/* ── Content outline ── */}
               <div className="lab-card-muted p-4">

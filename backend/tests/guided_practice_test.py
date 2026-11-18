@@ -254,12 +254,35 @@ check("a reset with no lab is a dsa reset", call(ALICE, "GET", "/state", params=
 r = put(ALICE, {"lab": "cv", **LAB_PAGE, "expected_version": 0, "state": {"again": "cv"}})
 check("a reset cv page starts again at version 1", r.status_code == 200 and r.json()["version"] == 1, r.text[:150])
 check("updating the reset dsa page is refused although cv has a row", put(ALICE, {"lab": "dsa", **LAB_PAGE, "expected_version": 1, "state": {"x": 1}}).status_code == 409)
-for bad in ("system_design", "", "DSA", "CV", " cv", "5", "dsa,cv"):
+for bad in ("system-design", "", "DSA", "CV", " cv", "5", "dsa,cv", "Python", "genai "):
     for method, path in (("GET", "/state"), ("GET", "/summary"), ("DELETE", "/state")):
         check(f"{method} {path}: lab {bad!r} is 422", call(ALICE, method, path, params={"topic_id": "t", "lab": bad}).status_code == 422)
-for bad in ("system_design", "", "DSA", "CV", " cv", 5, 0, True, False, ["cv"], {"a": 1}):
+for bad in ("system-design", "", "DSA", "CV", " cv", 5, 0, True, False, ["cv"], {"a": 1}):
     r = put(ALICE, {"lab": bad, "topic_id": "t-bad", "state": {"a": 1}})
     check(f"PUT state: lab {bad!r} is 422 and saves nothing", r.status_code == 422 and not rows("SELECT 1 FROM guided_practice_state WHERE topic_id = 't-bad'"), r.text[:100])
+
+# ── State: every lab (the same topic id under all seven is seven pages) ──────
+ALL_LABS = list(GUIDED_LABS)
+NEW_LABS = [lab for lab in ALL_LABS if lab not in ("dsa", "cv")]
+ALL_PAGE = {"topic_id": "all-labs-topic"}
+for i, lab in enumerate(ALL_LABS):
+    r = put(ALICE, {"lab": lab, **ALL_PAGE, "expected_version": 0, "state": {"which": lab}, "summary": {"percent": 10 + i}})
+    check(f"{lab}: the first save of a shared topic id is version 1", r.status_code == 200 and r.json()["version"] == 1, r.text[:150])
+for i, lab in enumerate(ALL_LABS):
+    got = call(ALICE, "GET", "/state", params={**ALL_PAGE, "lab": lab}).json()
+    check(f"{lab}: loads its own document", got["state"] == {"which": lab} and got["version"] == 1 and got["exists"] is True, str(got)[:150])
+    check(f"{lab}: has its own summary", call(ALICE, "GET", "/summary", params={**ALL_PAGE, "lab": lab}).json()["summary"]["percent"] == 10 + i)
+check("the rows carry every lab_name", sorted(x[0] for x in rows("SELECT lab_name FROM guided_practice_state WHERE user_id = ? AND topic_id = 'all-labs-topic' AND subtopic_id = ''", ALICE)) == sorted(ALL_LABS))
+for lab in NEW_LABS:
+    r = put(ALICE, {"lab": lab, **ALL_PAGE, "expected_version": 1, "state": {"which": lab, "n": 2}})
+    check(f"{lab}: a save bumps only its own version", r.status_code == 200 and r.json()["version"] == 2, r.text[:150])
+    check(f"{lab}: a stale save is refused (409)", put(ALICE, {"lab": lab, **ALL_PAGE, "expected_version": 1, "state": {"x": 1}}).status_code == 409)
+check("dsa and cv are still at version 1 after the other five saved", all(call(ALICE, "GET", "/state", params={**ALL_PAGE, "lab": lab}).json()["version"] == 1 for lab in ("dsa", "cv")))
+for lab in NEW_LABS:
+    call(ALICE, "DELETE", "/state", params={**ALL_PAGE, "lab": lab})
+    check(f"{lab}: a reset removes only its own page", call(ALICE, "GET", "/state", params={**ALL_PAGE, "lab": lab}).json()["exists"] is False and all(call(ALICE, "GET", "/state", params={**ALL_PAGE, "lab": other}).json()["exists"] is True for other in ("dsa", "cv")))
+    r = put(ALICE, {"lab": lab, **ALL_PAGE, "expected_version": 0, "state": {"again": lab}})
+    check(f"{lab}: a reset page starts again at version 1", r.status_code == 200 and r.json()["version"] == 1, r.text[:150])
 
 # ── State: the version rule under contention ─────────────────────────────────
 with ThreadPoolExecutor(8) as pool:
@@ -532,7 +555,7 @@ for endpoint, (body, max_tokens, _opening) in BODIES.items():
     check(f"{endpoint}: an explicit lab dsa is the same prompt as no lab", prompt_of(endpoint, {**body, "lab": "dsa"})[1] == default_prompt)
     check(f"{endpoint}: a null lab is the same prompt as no lab", prompt_of(endpoint, {**body, "lab": None})[1] == default_prompt)
     check(f"{endpoint}: the cv prompt differs from the dsa one", cv_prompt != default_prompt)
-for bad in ("system_design", "", "DSA", "CV", " cv", 5, 0, True, False, ["cv"], {"a": 1}):
+for bad in ("system-design", "", "DSA", "CV", " cv", 5, 0, True, False, ["cv"], {"a": 1}):
     for endpoint, (body, _tokens, _opening) in BODIES.items():
         refused(f"lab {bad!r}", endpoint, {**body, "lab": bad})
 FULL = {**CTX, "topic_brief": "B", "category": "C", "difficulty": "D", "subtopic_name": "S"}
@@ -568,6 +591,34 @@ check("dsa tutor (example): the original problem", "then connect it to the origi
 _, p, _ = prompt_of("star", {**CTX, "lab": "cv", "question": Q, "variant": "simplify", "existing_answer": "Old."})
 check("cv star: the same STAR text, with the topic labels", "Topic: Two Sum" in p and "## S \u2014 Situation: the context of the problem" in p)
 
+# every other lab: its own words reach every prompt, the budgets stay, the notes appear where they are due
+DEFAULTS = {endpoint: prompt_of(endpoint, body)[1] for endpoint, (body, _t, _o) in BODIES.items()}
+CV_PROMPTS = {endpoint: prompt_of(endpoint, {**body, "lab": "cv"})[1] for endpoint, (body, _t, _o) in BODIES.items()}
+for lab in NEW_LABS:
+    prof = PROFILES[lab]
+    for endpoint, (body, max_tokens, _opening) in BODIES.items():
+        status, prompt, tokens = prompt_of(endpoint, {**body, "lab": lab})
+        check(f"{endpoint}: lab {lab} answers with the same token budget", status == 200 and tokens == max_tokens, f"{status} {tokens}")
+        check(f"{endpoint}: lab {lab} names the subject '{prof.subject_label}:'", f"{prof.subject_label}: Two Sum" in prompt and "Original problem" not in prompt, prompt[:200])
+        check(f"{endpoint}: lab {lab} reads differently from dsa and from cv", prompt != DEFAULTS[endpoint] and prompt != CV_PROMPTS[endpoint])
+        if endpoint in ("curriculum", "question", "breakdown", "deeper"):
+            check(f"{endpoint}: lab {lab} carries its lab note and exercise note as rules", f"- {prof.lab_note}" in prompt and f"- {prof.exercise_note}" in prompt, prompt[-400:])
+        else:
+            check(f"{endpoint}: lab {lab} carries its lab note", prof.lab_note in prompt)
+    check(f"{lab}: the tutor is not a programming mentor", "programming mentor" not in prompt_of("tutor", {**BODIES["tutor"][0], "lab": lab})[1])
+    check(f"{lab}: the outline starts with its own instructor and kind", prompt_of("curriculum", {**BODIES["curriculum"][0], "lab": lab})[1].startswith(f"You are a senior {prof.instructor} designing a guided practice path for ONE {prof.kind}."))
+# a few literal spot checks on the wording (the profiles themselves are compared with the TS twin by guided_practice_prompts_test.py)
+_, p, _ = prompt_of("curriculum", {**BODIES["curriculum"][0], "lab": "communication"})
+check("communication curriculum: practice is not code, and 'writes code for most of the questions' is gone", "practises by explaining, drafting, rewriting and role-playing for most of the questions, not by writing code." in p and "writes code for most of the questions" not in p, p[:300])
+_, p, _ = prompt_of("tutor", {**BODIES["tutor"][0], "lab": "communication"})
+check("communication tutor: a warm communication coach", p.startswith("You are a patient, warm, practical communication coach tutoring one learner"), p[:120])
+_, p, _ = prompt_of("star", {**BODIES["star"][0], "lab": "communication"})
+check("communication star: no complexity and no data structures", p.startswith("You are a senior communication coach writing") and "time complexity" not in p and "data structures and algorithms" not in p, p[:200])
+_, p, _ = prompt_of("tutor", {**BODIES["tutor"][0], "lab": "python"})
+check("python tutor: a Python mentor", p.startswith("You are a patient, technically strong Python mentor tutoring one learner"), p[:120])
+_, p, _ = prompt_of("question", {**CTX, "lab": "system_design", "question": {**Q, "relation": "boss"}})
+check("system_design question: its boss relation and its exercise data", "This is the final boss: the complete system as a closing design challenge." in p and "back-of-envelope capacity or cost estimate" in p and "complete solution of the system being designed" in p, p[:300])
+
 # ── AI endpoints: errors ─────────────────────────────────────────────────────
 good = BODIES["curriculum"][0]
 ai_answer["error"] = "No API key configured for this model. Add one in Config."
@@ -590,9 +641,9 @@ ai_answer["value"] = "  keeps its whitespace \n"
 check("the answer is returned as written, not trimmed", post("curriculum", good).json()["text"] == "  keeps its whitespace \n")
 
 # ── prompts: the labs and a lab without a profile ────────────────────────────
-check("the labs are dsa and cv, each with a profile", GUIDED_LABS == ("dsa", "cv") and set(PROFILES) == {"dsa", "cv"})
+check("the labs are every lab, each with a profile", GUIDED_LABS == ("dsa", "cv", "system_design", "communication", "finance", "python", "genai") and set(PROFILES) == set(GUIDED_LABS))
 dsa_prompt = build_curriculum_prompt(PromptCtx(topic_name="T"), 5, "")
-check("a lab with no profile reads as dsa in the prompt builders (the handlers refuse it before that)", all(build_curriculum_prompt(PromptCtx(topic_name="T", lab=lab), 5, "") == dsa_prompt for lab in ("system_design", "", "DSA", None, 5)))
+check("a lab with no profile reads as dsa in the prompt builders (the handlers refuse it before that)", all(build_curriculum_prompt(PromptCtx(topic_name="T", lab=lab), 5, "") == dsa_prompt for lab in ("system-design", "", "DSA", None, 5)))
 check("... and cv does not", build_curriculum_prompt(PromptCtx(topic_name="T", lab="cv"), 5, "") != dsa_prompt)
 
 # ── js_trim: exactly what JavaScript's trim() removes ────────────────────────

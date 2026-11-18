@@ -486,6 +486,13 @@ generations (in any lab) can build on. Everything is per user and login-required
   `SaveToProjectDialog`), `src/lib/services/labProjectsService.ts`. The selection is shared by all labs and kept in localStorage per user.
   `useLabSections`/`useLabQuiz` read it at click time (`resolveSelectedProject`); with a project selected even the labs' template
   sections go through the AI.
+- **Context from a document**: on `/labs-project/new` the Context field has **Add from a document** (PDF, DOCX, TXT or Markdown, 20 MB).
+  The text is read **in the browser** (`src/lib/documents/`: `documentText.ts` is the dispatcher, `docx.ts` a dependency-free .docx reader over
+  `DecompressionStream`, PDFs reuse `extractPdfTextBestEffort` from the Swipe PDF Reader), so it works the same in FastAPI and Next.js mode and
+  nothing is uploaded until Create. The text is *added after* what is already in the box (nothing typed is lost), cut at a paragraph break to
+  the 12,000-character context limit with a visible warning, and a blank name is filled from the file name. Scanned PDFs (no text layer), `.doc`
+  and password-protected files give a readable error. This is the browser-side counterpart of Daily Session's resume upload
+  (`POST /sessions/upload-resume`, FastAPI-only); only the New project form uses it so far (the project's Context editor does not).
 - **Example projects**: `src/modules/labs/project/projectTemplates.json` (+ `projectTemplates.ts`) holds three enterprise-scale examples (a
   multi-tenant SaaS platform, a payments and fraud platform, an enterprise RAG assistant), each with a worked-out context (goal, scale,
   requirements, decisions made, hard problems, what to ask of each lab). `/labs-project/new?example=<id>` fills the form from one and nothing
@@ -682,6 +689,12 @@ streak and achievements. Code: `frontend/src/modules/labs/guided/`; twins `front
   words that differ per lab; the DSA texts are the originals). Context sent (`context.ts`): the topic and subtopic, the learner's level
   and progress and their latest completed titles, the question with its phase and its chain of parent questions, the other titles in
   its phase and its siblings (so the model avoids repeats), and for the tutor the thread, the learner's code and last test report.
+- **Import a path from JSON** (start screen, next to Generate my path; no AI call, so it also works with no key or no network). `importPath.ts`
+  reads a pasted or opened `.json` into the same `ParsedCurriculum` the AI's answer becomes, through the same `parseCurriculum` (kinds and
+  difficulties checked, duplicates dropped, at most `MAX_PHASES` x `MAX_QUESTIONS_PER_PHASE` = 8 x 6, which a note reports when anything is
+  left out). Accepted: the AI's own `{"phases":[...],"boss":{...}}`, a list of phases, or a flat list of questions (grouped into "Part N"
+  phases of six); a question may be a plain string. "Copy a prompt for another AI" hands over a prompt whose answer can be pasted back
+  (`externalPrompt`). `ImportPathPanel.tsx` is the inline panel; `useGuided`'s `importPath` is the action.
 - **Exercises run in the browser.** Python via Pyodide, loaded once from jsDelivr inside `public/runner/python-worker.js`; after it
   starts the worker drops `fetch`/`XMLHttpRequest`/`WebSocket` and the Python `js` bridge. An endless loop is ended by terminating the
   worker (8 s). The AI writes tests and a reference solution together, so the first run of an exercise runs the reference solution
@@ -781,11 +794,39 @@ hairline border, and the **Settings accent as the only interactive colour**. It 
   `-muted`) a sidebar row (`aria-current="page"` or `data-active="true"` marks the active one; add `<span className="todo-rail" />` for
   the rail), `.lab-caption` the 11px uppercase group label. Utilities `lab-ink` and `lab-tint` (with `hover:` and `group-hover:`) are the
   accent text and the soft accent fill.
-- **One hairline.** Inside `.lab-shell`, `.lab-page` and `.dsa-type`, `--color-border` is redefined to the text colour at 13%, text weight
-  is 500, light-mode muted text is `#655d53` and radii are 8 (controls), 12 (cards), 16 (floating). Write a bare `border`; cards have no
-  shadow (`shadow-lg` only on dialogs and overlays) and no gradient. The selected-segment ink rule (`html :is(.lab-shell, ...)
+- **One hairline.** Inside `.lab-shell`, `.lab-page` and `.dsa-type`, `--color-border` is redefined to the text colour at 17% (22% in dark: 13% vanished on a dimmed screen), text weight
+  is 500, light-mode muted text is `#655d53` and radii are 8 (controls), 12 (cards), 16 (floating). Write a bare `border`; `shadow-lg` is only
+  for dialogs and overlays. The labs' card-like surfaces are the exception below: they carry the soft glow edge. The selected-segment ink rule (`html :is(.lab-shell, ...)
   :is(.todo-segmented-accent .todo-segment[aria-pressed='true'], ...)`) only wins because it comes after the shared
   `html:not(.dark)` patch in the file: keep the order.
+- **Soft glow edge (`.lab-edge`, added 2026-11-18).** What tells a lab's surfaces apart from the page and from each other: a hairline
+  tinted with `--lab-identity` (`--edge-line`), a 3px halo ring (`--edge-halo`), a wide faint outer glow (`--edge-glow`) and a corner wash
+  on the surface itself (`--edge-wash`, `--edge-wash-2`: the hero's recipe at about half strength, a `background-image` over `bg-card`).
+  The tokens are in `:root` and `.dark` (dark lifts them: a glow only reads on a dark ground). Put `lab-edge` on a hero, card, panel or
+  list shell, never on chips, rows, inputs or dialogs, and drop `border-border` from the element (a utility beats the component rule).
+  `lab-edge-link` is for a surface that opens something: on hover, focus-visible and focus-within the edge turns to `--lab-accent`
+  (the wash stays in the lab hue so it does not jump). `.lab-card` and `.reading-card` inside `.lab-shell` / `.lab-page` and `.lab-hero`
+  get it from CSS; `.lab-card-muted` deliberately stays a flat soft group (the quiet tier); `.lab-sidebar` / `.lab-copilot` get the tinted
+  border plus an inset glow from their dividing edge (inset, because `.lab-main` paints after the sidebar, and a z-index would move the
+  phone sheets). Guided Practice's `.gp-card` is the same edge in `--gp-accent`; a locked phase has none. The edge is static (no pulse).
+  Tuned against measured contrast and against "too much glow", in that order: on a dimmed screen the **line** carries the card (dark /
+  light: edge line vs page 8.1 / 2.7:1, index tile hairline vs its gap 2.5 / 1.9:1, 17/22% lab hairline), while the outer glow is kept
+  subtle on purpose (about a 16px blur at 20-24%; 6 px outside the edge it is only 1.06 / 1.04:1 against the page). If something needs to
+  be more visible, raise the line or the separators, not the aura, and re-measure on a dimmed screen before lowering any `--edge-*` token.
+  On hover `lab-edge-link` grows the glow, fades the wash up (`--wash-a/-b` are registered `<percentage>`s so the gradient can fade) and
+  lifts the card in z-order so its wide glow is not cut by the next card.
+- **Moving rim (`.lab-rim`, hero only).** A bright arc that travels round the edge: on every `.lab-hero` (wiki hero, Labs home hero) and on
+  the headers that name the open topic / week plan / project (`lab-rim`); not on cards or panels. A conic gradient on `::after`, masked to a
+  2.5px ring just inside the border, whose angle is the registered property `--rim-angle`; the host owns the animation (7s) and adds a
+  shadow that orbits with the arc (`sin()`/`cos()`, behind `@supports`). It is **paused at rest** (held at 90deg, top right) and
+  **runs on hover / focus-within**, stopping where it is on leave; `prefers-reduced-motion` holds it still. The arc, and the shadow that
+  orbits with it, are **silver, not the lab hue** (`--rim-silver-tail`, `--rim-silver`, `--rim-silver-tip`: steel greys in light so it shows
+  on a white card, bright silver up to a near-white tip in dark). The old conic `.glow-card-rim` is unused.
+- **Hero palette.** A lab has three hues: `--lab-identity` and its companions `--lab-identity-2` / `-3` (`:root` default = the theme's cyan
+  and amber; each `.lab-shell[data-lab]` picks two other lab hues). The hero uses them in the three-corner wash (`.lab-hero::before`), the
+  duo icon tile (`.lab-tile-duo`), the progress fill (accent into hue 2), and the stat numbers + key dots (`lab-hue-1..3`,
+  `lab-hue-ink`, `lab-hue-dot`; `WikiHero` cycles non-difficulty metrics through them, a difficulty keeps its red/amber/green dot). Hue
+  only: never on a control. Write `lab-hue-N` as whole literals (a class built in a template string is purged by Tailwind's scanner).
 - **Shared parts** (`src/modules/labs/common/`): `WikiParts.tsx` (`WikiHero`, `WikiIndexNav`, `WikiSectionHeading`, `WIKI_CARD`,
   `WIKI_CHIP`, `LAB_CHIP`, `LAB_CHIP_ACCENT`; test hooks `data-wiki-hero|metrics|progress|index|index-list`), `LabSidebarParts.tsx`
   (`LabSidebarHeader`, `LabAddRow`, `LabInlineAdd`, `LabRecentList`, `LAB_REVEAL`), `LabTags.tsx` (`DifficultyTag`,

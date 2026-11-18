@@ -5,7 +5,7 @@ import Icon from '@/components/ui/AppIcon';
 import CareerStudioTabs from '@/modules/career-studio/views/CareerStudioTabs';
 
 export const metadata: Metadata = {
-  title: 'Career Studio - InterviewNinja',
+  title: 'Career Studio - Lab Ninja',
   description: 'Fill your data once, then generate resumes and portfolios in any template — your personal career workspace.',
 };
 

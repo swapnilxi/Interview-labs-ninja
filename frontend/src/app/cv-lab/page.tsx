@@ -7,7 +7,7 @@ import RequireAuth from '@/modules/auth/RequireAuth';
 import { LabScreenLoading } from '@/modules/labs/common/labNavigation';
 
 export const metadata: Metadata = {
-  title: 'CV Lab — InterviewNinja',
+  title: 'CV Lab — Lab Ninja',
   description: 'Interactive Computer Vision lab with AI-powered topic exploration, quizzes, and deep-dive sessions.',
 };
 

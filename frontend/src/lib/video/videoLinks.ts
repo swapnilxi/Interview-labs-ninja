@@ -33,6 +33,22 @@ export const VIDEO_TITLE_NOT_TEXT = 'A title must be text.';
 export const VIDEO_LIMIT_ERROR = `At most ${VIDEO_MAX_PER_ITEM} videos per item.`;
 export const VIDEO_DUPLICATE_ERROR = 'That video is already added.';
 
+// Presentation of a lab link (an admin sets it): a rectangular card shape and a preview image. Not used by AI LMS.
+// Mirrored in backend/modules/common/video_links.py.
+export const VIDEO_SHAPES = ['wide', 'side', 'slim'] as const;
+export type VideoShape = (typeof VIDEO_SHAPES)[number];
+export const VIDEO_SHAPE_DEFAULT: VideoShape = 'wide';
+/** The decoded size of an uploaded image: 200 KB. */
+export const PREVIEW_BYTES_MAX = 204800;
+/** ...as base64 characters (273068). */
+export const PREVIEW_PAYLOAD_MAX = Math.ceil(PREVIEW_BYTES_MAX / 3) * 4;
+export const VIDEO_SHAPE_ERROR = 'A shape must be wide, side or slim.';
+export const PREVIEW_ERROR =
+  'A preview image must be an https:// link or a JPEG, PNG, WebP or GIF image.';
+export const PREVIEW_URL_TOO_LONG = `That image link is too long. Links can be at most ${VIDEO_URL_MAX} characters.`;
+export const PREVIEW_TOO_BIG = 'That image is too large. A preview image can be at most 200 KB.';
+export const VIDEO_SHARED_ERROR = 'Shared must be true or false.';
+
 // ── Validation (mirrored in backend/modules/common/video_links.py) ─────────────────────────────────────────────
 
 /** Whitespace and control characters of every kind, as explicit ranges so Python's twin matches exactly. */
@@ -90,6 +106,59 @@ export function cleanVideoTitle(input: unknown): VideoTitleResult {
   const title = input.replace(RUN_OF_FORBIDDEN, ' ').replace(/^ +| +$/g, '');
   if (charCount(title) > VIDEO_TITLE_MAX) return { ok: false, title: '', error: VIDEO_TITLE_TOO_LONG };
   return { ok: true, title, error: '' };
+}
+
+export interface VideoShapeResult {
+  ok: boolean;
+  /** null = not sent (leave as it is / use the default); never set when not ok. */
+  shape: VideoShape | null;
+  error: string;
+}
+
+/** undefined and null stay "not sent"; otherwise one of VIDEO_SHAPES. */
+export function normalizeVideoShape(input: unknown): VideoShapeResult {
+  if (input === undefined || input === null) return { ok: true, shape: null, error: '' };
+  if (typeof input !== 'string' || !(VIDEO_SHAPES as readonly string[]).includes(input)) {
+    return { ok: false, shape: null, error: VIDEO_SHAPE_ERROR };
+  }
+  return { ok: true, shape: input as VideoShape, error: '' };
+}
+
+export interface PreviewImageResult {
+  ok: boolean;
+  /** '' for no image (undefined, null and '' all mean that); else the https link or data URL to store. */
+  image: string;
+  error: string;
+}
+
+/** An https link or an uploaded image as a data URL (JPEG, PNG, WebP, GIF, up to PREVIEW_BYTES_MAX); nothing else. */
+const HTTPS_PREFIX = /^https:\/\//i;
+const HTTPS_SHAPE = new RegExp(
+  `^https://${LABEL}(?:\\.${LABEL})*(?::([0-9]{1,5}))?(?:[/?#].*)?$`,
+  'i'
+);
+const DATA_IMAGE = /^data:image\/(?:jpeg|png|webp|gif);base64,([A-Za-z0-9+/]+={0,2})$/;
+
+export function normalizePreviewImage(input: unknown): PreviewImageResult {
+  const fail = (error: string): PreviewImageResult => ({ ok: false, image: '', error });
+  if (input === undefined || input === null) return { ok: true, image: '', error: '' };
+  if (typeof input !== 'string') return fail(PREVIEW_ERROR);
+  const text = input.replace(EDGE_WHITESPACE, '');
+  if (text === '') return { ok: true, image: '', error: '' };
+  const data = DATA_IMAGE.exec(text);
+  if (data) {
+    const payload = data[1];
+    if (payload.length % 4 !== 0) return fail(PREVIEW_ERROR);
+    if (payload.length > PREVIEW_PAYLOAD_MAX) return fail(PREVIEW_TOO_BIG);
+    return { ok: true, image: text, error: '' };
+  }
+  if (!HTTPS_PREFIX.test(text) || FORBIDDEN.test(text)) return fail(PREVIEW_ERROR);
+  if (charCount(text) > VIDEO_URL_MAX) return fail(PREVIEW_URL_TOO_LONG);
+  const match = HTTPS_SHAPE.exec(text);
+  if (!match) return fail(PREVIEW_ERROR);
+  const port = match[1];
+  if (port !== undefined && (Number(port) < 1 || Number(port) > 65535)) return fail(PREVIEW_ERROR);
+  return { ok: true, image: text, error: '' };
 }
 
 // ── Showing a link (browser) ───────────────────────────────────────────────────────────────────────────────────
@@ -244,6 +313,17 @@ function describeLoom(url: URL, raw: string): VideoDescription | null {
     };
   }
   return null;
+}
+
+/**
+ * The thumbnail a card shows when no preview image was attached: only for a YouTube video (not a playlist), built from the
+ * video id by a fixed rule. Nothing about a link is ever fetched to make a preview (that would be a server-side request
+ * to an address a user typed).
+ */
+export function youTubeThumbnail(desc: VideoDescription): string | undefined {
+  return desc.provider === 'youtube' && desc.videoId
+    ? `https://i.ytimg.com/vi/${desc.videoId}/hqdefault.jpg`
+    : undefined;
 }
 
 /** How a saved link is shown. Pass a link that passed `normalizeVideoUrl`; anything else comes back as a plain link. */

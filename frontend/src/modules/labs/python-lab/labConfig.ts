@@ -124,7 +124,7 @@ export const PYTHON_LAB: TopicLabConfig = {
   labName: 'Python Lab',
   wikiTitle: 'Python Lab',
   wikiDescription:
-    'Python from your first program to OOP, testing and concurrency, then data and AI apps',
+    'Python from your first program to OOP, DSA, FastAPI backends with JWT auth, testing and concurrency, then data, machine learning, deep learning and AI apps',
   noun: { one: 'lesson', many: 'lessons' },
   sectionDefs: PYTHON_SECTION_DEFS,
   ownPrereqTitle: 'Study these lessons first',
@@ -210,6 +210,58 @@ export const PYTHON_LAB: TopicLabConfig = {
         items: ['Jupyter or Google Colab', '`pip install numpy pandas scikit-learn`'],
       },
     ],
+    'DSA in Python': [
+      {
+        title: 'Python skills',
+        items: [
+          'Classes with `__init__` and `self`',
+          'Lists, dictionaries and `collections.deque`',
+          'Writing a function that calls itself',
+        ],
+      },
+      {
+        title: 'Programming concepts',
+        items: [
+          'Variables hold references, so two names can point at one object',
+          'Big-O: how running time grows with input size',
+        ],
+      },
+    ],
+    'Web APIs with FastAPI': [
+      {
+        title: 'Python skills',
+        items: [
+          'Type hints and Pydantic models',
+          'Decorators and functions that take functions',
+          'Reading and writing JSON',
+        ],
+      },
+      {
+        title: 'Programming concepts',
+        items: [
+          'A request goes to a URL with a method and gets back a status code and a body',
+          'Hashing is one-way, encryption is two-way',
+        ],
+      },
+      {
+        title: 'Tools & setup',
+        items: [
+          'A virtual environment',
+          '`pip install "fastapi[standard]"`',
+          'A REST client such as the /docs page or curl',
+        ],
+      },
+    ],
+    'Interview Prep': [
+      {
+        title: 'Python skills',
+        items: [
+          'Comfortable with classes, decorators, generators and exceptions',
+          'Writing a short solution without looking anything up',
+        ],
+      },
+      { title: 'Programming concepts', items: ['Big-O of the common built-in operations'] },
+    ],
     '*': [
       { title: 'Python skills', items: ['Variables, loops, functions, lists and dictionaries'] },
       { title: 'Tools & setup', items: ['Running a script and installing packages with `pip`'] },
@@ -217,4 +269,5 @@ export const PYTHON_LAB: TopicLabConfig = {
   },
   customTopic: { brief: 'Custom lesson.', difficulty: 'Medium', prerequisites: [] },
   recentKey: 'python-lab-recent-topics',
+  guidedPractice: 'python',
 };

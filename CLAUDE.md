@@ -82,8 +82,9 @@ further down in `README.md` — check there before assuming a module's shape.
   `--lab-identity` (hero glow and `.lab-tile`), never buttons, rows, links or progress. Inside `.lab-shell`/`.lab-page`/
   `.dsa-type` `--color-border` is redefined to ONE hairline: use bare `border`; a dialog or popover that portals to
   `<body>` needs `lab-page` (DSA: `dsa-type`) on its panel or it shows the global border. Wiki/sidebar pieces live in
-  `modules/labs/common/{WikiParts,LabSidebarParts,LabTags}`; pane collapsing is `useLabPanes`. Names wrap, they are never
-  cut with an ellipsis (chips and one-line UI labels may truncate). `check:tailwind` enforces these folders; details in
+  `modules/labs/common/{WikiParts,LabSidebarParts,LabTags}`; pane collapsing is `useLabPanes`. Surfaces (hero, cards, panels, list shells) carry the **soft glow edge**: add `lab-edge` (+ `lab-edge-link` if it opens something) and
+  drop `border-border`; it is a static lab-hue glow and corner wash, the accent on hover (tokens `--edge-*`, README "Lab visual system").
+  Names wrap, they are never cut with an ellipsis (chips and one-line UI labels may truncate). `check:tailwind` enforces these folders; details in
   `README.md` ("Lab visual system").
 - **`backend/modules/todo/` and `frontend/src/modules/todo/` are dead leftovers from
   the rename to `ai_todo`/`ai-todo`.** Nothing imports from either (check with grep
@@ -219,6 +220,13 @@ calling a provider SDK directly:
   its own `.env` (`backend/.env` in fastapi mode, `frontend/.env` in nextjs-api mode);
   `GET /config/ai-default` reports what the active backend resolves to. An explicit
   model picked in Config always wins.
+- **Provider-call behaviour that must match in both twins** (`providers.py`/`utils.py` ↔ `fe-apis/ai/providers.ts`): a connection that
+  cannot be made (refused, reset, DNS, a dropped SYN) is retried twice after 1 s and 2 s, only when it fails within 20 s, and the final
+  error names the cause (`fetch failed (UND_ERR_CONNECT_TIMEOUT)`; Node hides it in `err.cause`); an OpenAI-compatible reply with no
+  text is a *failure* (so the next provider is tried), retried once with +8192 tokens when `finish_reason` is `length` (a reasoning model
+  spent the budget thinking), and otherwise explained in the error; Gemini is called with `thinkingBudget: 0` and retried without it on a
+  400. `call_ai_text(..., timeout=)` ↔ `callAIText(..., timeoutMs)`: callers with long answers (Guided Practice: 240 s) must pass one, the
+  Python defaults are 45-60 s. Node's own ceiling is 5 minutes (undici header timeout), so a longer timeout needs streaming, not a bigger number.
 - Generic STT/TTS (Deepgram) lives separately in `modules/common/voice/` + the thin
   `modules/voice/router.py` (`/api/voice/stt`, `/api/voice/tts`, both authenticated) —
   shared across any module needing voice, not tied to `ai_lms` even though that's

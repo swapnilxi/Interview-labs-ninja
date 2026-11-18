@@ -166,18 +166,22 @@ function dedupe(list: OutlineQuestion[], seen: Set<string>): OutlineQuestion[] {
   return out;
 }
 
+/** What a path holds: parseCurriculum drops the rest (importPath.ts reports it). */
+export const MAX_PHASES = 8;
+export const MAX_QUESTIONS_PER_PHASE = 6;
+
 export function parseCurriculum(text: string): ParsedCurriculum {
   const raw = extractJson(text) as { phases?: unknown; boss?: unknown };
   const list = Array.isArray(raw?.phases) ? raw.phases : [];
   const seen = new Set<string>();
   const phases = list
-    .slice(0, 8)
+    .slice(0, MAX_PHASES)
     .map((p: Record<string, unknown>) => ({
       title: oneLine(p?.title, 120) || 'Phase',
       goal: oneLine(p?.goal, 260),
       questions: dedupe(
         (Array.isArray(p?.questions) ? (p.questions as unknown[]) : [])
-          .slice(0, 6)
+          .slice(0, MAX_QUESTIONS_PER_PHASE)
           .map(outlineQuestion)
           .filter((q): q is OutlineQuestion => !!q),
         seen

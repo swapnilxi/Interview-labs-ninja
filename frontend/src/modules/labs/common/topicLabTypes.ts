@@ -1,4 +1,5 @@
 import type { LabName } from '@/lib/services/labSectionsService';
+import type { GuidedLab } from '@/modules/labs/guided/labs';
 import type { LabGuideKey } from './labGuideData';
 import type { SectionDef } from './labSectionDefaults';
 import type { PrereqGroup } from './prereqMarkdown';
@@ -80,7 +81,8 @@ export interface TopicLabConfig<T extends TopicLabTopic = TopicLabTopic> {
   recentKey: string;
   /**
    * The lab has Guided Practice (labs/guided): its topic pages show the Guided Practice card, which opens
-   * `/<lab>-lab/guided-practice`. The value is the lab's key there; the lab also needs an entry in guided/labs.ts and a route.
+   * `/<lab>-lab/guided-practice`. The value is the lab's key there (it is the lab's own `lab`: `system_design`, not `system-design`);
+   * the lab also needs an entry in guided/labs.ts, its prompt profile on both servers and a route.
    */
-  guidedPractice?: 'dsa' | 'cv';
+  guidedPractice?: GuidedLab;
 }

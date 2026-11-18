@@ -30,6 +30,7 @@ export default function TutorPanel({
   onRetry,
   onClearError,
   onComplete,
+  exerciseLabel = 'coding exercise',
 }: {
   question: Question;
   progress: QuestionProgress;
@@ -42,6 +43,8 @@ export default function TutorPanel({
   onRetry: () => void;
   onClearError: () => void;
   onComplete: () => void;
+  /** What the lab calls an exercise ("coding exercise", "practice task"): the chip says "Give me a ___". */
+  exerciseLabel?: string;
 }) {
   const [draft, setDraft] = useState('');
   const input = useRef<HTMLTextAreaElement>(null);
@@ -84,7 +87,7 @@ export default function TutorPanel({
     },
     { action: 'example', label: 'Explain with an example', icon: 'BookOpenIcon' },
     { action: 'simplify', label: 'Simplify this concept', icon: 'ArrowsPointingInIcon' },
-    { action: 'exercise', label: 'Give me a coding exercise', icon: 'CodeBracketIcon' },
+    { action: 'exercise', label: `Give me a ${exerciseLabel}`, icon: 'CodeBracketIcon' },
     { action: 'test', label: 'Test my understanding', icon: 'ClipboardDocumentCheckIcon' },
     {
       action: 'mistake',

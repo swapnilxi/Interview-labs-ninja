@@ -7,7 +7,7 @@ import RequireAuth from '@/modules/auth/RequireAuth';
 import { LabScreenLoading } from '@/modules/labs/common/labNavigation';
 
 export const metadata: Metadata = {
-  title: 'Finance Lab — InterviewNinja',
+  title: 'Finance Lab — Lab Ninja',
   description:
     'Finance for beginners, from money basics and markets to Python, machine learning and AI in finance.',
 };

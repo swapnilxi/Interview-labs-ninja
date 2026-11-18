@@ -1,11 +1,13 @@
 """Guided Practice prompts: the Python builders (backend/modules/guided_practice/prompts.py) against the TypeScript ones
 (frontend/fe-apis/guidedPractice/prompts.ts), character for character.
 
-Both servers must send the model the very same prompt, so this builds about 1,400 inputs (every builder, every branch, every
-tutor action and STAR variant, empty and full optional fields, whitespace and Unicode edges, both labs, and lab values that are
-not labs), runs each through both implementations and compares the strings. It also checks what the lab does: `cv` must change
-the wording, and "dsa", an unknown name, a value that is not a string and a name every object inherits ("constructor") must read
-exactly like no lab at all.
+Both servers must send the model the very same prompt, so this builds about 4,400 inputs (every builder, every branch, every
+tutor action and STAR variant, empty and full optional fields, whitespace and Unicode edges, all seven labs, and lab values that
+are not labs), runs each through both implementations and compares the strings. It also checks what the lab does: every lab but
+dsa must change the wording (and read differently from each other lab), and "dsa", an unknown name, a value that is not a string
+and a name every object inherits ("constructor") must read exactly like no lab at all. A few content checks pin the wording a lab
+must NOT carry: the labs that are not mostly code never call the learner a programmer, claim they write code for most questions
+or ask for complexity, and dsa and cv keep every sentence they had before the other labs existed (their text is the original).
 
     cd backend && uv run python tests/guided_practice_prompts_test.py
 
@@ -32,6 +34,8 @@ from modules.guided_practice import prompts as P  # noqa: E402
 PROMPTS_TS = ROOT.parent / "frontend" / "fe-apis" / "guidedPractice" / "prompts.ts"
 
 rng = random.Random(20261118)
+
+ADDED_LABS = ["system_design", "communication", "finance", "python", "genai"]
 
 # ── string pools ─────────────────────────────────────────────────────────────
 WS_EDGES = [
@@ -291,7 +295,7 @@ def build_cases():
     for case in base_cases[::20]:
         with_lab(case, "dsa", "dsa-explicit", "same")
     # a lab nobody knows reads as dsa on the TS side (the handlers refuse it first; the builders are lenient)
-    UNKNOWN = ["system_design", "", "DSA", "cv ", " cv", "xyz", "\U0001f680", "null", "0", "Cv"]
+    UNKNOWN = ["system-design", "", "DSA", "cv ", " cv", "xyz", "\U0001f680", "null", "0", "Cv", "SYSTEM_DESIGN", "Python"]
     for i, case in enumerate(base_cases[::10]):
         with_lab(case, UNKNOWN[i % len(UNKNOWN)], f"unknown-{i % len(UNKNOWN)}", "same")
     # not even a string: null, a number, a boolean
@@ -306,6 +310,10 @@ def build_cases():
     for fn_case in first_of.values():
         for j, name in enumerate(INHERITED):
             with_lab(fn_case, name, f"inherited-{j}", "same")
+    # the labs added after dsa and cv: a copy of EVERY dsa case for each (appended last, so no earlier case moves)
+    for lab in ADDED_LABS:
+        for case in base_cases:
+            with_lab(case, lab, lab.replace("_", "-"), "other")
     return cases, twins
 
 
@@ -422,27 +430,83 @@ def main() -> int:
     )
 
     # what the lab does, checked on both sides (they are equal, so the Python outputs stand for both)
+    case_lab = {c["id"]: c["args"]["ctx"].get("lab") for c in cases}
     lab_problems = []
     for new_id, (base_id, reads_as) in twins.items():
         same = py[new_id] == py[base_id] and ts[new_id] == ts[base_id]
         if reads_as == "same" and not (same and "undefined" not in ts[new_id]):
             lab_problems.append(f"{new_id} should read exactly like {base_id}")
         if reads_as == "other" and (py[new_id] == py[base_id] or ts[new_id] == ts[base_id]):
-            lab_problems.append(f"{new_id} (lab cv) should read differently from {base_id}")
+            lab_problems.append(f"{new_id} (lab {case_lab.get(new_id)}) should read differently from {base_id}")
+
+    # every lab that has a profile reads differently from every other one, case by case
+    case_lab = {c["id"]: c["args"]["ctx"].get("lab") for c in cases}
+    by_base = {}
+    for new_id, (base_id, reads_as) in twins.items():
+        if reads_as == "other":
+            by_base.setdefault(base_id, {})[case_lab[new_id]] = new_id
+    pair_problems = []
+    for base_id, labs in by_base.items():
+        outputs = {"dsa": py[base_id], **{lab: py[i] for lab, i in labs.items()}}
+        names = sorted(outputs)
+        for a in range(len(names)):
+            for b in range(a + 1, len(names)):
+                if outputs[names[a]] == outputs[names[b]]:
+                    pair_problems.append(f"{base_id}: labs {names[a]} and {names[b]} read exactly the same")
+
+    # wording the labs that are not mostly code must not carry, and what dsa and cv must keep
+    content_problems = []
+    first_ids = {}
+    for c in cases:
+        if "lab" not in c["args"]["ctx"]:
+            first_ids.setdefault(c["fn"], c["id"])
+    NOT_CODE = {"communication": 'writes code for most of the questions', "system_design": 'writes code for most of the questions',
+                "finance": 'writes code for most of the questions', "genai": 'writes code for most of the questions'}
+    for fn, base_id in first_ids.items():
+        for lab, new_id in by_base.get(base_id, {}).items():
+            text = py[new_id]
+            if lab in ADDED_LABS and "programming mentor" in text:
+                content_problems.append(f"{lab} {fn}: still says programming mentor")
+            if lab in NOT_CODE and NOT_CODE[lab] in text:
+                content_problems.append(f"{lab} {fn}: still says the learner writes code for most of the questions")
+            if lab == "communication" and fn in ("star", "tutor") and ("time complexity" in text or "data structures and algorithms" in text):
+                content_problems.append(f"communication {fn}: asks for complexity or data structures")
+        for lab in ("dsa", "cv"):
+            text = py[base_id] if lab == "dsa" else py[by_base[base_id]["cv"]] if "cv" in by_base.get(base_id, {}) else ""
+            if fn == "curriculum" and "and writes code for most of the questions." not in text:
+                content_problems.append(f"{lab} curriculum lost its original sentence")
+            if fn == "tutor" and "a patient, technically strong programming mentor tutoring" not in text:
+                content_problems.append(f"{lab} tutor lost its original sentence")
+            if fn in ("curriculum", "question", "breakdown", "deeper") and ("This is a " in text and " lab:" in text):
+                content_problems.append(f"{lab} {fn} carries a lab note")
+    # every lab note and exercise note shows up where it must (curriculum, question, breakdown, deeper) for the labs that have one
+    for lab, prof in P.PROFILES.items():
+        for fn in ("curriculum", "question", "breakdown", "deeper"):
+            base_id = first_ids[fn]
+            got = py[base_id] if lab == "dsa" else py[by_base[base_id][lab]] if lab in by_base[base_id] else None
+            if got is None:
+                continue
+            for note in (prof.lab_note, prof.exercise_note):
+                if note and f"- {note}" not in got:
+                    content_problems.append(f"{lab} {fn}: a profile note is missing")
+                if not note and lab in ("dsa", "cv") and "- This is a" in got:
+                    content_problems.append(f"{lab} {fn}: carries a note it should not have")
 
     empty = [i for i, text in py.items() if not isinstance(text, str) or not text.strip()]
-    too_few = len(cases) < 1300
+    too_few = len(cases) < 4000
 
     print(f"{len(cases)} prompt cases, per builder [same, different]: {per_fn}")
     print(f"constants (MAX_TOKENS, LEVEL_NAMES, TUTOR_ACTIONS, STAR_VARIANTS, GUIDED_LABS): {'PASS' if const_ok else 'FAIL'}")
-    print(f"lab variants ({len(twins)}: cv reads differently, dsa/unknown/not-a-string/inherited read as no lab): {'PASS' if not lab_problems else 'FAIL'}")
-    for line in failures[:10] + lab_problems[:10]:
+    print(f"lab variants ({len(twins)}: every lab but dsa reads differently, dsa/unknown/not-a-string/inherited read as no lab): {'PASS' if not lab_problems else 'FAIL'}")
+    print(f"labs read differently from each other ({len(by_base)} inputs x {len(P.GUIDED_LABS)} labs, pairwise): {'PASS' if not pair_problems else 'FAIL'}")
+    print(f"lab wording (no programming wording outside the code labs, dsa/cv keep their original sentences, notes where due): {'PASS' if not content_problems else 'FAIL'}")
+    for line in failures[:10] + lab_problems[:10] + pair_problems[:10] + content_problems[:10]:
         print(line)
     if empty:
         print(f"FAIL {len(empty)} empty prompts, e.g. {empty[0]}")
     if too_few:
         print("FAIL the case list is suspiciously short")
-    bad = bool(failures or lab_problems or empty or too_few or not const_ok)
+    bad = bool(failures or lab_problems or pair_problems or content_problems or empty or too_few or not const_ok)
     print("all checks passed" if not bad else f"{len(failures)} prompt(s) differ")
     return 1 if bad else 0
 

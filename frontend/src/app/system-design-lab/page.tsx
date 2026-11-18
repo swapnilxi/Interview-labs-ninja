@@ -7,7 +7,7 @@ import RequireAuth from '@/modules/auth/RequireAuth';
 import { LabScreenLoading } from '@/modules/labs/common/labNavigation';
 
 export const metadata: Metadata = {
-  title: 'System Design Lab — InterviewNinja',
+  title: 'System Design Lab — Lab Ninja',
   description: 'Interactive System Design lab with 16 on-demand sections covering requirements, estimation, architecture, scaling, reliability, and more.',
 };
 

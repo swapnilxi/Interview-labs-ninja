@@ -7,7 +7,7 @@
  */
 
 import type { TodoDb } from '../todo/_shared';
-import { LAB_VIDEOS_DDL } from './videosSchema';
+import { LAB_VIDEOS_ADDED_COLUMNS, LAB_VIDEOS_DDL, LAB_VIDEO_SCRIPTS_DDL } from './videosSchema';
 
 export function ensureLabSectionsSchema(db: TodoDb): void {
   db.exec(`
@@ -68,6 +68,18 @@ export function ensureLabSectionsSchema(db: TodoDb): void {
   addProjectColumns(db);
   // Personal video links on lab pages (see videos.ts; same table as backend/modules/lab_sections/videos.py).
   db.exec(LAB_VIDEOS_DDL);
+  addVideoColumns(db);
+  // The AI-written video script of a lab page (see videoScript.ts; same table as backend/modules/lab_sections/video_script.py).
+  db.exec(LAB_VIDEO_SCRIPTS_DDL);
+}
+
+/** A `lab_page_videos` made before preview images and shapes existed gets the two columns. Port of the same step in videos.ensure_table. */
+function addVideoColumns(db: TodoDb): void {
+  const columns = db.all<{ name: string }>('PRAGMA table_info(lab_page_videos)').map((r) => r.name);
+  for (const [name, definition] of LAB_VIDEOS_ADDED_COLUMNS) {
+    if (!columns.includes(name))
+      db.exec(`ALTER TABLE lab_page_videos ADD COLUMN ${name} ${definition}`);
+  }
 }
 
 /**

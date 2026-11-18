@@ -185,7 +185,7 @@ export async function generateAnswer(raw: unknown): Promise<Row> {
 
   const prompt =
     action === 'explain'
-      ? `You are Interview-Ninja, an elite technical interviewer.
+      ? `You are Lab Ninja, an elite technical interviewer.
 Provide a deep, step-by-step technical explanation for this question:
 
 Question (${category} - ${subType}):
@@ -195,7 +195,7 @@ Format your response cleanly with:
 1. High-level Summary (2-3 sentences)
 2. In-Depth Technical Walkthrough / Code / Architecture
 3. Key Trade-offs & Common Interviewer Follow-ups`
-      : `You are Interview-Ninja, an elite technical interviewer.
+      : `You are Lab Ninja, an elite technical interviewer.
 Provide a concise, top-tier model answer for this interview question:
 
 Question (${category} - ${subType}):

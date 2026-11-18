@@ -219,7 +219,7 @@ export default function Header() {
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
 
   useEffect(() => {
-    const storedTheme = localStorage.getItem('interview-ninja-theme') as 'light' | 'dark' | null;
+    const storedTheme = (localStorage.getItem('lab-ninja-theme') || localStorage.getItem('interview-ninja-theme')) as 'light' | 'dark' | null;
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const initialTheme = storedTheme ?? (prefersDark ? 'dark' : 'light');
     setTheme(initialTheme);
@@ -227,12 +227,12 @@ export default function Header() {
 
     const handleThemeEvent = (e: Event) => {
       const customEvent = e as CustomEvent<'light' | 'dark'>;
-      const newTheme = customEvent.detail || (localStorage.getItem('interview-ninja-theme') as 'light' | 'dark' | null);
+      const newTheme = customEvent.detail || ((localStorage.getItem('lab-ninja-theme') || localStorage.getItem('interview-ninja-theme')) as 'light' | 'dark' | null);
       if (newTheme && (newTheme === 'light' || newTheme === 'dark')) {
         setTheme(newTheme);
       }
     };
-    window.addEventListener('interview-ninja-theme-change', handleThemeEvent);
+    window.addEventListener('lab-ninja-theme-change', handleThemeEvent);
 
     const openNav = () => setSidebarOpen(true);
     window.addEventListener(OPEN_NAV_EVENT, openNav);
@@ -243,7 +243,7 @@ export default function Header() {
     return () => {
       unsub();
       window.removeEventListener(OPEN_NAV_EVENT, openNav);
-      window.removeEventListener('interview-ninja-theme-change', handleThemeEvent);
+      window.removeEventListener('lab-ninja-theme-change', handleThemeEvent);
     };
   }, []);
 
@@ -283,14 +283,14 @@ export default function Header() {
   const toggleTheme = () => {
     const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
-    localStorage.setItem('interview-ninja-theme', nextTheme);
+    localStorage.setItem('lab-ninja-theme', nextTheme);
     // Cross-fade the switch (colours only). theme-color + Android status-bar icons follow via
     // components/ui/SystemChromeSync, which watches the class.
     withColorTransition(() => {
       document.documentElement.classList.toggle('dark', nextTheme === 'dark');
       reapplyStoredAccent();
     });
-    window.dispatchEvent(new CustomEvent('interview-ninja-theme-change', { detail: nextTheme }));
+    window.dispatchEvent(new CustomEvent('lab-ninja-theme-change', { detail: nextTheme }));
   };
 
   return (

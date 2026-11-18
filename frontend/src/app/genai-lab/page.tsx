@@ -7,7 +7,7 @@ import RequireAuth from '@/modules/auth/RequireAuth';
 import { LabScreenLoading } from '@/modules/labs/common/labNavigation';
 
 export const metadata: Metadata = {
-  title: 'GenAI & AI Lab — InterviewNinja',
+  title: 'GenAI & AI Lab — Lab Ninja',
   description:
     'AI fundamentals, then LLMs, prompting, RAG, agents, fine-tuning, evaluation and shipping generative AI apps.',
 };

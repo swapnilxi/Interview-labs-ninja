@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from typing import List, Optional
 
-from .utils import _format_http_error, _urlopen_surfacing_errors
+from .utils import _format_http_error, _urlopen_retrying, _urlopen_surfacing_errors
 
 
 def _generation_config(temperature: float, max_tokens: int, thinking: bool) -> dict:
@@ -41,7 +41,7 @@ def _post_generate_content(url: str, headers: dict, contents: list, temperature:
         body = json.dumps({"contents": contents, "generationConfig": _generation_config(temperature, max_tokens, thinking)}).encode()
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with _urlopen_retrying(req, timeout=timeout) as resp:
                 return json.loads(resp.read())
         except urllib.error.HTTPError as exc:
             if thinking and exc.code == 400:
@@ -148,6 +148,20 @@ def _call_vertex(
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
+# Extra tokens for the one retry of an OpenAI-compatible call whose whole budget went on hidden reasoning.
+_EMPTY_RETRY_HEADROOM = 8192
+
+
+def _no_text_message(model: str, finish_reason: Optional[str], max_tokens: int) -> str:
+    """Why an OpenAI-compatible reply had no text. Twin: noTextMessage() in frontend/fe-apis/ai/providers.ts."""
+    if finish_reason == "length":
+        return (
+            f"{model} used its whole {max_tokens}-token budget before writing an answer "
+            "(a reasoning model's hidden thinking counts against it). Pick a non-reasoning model in Config."
+        )
+    return f"{model} returned no text (finish_reason: {finish_reason or 'none'})."
+
+
 def _call_openai_compatible(
     prompt: str,
     api_key: str,
@@ -157,26 +171,44 @@ def _call_openai_compatible(
     extra: Optional[dict] = None,
     timeout: int = 45,
 ) -> str:
-    """`extra` adds provider-specific body fields (e.g. DeepSeek's reasoning_effort); `timeout` is in seconds."""
-    body = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-        "max_tokens": max_tokens,
-        **(extra or {}),
-    }).encode()
-    req = urllib.request.Request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        data=body,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
-        method="POST",
-    )
-    with _urlopen_surfacing_errors(req, timeout=timeout) as resp:
-        data = json.loads(resp.read())
-    return data["choices"][0]["message"]["content"]
+    """`extra` adds provider-specific body fields (e.g. DeepSeek's reasoning_effort); `timeout` is in seconds.
+
+    A reply with no text is a failure, not an answer, so call_ai_text moves on to the next provider and, when there is none,
+    the error says why. A reasoning model's hidden thinking counts against `max_tokens`: when that used the whole budget
+    (finish_reason "length") the call is retried once with room for the thinking. Twin: callOpenAiCompatible() in
+    frontend/fe-apis/ai/providers.ts (same retry, same message)."""
+
+    def post(tokens: int) -> tuple:
+        body = json.dumps({
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
+            "max_tokens": tokens,
+            **(extra or {}),
+        }).encode()
+        req = urllib.request.Request(
+            f"{base_url.rstrip('/')}/chat/completions",
+            data=body,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+            method="POST",
+        )
+        with _urlopen_surfacing_errors(req, timeout=timeout) as resp:
+            choice = json.loads(resp.read())["choices"][0]
+        content = (choice.get("message") or {}).get("content")
+        return (content if isinstance(content, str) else ""), choice.get("finish_reason")
+
+    text, finish = post(max_tokens)
+    if not text.strip() and finish == "length":
+        try:
+            text, finish = post(max_tokens + _EMPTY_RETRY_HEADROOM)
+        except Exception:
+            pass  # the first reply's diagnosis is the useful one
+    if not text.strip():
+        raise RuntimeError(_no_text_message(model, finish, max_tokens))
+    return text
 
 
-def _call_anthropic(prompt: str, api_key: str, model: str, max_tokens: int = 2048) -> str:
+def _call_anthropic(prompt: str, api_key: str, model: str, max_tokens: int = 2048, timeout: int = 45) -> str:
     body = json.dumps({
         "model": model,
         "max_tokens": max_tokens,
@@ -192,7 +224,7 @@ def _call_anthropic(prompt: str, api_key: str, model: str, max_tokens: int = 204
         },
         method="POST",
     )
-    with _urlopen_surfacing_errors(req, timeout=45) as resp:
+    with _urlopen_surfacing_errors(req, timeout=timeout) as resp:
         data = json.loads(resp.read())
     return data["content"][0]["text"]
 

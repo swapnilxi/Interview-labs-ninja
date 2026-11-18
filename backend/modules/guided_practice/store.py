@@ -1,6 +1,6 @@
 """SQLite access for Guided Practice's saved state (see schema.py): one row per (user, lab, topic, subtopic).
 
-`lab` is the second argument of every function ('dsa' or 'cv'; the router validates it), so the same topic id under two
+`lab` is the second argument of every function (any of the seven labs; the router validates it), so the same topic id under two
 labs is two independent pages with their own versions.
 
 Twin: frontend/fe-apis/guidedPractice/db.ts (nextjs-api mode) -- the SQL and the version rule must stay identical.

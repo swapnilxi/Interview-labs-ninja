@@ -20,10 +20,14 @@ import { difficultyDotClass } from '@/modules/labs/common/LabTags';
 
 /* ───────────────────────────── 1. hero: identity, metrics, progress ───────────────────────────── */
 
+/** The three hues of a lab, as whole class names (a class built from a template string is purged by Tailwind's scanner). */
+const LAB_HUES = ['lab-hue-1', 'lab-hue-2', 'lab-hue-3'];
+
 export interface WikiMetric {
   label: string;
   value: number;
-  /** Semantic dot for difficulty only. Every other metric is a plain number: no colour per metric. */
+  /** Semantic dot for difficulty only (the number stays plain). Every other metric takes the next of the lab's three hues
+   *  (`lab-hue-1..3`: identity and its two companions) for its number and key dot. */
   tone?: 'easy' | 'medium' | 'hard';
 }
 
@@ -64,7 +68,10 @@ export function WikiHero({
       <div className="relative">
         <div className="flex items-center gap-[1rem]">
           {/* Phones: the large title carries the identity; the tile would push the title off its gutter. */}
-          <span aria-hidden="true" className="lab-tile hidden h-11 w-11 sm:inline-flex">
+          <span
+            aria-hidden="true"
+            className="lab-tile lab-tile-duo hidden h-11 w-11 sm:inline-flex"
+          >
             <Icon name={icon} size={22} />
           </span>
           <div className="min-w-0 flex-1">
@@ -108,26 +115,42 @@ export function WikiHero({
             aria-label="The lab at a glance"
             className="grid grid-cols-3 gap-x-3 gap-y-4 sm:-ml-[1rem] sm:flex sm:flex-wrap sm:gap-y-[0.5rem]"
           >
-            {metrics.map((m) => (
-              <div
-                key={m.label}
-                className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-[0.5rem] sm:border-l sm:border-border sm:px-[1rem]"
-              >
-                <dt className="order-2 inline-flex items-center gap-1.5 text-xs font-medium mix-text-foreground/[0.74]">
-                  {m.tone && (
-                    <span
-                      aria-hidden="true"
-                      data-semantic="difficulty"
-                      className={`h-1.5 w-1.5 rounded-full ${difficultyDotClass(m.tone)}`}
-                    />
-                  )}
-                  {m.label}
-                </dt>
-                <dd className="order-1 text-[1.375rem] font-semibold leading-none tracking-[-0.02em] tabular-nums text-foreground sm:text-lg sm:tracking-normal">
-                  {m.value}
-                </dd>
-              </div>
-            ))}
+            {metrics.map((m, i) => {
+              // Counts take the lab's hues in turn (identity, then its two companions); a difficulty keeps its semantic dot.
+              const hue = m.tone
+                ? ''
+                : LAB_HUES[metrics.slice(0, i).filter((x) => !x.tone).length % 3];
+              return (
+                <div
+                  key={m.label}
+                  className={`flex min-w-0 flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-[0.5rem] sm:border-l sm:border-border sm:px-[1rem] ${hue}`}
+                >
+                  <dt className="order-2 inline-flex items-center gap-1.5 text-xs font-medium mix-text-foreground/[0.74]">
+                    {m.tone ? (
+                      <span
+                        aria-hidden="true"
+                        data-semantic="difficulty"
+                        className={`h-1.5 w-1.5 rounded-full ${difficultyDotClass(m.tone)}`}
+                      />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        data-semantic="identity"
+                        className="lab-hue-dot h-1.5 w-1.5 rounded-full"
+                      />
+                    )}
+                    {m.label}
+                  </dt>
+                  <dd
+                    className={`order-1 text-[1.375rem] font-semibold leading-none tracking-[-0.02em] tabular-nums sm:text-lg sm:tracking-normal ${
+                      m.tone ? 'text-foreground' : 'lab-hue-ink'
+                    }`}
+                  >
+                    {m.value}
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
         </div>
 
@@ -177,17 +200,17 @@ export function WikiIndexNav({
           {countLabel}
         </span>
       </div>
-      {/* Wide columns (19rem) so most names fit on one line; the rest wrap and the rows grow with them. */}
+      {/* Wide columns (19rem) so most names fit on one line; the rest wrap and the rows grow with them. Each row is a tile (soft fill + a hairline that still reads on a dimmed screen) so the rows read as separate items; hover = the accent tint. */}
       <ol
         data-wiki-index-list
-        className="grid grid-cols-[repeat(auto-fill,minmax(min(19rem,100%),1fr))] gap-x-[1.5rem] rounded-lg border bg-card p-[0.5rem]"
+        className="grid grid-cols-[repeat(auto-fill,minmax(min(19rem,100%),1fr))] gap-[0.5rem] rounded-lg border bg-card p-[0.5rem] lab-edge"
       >
         {items.map((item, i) => (
           <li key={item.href}>
             <a
               href={item.href}
               onClick={jumpToAnchor}
-              className="todo-focus group flex min-h-[2.5rem] items-baseline gap-[0.75rem] rounded-md px-[1rem] py-[0.625rem] text-sm font-medium text-foreground transition-smooth hover:mix-bg-primary/[0.08]"
+              className="todo-focus group flex h-full min-h-[2.5rem] items-baseline gap-[0.75rem] rounded-md border mix-border-foreground/[0.22] mix-bg-foreground/[0.07] px-[1rem] py-[0.5625rem] text-sm font-medium text-foreground transition-smooth hover:mix-border-primary/50 hover:mix-bg-primary/[0.12]"
             >
               <span
                 aria-hidden="true"
@@ -243,11 +266,11 @@ export function WikiSectionHeading({
 
 /**
  * Card shell for a question / topic / problem in the wiki. Replaces `display-card` (shared with Career Studio, carries a
- * shadow, a lift and a glow): flat at rest, hover = the border picks up the accent. Add the lab's rail + body inside.
+ * shadow, a lift and a glow): a soft lab-hue glow edge at rest (`lab-edge`), hover = the edge turns to the accent. Add the lab's rail + body inside.
  * `cursor-pointer` because the whole card opens the page.
  */
 export const WIKI_CARD =
-  'group relative h-full cursor-pointer overflow-hidden rounded-lg border bg-card transition-smooth hover:mix-border-primary/40';
+  'group relative h-full cursor-pointer overflow-hidden rounded-lg border bg-card lab-edge lab-edge-link';
 
 /** Title colour on card hover (the card carries `group`). `lab-ink` = accent text that stays >= 4.5:1. */
 export const WIKI_CARD_TITLE_HOVER = 'group-hover:lab-ink';

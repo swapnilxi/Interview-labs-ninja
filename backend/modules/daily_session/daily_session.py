@@ -317,7 +317,7 @@ async def upload_resume(file: UploadFile = File(...)) -> dict:
 @router.post("/sessions/generate-answer")
 async def generate_dynamic_answer(payload: AnswerGenerationRequest) -> dict:
     if payload.action == "explain":
-        prompt = f"""You are Interview-Ninja, an elite technical interviewer.
+        prompt = f"""You are Lab Ninja, an elite technical interviewer.
 Provide a deep, step-by-step technical explanation for this question:
 
 Question ({payload.category} - {payload.sub_type}):
@@ -328,7 +328,7 @@ Format your response cleanly with:
 2. In-Depth Technical Walkthrough / Code / Architecture
 3. Key Trade-offs & Common Interviewer Follow-ups"""
     else:
-        prompt = f"""You are Interview-Ninja, an elite technical interviewer.
+        prompt = f"""You are Lab Ninja, an elite technical interviewer.
 Provide a concise, top-tier model answer for this interview question:
 
 Question ({payload.category} - {payload.sub_type}):
@@ -609,7 +609,7 @@ def _build_session_prompt(
         rejected_block = "\nThese drafts were REJECTED as duplicates of existing questions; take a clearly different angle:\n" + "\n".join(
             f"- {q[:140]}" for q in rejected[-12:]
         ) + "\n"
-    return f"""You are Interview-Ninja, an elite technical interviewer writing a question bank.
+    return f"""You are Lab Ninja, an elite technical interviewer writing a question bank.
 Write exactly {len(slots)} interview questions, one per slot below.
 Difficulty Level: {diff_label}
 Variation seed: {random.randint(100000, 999999)}

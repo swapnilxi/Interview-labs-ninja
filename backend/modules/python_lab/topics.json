@@ -364,5 +364,603 @@
       {"id": "py-proj-analysis", "name": "Build a Data Analysis Report [Medium]", "brief": "pandas, charts and a written summary."},
       {"id": "py-proj-chatbot", "name": "Build a Chatbot with an LLM API [Medium]", "brief": "Conversation history, a system prompt and a simple UI."}
     ]
+  },
+  {
+    "id": "sql-databases",
+    "name": "SQL & Databases with Python",
+    "brief": "Store and query structured data with SQL, sqlite3 and an ORM.",
+    "category": "Files & Data",
+    "difficulty": "Medium",
+    "prerequisites": ["Files & Paths", "Dictionaries & Sets"],
+    "subtopics": [
+      {"id": "py-sql-basics", "name": "SQL Refresher: SELECT, JOIN & GROUP BY", "brief": "Reading and combining tables before you write any Python."},
+      {"id": "py-sqlite3", "name": "sqlite3: Connections, Cursors & Parameters", "brief": "Running queries safely, commits and why you never format SQL with f-strings."},
+      {"id": "py-orm-intro", "name": "ORMs and SQLAlchemy Basics", "brief": "Mapping tables to classes and querying with Python objects."}
+    ]
+  },
+  {
+    "id": "regex-text",
+    "name": "Regular Expressions & Text Processing",
+    "brief": "Find, validate and rewrite text with the re module.",
+    "category": "Files & Data",
+    "difficulty": "Medium",
+    "prerequisites": ["Variables & Basic Types"],
+    "subtopics": [
+      {"id": "py-regex-basics", "name": "Patterns with re: match, search & findall", "brief": "Character classes, quantifiers and anchors."},
+      {"id": "py-regex-groups", "name": "Groups, Named Captures & re.sub", "brief": "Pulling fields out of text and rewriting it."},
+      {"id": "py-text-clean", "name": "Cleaning & Parsing Messy Text", "brief": "Splitting logs, normalising whitespace and when not to use a regex."}
+    ]
+  },
+  {
+    "id": "dates-logging-cli",
+    "name": "Dates, Logging & Command-Line Tools",
+    "brief": "Handle time zones, log what your program does and give scripts real arguments.",
+    "category": "Files & Data",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Functions", "Errors & Exceptions"],
+    "subtopics": [
+      {"id": "py-datetime", "name": "datetime, timedelta & Time Zones", "brief": "Parsing, formatting, zoneinfo and the UTC-everywhere habit."},
+      {"id": "py-logging", "name": "The logging Module", "brief": "Levels, handlers, formatters and replacing print() debugging."},
+      {"id": "py-argparse", "name": "Command-Line Tools with argparse", "brief": "Positional and optional arguments, flags and --help."}
+    ]
+  },
+  {
+    "id": "design-patterns",
+    "name": "Design Patterns in Python",
+    "brief": "Reusable solutions to common design problems, written the Pythonic way.",
+    "category": "Object-Oriented Python",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Inheritance & Polymorphism"],
+    "subtopics": [
+      {"id": "py-dp-creational", "name": "Factory, Singleton & Builder", "brief": "Creating objects without hard-wiring the class."},
+      {"id": "py-dp-behavioural", "name": "Strategy, Observer & Command", "brief": "Swapping behaviour, reacting to events and undoable actions."},
+      {"id": "py-solid", "name": "SOLID Principles in Python", "brief": "Single responsibility, open/closed and dependency inversion with real examples."}
+    ]
+  },
+  {
+    "id": "advanced-oop",
+    "name": "Descriptors, __slots__ & Metaclasses",
+    "brief": "How attribute access and class creation really work.",
+    "category": "Advanced Python",
+    "difficulty": "Hard",
+    "prerequisites": ["Dunder (Magic) Methods", "Python Internals & Memory"],
+    "subtopics": [
+      {"id": "py-slots", "name": "__slots__ & Memory", "brief": "Cutting per-object overhead and what you give up."},
+      {"id": "py-descriptors", "name": "Descriptors & __getattr__", "brief": "The machinery behind property, methods and ORMs."},
+      {"id": "py-metaclass", "name": "Metaclasses & __init_subclass__", "brief": "Customising class creation, and when a simpler hook is enough."}
+    ]
+  },
+  {
+    "id": "advanced-typing",
+    "name": "Advanced Typing: Generics, Protocols & TypedDict",
+    "brief": "Express more in type hints so tools catch more bugs.",
+    "category": "Advanced Python",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Dataclasses & Type Hints"],
+    "subtopics": [
+      {"id": "py-generics", "name": "Generics & TypeVar", "brief": "Writing a typed container or function that works for many types."},
+      {"id": "py-protocols", "name": "Protocol, TypedDict & Literal", "brief": "Structural typing, typed dictionaries and fixed sets of values."},
+      {"id": "py-typing-tools", "name": "Typing in Practice: mypy, pyright & Gradual Typing", "brief": "Adding types to an existing codebase step by step."}
+    ]
+  },
+  {
+    "id": "pandas-cleaning",
+    "name": "Data Cleaning & Exploration with pandas",
+    "brief": "Turn a messy CSV into something you can trust and analyse.",
+    "category": "Python for Data & AI",
+    "difficulty": "Medium",
+    "prerequisites": ["NumPy & pandas Essentials"],
+    "subtopics": [
+      {"id": "py-pd-clean", "name": "Missing Values, Duplicates & Types", "brief": "isna, fillna, drop_duplicates and astype."},
+      {"id": "py-pd-eda", "name": "Exploratory Analysis: groupby, pivot & describe", "brief": "Asking questions of a dataset quickly."},
+      {"id": "py-pd-merge", "name": "Merging, Reshaping & Time Series", "brief": "merge, melt, resample and rolling windows."}
+    ]
+  },
+  {
+    "id": "math-for-ml",
+    "name": "Math for Machine Learning",
+    "brief": "Just enough linear algebra, statistics and calculus, learned through NumPy code.",
+    "category": "Python for Data & AI",
+    "difficulty": "Medium",
+    "prerequisites": ["NumPy & pandas Essentials"],
+    "subtopics": [
+      {"id": "py-ml-linalg", "name": "Vectors, Matrices & Dot Products", "brief": "Shapes, matrix multiplication and why ML is mostly matrix maths."},
+      {"id": "py-ml-stats", "name": "Probability & Statistics Essentials", "brief": "Mean, variance, distributions, correlation and sampling."},
+      {"id": "py-ml-calculus", "name": "Derivatives, Gradients & the Chain Rule", "brief": "Slopes, partial derivatives and checking a gradient numerically."}
+    ]
+  },
+  {
+    "id": "ml-algorithms",
+    "name": "Machine Learning with scikit-learn",
+    "brief": "The classical algorithms, what each one assumes and when to reach for it.",
+    "category": "Python for Data & AI",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Python for Machine Learning", "Math for Machine Learning"],
+    "subtopics": [
+      {"id": "py-ml-regression", "name": "Linear & Logistic Regression", "brief": "Fitting a line, predicting a probability and reading coefficients."},
+      {"id": "py-ml-trees", "name": "Decision Trees, Random Forests & Gradient Boosting", "brief": "Ensembles, feature importance and XGBoost or LightGBM."},
+      {"id": "py-ml-unsupervised", "name": "Clustering & PCA", "brief": "k-means, finding structure without labels and reducing dimensions."},
+      {"id": "py-ml-knn-svm", "name": "k-NN, Naive Bayes & SVMs", "brief": "Simple baselines worth trying first."}
+    ]
+  },
+  {
+    "id": "model-evaluation",
+    "name": "Model Evaluation & Feature Engineering",
+    "brief": "Know whether a model is any good, and give it better inputs.",
+    "category": "Python for Data & AI",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Machine Learning with scikit-learn"],
+    "subtopics": [
+      {"id": "py-ev-split", "name": "Train/Validation/Test Splits & Cross-validation", "brief": "Honest evaluation and spotting data leakage."},
+      {"id": "py-ev-metrics", "name": "Accuracy, Precision, Recall, F1 & ROC-AUC", "brief": "Choosing the metric that matches the cost of a mistake."},
+      {"id": "py-ev-features", "name": "Scaling, Encoding & Pipelines", "brief": "StandardScaler, one-hot encoding and ColumnTransformer inside a Pipeline."},
+      {"id": "py-ev-tuning", "name": "Overfitting, Regularisation & Hyperparameter Search", "brief": "The bias-variance trade-off, GridSearchCV and Optuna."}
+    ]
+  },
+  {
+    "id": "neural-nets-scratch",
+    "name": "Neural Networks from Scratch",
+    "brief": "Build a tiny network in NumPy so nothing about training is a black box.",
+    "category": "Python for Data & AI",
+    "difficulty": "Hard",
+    "prerequisites": ["Math for Machine Learning", "Classes & Objects"],
+    "subtopics": [
+      {"id": "py-nn-neuron", "name": "Perceptrons, Layers & Activation Functions", "brief": "Weights, biases, ReLU, sigmoid and softmax."},
+      {"id": "py-nn-backprop", "name": "Loss Functions, Gradient Descent & Backpropagation", "brief": "How a network learns, step by step."},
+      {"id": "py-nn-train", "name": "Training a Network on a Real Dataset", "brief": "Mini-batches, learning rate and reading a loss curve."}
+    ]
+  },
+  {
+    "id": "pytorch-deep-learning",
+    "name": "Deep Learning with PyTorch",
+    "brief": "Write, train and debug real models with the framework most research uses.",
+    "category": "Python for Data & AI",
+    "difficulty": "Hard",
+    "prerequisites": ["Neural Networks from Scratch"],
+    "subtopics": [
+      {"id": "py-dl-datasets", "name": "Datasets & DataLoaders", "brief": "Batching, shuffling and custom Dataset classes."},
+      {"id": "py-dl-module", "name": "nn.Module, Losses & Optimizers", "brief": "Defining a model and choosing SGD or Adam."},
+      {"id": "py-dl-loop", "name": "The Training Loop, GPUs & Saving Models", "brief": "train and eval modes, moving to a device and checkpoints."},
+      {"id": "py-dl-regularise", "name": "Dropout, Batch Norm & Debugging Training", "brief": "Why a loss will not go down, and what to try."}
+    ]
+  },
+  {
+    "id": "cnn-vision",
+    "name": "Convolutional Networks & Computer Vision",
+    "brief": "Teach a model to see: image classification and transfer learning.",
+    "category": "Python for Data & AI",
+    "difficulty": "Hard",
+    "prerequisites": ["Deep Learning with PyTorch"],
+    "subtopics": [
+      {"id": "py-cv-conv", "name": "Convolutions, Pooling & CNN Architectures", "brief": "Filters, feature maps and ResNet at a high level."},
+      {"id": "py-cv-transfer", "name": "Transfer Learning with torchvision", "brief": "Fine-tuning a pretrained model on your own images."},
+      {"id": "py-cv-augment", "name": "Data Augmentation & Detection Basics", "brief": "Flips, crops and an overview of object detection and segmentation."}
+    ]
+  },
+  {
+    "id": "nlp-sequences",
+    "name": "NLP & Sequence Models",
+    "brief": "Turn text into numbers and model language.",
+    "category": "Python for Data & AI",
+    "difficulty": "Hard",
+    "prerequisites": ["Deep Learning with PyTorch", "Regular Expressions & Text Processing"],
+    "subtopics": [
+      {"id": "py-nlp-tokens", "name": "Tokenization & Text Pre-processing", "brief": "Words, subwords and BPE."},
+      {"id": "py-nlp-embeddings", "name": "Word Embeddings: word2vec & GloVe", "brief": "Vectors that capture meaning."},
+      {"id": "py-nlp-rnn", "name": "RNNs, LSTMs & Why Attention Won", "brief": "Sequence models and their long-range memory problem."}
+    ]
+  },
+  {
+    "id": "transformers-hf",
+    "name": "Transformers & Hugging Face",
+    "brief": "The architecture behind modern language models, and how to use and tune pretrained ones.",
+    "category": "Python for Data & AI",
+    "difficulty": "Hard",
+    "prerequisites": ["NLP & Sequence Models"],
+    "subtopics": [
+      {"id": "py-tf-attention", "name": "Self-attention & the Transformer Architecture", "brief": "Queries, keys, values and positional encoding."},
+      {"id": "py-tf-pipelines", "name": "Pretrained Models with transformers Pipelines", "brief": "Classification, summarisation and embeddings in a few lines."},
+      {"id": "py-tf-finetune", "name": "Fine-tuning a Model, LoRA & PEFT", "brief": "Adapting a pretrained model to your data on one GPU."},
+      {"id": "py-tf-eval", "name": "Evaluating Language Models", "brief": "Perplexity, task metrics and LLM-as-judge."}
+    ]
+  },
+  {
+    "id": "generative-models",
+    "name": "Generative Models: Autoencoders, GANs & Diffusion",
+    "brief": "Models that create images, audio and more.",
+    "category": "Python for Data & AI",
+    "difficulty": "Hard",
+    "prerequisites": ["Convolutional Networks & Computer Vision"],
+    "subtopics": [
+      {"id": "py-gen-autoencoder", "name": "Autoencoders & VAEs", "brief": "Compressing data and sampling from a latent space."},
+      {"id": "py-gen-gan", "name": "GANs", "brief": "A generator and a discriminator competing, and why training is unstable."},
+      {"id": "py-gen-diffusion", "name": "Diffusion Models with diffusers", "brief": "Denoising step by step, and running Stable Diffusion."}
+    ]
+  },
+  {
+    "id": "rl-basics",
+    "name": "Reinforcement Learning Basics",
+    "brief": "Learn by trial and reward with Gymnasium.",
+    "category": "Python for Data & AI",
+    "difficulty": "Hard",
+    "prerequisites": ["Math for Machine Learning", "Deep Learning with PyTorch"],
+    "subtopics": [
+      {"id": "py-rl-concepts", "name": "Agents, Environments, Rewards & Policies", "brief": "The reinforcement learning loop and the Gymnasium API."},
+      {"id": "py-rl-qlearning", "name": "Q-learning on a Grid World", "brief": "A value table, exploration vs exploitation and epsilon-greedy."},
+      {"id": "py-rl-deep", "name": "Deep RL: DQN & Policy Gradients", "brief": "Neural networks as policies, and Stable-Baselines3."}
+    ]
+  },
+  {
+    "id": "llm-rag-tools",
+    "name": "LLM Apps: RAG, Tool Calling & Streaming",
+    "brief": "Go beyond a single prompt: retrieve context, call tools and stream answers.",
+    "category": "Python for Data & AI",
+    "difficulty": "Hard",
+    "prerequisites": ["Building AI Apps with Python"],
+    "subtopics": [
+      {"id": "py-embeddings", "name": "Embeddings & Similarity Search", "brief": "Turning text into vectors and finding the closest ones."},
+      {"id": "py-rag", "name": "A Minimal RAG Pipeline", "brief": "Chunking, retrieving and stuffing context into a prompt."},
+      {"id": "py-tool-calling", "name": "Tool Calling & a Simple Agent Loop", "brief": "Letting a model call your Python functions."},
+      {"id": "py-llm-stream", "name": "Streaming Tokens to the Client", "brief": "Generators, async iterators and server-sent events."}
+    ]
+  },
+  {
+    "id": "mlops-serving",
+    "name": "MLOps: Tracking, Serving & Monitoring Models",
+    "brief": "Get a model out of the notebook and keep it healthy in production.",
+    "category": "Python for Data & AI",
+    "difficulty": "Hard",
+    "prerequisites": ["Machine Learning with scikit-learn", "FastAPI Fundamentals"],
+    "subtopics": [
+      {"id": "py-mlops-tracking", "name": "Experiment Tracking with MLflow & Weights & Biases", "brief": "Logging parameters, metrics and artifacts so runs can be reproduced."},
+      {"id": "py-mlops-serving", "name": "Serving a Model with FastAPI", "brief": "Loading a model once at startup, validating inputs and batching predictions."},
+      {"id": "py-mlops-monitoring", "name": "Data Drift, Monitoring & Retraining", "brief": "Noticing when a model quietly gets worse."}
+    ]
+  },
+  {
+    "id": "big-o-patterns",
+    "name": "Big-O & Problem-Solving Patterns",
+    "brief": "Measure how code scales, and recognise the handful of patterns behind most problems.",
+    "category": "DSA in Python",
+    "difficulty": "Medium",
+    "prerequisites": ["Lists & Tuples", "Dictionaries & Sets"],
+    "subtopics": [
+      {"id": "py-bigo", "name": "Reading Big-O", "brief": "O(1), O(log n), O(n), O(n log n) and O(n^2) with Python examples."},
+      {"id": "py-two-pointers", "name": "Two Pointers & Sliding Window", "brief": "Scanning arrays and strings without nested loops."},
+      {"id": "py-hash-prefix", "name": "Hash Maps, Frequency Counts & Prefix Sums", "brief": "Trading memory for speed."}
+    ]
+  },
+  {
+    "id": "linked-lists",
+    "name": "Linked Lists",
+    "brief": "Build singly and doubly linked lists from scratch and solve the classic problems.",
+    "category": "DSA in Python",
+    "difficulty": "Medium",
+    "prerequisites": ["Classes & Objects", "Lists & Tuples"],
+    "subtopics": [
+      {"id": "py-ll-node", "name": "Nodes & a Singly Linked List Class", "brief": "A Node with a value and next, a LinkedList with a head, and a readable __repr__."},
+      {"id": "py-ll-ops", "name": "Insert, Delete, Search & Traverse", "brief": "append, prepend, insert after a node, remove by value and the cost of each."},
+      {"id": "py-ll-reverse", "name": "Reversing a List, Finding the Middle & Merging", "brief": "Three-pointer reversal, slow and fast pointers and merging two sorted lists."},
+      {"id": "py-ll-cycle", "name": "Cycle Detection with Floyd's Tortoise & Hare", "brief": "Finding a loop, and where it starts, in O(1) space."},
+      {"id": "py-ll-variants", "name": "Doubly Linked, Circular & Sentinel Nodes", "brief": "prev pointers, dummy heads and removing a node in O(1)."},
+      {"id": "py-ll-vs-list", "name": "Linked List vs list vs deque", "brief": "Big-O, memory layout and why Python code rarely needs a hand-made linked list."}
+    ]
+  },
+  {
+    "id": "stacks-queues-heaps",
+    "name": "Stacks, Queues & Heaps",
+    "brief": "Last-in-first-out, first-in-first-out and always-the-smallest-first.",
+    "category": "DSA in Python",
+    "difficulty": "Medium",
+    "prerequisites": ["Lists & Tuples", "The collections Module"],
+    "subtopics": [
+      {"id": "py-stack", "name": "Stacks: Balanced Brackets, Undo & Monotonic Stacks", "brief": "push and pop on a list, and the next-greater-element trick."},
+      {"id": "py-queue", "name": "Queues with deque and queue.Queue", "brief": "FIFO order, rotating work and thread-safe queues."},
+      {"id": "py-heap", "name": "Heaps & Priority Queues with heapq", "brief": "heappush, heappop, top-k and merging sorted streams."}
+    ]
+  },
+  {
+    "id": "recursion-memo",
+    "name": "Recursion & Memoization",
+    "brief": "Solve a problem by solving smaller copies of it.",
+    "category": "DSA in Python",
+    "difficulty": "Medium",
+    "prerequisites": ["Functions", "Lambdas & Functional Tools"],
+    "subtopics": [
+      {"id": "py-rec-basics", "name": "Base Case, Recursive Case & the Call Stack", "brief": "Factorial, Fibonacci and tracing what happens."},
+      {"id": "py-rec-limits", "name": "Recursion Depth & Turning Recursion into Loops", "brief": "RecursionError, sys.setrecursionlimit and an explicit stack."},
+      {"id": "py-rec-memo", "name": "Memoization with lru_cache", "brief": "Turning exponential recursion into linear time."},
+      {"id": "py-rec-backtrack", "name": "Backtracking: Subsets, Permutations & N-Queens", "brief": "Choose, explore, un-choose."}
+    ]
+  },
+  {
+    "id": "trees-bst",
+    "name": "Trees & Binary Search Trees",
+    "brief": "Hierarchical data, four ways to walk it, and ordered lookup.",
+    "category": "DSA in Python",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Classes & Objects", "Recursion & Memoization", "Stacks, Queues & Heaps"],
+    "subtopics": [
+      {"id": "py-tree-traversal", "name": "Binary Trees & Traversals", "brief": "Preorder, inorder, postorder and level-order, recursive and iterative."},
+      {"id": "py-bst", "name": "Binary Search Trees", "brief": "Insert, search, delete and why an unbalanced tree degrades to a list."},
+      {"id": "py-tree-problems", "name": "Classic Tree Problems", "brief": "Height, diameter, lowest common ancestor and validating a BST."},
+      {"id": "py-trie", "name": "Tries for Prefix Search", "brief": "Autocomplete and word lookup with a tree of characters."}
+    ]
+  },
+  {
+    "id": "graphs-bfs-dfs",
+    "name": "Graphs: BFS, DFS & Shortest Paths",
+    "brief": "Model networks, grids and dependencies, and search through them.",
+    "category": "DSA in Python",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Trees & Binary Search Trees", "The collections Module"],
+    "subtopics": [
+      {"id": "py-graph-repr", "name": "Representing Graphs", "brief": "Adjacency lists with dict and defaultdict, matrices and edge lists."},
+      {"id": "py-graph-traverse", "name": "BFS & DFS", "brief": "Level by level with deque, depth first with recursion, components and grids."},
+      {"id": "py-graph-shortest", "name": "Shortest Paths: BFS & Dijkstra", "brief": "Unweighted vs weighted, with a heapq-based Dijkstra."},
+      {"id": "py-graph-topo", "name": "Topological Sort & Cycle Detection", "brief": "Ordering tasks that depend on each other."}
+    ]
+  },
+  {
+    "id": "sorting-searching",
+    "name": "Sorting & Searching",
+    "brief": "Use the built-ins well, then write the algorithms yourself.",
+    "category": "DSA in Python",
+    "difficulty": "Medium",
+    "prerequisites": ["Lists & Tuples", "Recursion & Memoization"],
+    "subtopics": [
+      {"id": "py-sort-builtin", "name": "sorted(), list.sort() & Timsort", "brief": "Stable sorting, key functions and reverse."},
+      {"id": "py-sort-algos", "name": "Bubble, Merge & Quick Sort from Scratch", "brief": "Implement them and compare their Big-O."},
+      {"id": "py-bsearch", "name": "Binary Search & the bisect Module", "brief": "Searching sorted data, boundaries and searching an answer space."}
+    ]
+  },
+  {
+    "id": "http-rest-basics",
+    "name": "HTTP & REST Basics",
+    "brief": "What actually travels between a client and a server, and how to design endpoints.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["JSON, CSV & Web APIs"],
+    "subtopics": [
+      {"id": "py-http-methods", "name": "Requests, Methods & Status Codes", "brief": "GET, POST, PUT, PATCH, DELETE and what 200, 201, 400, 401, 403, 404 and 422 mean."},
+      {"id": "py-rest-design", "name": "Designing REST Endpoints", "brief": "Resources, plural nouns, idempotency, pagination and versioning."},
+      {"id": "py-openapi", "name": "OpenAPI & JSON Schema", "brief": "The contract behind the /docs page."}
+    ]
+  },
+  {
+    "id": "fastapi-basics",
+    "name": "FastAPI Fundamentals",
+    "brief": "A modern Python web framework driven by type hints.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Medium",
+    "prerequisites": ["HTTP & REST Basics", "Dataclasses & Type Hints"],
+    "subtopics": [
+      {"id": "py-fa-first", "name": "Your First FastAPI App", "brief": "Install fastapi and uvicorn, define a route and open /docs."},
+      {"id": "py-fa-params", "name": "Path, Query & Header Parameters", "brief": "Type-based parsing, defaults and Query() constraints."},
+      {"id": "py-fa-body", "name": "Request Bodies with Pydantic Models", "brief": "BaseModel, nested models and automatic 422 errors."},
+      {"id": "py-fa-response", "name": "Response Models & Status Codes", "brief": "response_model, status_code and hiding fields such as passwords."}
+    ]
+  },
+  {
+    "id": "fastapi-structure",
+    "name": "Routers, Settings & Project Structure",
+    "brief": "Grow from one file to an app you can keep adding to.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Medium",
+    "prerequisites": ["FastAPI Fundamentals", "Modules, Packages & Environments"],
+    "subtopics": [
+      {"id": "py-fa-routers", "name": "APIRouter & Splitting an App into Modules", "brief": "prefix, tags and include_router."},
+      {"id": "py-fa-settings", "name": "Configuration with pydantic-settings & .env", "brief": "Environment variables, secrets and per-environment config."},
+      {"id": "py-fa-lifespan", "name": "Lifespan Events & Shared Resources", "brief": "Creating a database pool or HTTP client once, at startup."}
+    ]
+  },
+  {
+    "id": "fastapi-validation",
+    "name": "Validation, Errors, Forms & Files",
+    "brief": "Reject bad input early and answer errors consistently.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Medium",
+    "prerequisites": ["FastAPI Fundamentals"],
+    "subtopics": [
+      {"id": "py-fa-validators", "name": "Pydantic Validation & Custom Validators", "brief": "Field(), constrained types, field_validator and model_validator."},
+      {"id": "py-fa-errors", "name": "HTTPException & Custom Exception Handlers", "brief": "One error shape for the whole API, and handling RequestValidationError."},
+      {"id": "py-fa-forms-files", "name": "Forms, File Uploads & Cookies", "brief": "Form(), UploadFile and reading and setting cookies."}
+    ]
+  },
+  {
+    "id": "fastapi-dependencies",
+    "name": "Dependency Injection with Depends",
+    "brief": "FastAPI's way of sharing logic: database sessions, the current user and pagination.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["FastAPI Fundamentals", "Closures & Decorators"],
+    "subtopics": [
+      {"id": "py-fa-depends", "name": "Depends Basics: Reusable Parameters", "brief": "A shared pagination or filter dependency."},
+      {"id": "py-fa-yield", "name": "Dependencies with yield: Sessions & Cleanup", "brief": "Opening a database session per request and always closing it."},
+      {"id": "py-fa-dep-scope", "name": "Sub-dependencies, Router-level Dependencies & Overrides", "brief": "Layering dependencies, protecting a whole router and swapping them in tests."}
+    ]
+  },
+  {
+    "id": "fastapi-jwt-auth",
+    "name": "JWT Login & Authentication",
+    "brief": "Sign users up, log them in and protect routes with JSON Web Tokens.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Dependency Injection with Depends", "Validation, Errors, Forms & Files"],
+    "subtopics": [
+      {"id": "py-jwt-concepts", "name": "How JWTs Work: Header, Payload & Signature", "brief": "Claims such as sub and exp, HS256 vs RS256 and why a JWT is signed, not encrypted."},
+      {"id": "py-jwt-passwords", "name": "Hashing Passwords Safely", "brief": "Why never to store plain text, bcrypt or argon2, salts and verifying at login."},
+      {"id": "py-jwt-login", "name": "A Login Endpoint That Issues Tokens", "brief": "OAuth2PasswordRequestForm, checking credentials and signing an access token with an expiry."},
+      {"id": "py-jwt-protect", "name": "Protecting Routes with get_current_user", "brief": "OAuth2PasswordBearer, decoding and validating the token, 401 responses and the Authorize button in /docs."}
+    ]
+  },
+  {
+    "id": "fastapi-authz",
+    "name": "Authorization, Refresh Tokens & Sessions",
+    "brief": "Decide what a logged-in user may do, and keep sessions safe over time.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Hard",
+    "prerequisites": ["JWT Login & Authentication"],
+    "subtopics": [
+      {"id": "py-authz-roles", "name": "Roles, Permissions & Scopes", "brief": "A require_role dependency, admin-only routes and OAuth2 scopes."},
+      {"id": "py-authz-refresh", "name": "Refresh Tokens, Expiry & Revocation", "brief": "Short access tokens, rotating refresh tokens, logout and blocklists."},
+      {"id": "py-authz-storage", "name": "Where to Store Tokens: Headers vs httpOnly Cookies", "brief": "The XSS and CSRF trade-offs for browser clients."},
+      {"id": "py-authz-oauth", "name": "Social Login with OAuth2 & OpenID Connect", "brief": "The authorization code flow, Google sign-in and when to use an auth provider."}
+    ]
+  },
+  {
+    "id": "fastapi-database",
+    "name": "Databases with SQLAlchemy",
+    "brief": "Persist your API's data and keep queries fast.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Dependency Injection with Depends", "SQL & Databases with Python"],
+    "subtopics": [
+      {"id": "py-fa-db-models", "name": "SQLAlchemy Models & a Session per Request", "brief": "Engine, declarative models and the get_db dependency."},
+      {"id": "py-fa-db-crud", "name": "CRUD Endpoints, Pagination & Filtering", "brief": "Create, read, update and delete with limit, offset and search."},
+      {"id": "py-fa-db-relations", "name": "Relationships, Transactions & the N+1 Problem", "brief": "One-to-many, rollbacks and eager loading."},
+      {"id": "py-fa-db-migrations", "name": "Migrations with Alembic", "brief": "Changing a schema without losing data."}
+    ]
+  },
+  {
+    "id": "fastapi-async-realtime",
+    "name": "Async, Background Tasks & Real-time",
+    "brief": "Handle many requests at once and push data to clients.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Hard",
+    "prerequisites": ["FastAPI Fundamentals", "Concurrency: Threads, Processes & asyncio"],
+    "subtopics": [
+      {"id": "py-fa-async", "name": "async def vs def Endpoints", "brief": "What blocks the event loop and how the thread pool helps."},
+      {"id": "py-fa-background", "name": "BackgroundTasks & Task Queues", "brief": "Fire-and-forget work, and when you need Celery or another queue."},
+      {"id": "py-fa-websockets", "name": "WebSockets", "brief": "A live connection, with a chat room as the example."},
+      {"id": "py-fa-sse", "name": "Streaming Responses & Server-Sent Events", "brief": "Streaming an LLM's output to a browser as it is written."}
+    ]
+  },
+  {
+    "id": "fastapi-security",
+    "name": "Middleware, CORS & API Security",
+    "brief": "Cross-cutting concerns and the mistakes that get APIs hacked.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["FastAPI Fundamentals"],
+    "subtopics": [
+      {"id": "py-fa-middleware", "name": "Middleware: Logging, Timing & Request IDs", "brief": "Running code around every request."},
+      {"id": "py-fa-cors", "name": "CORS Explained", "brief": "Why browsers block calls, allow_origins and credentials."},
+      {"id": "py-fa-hardening", "name": "Rate Limiting, API Keys & Common Vulnerabilities", "brief": "Input validation, SQL injection, secrets and the OWASP top ten."}
+    ]
+  },
+  {
+    "id": "fastapi-testing",
+    "name": "Testing FastAPI Apps",
+    "brief": "Prove your endpoints work, including the ones behind a login.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Medium",
+    "prerequisites": ["FastAPI Fundamentals", "Testing with pytest"],
+    "subtopics": [
+      {"id": "py-fa-test-client", "name": "TestClient & httpx AsyncClient", "brief": "Calling your app without starting a server."},
+      {"id": "py-fa-test-overrides", "name": "Dependency Overrides & a Test Database", "brief": "Isolating each test with fixtures."},
+      {"id": "py-fa-test-auth", "name": "Testing Authenticated Routes", "brief": "Logging in inside tests, and checking 401 and 403 cases."}
+    ]
+  },
+  {
+    "id": "fastapi-deploy",
+    "name": "Deploying FastAPI",
+    "brief": "Take the app from your laptop to production.",
+    "category": "Web APIs with FastAPI",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Routers, Settings & Project Structure"],
+    "subtopics": [
+      {"id": "py-fa-run", "name": "uvicorn, Gunicorn & Workers", "brief": "How many processes to run, and reload vs production mode."},
+      {"id": "py-fa-docker", "name": "Containerising with Docker", "brief": "A small, cacheable image and environment variables."},
+      {"id": "py-fa-observability", "name": "Logging, Health Checks & Monitoring", "brief": "Structured logs, a /health endpoint and basic metrics."},
+      {"id": "py-fa-hosting", "name": "Hosting Options & CI/CD", "brief": "Render, Fly.io, Cloud Run and running tests on every push."}
+    ]
+  },
+  {
+    "id": "py-interview-core",
+    "name": "Core Python Interview Questions",
+    "brief": "The questions Python interviews keep asking, with the reasoning behind each answer.",
+    "category": "Interview Prep",
+    "difficulty": "Medium",
+    "prerequisites": ["Classes & Objects", "Closures & Decorators", "Iterators & Generators"],
+    "subtopics": [
+      {"id": "py-iq-gotchas", "name": "Language Gotchas: Mutable Defaults, is vs == & Late Binding", "brief": "Output-prediction questions and why they behave that way."},
+      {"id": "py-iq-concepts", "name": "GIL, Memory, Generators & Decorators", "brief": "Conceptual questions with short, precise answers."},
+      {"id": "py-iq-coding", "name": "Classic Coding Challenges", "brief": "Anagrams, two-sum, palindromes, flatten a list and an LRU cache."}
+    ]
+  },
+  {
+    "id": "py-interview-backend",
+    "name": "Backend & FastAPI Interview Questions",
+    "brief": "Explain your API choices and design a service on a whiteboard.",
+    "category": "Interview Prep",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["FastAPI Fundamentals", "JWT Login & Authentication"],
+    "subtopics": [
+      {"id": "py-iq-fa-core", "name": "FastAPI vs Flask vs Django, ASGI vs WSGI", "brief": "Framework trade-offs and what async really buys you."},
+      {"id": "py-iq-fa-auth", "name": "Auth & Security Questions: JWT vs Sessions", "brief": "Token expiry, revocation, password storage and CORS questions."},
+      {"id": "py-iq-fa-design", "name": "Designing a Python API Service", "brief": "Caching, queues, scaling workers, rate limiting and a database choice."}
+    ]
+  },
+  {
+    "id": "py-interview-ml",
+    "name": "ML & Deep Learning Interview Questions",
+    "brief": "Explain how models learn, fail and get evaluated, and code the basics from memory.",
+    "category": "Interview Prep",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Model Evaluation & Feature Engineering", "Deep Learning with PyTorch"],
+    "subtopics": [
+      {"id": "py-iq-ml-concepts", "name": "Bias-Variance, Overfitting & Regularisation", "brief": "The concept questions every ML interview opens with."},
+      {"id": "py-iq-ml-metrics", "name": "Metrics & Evaluation Scenarios", "brief": "Imbalanced data, precision vs recall and choosing a threshold."},
+      {"id": "py-iq-dl-concepts", "name": "Backprop, Optimisers & Training Problems", "brief": "Vanishing gradients, learning rates and batch norm."},
+      {"id": "py-iq-ml-coding", "name": "Coding ML from Scratch in NumPy", "brief": "k-means, logistic regression, softmax and a forward pass."}
+    ]
+  },
+  {
+    "id": "fastapi-projects",
+    "name": "FastAPI & Backend Projects",
+    "brief": "Build real services that combine routing, auth, databases and background work.",
+    "category": "Projects",
+    "difficulty": "Mixed",
+    "prerequisites": ["FastAPI Fundamentals"],
+    "subtopics": [
+      {"id": "py-proj-notes-jwt", "name": "Build a Notes API with JWT Login [Medium]", "brief": "Signup, login, per-user notes and protected CRUD."},
+      {"id": "py-proj-shortener", "name": "Build a URL Shortener [Medium]", "brief": "Short codes, redirects, click counts and rate limiting."},
+      {"id": "py-proj-chat", "name": "Build a Real-time Chat with WebSockets [Medium-Hard]", "brief": "Rooms, broadcasting and authenticating the socket."},
+      {"id": "py-proj-llm-gateway", "name": "Build a Streaming LLM Gateway [Medium-Hard]", "brief": "Per-user API keys, streamed tokens and usage limits."},
+      {"id": "py-proj-jobs", "name": "Build a Background Job Service [Hard]", "brief": "A queue, workers and job status polling."}
+    ]
+  },
+  {
+    "id": "dsa-projects",
+    "name": "Data Structure Projects",
+    "brief": "Implement the structures yourself and use them to solve something real.",
+    "category": "Projects",
+    "difficulty": "Mixed",
+    "prerequisites": ["Linked Lists", "Stacks, Queues & Heaps"],
+    "subtopics": [
+      {"id": "py-proj-llist", "name": "Build a Linked List Library [Easy-Medium]", "brief": "Singly and doubly linked lists with tests and Big-O notes."},
+      {"id": "py-proj-lru", "name": "Build an LRU Cache [Medium]", "brief": "A doubly linked list plus a dict for O(1) get and put."},
+      {"id": "py-proj-undo", "name": "Build a Browser History & Undo Stack [Easy]", "brief": "Back, forward and undo with two stacks."},
+      {"id": "py-proj-scheduler", "name": "Build a Task Scheduler with a Heap [Medium]", "brief": "Priorities, deadlines and a run loop."},
+      {"id": "py-proj-maze", "name": "Build a Maze Solver with BFS & DFS [Medium]", "brief": "Parse a grid and find the shortest path."},
+      {"id": "py-proj-autocomplete", "name": "Build Autocomplete with a Trie [Medium-Hard]", "brief": "Prefix search over a word list."}
+    ]
+  },
+  {
+    "id": "ml-projects",
+    "name": "Machine Learning & Deep Learning Projects",
+    "brief": "Train, evaluate and ship models on real datasets.",
+    "category": "Projects",
+    "difficulty": "Mixed",
+    "prerequisites": ["Machine Learning with scikit-learn"],
+    "subtopics": [
+      {"id": "py-proj-house-price", "name": "Predict House Prices with scikit-learn [Easy-Medium]", "brief": "Cleaning, features, a regression model and an error report."},
+      {"id": "py-proj-spam", "name": "Build a Spam or Sentiment Classifier [Medium]", "brief": "TF-IDF, logistic regression and a confusion matrix."},
+      {"id": "py-proj-mnist", "name": "Train an Image Classifier with a CNN [Medium-Hard]", "brief": "MNIST or CIFAR-10 in PyTorch, then transfer learning."},
+      {"id": "py-proj-finetune", "name": "Fine-tune a Transformer for Text Classification [Hard]", "brief": "Hugging Face Trainer, evaluation and a model card."},
+      {"id": "py-proj-model-api", "name": "Deploy a Model as a FastAPI Service [Hard]", "brief": "Docker, a /predict endpoint, JWT protection and monitoring."},
+      {"id": "py-proj-rag-qa", "name": "Build a Document Q&A with RAG [Medium-Hard]", "brief": "Embeddings, a vector store and cited answers."}
+    ]
   }
 ]

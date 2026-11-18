@@ -6,7 +6,7 @@ import RequireAuth from '@/modules/auth/RequireAuth';
 import { LabScreenLoading } from '@/modules/labs/common/labNavigation';
 
 export const metadata: Metadata = {
-  title: 'DSA Lab — InterviewNinja',
+  title: 'DSA Lab — Lab Ninja',
   description: 'Interactive Data Structures and Algorithms lab with AI-powered topic exploration, quizzes, and deep-dive sessions.',
 };
 

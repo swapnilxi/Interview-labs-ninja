@@ -275,4 +275,5 @@ export const GENAI_LAB: TopicLabConfig = {
   },
   customTopic: { brief: 'Custom lesson.', difficulty: 'Medium', prerequisites: [] },
   recentKey: 'genai-lab-recent-topics',
+  guidedPractice: 'genai',
 };

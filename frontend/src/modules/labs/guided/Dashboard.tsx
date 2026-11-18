@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import Rings from './Rings';
 import { QuestionMeta } from './QuestionRow';
+import { labConfig } from './labs';
 import { Switch } from './Switch';
 import { setPref } from './prefs';
 import { ProgressBar, plural } from './ui';
@@ -102,6 +103,8 @@ export default function Dashboard({
   const streak = streakNow(state);
   const today = completedToday(state);
   const week = weekStrip(state);
+  // What the lab calls its exercises, plural and capitalised: "Coding exercises", "Practice tasks", "Calculations".
+  const exercisesName = `${labConfig(state.topic.lab).exerciseLabel.replace(/^./, (c) => c.toUpperCase())}s`;
   const resume = resumeId ? state.questions[resumeId] : null;
   const phase = resume ? phaseOfQuestion(state, resume.id) : null;
   const started = !!resume && (progressOf(state, resume.id).touchedAt !== null || o.completed > 0);
@@ -166,7 +169,7 @@ export default function Dashboard({
             <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t pt-4">
               <ol
                 className="flex items-center gap-2"
-                aria-label="Coding exercises passed in the last seven days"
+                aria-label={`${exercisesName} passed in the last seven days`}
               >
                 {week.map((d) => (
                   <li key={d.key} className="flex flex-col items-center gap-1">
@@ -274,7 +277,7 @@ export default function Dashboard({
         <Stat label="Phases completed" value={o.phasesDone} note={`of ${o.phases}`} />
         <Stat label="Questions completed" value={o.completed} note={`of ${o.total} so far`} />
         <Stat
-          label="Coding exercises"
+          label={exercisesName}
           value={o.codingDone}
           note={o.codingTotal ? `of ${o.codingTotal} completed` : 'completed'}
         />

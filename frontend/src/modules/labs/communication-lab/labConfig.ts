@@ -133,7 +133,7 @@ export const COMMUNICATION_LAB: TopicLabConfig = {
   labName: 'Communication Lab',
   wikiTitle: 'Communication Lab',
   wikiDescription:
-    'Business English, effective communication and leadership, with scripts, role-plays and practice drills',
+    'Business English, effective communication, leadership, communication for engineers and career and interview skills, with scripts, role-plays and practice drills',
   noun: { one: 'lesson', many: 'lessons' },
   sectionDefs: COMMUNICATION_SECTION_DEFS,
   ownPrereqTitle: 'Study these lessons first',
@@ -181,6 +181,38 @@ export const COMMUNICATION_LAB: TopicLabConfig = {
         items: ['Owning mistakes openly', 'Being consistent: doing what you said you would do'],
       },
     ],
+    'Communication for Engineers': [
+      {
+        title: 'Communication skills',
+        items: [
+          'Stating your main point in one sentence',
+          'Knowing who will read or hear the message and what they need from it',
+        ],
+      },
+      {
+        title: 'Mindset & habits',
+        items: [
+          'Assuming good intent from teammates',
+          'Writing things down so the decision outlasts the meeting',
+        ],
+      },
+    ],
+    'Career & Interview Communication': [
+      {
+        title: 'Communication skills',
+        items: [
+          'Describing your work in two or three sentences',
+          'Giving an example with a result instead of a general claim',
+        ],
+      },
+      {
+        title: 'Mindset & habits',
+        items: [
+          'Preparing before the conversation, not during it',
+          'Staying calm when you do not know an answer',
+        ],
+      },
+    ],
     '*': [
       {
         title: 'Communication skills',
@@ -193,4 +225,5 @@ export const COMMUNICATION_LAB: TopicLabConfig = {
   },
   customTopic: { brief: 'Custom lesson.', difficulty: 'Medium', prerequisites: [] },
   recentKey: 'communication-lab-recent-topics',
+  guidedPractice: 'communication',
 };

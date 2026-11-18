@@ -53,7 +53,7 @@ export default function ProjectScreen({
         <BackButton href="/labs-project" label="Projects" />
       </div>
 
-      <header className="mb-5 rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <header className="lab-edge lab-rim mb-5 rounded-2xl border bg-card p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">

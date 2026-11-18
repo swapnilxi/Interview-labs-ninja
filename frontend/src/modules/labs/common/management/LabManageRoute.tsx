@@ -9,7 +9,7 @@ import type { LabManagementConfig } from './types';
 /** The page metadata of a lab's management page. */
 export function manageMetadata(config: LabManagementConfig): Metadata {
   return {
-    title: `${config.labName} management — InterviewNinja`,
+    title: `${config.labName} management — Lab Ninja`,
     description: `Organise the ${config.labName}: ${config.groupNoun.many}, topics, section prompts and the context each topic is written with.`,
   };
 }

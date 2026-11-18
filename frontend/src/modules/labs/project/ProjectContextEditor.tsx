@@ -78,7 +78,7 @@ export default function ProjectContextEditor({ project }: { project: LabProject 
 
   return (
     <form
-      className="space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-5"
+      className="lab-edge space-y-5 rounded-2xl border bg-card p-4 sm:p-5"
       onSubmit={(e) => {
         e.preventDefault();
         void save();

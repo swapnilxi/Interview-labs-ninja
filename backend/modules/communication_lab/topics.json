@@ -336,5 +336,343 @@
       {"id": "com-li-story-bank", "name": "Building Your Story Bank", "brief": "Eight stories that answer most behavioural questions."},
       {"id": "com-li-failure", "name": "Talking About Failure & Weaknesses", "brief": "Honest answers that show learning."}
     ]
+  },
+  {
+    "id": "idioms-phrasal-verbs",
+    "name": "Idioms, Phrasal Verbs & Workplace Jargon",
+    "brief": "Understand and use the informal English your colleagues speak every day.",
+    "category": "Business English",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Business English Foundations"],
+    "subtopics": [
+      {"id": "com-id-idioms", "name": "Common Business Idioms", "brief": "Touch base, move the needle, on the same page, and what they really mean."},
+      {"id": "com-id-phrasal", "name": "Phrasal Verbs for Work", "brief": "Follow up on, roll out, push back, reach out, sign off and wrap up."},
+      {"id": "com-id-jargon", "name": "Jargon, Buzzwords & When to Avoid Them", "brief": "Spotting empty phrases and swapping them for plain ones."}
+    ]
+  },
+  {
+    "id": "pronunciation-intonation",
+    "name": "Pronunciation, Stress & Intonation",
+    "brief": "Be easy to understand, whatever your accent.",
+    "category": "Business English",
+    "difficulty": "Medium",
+    "prerequisites": ["Business English Foundations"],
+    "subtopics": [
+      {"id": "com-pr-word-stress", "name": "Word Stress & Commonly Mispronounced Work Words", "brief": "Which syllable to stress in words like schedule, development and engineer."},
+      {"id": "com-pr-sentence", "name": "Sentence Stress, Rhythm & Intonation", "brief": "Stressing the words that carry meaning, and rising vs falling pitch."},
+      {"id": "com-pr-clarity", "name": "Pace, Linking & Accent Confidence", "brief": "Slowing down, joining words naturally and speaking clearly without losing your voice."}
+    ]
+  },
+  {
+    "id": "listening-accents",
+    "name": "Listening to Fast Speech & Different Accents",
+    "brief": "Follow what is said in meetings and calls, even when it is quick or unfamiliar.",
+    "category": "Business English",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Business English Foundations"],
+    "subtopics": [
+      {"id": "com-ls-fast", "name": "Following Fast or Unfamiliar Speech", "brief": "Listening for key words, reductions and connected speech."},
+      {"id": "com-ls-clarify", "name": "Asking for Repetition & Clarification Politely", "brief": "Could you say that again, and checking you understood."},
+      {"id": "com-ls-notes", "name": "Taking Notes While Listening", "brief": "Capturing decisions and actions without missing the next point."}
+    ]
+  },
+  {
+    "id": "client-communication",
+    "name": "Customer & Client Communication",
+    "brief": "Keep clients confident, informed and on your side.",
+    "category": "Business English",
+    "difficulty": "Medium",
+    "prerequisites": ["Writing Professional Emails", "Meetings & Conference Calls"],
+    "subtopics": [
+      {"id": "com-cl-complaints", "name": "Handling Complaints & Upset Clients", "brief": "Acknowledge, apologise, act and follow up."},
+      {"id": "com-cl-expectations", "name": "Managing Expectations & Saying No to Scope", "brief": "Promising only what you can deliver, and turning a no into options."},
+      {"id": "com-cl-calls", "name": "Client Calls & Building the Relationship", "brief": "Opening, listening, summarising and closing with next steps."}
+    ]
+  },
+  {
+    "id": "business-writing-style",
+    "name": "Business Writing Style & Editing",
+    "brief": "Edit your own writing until it is short, clear and the right tone.",
+    "category": "Business English",
+    "difficulty": "Medium",
+    "prerequisites": ["Writing Professional Emails", "Grammar & Word Choice at Work"],
+    "subtopics": [
+      {"id": "com-ws-tone", "name": "Tone: Warm, Direct or Neutral", "brief": "Choosing a tone and removing words that sound curt or passive-aggressive."},
+      {"id": "com-ws-edit", "name": "Editing Your Own Writing", "brief": "Cut, reorder, simplify and read it aloud."},
+      {"id": "com-ws-templates", "name": "Reusable Templates & Phrase Banks", "brief": "A personal library of openers, requests and closings."}
+    ]
+  },
+  {
+    "id": "assertive-communication",
+    "name": "Assertive Communication & Boundaries",
+    "brief": "Say what you need clearly and respectfully, without being passive or pushy.",
+    "category": "Effective Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Communication Fundamentals"],
+    "subtopics": [
+      {"id": "com-as-styles", "name": "Passive, Aggressive, Passive-aggressive & Assertive", "brief": "Recognising each style in yourself and others."},
+      {"id": "com-as-no", "name": "Saying No Without the Guilt", "brief": "Declining requests, offering alternatives and protecting your time."},
+      {"id": "com-as-desc", "name": "The DESC Script & Holding Your Ground", "brief": "Describe, express, specify and state the consequence."}
+    ]
+  },
+  {
+    "id": "emotional-intelligence",
+    "name": "Emotional Intelligence at Work",
+    "brief": "Understand your own reactions and read other people's.",
+    "category": "Effective Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Active Listening"],
+    "subtopics": [
+      {"id": "com-ei-self", "name": "Self-awareness & Self-regulation", "brief": "Noticing what you feel before you respond."},
+      {"id": "com-ei-read", "name": "Reading the Room", "brief": "Picking up mood and unspoken concerns in meetings and chats."},
+      {"id": "com-ei-triggers", "name": "Responding Instead of Reacting", "brief": "Managing triggers when you are criticised or under pressure."}
+    ]
+  },
+  {
+    "id": "cross-cultural-communication",
+    "name": "Cross-cultural & Global Team Communication",
+    "brief": "Work smoothly with people whose habits of communication differ from yours.",
+    "category": "Effective Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Communication Fundamentals"],
+    "subtopics": [
+      {"id": "com-cc-context", "name": "High-context vs Low-context Communication", "brief": "Direct and indirect styles, and reading between the lines."},
+      {"id": "com-cc-hierarchy", "name": "Feedback, Hierarchy & Disagreement Across Cultures", "brief": "How different cultures show respect and say no."},
+      {"id": "com-cc-distance", "name": "Working Across Time Zones & Languages", "brief": "Writing for non-native readers and scheduling fairly."}
+    ]
+  },
+  {
+    "id": "meeting-facilitation",
+    "name": "Meeting Facilitation & Workshops",
+    "brief": "Lead a group discussion so it ends with decisions instead of a lot of talk.",
+    "category": "Effective Communication",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Meetings & Conference Calls", "Active Listening"],
+    "subtopics": [
+      {"id": "com-fac-agenda", "name": "Agendas, Goals & Timeboxing", "brief": "Designing the meeting before it starts."},
+      {"id": "com-fac-participation", "name": "Drawing Out Quiet People & Managing Dominators", "brief": "Balanced participation without embarrassing anyone."},
+      {"id": "com-fac-decisions", "name": "Brainstorming, Voting & Closing with Decisions", "brief": "Converging on an outcome, an owner and a date."}
+    ]
+  },
+  {
+    "id": "managing-up",
+    "name": "Managing Up & Stakeholder Management",
+    "brief": "Build a strong working relationship with your manager and the people your work depends on.",
+    "category": "Leadership",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Leadership Foundations"],
+    "subtopics": [
+      {"id": "com-mu-expect", "name": "Understanding Your Manager's Goals & Style", "brief": "Adapting how you communicate to how they like to work."},
+      {"id": "com-mu-update", "name": "Proactive Updates & No Surprises", "brief": "Telling people early, with context and a plan."},
+      {"id": "com-mu-stakeholders", "name": "Mapping & Managing Stakeholders", "brief": "Who needs what information, how often and in what form."}
+    ]
+  },
+  {
+    "id": "mentoring-careers",
+    "name": "Mentoring & Career Conversations",
+    "brief": "Help people grow, and find people who will help you.",
+    "category": "Leadership",
+    "difficulty": "Medium",
+    "prerequisites": ["One-on-Ones & Coaching"],
+    "subtopics": [
+      {"id": "com-mn-mentor", "name": "Being a Good Mentor", "brief": "Listening first, sharing experience and not solving everything."},
+      {"id": "com-mn-career", "name": "Career Development Conversations", "brief": "Strengths, aspirations and a growth plan."},
+      {"id": "com-mn-sponsor", "name": "Mentors, Sponsors & Finding Yours", "brief": "Asking for guidance and advocacy."}
+    ]
+  },
+  {
+    "id": "hiring-interviewer",
+    "name": "Interviewing & Hiring as the Interviewer",
+    "brief": "Run fair, structured interviews and give candidates a good experience.",
+    "category": "Leadership",
+    "difficulty": "Medium",
+    "prerequisites": ["Active Listening", "Giving & Receiving Feedback"],
+    "subtopics": [
+      {"id": "com-hi-structured", "name": "Structured Interviews & Scorecards", "brief": "Same questions, clear criteria and less bias."},
+      {"id": "com-hi-candidate", "name": "Candidate Experience & Selling the Role", "brief": "Setting expectations and answering their questions honestly."},
+      {"id": "com-hi-debrief", "name": "Debriefs & Rejecting Gracefully", "brief": "Sharing evidence, deciding and delivering a no kindly."}
+    ]
+  },
+  {
+    "id": "remote-team-leadership",
+    "name": "Leading Remote & Hybrid Teams",
+    "brief": "Keep a distributed team aligned, connected and productive.",
+    "category": "Leadership",
+    "difficulty": "Medium",
+    "prerequisites": ["Async & Written Communication", "Leadership Foundations"],
+    "subtopics": [
+      {"id": "com-rm-norms", "name": "Team Communication Norms", "brief": "Which channel for what, response times and working hours."},
+      {"id": "com-rm-connection", "name": "Building Connection at a Distance", "brief": "Rituals, check-ins and recognition when you rarely meet."},
+      {"id": "com-rm-async", "name": "Async Decisions & Meeting-light Rituals", "brief": "Writing proposals, collecting input and deciding without a call."}
+    ]
+  },
+  {
+    "id": "performance-conversations",
+    "name": "Performance Management & Tough Messages",
+    "brief": "Set expectations, address underperformance and deliver news people do not want.",
+    "category": "Leadership",
+    "difficulty": "Hard",
+    "prerequisites": ["Giving & Receiving Feedback", "One-on-Ones & Coaching"],
+    "subtopics": [
+      {"id": "com-pm-expectations", "name": "Setting Clear Expectations", "brief": "What good looks like, in writing, before problems start."},
+      {"id": "com-pm-underperf", "name": "Addressing Underperformance", "brief": "Facts, impact, support and a follow-up date."},
+      {"id": "com-pm-tough", "name": "Delivering Tough Messages: Layoffs, Restructures & Bad Reviews", "brief": "Being clear, humane and consistent."}
+    ]
+  },
+  {
+    "id": "team-conflict",
+    "name": "Resolving Conflict Between Team Members",
+    "brief": "Step in when two people cannot work together.",
+    "category": "Leadership",
+    "difficulty": "Hard",
+    "prerequisites": ["Difficult Conversations & Conflict"],
+    "subtopics": [
+      {"id": "com-mc-diagnose", "name": "Diagnosing the Real Problem", "brief": "Separating personality, process and misunderstanding."},
+      {"id": "com-mc-mediate", "name": "Mediating a Conversation", "brief": "Structure, ground rules and getting each side heard."},
+      {"id": "com-mc-followup", "name": "Agreements & Follow-up", "brief": "Writing down what was agreed and checking in later."}
+    ]
+  },
+  {
+    "id": "explaining-tech-simply",
+    "name": "Explaining Technical Ideas Simply",
+    "brief": "Make complex systems understandable to managers, customers and new teammates.",
+    "category": "Communication for Engineers",
+    "difficulty": "Medium",
+    "prerequisites": ["Structured Thinking & the Pyramid Principle"],
+    "subtopics": [
+      {"id": "com-eng-audience", "name": "Know Your Audience: Engineers vs Business", "brief": "Choosing the level of detail and the words they use."},
+      {"id": "com-eng-analogy", "name": "Analogies, Examples & Diagrams", "brief": "One good analogy beats three paragraphs."},
+      {"id": "com-eng-layers", "name": "Layering Detail: Headline, Summary, Deep Dive", "brief": "Letting the reader stop whenever they have enough."}
+    ]
+  },
+  {
+    "id": "code-review-comms",
+    "name": "Code Review & Pull Request Communication",
+    "brief": "Write PRs that are easy to review and comments that get fixes, not arguments.",
+    "category": "Communication for Engineers",
+    "difficulty": "Medium",
+    "prerequisites": ["Giving & Receiving Feedback"],
+    "subtopics": [
+      {"id": "com-eng-pr", "name": "Writing Clear PR Descriptions", "brief": "What, why, how to test and what to look at first."},
+      {"id": "com-eng-review", "name": "Review Comments That Land", "brief": "Asking questions, labelling nitpicks and explaining the reason."},
+      {"id": "com-eng-receive", "name": "Responding to Review Feedback", "brief": "Disagreeing with evidence and closing the loop."}
+    ]
+  },
+  {
+    "id": "design-docs-rfcs",
+    "name": "Design Docs, RFCs & Technical Writing",
+    "brief": "Write the document that gets a technical decision made.",
+    "category": "Communication for Engineers",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Async & Written Communication", "Reports, Proposals & Status Updates"],
+    "subtopics": [
+      {"id": "com-eng-doc-structure", "name": "The Structure of a Design Doc", "brief": "Context, goals, non-goals, proposal and open questions."},
+      {"id": "com-eng-tradeoffs", "name": "Presenting Options & Trade-offs", "brief": "Comparing alternatives fairly and recommending one."},
+      {"id": "com-eng-adr", "name": "Architecture Decision Records", "brief": "Recording why a choice was made, for the person who asks in a year."}
+    ]
+  },
+  {
+    "id": "standups-demos",
+    "name": "Standups, Demos & Sprint Ceremonies",
+    "brief": "Speak up briefly and usefully in the meetings engineering teams run every week.",
+    "category": "Communication for Engineers",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Meetings & Conference Calls"],
+    "subtopics": [
+      {"id": "com-eng-standup", "name": "Concise Standup Updates", "brief": "Done, next, blocked, in under thirty seconds."},
+      {"id": "com-eng-demo", "name": "Demoing Your Work", "brief": "Starting with the user's problem and showing the result."},
+      {"id": "com-eng-retro", "name": "Retros & Planning Discussions", "brief": "Raising problems constructively and agreeing on actions."}
+    ]
+  },
+  {
+    "id": "incident-communication",
+    "name": "Incidents, Outages & Postmortems",
+    "brief": "Communicate clearly when something is broken and learn from it afterwards.",
+    "category": "Communication for Engineers",
+    "difficulty": "Hard",
+    "prerequisites": ["Async & Written Communication", "Executive Communication"],
+    "subtopics": [
+      {"id": "com-eng-incident-live", "name": "Live Incident Updates", "brief": "What we know, what we are doing and when you will hear next."},
+      {"id": "com-eng-postmortem", "name": "Blameless Postmortems", "brief": "Timeline, root cause, impact and follow-ups without finger-pointing."},
+      {"id": "com-eng-outage-stakeholders", "name": "Talking to Customers & Leadership During an Outage", "brief": "Different audiences need different messages."}
+    ]
+  },
+  {
+    "id": "estimates-pushback",
+    "name": "Estimates, Deadlines & Pushing Back",
+    "brief": "Give honest numbers and negotiate scope without damaging trust.",
+    "category": "Communication for Engineers",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Negotiation Language", "Persuasion & Influence"],
+    "subtopics": [
+      {"id": "com-eng-estimates", "name": "Giving Honest Estimates", "brief": "Ranges, assumptions and what could change the number."},
+      {"id": "com-eng-scope", "name": "Negotiating Scope & Deadlines", "brief": "Offering trade-offs instead of a flat no."},
+      {"id": "com-eng-unknown", "name": "Saying I Do Not Know and I Was Wrong", "brief": "Admitting gaps and mistakes in a way that builds credibility."}
+    ]
+  },
+  {
+    "id": "tell-me-about-yourself",
+    "name": "Tell Me About Yourself & Self-introductions",
+    "brief": "A clear, confident story of who you are and why this role.",
+    "category": "Career & Interview Communication",
+    "difficulty": "Easy-Medium",
+    "prerequisites": ["Small Talk & Networking"],
+    "subtopics": [
+      {"id": "com-ca-pitch", "name": "Your 60-second Career Pitch", "brief": "Present, past and future in a way that fits the role."},
+      {"id": "com-ca-why", "name": "Why This Role, Why Now?", "brief": "Answering motivation questions honestly and specifically."},
+      {"id": "com-ca-resume-walk", "name": "Walking Through Your Resume", "brief": "Explaining moves, gaps and changes with confidence."}
+    ]
+  },
+  {
+    "id": "technical-interview-communication",
+    "name": "Thinking Aloud in Technical Interviews",
+    "brief": "Let the interviewer follow your reasoning, even when you get stuck.",
+    "category": "Career & Interview Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Structured Thinking & the Pyramid Principle"],
+    "subtopics": [
+      {"id": "com-ca-clarify", "name": "Clarifying the Problem First", "brief": "Questions to ask before you write any code or draw any box."},
+      {"id": "com-ca-narrate", "name": "Narrating Your Approach & Trade-offs", "brief": "Saying what you are trying and why as you go."},
+      {"id": "com-ca-stuck", "name": "Recovering When You Are Stuck", "brief": "Asking for a hint well and restarting calmly."}
+    ]
+  },
+  {
+    "id": "salary-negotiation",
+    "name": "Salary & Offer Negotiation",
+    "brief": "Ask for what the role is worth, politely and with evidence.",
+    "category": "Career & Interview Communication",
+    "difficulty": "Medium-Hard",
+    "prerequisites": ["Negotiation Language"],
+    "subtopics": [
+      {"id": "com-ca-research", "name": "Researching Your Market Value", "brief": "Ranges, levels and what to say when asked your expectations."},
+      {"id": "com-ca-script", "name": "Scripts for the Salary Conversation", "brief": "Countering an offer and handling we cannot go higher."},
+      {"id": "com-ca-total", "name": "Beyond Salary: Equity, Level & Start Date", "brief": "The parts of an offer you can negotiate."}
+    ]
+  },
+  {
+    "id": "self-advocacy-reviews",
+    "name": "Performance Reviews & Self-advocacy",
+    "brief": "Make your impact visible and ask for the next step.",
+    "category": "Career & Interview Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Giving & Receiving Feedback"],
+    "subtopics": [
+      {"id": "com-ca-brag", "name": "Keeping a Brag Document", "brief": "Recording wins and impact as they happen."},
+      {"id": "com-ca-review", "name": "Writing a Self-review", "brief": "Results, scope and growth, with evidence."},
+      {"id": "com-ca-promo", "name": "Asking for a Promotion or Raise", "brief": "Building the case and starting the conversation."}
+    ]
+  },
+  {
+    "id": "networking-personal-brand",
+    "name": "Networking, LinkedIn & Personal Brand",
+    "brief": "Build relationships and a reputation before you need them.",
+    "category": "Career & Interview Communication",
+    "difficulty": "Medium",
+    "prerequisites": ["Small Talk & Networking"],
+    "subtopics": [
+      {"id": "com-ca-linkedin", "name": "Writing a LinkedIn Profile & Posts", "brief": "A headline, a summary and posts that say something useful."},
+      {"id": "com-ca-outreach", "name": "Cold Outreach & Referral Requests", "brief": "Short messages that get a yes."},
+      {"id": "com-ca-followup", "name": "Keeping Your Network Warm", "brief": "Following up, helping first and staying in touch."}
+    ]
   }
 ]

@@ -25,6 +25,7 @@ from modules.auth.dependencies import get_current_user_id
 from modules.common.ai import AISettings, call_ai_text, extract_json_items
 from modules.lab_projects.knowledge import generation_ref, load_project_context, quiz_prompt_parts, section_prompt_parts
 
+from . import video_script as page_script
 from . import videos as page_videos
 from .quiz import build_quiz_prompt, normalize_questions
 from .store import (
@@ -582,6 +583,78 @@ async def delete_settings(
 
 
 
+# ── The AI-written video script of a lab page ───────────────────────────────────────────────────────────────────
+# Prompt, table and limits are in video_script.py; the Next.js twin is fe-apis/labSections/videoScript.ts (same prompt text).
+
+
+class VideoScriptPayload(AISettings):
+    lab: LabName
+    topic_id: str = Field(min_length=1, max_length=200)
+    topic_name: str = Field(min_length=1, max_length=300)
+    topic_brief: str = Field(default="", max_length=2000)
+    subtopic_id: str = Field(default="", max_length=200)
+    subtopic_name: str = Field(default="", max_length=300)
+    subtopic_brief: str = Field(default="", max_length=2000)
+    # What the user told the lab-wide and topic settings about themselves, and their add-ons (composed by the frontend).
+    standing_context: str = Field(default="", max_length=6500)
+    prompt_addon: str = Field(default="", max_length=4000)
+    # The Labs Project to write for (None = none); loaded here from the database, scoped to the user.
+    project_id: Optional[StrictInt] = Field(default=None, ge=1)
+
+
+@router.get("/video-script")
+async def get_video_script(
+    lab: LabName,
+    topic_id: str = Query(min_length=1, max_length=200),
+    subtopic_id: str = Query(default="", max_length=200),
+    user_id: int = Depends(get_current_user_id),
+) -> dict:
+    """The user's saved video script for one topic or subtopic page: {"script": null} until one was generated."""
+    return {"script": page_script.fetch_script(user_id, lab, topic_id, subtopic_id)}
+
+
+@router.post("/video-script")
+async def generate_video_script(payload: VideoScriptPayload, user_id: int = Depends(get_current_user_id)) -> dict:
+    """Write (or rewrite) the page's video script with the user's model, keep it, and return it."""
+    subject = f"{payload.topic_name} — {payload.subtopic_name}" if payload.subtopic_name else payload.topic_name
+    brief = payload.subtopic_brief or payload.topic_brief
+
+    project, knowledge = None, []
+    if payload.project_id is not None:
+        project, knowledge = load_project_context(
+            user_id,
+            payload.project_id,
+            query=_knowledge_query(payload.topic_name, payload.subtopic_name, brief),
+            exclude_generation_prefix=generation_ref(payload.lab, payload.topic_id, payload.subtopic_id, "video-script"),
+        )
+    role_suffix, project_blocks, _ = section_prompt_parts(project, knowledge or [])
+
+    prompt = page_script.build_prompt(
+        _DOMAINS[payload.lab],
+        _AUDIENCE.get(payload.lab, _DEFAULT_AUDIENCE),
+        subject,
+        brief,
+        payload.standing_context,
+        payload.prompt_addon,
+        role_suffix,
+        project_blocks,
+        project["name"] if project else "",
+    )
+    try:
+        response_text = call_ai_text(prompt, payload, max_tokens=page_script.SCRIPT_MAX_TOKENS)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No API key configured or all providers failed. Add a key in Config. Last error: {exc}",
+        )
+
+    content = _clean(response_text)
+    if not content:
+        raise HTTPException(status_code=502, detail="The AI returned an empty response. Try again.")
+    # Only a good response is saved, so a failed attempt never replaces the previous script.
+    return page_script.save_script(user_id, payload.lab, payload.topic_id, payload.subtopic_id, content, payload.project_id)
+
+
 # ── Video links on lab pages (personal, like the progress and settings above) ──────────────────────────────────
 # The logic is in videos.py (no FastAPI import there); the Next.js twin is fe-apis/labSections/videos.ts.
 
@@ -594,6 +667,17 @@ class PageVideoIn(BaseModel):
     url: Optional[Any] = None
     title: Optional[Any] = None
     shared: bool = False  # admin only: show it to everyone, not just the caller
+    # Admin only too (checked in videos.py): an https link or an uploaded image as a data URL, and the card shape.
+    preview_image: Optional[Any] = None
+    shape: Optional[Any] = None
+
+
+class PageVideoPatch(BaseModel):
+    # Every field is optional and checked in videos.py (null = not sent; '' clears a title or removes a preview image).
+    title: Optional[Any] = None
+    preview_image: Optional[Any] = None
+    shape: Optional[Any] = None
+    shared: Optional[Any] = None
 
 
 def _video_http_error(err: page_videos.VideoError) -> HTTPException:
@@ -607,14 +691,33 @@ async def get_page_videos(
     subtopic_id: str = Query(default="", max_length=200),
     user_id: int = Depends(get_current_user_id),
 ) -> dict:
-    """The signed-in user's own video links for one topic or subtopic page, in order."""
+    """The links for one topic or subtopic page: the ones an admin shared with everyone first, then the user's own, in order."""
     return page_videos.list_videos(user_id, lab, topic_id, subtopic_id)
 
 
 @router.post("/videos", status_code=201)
 async def add_page_video(payload: PageVideoIn, user_id: int = Depends(get_current_user_id)) -> dict:
     try:
-        return page_videos.add_video(user_id, payload.lab, payload.topic_id, payload.subtopic_id, payload.url, payload.title, payload.shared)
+        return page_videos.add_video(
+            user_id,
+            payload.lab,
+            payload.topic_id,
+            payload.subtopic_id,
+            payload.url,
+            payload.title,
+            payload.shared,
+            payload.preview_image,
+            payload.shape,
+        )
+    except page_videos.VideoError as err:
+        raise _video_http_error(err)
+
+
+@router.patch("/videos/{video_id}")
+async def update_page_video(video_id: int, payload: PageVideoPatch, user_id: int = Depends(get_current_user_id)) -> dict:
+    """Edit a link: its title (the owner or an admin), or its preview image, shape and audience (admin only)."""
+    try:
+        return page_videos.update_video(user_id, video_id, payload.title, payload.preview_image, payload.shape, payload.shared)
     except page_videos.VideoError as err:
         raise _video_http_error(err)
 

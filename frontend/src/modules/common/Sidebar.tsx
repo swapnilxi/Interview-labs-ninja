@@ -309,6 +309,20 @@ export default function Sidebar({
     </Link>
   );
 
+  /** A rail destination drawn as a flat outlined glyph (the quiet round style of the theme, log out and hide buttons), not a tile. */
+  const renderRailQuietLink = (href: string, icon: string, label: string, active: boolean) => (
+    <Link
+      href={href}
+      className={`rail-item rail-item-quiet ${active ? 'rail-item-active' : ''}`}
+      aria-label={label}
+      aria-current={active ? 'page' : undefined}
+      {...tip(label)}
+    >
+      <Icon name={icon} size={20} variant="outline" />
+      {active && <span aria-hidden="true" className="rail-indicator" />}
+    </Link>
+  );
+
   /** A rail group: main tile (navigates + expands) with a chevron badge; sub-tiles sit directly below and push the rest down. */
   const renderRailGroup = (
     id: keyof typeof railOpen,
@@ -416,13 +430,13 @@ export default function Sidebar({
             {isAdmin && renderRailLink('/admin', 'ShieldCheckIcon', 'gray', 'Admin Portal', isActivePath('/admin'))}
           </nav>
 
-          {/* Bottom actions: Install app and Settings are destinations (tiles); the rest are quiet round buttons. */}
+          {/* Bottom actions: all flat outlined glyphs (Install app and Settings are links, the rest buttons). */}
           <div className="flex flex-col items-center gap-0.5 w-full py-2 border-t border-[color:var(--color-separator)] flex-shrink-0">
             {/* Settings ▸ Install app (the APK and the web app). Nothing to install from inside the Android app. */}
             {!isNativeApp &&
-              renderRailLink('/config?section=install', 'ArrowDownTrayIcon', 'blue', 'Install app', pathname === '/config' && new URLSearchParams(search).get('section') === 'install')}
+              renderRailQuietLink('/config?section=install', 'ArrowDownTrayIcon', 'Install app', pathname === '/config' && new URLSearchParams(search).get('section') === 'install')}
 
-            {renderRailLink('/config', 'Cog6ToothIcon', 'gray', 'Settings', pathname === '/config' && new URLSearchParams(search).get('section') !== 'install')}
+            {renderRailQuietLink('/config', 'Cog6ToothIcon', 'Settings', pathname === '/config' && new URLSearchParams(search).get('section') !== 'install')}
 
             <button
               type="button"

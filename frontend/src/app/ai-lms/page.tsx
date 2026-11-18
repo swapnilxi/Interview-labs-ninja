@@ -6,7 +6,7 @@ import RouteSpinner from '@/modules/ai-lms/components/RouteSpinner';
 import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
-  title: 'AI LMS - Interactive AI-Powered Curriculum | InterviewNinja',
+  title: 'AI LMS - Interactive AI-Powered Curriculum | Lab Ninja',
   description: 'AI-powered learning platform inspired by ByteByteGo and NeetCode. Generate, organize, and study interactive lessons.',
 };
 

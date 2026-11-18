@@ -15,7 +15,7 @@ import { capitalize, manageHref, type LabManagementConfig, type ManagedTopic } f
 const CONTEXT_MAX = 2000;
 const ADDON_MAX = 2000;
 
-const card = 'rounded-2xl border bg-card';
+const card = 'lab-edge rounded-2xl border bg-card';
 const rowClass = 'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3';
 
 /**

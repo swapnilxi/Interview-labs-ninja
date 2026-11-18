@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import ImportPathPanel from './ImportPathPanel';
+import type { ImportedPath } from './importPath';
 import { labConfig } from './labs';
 import { InlineError, Spinner } from './ui';
 import type { TopicRef } from './types';
@@ -16,16 +18,21 @@ export default function StartScreen({
   busy,
   error,
   onGenerate,
+  onImport,
   onClearError,
 }: {
   topic: TopicRef;
   busy: boolean;
   error: string | undefined;
   onGenerate: (focus: string) => void;
+  /** A path pasted as JSON instead of written by the AI. */
+  onImport: (path: ImportedPath, focus: string) => void;
   onClearError: () => void;
 }) {
   const [focus, setFocus] = useState('');
+  const [importing, setImporting] = useState(false);
   const name = topic.subName || topic.name;
+  const cfg = labConfig(topic.lab);
 
   return (
     <section
@@ -38,9 +45,7 @@ export default function StartScreen({
       >
         A guided path for {name}
       </h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-        {labConfig(topic.lab).intro}
-      </p>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{cfg.intro}</p>
 
       <dl className="mt-5 space-y-3 text-sm">
         <div>
@@ -59,7 +64,7 @@ export default function StartScreen({
         <div>
           <dt className="font-medium text-foreground">Progress you keep</dt>
           <dd className="mt-0.5 text-muted-foreground">
-            XP, levels, a coding streak and achievements, saved separately for each problem.
+            {cfg.progressLine}, saved separately for each {cfg.noun}.
           </dd>
         </div>
       </dl>
@@ -73,7 +78,7 @@ export default function StartScreen({
         onChange={(e) => setFocus(e.target.value)}
         rows={2}
         maxLength={600}
-        placeholder="For example: I struggle with pointer problems"
+        placeholder={`For example: ${cfg.focusExample}`}
         className="todo-input todo-input-quiet mt-1.5 w-full resize-y px-3 py-2 text-[16px] sm:text-sm"
       />
 
@@ -102,10 +107,30 @@ export default function StartScreen({
           {busy ? <Spinner size={14} /> : <Icon name="SparklesIcon" size={15} aria-hidden="true" />}
           {busy ? 'Writing your path…' : 'Generate my path'}
         </button>
+        <button
+          type="button"
+          onClick={() => setImporting((v) => !v)}
+          disabled={busy}
+          aria-expanded={importing}
+          className="todo-btn todo-btn-secondary h-11 px-5"
+        >
+          <Icon name="ArrowUpTrayIcon" size={15} aria-hidden="true" />
+          Import from JSON
+        </button>
         <p className="text-xs text-muted-foreground">
-          Uses the AI model chosen in Config. Takes about half a minute.
+          Generating uses the AI model chosen in Config and takes about half a minute. Importing
+          needs no AI.
         </p>
       </div>
+
+      {importing && !busy && (
+        <ImportPathPanel
+          topicName={name}
+          focus={focus}
+          onImport={(path) => onImport(path, focus)}
+          onClose={() => setImporting(false)}
+        />
+      )}
     </section>
   );
 }

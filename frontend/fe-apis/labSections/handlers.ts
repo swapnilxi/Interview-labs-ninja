@@ -21,7 +21,8 @@ import {
   setProgress,
 } from './db';
 import { buildQuizPrompt, normalizeQuestions } from './quiz';
-import { addPageVideo, deletePageVideo, listPageVideos } from './videos';
+import { addPageVideo, deletePageVideo, listPageVideos, updatePageVideo } from './videos';
+import { buildScriptPrompt, fetchScript, saveScript, SCRIPT_MAX_TOKENS } from './videoScript';
 import {
   generationRef,
   loadProjectContext,
@@ -637,6 +638,61 @@ Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key
       return resetSettings(userId, lab, sectionId);
     },
   },
+  // The AI-written video script of a lab page (videoScript.ts; Python: lab_sections/video_script.py + router.py).
+  {
+    method: 'GET',
+    path: '/video-script',
+    handler: ({ userId, query }) => {
+      const { lab, topicId, subtopicId } = queryPage(query);
+      return { script: fetchScript(userId, lab, topicId, subtopicId) };
+    },
+  },
+  {
+    method: 'POST',
+    path: '/video-script',
+    handler: async ({ userId, json }) => {
+      const body = await json();
+      const lab = oneOf(body.lab, LAB_NAMES, 'lab');
+      const topicId = strField(body, 'topic_id', 200, { min: 1 });
+      const topicName = strField(body, 'topic_name', 300, { min: 1 });
+      const topicBrief = strField(body, 'topic_brief', 2000, { def: '' });
+      const subtopicId = strField(body, 'subtopic_id', 200, { def: '' });
+      const subtopicName = strField(body, 'subtopic_name', 300, { def: '' });
+      const subtopicBrief = strField(body, 'subtopic_brief', 2000, { def: '' });
+      const standingContext = strField(body, 'standing_context', 6500, { def: '' });
+      const promptAddon = strField(body, 'prompt_addon', 4000, { def: '' });
+      const projectId = projectIdField(body);
+
+      const subject = subtopicName ? `${topicName} — ${subtopicName}` : topicName;
+      const brief = subtopicBrief || topicBrief;
+      let project: PromptProject | null = null;
+      let knowledge: KnowledgeItem[] = [];
+      if (projectId !== null) {
+        ({ project, knowledge } = loadProjectContext(userId, projectId, {
+          query: knowledgeQuery(topicName, subtopicName, brief),
+          excludeGenerationPrefix: generationRef(lab, topicId, subtopicId, 'video-script'),
+        }));
+      }
+      const [roleSuffix, projectBlocks] = sectionPromptParts(project, knowledge);
+
+      const prompt = buildScriptPrompt({
+        domain: DOMAINS[lab],
+        audience: AUDIENCE[lab] ?? DEFAULT_AUDIENCE,
+        subject,
+        brief,
+        standingContext,
+        promptAddon,
+        roleSuffix,
+        projectBlocks,
+        projectName: project ? project.name : '',
+      });
+      const text = await askAi(prompt, body, SCRIPT_MAX_TOKENS);
+      const content = clean(text);
+      if (!content) throw new HttpError(502, 'The AI returned an empty response. Try again.');
+      // Only a good response is saved, so a failed attempt never replaces the previous script.
+      return saveScript(userId, lab, topicId, subtopicId, content, projectId);
+    },
+  },
   // Personal video links on a lab page (videos.ts; Python: lab_sections/videos.py).
   {
     method: 'GET',
@@ -655,7 +711,26 @@ Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key
       const lab = oneOf(body.lab, LAB_NAMES, 'lab');
       const topicId = strField(body, 'topic_id', 200, { min: 1 });
       const subtopicId = strField(body, 'subtopic_id', 200, { def: '' });
-      return addPageVideo(userId, lab, topicId, subtopicId, body.url, body.title, body.shared === true);
+      return addPageVideo(
+        userId,
+        lab,
+        topicId,
+        subtopicId,
+        body.url,
+        body.title,
+        body.shared === true,
+        body.preview_image,
+        body.shape
+      );
+    },
+  },
+  {
+    // Edit a link: its title (the owner or an admin), or its preview image, shape and audience (admin only).
+    method: 'PATCH',
+    path: '/videos/:video_id',
+    handler: async ({ userId, json, intParam }) => {
+      const body = await json();
+      return updatePageVideo(userId, intParam('video_id'), body.title, body.preview_image, body.shape, body.shared);
     },
   },
   {

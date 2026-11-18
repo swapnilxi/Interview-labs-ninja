@@ -5,7 +5,7 @@ import Icon from '@/components/ui/AppIcon';
 import LinkedInPostGeneratorInteractive from '@/modules/linkedin-post-generator/LinkedInPostGeneratorModule';
 
 export const metadata: Metadata = {
-  title: 'LinkedIn Post Generator - InterviewNinja',
+  title: 'LinkedIn Post Generator — Lab Ninja',
   description: 'An AI-powered workspace for writing personalised LinkedIn posts, with a reusable template library.',
 };
 

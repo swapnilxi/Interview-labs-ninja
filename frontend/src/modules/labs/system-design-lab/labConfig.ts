@@ -51,4 +51,5 @@ export const SYSTEM_DESIGN_LAB: TopicLabConfig<SDTopic> = {
   wikiMetrics: (topics) => [{ label: 'LLD', value: topics.filter((t) => t.isLLD).length }],
   subtopicLabel: 'Deep Dive',
   recentKey: 'sd-lab-recent-topics',
+  guidedPractice: 'system_design',
 };

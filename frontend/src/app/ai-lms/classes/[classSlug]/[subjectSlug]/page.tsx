@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { subjectSlug } = await params;
   const formatted = subjectSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   return {
-    title: `${formatted} - AI LMS | InterviewNinja`,
+    title: `${formatted} - AI LMS | Lab Ninja`,
     description: `Ordered technical curriculum lessons for ${formatted}.`,
   };
 }

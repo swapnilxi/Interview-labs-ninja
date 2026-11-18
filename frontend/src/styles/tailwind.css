@@ -4,6 +4,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Registered so they can animate: the lab rim's angle spins (.lab-rim, below), and the corner wash of a glow-edge card fades up on
+   hover instead of snapping (a gradient itself cannot transition, a registered percentage inside it can). Without @property
+   support the rim stands still and the wash snaps: nothing breaks. */
+@property --rim-angle {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+
+@property --wash-a {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --wash-b {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
 /*
  * Design tokens — "Graphite & Fern".
  * One iOS-inspired system for phone, tablet and desktop. Hierarchy comes from surface tone and type weight, not from
@@ -89,6 +110,11 @@
     --lab-finance: #2563a8;
     --lab-python: #6d4fc2;
     --lab-genai: #c4472a;
+    /* Companion hues of a lab's identity, for the hero (wash, icon tile, stat colours, progress fill, rim): the identity is the first,
+       these are the second and third. Default (DSA, any page outside a lab) = the theme's cyan and amber; each lab picks two others
+       of the lab hues below in .lab-shell[data-lab]. Hue only, never a control colour. */
+    --lab-identity-2: var(--color-secondary);
+    --lab-identity-3: var(--color-accent);
     --lab-cv-soft: var(--lab-accent-soft);
     --lab-system-soft: var(--lab-accent-soft);
     --wiki-cv-hover: var(--lab-accent-ink);
@@ -96,6 +122,26 @@
     /* Card accent bar opacity ramp */
     --card-bar-idle: 0.35;
     --card-bar-hover: 0.75;
+    /* Soft glow edge of the labs (.lab-edge): how much of the lab hue the hairline, the halo ring and the outer glow carry.
+       Light mode keeps them faint; dark mode lifts them because a glow only reads on a dark ground. */
+    --edge-line: 46%;
+    --edge-halo: 6%;
+    --edge-glow: 20%;
+    --edge-line-hover: 78%;
+    --edge-halo-hover: 13%;
+    --edge-glow-hover: 36%;
+    --edge-glow-far: 20%;
+    /* The moving rim is silver, not the lab hue: tail, body and tip of the arc. Light mode uses steel greys (silver does not show on a
+       white card), dark mode bright silver up to a near-white tip. */
+    --rim-silver-tail: #aab3c0;
+    --rim-silver: #7f8a9b;
+    --rim-silver-tip: #4f5a6b;
+    /* The wash on the surface itself: a radial from the top right corner and a faint diagonal from the top left (the hero's
+       recipe, quieter: its peak is 26%). */
+    --edge-wash: 19%;
+    --edge-wash-2: 8%;
+    --edge-wash-hover: 32%;
+    --edge-wash-2-hover: 13%;
     /* Radius grows with hierarchy: chips are pills, controls 10–12, cards 16–20, sheets 28. */
     --radius-sm: 8px;
     --radius-md: 10px;
@@ -189,6 +235,20 @@
     --lab-genai: #f28b6b;
     --card-bar-idle: 0.45;
     --card-bar-hover: 0.9;
+    --edge-line: 54%;
+    --edge-halo: 8%;
+    --edge-glow: 24%;
+    --edge-line-hover: 86%;
+    --edge-halo-hover: 15%;
+    --edge-glow-hover: 44%;
+    --edge-glow-far: 24%;
+    --rim-silver-tail: #7b8494;
+    --rim-silver: #b9c1cd;
+    --rim-silver-tip: #f5f7fb;
+    --edge-wash: 23%;
+    --edge-wash-2: 9%;
+    --edge-wash-hover: 34%;
+    --edge-wash-2-hover: 13%;
     --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
     --shadow-float: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 24px 48px -16px rgba(0, 0, 0, 0.75);
   }
@@ -540,26 +600,38 @@
 
   .lab-shell[data-lab='cv'] {
     --lab-identity: var(--lab-cv);
+    --lab-identity-2: var(--color-progress);
+    --lab-identity-3: var(--lab-python);
   }
 
   .lab-shell[data-lab='system-design'] {
     --lab-identity: var(--lab-system);
+    --lab-identity-2: var(--lab-communication);
+    --lab-identity-3: var(--lab-finance);
   }
 
   .lab-shell[data-lab='communication'] {
     --lab-identity: var(--lab-communication);
+    --lab-identity-2: var(--lab-python);
+    --lab-identity-3: var(--lab-system);
   }
 
   .lab-shell[data-lab='finance'] {
     --lab-identity: var(--lab-finance);
+    --lab-identity-2: var(--lab-cv);
+    --lab-identity-3: var(--lab-python);
   }
 
   .lab-shell[data-lab='python'] {
     --lab-identity: var(--lab-python);
+    --lab-identity-2: var(--lab-finance);
+    --lab-identity-3: var(--lab-cv);
   }
 
   .lab-shell[data-lab='genai'] {
     --lab-identity: var(--lab-genai);
+    --lab-identity-2: var(--lab-communication);
+    --lab-identity-3: var(--lab-python);
   }
 
   .lab-workspace {
@@ -572,13 +644,30 @@
     background: var(--color-sidebar);
   }
 
-  .lab-main {
-    @apply flex-1 overflow-y-auto bg-background;
-  }
-
   .lab-copilot {
     @apply flex-shrink-0 overflow-hidden border-border text-foreground;
     background: var(--color-sidebar);
+  }
+
+  /* The side panes end in the same soft glow edge as the cards (.lab-edge): a tinted hairline and a glow that falls into the pane
+     from its dividing edge. Inset on purpose: .lab-main is painted after the sidebar and would cover an outward glow, and a
+     z-index to lift it would reposition the phone sheets. */
+  .lab-sidebar,
+  .lab-copilot {
+    --edge: var(--lab-identity, var(--color-primary));
+    border-color: color-mix(in srgb, var(--edge) var(--edge-line), var(--color-border));
+  }
+
+  .lab-sidebar {
+    box-shadow: inset -14px 0 18px -14px color-mix(in srgb, var(--edge) var(--edge-glow), transparent);
+  }
+
+  .lab-copilot {
+    box-shadow: inset 14px 0 18px -14px color-mix(in srgb, var(--edge) var(--edge-glow), transparent);
+  }
+
+  .lab-main {
+    @apply flex-1 overflow-y-auto bg-background;
   }
 
   /* px unchanged: WeekPlanView bleeds with -mx-5 sm:-mx-8 */
@@ -638,6 +727,22 @@
     background:
       radial-gradient(ellipse 70% 140% at 100% 0%, color-mix(in srgb, var(--hero-tint) 26%, transparent), transparent 64%),
       linear-gradient(135deg, color-mix(in srgb, var(--hero-tint) 10%, transparent), transparent 48%);
+  }
+
+  /* The hero's wash has three hues: the lab's identity from the top right (as before), its second hue from the bottom left and its
+     third, faint, from the bottom right. .lab-glow (Daily Session, the Labs home cards) keeps the single-hue wash above. */
+  .lab-hero::before {
+    background:
+      radial-gradient(ellipse 70% 140% at 100% 0%, color-mix(in srgb, var(--hero-tint) 30%, transparent), transparent 64%),
+      radial-gradient(ellipse 62% 130% at 0% 100%, color-mix(in srgb, var(--lab-identity-2, var(--hero-tint)) 22%, transparent), transparent 62%),
+      radial-gradient(ellipse 42% 100% at 100% 100%, color-mix(in srgb, var(--lab-identity-3, var(--hero-tint)) 16%, transparent), transparent 66%),
+      linear-gradient(135deg, color-mix(in srgb, var(--hero-tint) 10%, transparent), transparent 48%);
+  }
+
+  /* Hero progress: the fill runs from the accent into the lab's second hue, with a soft light under it. */
+  .lab-hero [role='progressbar'] > div {
+    background-image: linear-gradient(90deg, var(--lab-accent), var(--lab-identity-2, var(--lab-accent)));
+    box-shadow: 0 0 12px -1px color-mix(in srgb, var(--lab-identity-2, var(--lab-accent)) 70%, transparent);
   }
 
   .lab-section-title {
@@ -2627,6 +2732,16 @@
     transform: scale(0.92);
   }
 
+  /* A current quiet link (Install app, Settings): the glyph turns to the text colour; the marker sits on the rail edge, which is
+     10px from a 40px item (6px from a 48px one). */
+  .rail-item-quiet.rail-item-active {
+    color: var(--color-foreground);
+  }
+
+  .rail-item-quiet .rail-indicator {
+    left: -10px;
+  }
+
   .rail-item-danger:hover {
     color: var(--color-error);
     background: color-mix(in srgb, var(--color-error) 12%, transparent);
@@ -3136,16 +3251,164 @@
      .lab-page = the page frame of a module that is not a .lab-shell (add it to the root of Daily Session, Labs Project, Config
      and to the panel of lab dialogs). .dsa-type already marks the DSA portals. */
   :is(.lab-shell, .lab-page, .dsa-type) {
-    --color-border: color-mix(in srgb, var(--color-foreground) 13%, transparent); /* ONE hairline, adapts to light/dark */
+    --color-border: color-mix(in srgb, var(--color-foreground) 17%, transparent); /* ONE hairline, adapts to light/dark. Was 13%: gone on a dimmed screen */
+  }
+
+  html.dark :is(.lab-shell, .lab-page, .dsa-type) {
+    --color-border: color-mix(in srgb, var(--color-foreground) 22%, transparent); /* dark surfaces need more to read at low brightness */
   }
 
   html:not(.dark) :is(.lab-shell, .lab-page, .dsa-type) {
     --color-muted-foreground: #556074; /* >= 4.5:1 on the sidebar tone and hovered rows */
   }
 
-  /* Cards inside the labs: hairline only. Scoped because Career Studio (8 files) and LinkedIn also use .lab-card. */
-  .lab-shell .lab-card {
-    box-shadow: none;
+  /* Soft glow edge: what tells a lab's surfaces apart from the page and from each other. A hairline tinted with the lab's identity
+     hue (--lab-identity: the Settings accent for DSA, teal for CV, amber for System Design, ...; the accent outside a lab), a 3px
+     halo ring and a wide, faint outer glow. The edge itself is static: no pulse (the moving rim is .lab-rim, below, on the main title surfaces only; VISUAL-GUIDELINES.md, "Module notes"). Put it on the lab's
+     card-like surfaces (hero, cards, panels, list shells), not on chips, rows, inputs or dialogs. .lab-edge-link is for a surface
+     that opens something: on hover / focus the edge turns to the Settings accent, the colour of everything interactive in a lab.
+     The borders it sets are colour only, so the element still brings its own `border` width; drop `border-border` from it (a
+     utility beats this component rule). Scoped like the hairline above because Career Studio and LinkedIn also use .lab-card. */
+  .lab-edge,
+  :is(.lab-shell, .lab-page) :is(.lab-card, .lab-hero, .reading-card) {
+    --edge-hue: var(--lab-identity, var(--color-primary));
+    --edge: var(--edge-hue);
+    border-color: color-mix(in srgb, var(--edge) var(--edge-line), var(--color-border));
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--edge) var(--edge-halo), transparent),
+      0 0 16px -2px color-mix(in srgb, var(--edge) var(--edge-glow), transparent);
+    --wash-a: var(--edge-wash);
+    --wash-b: var(--edge-wash-2);
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out),
+      --wash-a var(--dur-fast) var(--ease-out),
+      --wash-b var(--dur-fast) var(--ease-out);
+  }
+
+  /* The wash: a gradient over the card colour (bg-card keeps painting the colour; this only adds the image), in the lab hue and
+     not the hover accent, so it does not jump when the edge changes. .lab-hero and .lab-glow paint the same wash in a ::before. */
+  .lab-edge:not(.lab-glow),
+  :is(.lab-shell, .lab-page) :is(.lab-card, .reading-card) {
+    background-image:
+      radial-gradient(ellipse 70% 130% at 100% 0%, color-mix(in srgb, var(--edge-hue) var(--wash-a), transparent), transparent 66%),
+      linear-gradient(135deg, color-mix(in srgb, var(--edge-hue) var(--wash-b), transparent), transparent 52%);
+  }
+
+  /* Hover and focus: the edge turns to the accent and the glow grows (a near glow and a wide one), and the wash fades up. The card lifts
+     in the stacking order only, so its wide glow is not cut by the neighbour painted after it; it does not move. */
+  .lab-edge-link {
+    position: relative;
+  }
+
+  .lab-edge-link:is(:hover, :focus-visible, :focus-within) {
+    --edge: var(--lab-accent);
+    --wash-a: var(--edge-wash-hover);
+    --wash-b: var(--edge-wash-2-hover);
+    z-index: 2;
+    border-color: color-mix(in srgb, var(--edge) var(--edge-line-hover), var(--color-border));
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--edge) var(--edge-halo-hover), transparent),
+      0 0 18px -2px color-mix(in srgb, var(--edge) var(--edge-glow-hover), transparent),
+      0 0 32px -8px color-mix(in srgb, var(--edge) var(--edge-glow-far), transparent);
+  }
+
+  /* The Labs home cards paint their wash in ::before (.lab-glow), which cannot fade by token: a second layer of the same recipe
+     fades in over it on hover. */
+  .lab-glow.lab-edge-link::after {
+    content: '';
+    @apply pointer-events-none absolute inset-0 opacity-0;
+    background: radial-gradient(ellipse 70% 140% at 100% 0%, color-mix(in srgb, var(--hero-tint) 24%, transparent), transparent 64%);
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+
+  .lab-glow.lab-edge-link:is(:hover, :focus-visible, :focus-within)::after {
+    opacity: 1;
+  }
+
+  /* The moving rim: a bright arc that travels round the edge. Only the main title surfaces carry it: every lab's hero (.lab-hero:
+     the wiki hero and the Labs home hero) and the page headers that name the open topic, week plan or project (add `lab-rim`).
+     Not the cards, panels or list shells: a rim on everything would be noise. It sits just inside the border (inset 0, 2.5px),
+     because the hero clips its overflow. The angle is a registered property (@property --rim-angle above), so only the paint
+     moves, is silver (tokens --rim-silver*), and only on hover or focus (it rests as a lit arc at the top right); slow on purpose; still under prefers-reduced-motion. */
+  .lab-rim {
+    position: relative;
+  }
+
+  :is(.lab-shell, .lab-page) .lab-hero::after,
+  .lab-rim::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2.5px;
+    pointer-events: none;
+    background: conic-gradient(
+      from var(--rim-angle),
+      transparent 0deg,
+      transparent 205deg,
+      color-mix(in srgb, var(--rim-silver-tail) 70%, transparent) 245deg,
+      var(--rim-silver) 282deg,
+      var(--rim-silver-tip) 302deg,
+      var(--rim-silver) 322deg,
+      color-mix(in srgb, var(--rim-silver-tail) 60%, transparent) 345deg,
+      transparent 360deg
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  /* The host owns the animation (--rim-angle inherits into the ring) and adds a glow that travels with the arc: a shadow offset
+     toward where the arc is. sin()/cos() are guarded; without them the host keeps its normal glow and only the ring moves. */
+  :is(.lab-shell, .lab-page) .lab-hero,
+  .lab-rim {
+    animation: lab-rim-spin 7s linear infinite;
+    animation-delay: -1.75s; /* a quarter turn in: at rest the arc is held at the top right, where the wash is warmest */
+    animation-play-state: paused;
+  }
+
+  /* On hover or focus the arc starts to travel (from where it rests), and the edge and glow come up. When the pointer leaves it
+     stops where it is. */
+  :is(.lab-shell, .lab-page) .lab-hero:is(:hover, :focus-within),
+  .lab-rim:is(:hover, :focus-within) {
+    animation-play-state: running;
+    --edge-line: var(--edge-line-hover);
+    --edge-halo: var(--edge-halo-hover);
+    --edge-glow: var(--edge-glow-hover);
+  }
+
+  @supports (width: calc(sin(1deg) * 1px)) {
+    :is(.lab-shell, .lab-page) .lab-hero,
+    .lab-rim {
+      box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--edge) var(--edge-halo), transparent),
+        0 0 16px -2px color-mix(in srgb, var(--edge) var(--edge-glow), transparent),
+        calc(sin(var(--rim-angle) + 302deg) * 8px) calc(cos(var(--rim-angle) + 302deg) * -8px) 16px -4px
+          color-mix(in srgb, var(--rim-silver) 40%, transparent);
+    }
+  }
+
+  @keyframes lab-rim-spin {
+    from {
+      --rim-angle: 0deg;
+    }
+    to {
+      --rim-angle: 360deg;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(.lab-shell, .lab-page) .lab-hero,
+    .lab-rim {
+      animation: none;
+      --rim-angle: 90deg;
+    }
   }
 
   .lab-shell .lab-card-muted {
@@ -3161,6 +3424,41 @@
     color: color-mix(in srgb, var(--tile) 80%, var(--color-foreground));
     background: linear-gradient(135deg, color-mix(in srgb, var(--tile) 24%, transparent), color-mix(in srgb, var(--tile) 10%, transparent));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 24%, transparent);
+  }
+
+  /* The hero's icon tile: the lab's first and second hue, a hairline of the first and a soft light around it. */
+  .lab-tile-duo {
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--tile) 40%, transparent),
+      color-mix(in srgb, var(--lab-identity-2, var(--tile)) 30%, transparent)
+    );
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--tile) 46%, transparent),
+      0 0 20px -4px color-mix(in srgb, var(--tile) 60%, transparent);
+  }
+
+  /* A stat's own hue (1 = identity, 2 and 3 = its companions): .lab-hue-ink colours a number, .lab-hue-dot is the key dot before its
+     label. The ink is the hue mixed with the text colour so a number keeps its contrast on the wash. */
+  .lab-hue-1 {
+    --hue: var(--lab-identity, var(--color-primary));
+  }
+
+  .lab-hue-2 {
+    --hue: var(--lab-identity-2, var(--color-secondary));
+  }
+
+  .lab-hue-3 {
+    --hue: var(--lab-identity-3, var(--color-accent));
+  }
+
+  .lab-hue-ink {
+    color: color-mix(in srgb, var(--hue) 74%, var(--color-foreground));
+  }
+
+  .lab-hue-dot {
+    background: var(--hue);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--hue) 70%, transparent);
   }
 
   /* 11px uppercase group label ("Recent", "Suggested", pattern names in the sidebar). The DSA organizer keeps .dsa-caption. */

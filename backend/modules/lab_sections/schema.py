@@ -101,3 +101,7 @@ def register(cursor: sqlite3.Cursor) -> None:
     from .videos import ensure_table as ensure_video_table
 
     ensure_video_table(cursor)
+    # The AI-written video script of a lab page (see video_script.py).
+    from .video_script import ensure_table as ensure_video_script_table
+
+    ensure_video_script_table(cursor)

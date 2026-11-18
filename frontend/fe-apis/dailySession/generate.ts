@@ -137,7 +137,7 @@ function buildSessionPrompt(
       rejected.slice(-12).map((q) => `- ${q.slice(0, 140)}`).join('\n') +
       '\n'
     : '';
-  return `You are Interview-Ninja, an elite technical interviewer writing a question bank.
+  return `You are Lab Ninja, an elite technical interviewer writing a question bank.
 Write exactly ${slots.length} interview questions, one per slot below.
 Difficulty Level: ${diffLabel}
 Variation seed: ${randomInt(100000, 999999)}

@@ -217,8 +217,7 @@ export default function GuidedPracticePage({
   const startOver = useCallback(async () => {
     const ok = await confirmDialog({
       title: 'Start this path over?',
-      message:
-        'Your path, progress, XP and answers for this problem are deleted. This cannot be undone.',
+      message: `Your path, progress, XP and answers for this ${cfg.noun} are deleted. This cannot be undone.`,
       confirmLabel: 'Start over',
       tone: 'danger',
     });
@@ -229,7 +228,7 @@ export default function GuidedPracticePage({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not start over. Try again.');
     }
-  }, [guided, update]);
+  }, [guided, update, cfg.noun]);
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
   const latest = useRef({ state, selectedId, actions, handleSelect });
@@ -398,6 +397,7 @@ export default function GuidedPracticePage({
                   busy={!!guided.busy.outline}
                   error={guided.errors.outline}
                   onGenerate={(focus) => void actions.generatePath(focus)}
+                  onImport={(path, focus) => actions.importPath(path, focus)}
                   onClearError={() => actions.clearError('outline')}
                 />
               )}
@@ -453,8 +453,8 @@ export default function GuidedPracticePage({
                             Pick a question
                           </h2>
                           <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                            Choose one from the path. Its lesson, coding exercise, tutor and answer
-                            open here.
+                            Choose one from the path. Its lesson, {cfg.exerciseLabel}, tutor and
+                            answer open here.
                           </p>
                         </section>
                       )}

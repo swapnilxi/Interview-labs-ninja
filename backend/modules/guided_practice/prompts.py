@@ -1,4 +1,4 @@
-"""Every prompt of Guided Practice (the dedicated page behind a lab topic's "Guided Practice" card, DSA and CV): the path
+"""Every prompt of Guided Practice (the dedicated page behind a lab topic's "Guided Practice" card, in every lab): the path
 outline, one question's lesson, Breakdown, Dive Deeper, the AI Tutor's turns and the STAR answer.
 
 Twin: frontend/fe-apis/guidedPractice/prompts.ts -- the texts are identical on purpose, so change both together.
@@ -6,8 +6,10 @@ Twin: frontend/fe-apis/guidedPractice/prompts.ts -- the texts are identical on p
 The endpoints only build a prompt and run it; the browser parses and cleans the answer
 (frontend/src/modules/labs/dsa-lab/guided/parse.ts), so the JSON shapes named here are that parser's contract.
 
-What differs between the labs is a few words (an algorithms problem vs a computer vision topic) and how exercise data is
-laid out; those live in PROFILES below, and the DSA texts are the original ones.
+What differs between the labs is a few words (an algorithms problem vs a computer vision topic vs a communication skill),
+how exercise data is laid out, and how much of the path is code at all; those live in PROFILES below. The DSA texts are the
+original ones, and dsa and cv keep every sentence they had: the new fields hold exactly the text that used to be hard-coded,
+and `lab_note` / `exercise_note` are empty for them (an empty line is dropped), so their prompts are byte-identical to before.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from typing import Dict, List, Literal, Optional, Tuple, get_args
 
 FENCE = "```"
 
-GuidedLab = Literal["dsa", "cv"]
+GuidedLab = Literal["dsa", "cv", "system_design", "communication", "finance", "python", "genai"]
 GUIDED_LABS: Tuple[str, ...] = get_args(GuidedLab)
 
 
@@ -38,6 +40,17 @@ class LabProfile:
     category_label: str
     summary_label: str
     difficulty_label: str
+    practice: str  # what the learner does in the path, after "and": the outline prompt ("... and writes code for most of the questions")
+    kinds: str  # what each question kind means, after `"kind" is one of: `
+    lab_note: str  # optional: one rule about the lab's nature, added to every prompt that has rules (empty for dsa and cv)
+    exercise_note: str  # optional: one rule about when a question gets a coding exercise (empty for dsa and cv)
+    mentor: str  # the tutor's role: "a patient, ___ tutoring one learner"
+    exercise_task: str  # what the tutor's "give me an exercise" action asks for (after "Give the learner ")
+    star_writer: str  # the STAR writer ("You are ___") ...
+    star_for: str  # ... and what the framework is adapted for ("..., ___")
+    star_kinds: str  # the four "- concept / implementation / algorithm / scenario" lines of the STAR adaptation, joined with newlines
+    star_action: str  # what the Action heading asks for
+    star_result: str  # what the Result heading asks for
 
 
 PROFILES: Dict[str, LabProfile] = {
@@ -55,6 +68,17 @@ PROFILES: Dict[str, LabProfile] = {
         category_label="Pattern family",
         summary_label="Problem summary",
         difficulty_label="Problem difficulty",
+        practice="writes code for most of the questions",
+        kinds="concept (explain an idea), implementation (write a small piece of code), algorithm (reason about steps and complexity), scenario (apply the idea to a real-world situation).",
+        lab_note="",
+        exercise_note="",
+        mentor="technically strong programming mentor",
+        exercise_task="ONE small coding exercise on this concept (not the solution of the original problem): a clear specification, an example input and output, and optionally a signature to start from. Tell them they can paste their attempt here and you will review it.",
+        star_writer="a senior engineer",
+        star_for="adapted for technical questions",
+        star_kinds="- concept: use STAR as a structured explanation. Situation is where the concept matters, Task is what must be understood, Action is how it works step by step, Result is what it gives you.\n- implementation: focus on the actual implementation and its code.\n- algorithm: explain the reasoning, a step-by-step execution trace and the complexity.\n- scenario: use the traditional Situation, Task, Action and Result with a clearly hypothetical example.",
+        star_action=f"the approach step by step; the data structures and algorithms involved; Python 3 code in fenced {FENCE}python blocks; why the approach works; alternatives and trade-offs where relevant; a small execution walkthrough or text diagram when it helps.",
+        star_result="the outcome; time complexity; space complexity; edge cases and the expected behaviour.",
     ),
     "cv": LabProfile(
         instructor="computer vision instructor",
@@ -70,6 +94,147 @@ PROFILES: Dict[str, LabProfile] = {
         category_label="Area",
         summary_label="Topic summary",
         difficulty_label="Topic difficulty",
+        practice="writes code for most of the questions",
+        kinds="concept (explain an idea), implementation (write a small piece of code), algorithm (reason about steps and complexity), scenario (apply the idea to a real-world situation).",
+        lab_note="",
+        exercise_note="",
+        mentor="technically strong programming mentor",
+        exercise_task="ONE small coding exercise on this concept (not the solution of the main challenge of the topic): a clear specification, an example input and output, and optionally a signature to start from. Tell them they can paste their attempt here and you will review it.",
+        star_writer="a senior engineer",
+        star_for="adapted for technical questions",
+        star_kinds="- concept: use STAR as a structured explanation. Situation is where the concept matters, Task is what must be understood, Action is how it works step by step, Result is what it gives you.\n- implementation: focus on the actual implementation and its code.\n- algorithm: explain the reasoning, a step-by-step execution trace and the complexity.\n- scenario: use the traditional Situation, Task, Action and Result with a clearly hypothetical example.",
+        star_action=f"the approach step by step; the data structures and algorithms involved; Python 3 code in fenced {FENCE}python blocks; why the approach works; alternatives and trade-offs where relevant; a small execution walkthrough or text diagram when it helps.",
+        star_result="the outcome; time complexity; space complexity; edge cases and the expected behaviour.",
+    ),
+    "system_design": LabProfile(
+        instructor="system design instructor",
+        kind="system design problem",
+        thing="problem",
+        goal="designing it well and defending the trade-offs",
+        steps="clarify the requirements, estimate the scale, sketch the architecture, go deep on the hard components, then bottlenecks, failures and trade-offs",
+        final_task="the whole system as a closing design challenge, as in a design round",
+        boss_relation="This is the final boss: the complete system as a closing design challenge. Only here may the reference solution lay out the whole design.",
+        main_thing="system being designed",
+        exercise_data="Exercises are small calculations or simulations in plain Python: a back-of-envelope capacity or cost estimate, a cache hit-rate or queue simulation, a rate limiter, a consistent-hash ring or a sharding function on small inputs. Use plain numbers, lists and dicts, say in the prompt how a value is laid out, and never write infrastructure, networking or database code.",
+        subject_label="System",
+        category_label="Area",
+        summary_label="Problem summary",
+        difficulty_label="Problem difficulty",
+        practice="reasons about requirements, numbers and trade-offs for most of the questions, with short Python calculations where they help",
+        kinds="concept (explain an idea), implementation (write a small calculation or simulation in code), algorithm (reason about steps, load and cost), scenario (apply the idea to a real-world system).",
+        lab_note="This is a system design lab: reason about requirements, scale, architecture, data flow, failure modes and trade-offs, in words, numbers and text diagrams.",
+        exercise_note="Most questions are answered in words and numbers, so set \"exercise\" to true only for a short plain-Python calculation or simulation that genuinely helps (a capacity estimate, a cache or queue simulation, a hash ring), never for infrastructure code.",
+        mentor="technically strong system design mentor",
+        exercise_task="ONE small practice task on this concept (not the complete design of the system): a clear specification, example numbers or inputs and the expected result, as a short calculation or a small plain-Python function. Tell them they can paste their attempt here and you will review it.",
+        star_writer="a senior engineer",
+        star_for="adapted for system design questions",
+        star_kinds="- concept: use STAR as a structured explanation. Situation is where the concept matters, Task is what must be understood, Action is how it works step by step, Result is what it gives you.\n- implementation: focus on the calculation or simulation and its code.\n- algorithm: explain the reasoning and a step-by-step trace of how the system behaves under load, with the cost of scaling it.\n- scenario: use the traditional Situation, Task, Action and Result with a clearly hypothetical system.",
+        star_action=f"the approach step by step: the requirements, components, data flow and storage choices; Python 3 code in fenced {FENCE}python blocks only for a calculation or simulation; why the design works; alternatives and trade-offs; a text diagram of the architecture when it helps.",
+        star_result="the outcome; the capacity, latency and cost numbers; the bottlenecks and failure modes and how the design handles them.",
+    ),
+    "communication": LabProfile(
+        instructor="communication coach",
+        kind="communication skill",
+        thing="skill",
+        goal="using it with confidence in real messages, meetings and conversations",
+        steps="understand why the skill matters, learn the structure or the phrases, try it on a short message, handle a realistic situation, then the tricky cases and the habits that make it stick",
+        final_task="a realistic closing scenario where the learner uses the whole skill, as in a real meeting, email or conversation",
+        boss_relation="This is the final boss: a realistic closing scenario that uses the whole skill. Only here may the model answer show the complete response.",
+        main_thing="closing scenario",
+        exercise_data="Communication questions are answered in words, not code. Write an exercise only when plain Python really fits (for example counting words, or checking that a message contains a greeting and a clear ask), standard library only, and say in the prompt how a value is laid out.",
+        subject_label="Lesson",
+        category_label="Area",
+        summary_label="Lesson summary",
+        difficulty_label="Lesson difficulty",
+        practice="practises by explaining, drafting, rewriting and role-playing for most of the questions, not by writing code",
+        kinds="concept (explain an idea), implementation (draft or rewrite a short message, script or answer), algorithm (follow a step-by-step framework such as STAR or BLUF), scenario (handle a realistic workplace situation).",
+        lab_note="This is a communication lab: the questions are about wording, structure, tone, listening and judgement, and the learner answers in sentences they write or say, not in code. Keep the English simple enough for a non-native speaker.",
+        exercise_note="Set \"exercise\" to false for almost every question; use true only when a tiny plain-Python check of text or numbers genuinely fits.",
+        mentor="warm, practical communication coach",
+        exercise_task="ONE short practice task on this concept (not the closing scenario): a realistic situation, who they are talking to and what they want, and what to write or say. Tell them they can paste their attempt here and you will review it.",
+        star_writer="a senior communication coach",
+        star_for="adapted for communication questions",
+        star_kinds="- concept: use STAR as a structured explanation. Situation is where the skill matters, Task is what must be understood, Action is how it works step by step, Result is what it gives you.\n- implementation: show the actual wording (the email, message or script) and why each choice works.\n- algorithm: explain the steps of the framework in order, applied to a worked example.\n- scenario: use the traditional Situation, Task, Action and Result with a clearly hypothetical workplace example.",
+        star_action=f"the approach step by step, with the actual words to use (phrases, a short script or a rewritten message in fenced {FENCE}text blocks), why they work and what to avoid, and a more formal and a more casual alternative where relevant.",
+        star_result="the outcome for the listener or reader; how to tell the message landed; the follow-up to expect.",
+    ),
+    "finance": LabProfile(
+        instructor="finance instructor",
+        kind="finance topic",
+        thing="topic",
+        goal="understanding it and working with real numbers",
+        steps="build the intuition in plain English, learn the formula, work it with small round numbers, apply it in a short calculation or code, then the risks, limits and common mistakes",
+        final_task="a closing challenge that applies the whole topic to a realistic case with real numbers",
+        boss_relation="This is the final boss: a closing challenge that applies the whole topic to a realistic case. Only here may the reference solution solve the whole case.",
+        main_thing="main challenge of the topic",
+        exercise_data="Money is a number (use floats and round results with round(x, 2)), a price series or a cash-flow schedule is a list of numbers, and everything stays plain Python: no pandas, numpy or scikit-learn. Keep inputs small and say in the prompt how a value is laid out and how results are rounded.",
+        subject_label="Topic",
+        category_label="Area",
+        summary_label="Topic summary",
+        difficulty_label="Topic difficulty",
+        practice="works through numbers and short Python calculations for many of the questions",
+        kinds="concept (explain an idea), implementation (write a small calculation in code), algorithm (reason step by step through a formula or a method), scenario (apply the idea to a realistic money situation).",
+        lab_note="This is a finance lab for beginners: explain in plain English first, define every term and use small round numbers. It is educational content, not financial advice, so never recommend buying or selling anything.",
+        exercise_note="Use \"exercise\" true for a question that is a calculation (compounding, returns, ratios, risk) and false for questions about ideas, markets and judgement.",
+        mentor="patient, numerate finance mentor",
+        exercise_task="ONE small exercise on this concept (not the solution of the main challenge of the topic): a clear specification, example numbers and the expected result, as a short calculation or a small plain-Python function. Tell them they can paste their attempt here and you will review it.",
+        star_writer="a senior finance instructor",
+        star_for="adapted for finance questions",
+        star_kinds="- concept: use STAR as a structured explanation. Situation is where the concept matters, Task is what must be understood, Action is how it works step by step, Result is what it gives you.\n- implementation: focus on the calculation and its code.\n- algorithm: explain the reasoning and a step-by-step worked calculation.\n- scenario: use the traditional Situation, Task, Action and Result with a clearly hypothetical case and made-up numbers.",
+        star_action=f"the approach step by step; the formula or method and what each symbol means; a worked calculation with small round numbers; Python 3 code in fenced {FENCE}python blocks where code helps; why it works; alternatives and trade-offs where relevant.",
+        star_result="the outcome with its units and rounding; how to sanity-check it; the main risk or limitation; edge cases.",
+    ),
+    "python": LabProfile(
+        instructor="Python instructor",
+        kind="Python topic",
+        thing="topic",
+        goal="writing it well and understanding what Python does",
+        steps="understand the idea, read the syntax, write it yourself on a small input, see what Python does under the hood, then the pitfalls and the idiomatic style",
+        final_task="a closing challenge that applies the whole topic in a small program",
+        boss_relation="This is the final boss: a closing challenge that applies the whole topic in a small program. Only here may the reference solution solve the whole challenge.",
+        main_thing="main challenge of the topic",
+        exercise_data="Everything stays in the Python standard library: no third-party packages, no files, no network and no randomness. Keep inputs small, and when a topic needs a class, an iterator or an exception, test it through one pure function that uses it and returns plain values.",
+        subject_label="Topic",
+        category_label="Area",
+        summary_label="Topic summary",
+        difficulty_label="Topic difficulty",
+        practice="writes code for most of the questions",
+        kinds="concept (explain an idea), implementation (write a small piece of code), algorithm (reason about steps and complexity), scenario (apply the idea to a real-world situation).",
+        lab_note="Teach idiomatic, readable Python 3, and name the gotcha behind a common mistake.",
+        exercise_note="Everything runs in the browser with the standard library only, so a topic that needs a third-party package, a file, the network or a database is taught in words and a short snippet, with \"exercise\" false.",
+        mentor="technically strong Python mentor",
+        exercise_task="ONE small coding exercise on this concept (not the solution of the main challenge of the topic): a clear specification, an example input and output, and optionally a signature to start from. Tell them they can paste their attempt here and you will review it.",
+        star_writer="a senior Python engineer",
+        star_for="adapted for technical questions",
+        star_kinds="- concept: use STAR as a structured explanation. Situation is where the concept matters, Task is what must be understood, Action is how it works step by step, Result is what it gives you.\n- implementation: focus on the actual implementation and its code.\n- algorithm: explain the reasoning, a step-by-step execution trace and the complexity.\n- scenario: use the traditional Situation, Task, Action and Result with a clearly hypothetical example.",
+        star_action=f"the approach step by step; the language features and standard-library tools involved; Python 3 code in fenced {FENCE}python blocks; why the approach works; the idiomatic alternative and trade-offs where relevant; a small execution walkthrough or text diagram when it helps.",
+        star_result="the outcome; what the code prints; time and memory cost where relevant; edge cases and the expected behaviour.",
+    ),
+    "genai": LabProfile(
+        instructor="AI engineering instructor",
+        kind="generative AI topic",
+        thing="topic",
+        goal="understanding how it works and building with it well",
+        steps="build the mental model, follow the mechanism on a tiny example, build a minimal version, compare the design choices, then the failure modes, cost and evaluation",
+        final_task="a closing challenge that builds or analyses a small piece of an AI system end to end",
+        boss_relation="This is the final boss: a closing challenge that builds or analyses a small piece of an AI system end to end. Only here may the reference solution solve the whole challenge.",
+        main_thing="main challenge of the topic",
+        exercise_data="Exercises are small and deterministic, in plain Python with no network, no model calls and no third-party packages: a toy tokenizer, a prompt template that fills in fields, cosine similarity between short lists of numbers, chunking text, a tiny retrieval over a few strings, a metric on labelled examples, or a cost estimate from token counts. Say in the prompt how a value is laid out.",
+        subject_label="Topic",
+        category_label="Area",
+        summary_label="Topic summary",
+        difficulty_label="Topic difficulty",
+        practice="works through ideas and small deterministic Python examples for many of the questions",
+        kinds="concept (explain an idea), implementation (write a small piece of code), algorithm (reason about steps, cost and failure modes), scenario (apply the idea to a real AI product).",
+        lab_note="This is a generative AI lab: explain the mental model and the design choices first. Treat model names, prices and APIs as examples that change, and never invent the function names of a real SDK.",
+        exercise_note="Use \"exercise\" true only for a small deterministic plain-Python task (no network, no model calls, no third-party packages); concept and design questions are false.",
+        mentor="technically strong AI engineering mentor",
+        exercise_task="ONE small coding exercise on this concept (not the solution of the main challenge of the topic): a clear specification, an example input and output in plain Python with no model calls, and optionally a signature to start from. Tell them they can paste their attempt here and you will review it.",
+        star_writer="a senior AI engineer",
+        star_for="adapted for generative AI questions",
+        star_kinds="- concept: use STAR as a structured explanation. Situation is where the concept matters, Task is what must be understood, Action is how it works step by step, Result is what it gives you.\n- implementation: focus on the actual implementation and its code.\n- algorithm: explain the reasoning, a step-by-step trace of the data through the system and its cost.\n- scenario: use the traditional Situation, Task, Action and Result with a clearly hypothetical AI product.",
+        star_action=f"the approach step by step: the data, the model or retrieval step, the prompt or tool design; Python 3 code in fenced {FENCE}python blocks only where it is deterministic; why it works; alternatives and trade-offs; a text diagram of the data flow when it helps.",
+        star_result="the outcome; rough cost and latency numbers; how to evaluate it; failure modes and the expected behaviour.",
     ),
 }
 
@@ -282,7 +447,7 @@ def build_curriculum_prompt(c: PromptCtx, phase_count: int, focus: str) -> str:
     wanted = js_trim(focus)
     p = profile_of(c)
     return blocks(
-        f"You are a senior {p.instructor} designing a guided practice path for ONE {p.kind}. The learner works through it phase by phase, question by question, and writes code for most of the questions.",
+        f"You are a senior {p.instructor} designing a guided practice path for ONE {p.kind}. The learner works through it phase by phase, question by question, and {p.practice}.",
         problem_block(c),
         learner_block(c),
         f'The learner asked the path to focus on:\n"""\n{wanted}\n"""' if wanted else "",
@@ -290,12 +455,14 @@ def build_curriculum_prompt(c: PromptCtx, phase_count: int, focus: str) -> str:
             f"Design a path of exactly {phase_count} phases that takes the learner from not knowing the {p.thing} to {p.goal}:",
             f"- Each phase has 3 or 4 questions in learning order, easiest first. Build up in small steps: {p.steps}. Name the phases for this {p.thing}; do not use generic titles.",
             "- Every question is one clear question or task a learner can attempt on their own, about one idea or one step. Write each title as a full sentence: a question or an instruction.",
-            '- "kind" is one of: concept (explain an idea), implementation (write a small piece of code), algorithm (reason about steps and complexity), scenario (apply the idea to a real-world situation).',
+            f'- "kind" is one of: {p.kinds}',
             '- "exercise" is true when the learner should write code to answer the question (most implementation and algorithm questions) and false for pure concept questions.',
+            f"- {p.exercise_note}" if p.exercise_note else "",
             '- "difficulty" is easy, medium or hard. "effort" is a short estimate such as "5 min".',
             "- Do not give away the final solution: no solution code, and no question that states the complete algorithm outright. The questions guide the learner toward it.",
             "- No two questions may repeat each other.",
             f'- Also design one final boss: {p.final_task}, with a one-sentence framing in "story".',
+            f"- {p.lab_note}" if p.lab_note else "",
         ),
         "Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:",
         '{"phases":[{"title":"...","goal":"one sentence: what the learner can do after this phase","questions":[{"title":"...","objective":"one sentence: what the learner will be able to do","kind":"concept","difficulty":"easy","effort":"5 min","exercise":false}]}],"boss":{"title":"...","story":"...","objective":"...","difficulty":"hard","effort":"25 min"}}',
@@ -336,6 +503,8 @@ def build_question_prompt(c: PromptCtx, q: QuestionRef, pos: PathPos, sibling_ti
             "- Teach this one question only. Do not wander into other topics.",
             f'- Do not give away the complete solution of the {p.main_thing} unless this question IS the {p.main_thing} (the final boss), and then only inside "solution" and "solution_explanation".',
             "- Plain, friendly, precise language. All code is Python 3.",
+            f"- {p.lab_note}" if p.lab_note else "",
+            f"- {p.exercise_note}" if p.exercise_note else "",
         ),
         "Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:",
         '{"explanation":"...","example":"...","exercise":null,"hints":["...","...","..."],"solution_explanation":"..."}',
@@ -383,8 +552,10 @@ def build_breakdown_prompt(
             '- "why" is one sentence on why this smaller question is needed to understand the parent question.',
             "- Stay at a basic level: do not jump ahead to advanced material, and do not leave the scope of the parent question. The last question brings the pieces together toward the parent without answering it.",
             '- "exercise" is true when the step involves writing code, false for a concept.',
+            f"- {p.exercise_note}" if p.exercise_note else "",
             f"- Never give away the complete solution of the {p.main_thing}.",
             "- Never duplicate an existing question. Where an existing question already covers a step, build on it instead.",
+            f"- {p.lab_note}" if p.lab_note else "",
         ),
         "Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:",
         '{"prerequisites":["..."],"questions":[{"title":"...","why":"...","objective":"one sentence: what the learner will be able to do","kind":"concept","difficulty":"easy","effort":"5 min","exercise":false}]}',
@@ -432,8 +603,10 @@ def build_deeper_prompt(
             '- "angle" is one of: internals, why-it-works, alternatives, trade-offs, complexity, optimization, edge-cases, real-world, interview, variation.',
             "- Every question must be directly about the question above. Do not add unrelated advanced questions to reach a count.",
             '- "exercise" is true when the learner should write code, false for a concept.',
+            f"- {p.exercise_note}" if p.exercise_note else "",
             f"- Never give away the complete solution of the {p.main_thing}.",
             "- Never duplicate an existing question.",
+            f"- {p.lab_note}" if p.lab_note else "",
         ),
         "Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:",
         '{"questions":[{"title":"...","level":1,"angle":"internals","objective":"one sentence: what the learner will be able to do","kind":"concept","difficulty":"medium","effort":"8 min","exercise":false}]}',
@@ -454,7 +627,7 @@ def tutor_task(t: TutorInput, p: LabProfile) -> str:
     if t.action == "simplify":
         return "The learner finds this too hard. Re-explain the concept in simpler words and smaller steps, with an analogy. Finish with ONE easy check question."
     if t.action == "exercise":
-        return f"Give the learner ONE small coding exercise on this concept (not the solution of the {p.main_thing}): a clear specification, an example input and output, and optionally a signature to start from. Tell them they can paste their attempt here and you will review it."
+        return f"Give the learner {p.exercise_task}"
     if t.action == "test":
         return "Test the learner's understanding: ask ONE question (answerable in a few sentences or a few lines of code) that checks the key idea of this question. Do not give away the answer. They will answer in their next message."
     if t.action == "mistake":
@@ -468,7 +641,7 @@ def build_tutor_prompt(c: PromptCtx, t: TutorInput) -> str:
     p = profile_of(c)
     turns = "\n\n".join(f"{'Learner' if h.role == 'learner' else 'Tutor'}: {h.text}" for h in t.history[-16:])
     return blocks(
-        "You are a patient, technically strong programming mentor tutoring one learner through a conversation, inside a guided practice page.",
+        f"You are a patient, {p.mentor} tutoring one learner through a conversation, inside a guided practice page.",
         problem_block(c),
         lines(position_block(t.pos), question_block(t.question)),
         f'The lesson text the learner can see:\n"""\n{t.explanation}\n"""' if t.explanation else "",
@@ -491,6 +664,7 @@ def build_tutor_prompt(c: PromptCtx, t: TutorInput) -> str:
             "8. Raise the difficulty gradually as the learner does well.",
             f"9. Connect the concept back to the {p.main_thing}.",
             f"Never reveal the complete solution of the {p.main_thing}, or the full solution code of the exercise, unless the learner explicitly asks for it in their latest message.",
+            p.lab_note,
         ),
         lines(
             "Verdict rule: when the learner's latest message answers a question you asked, judge it first: say plainly what is right and what is not and correct any misconception. Then end your reply with exactly one line: [[verdict: understood]], [[verdict: partial]] or [[verdict: not_yet]]. Use understood only when the answer is correct and shows real understanding of the key idea. Add that line only when you evaluated an answer, and never mention it in the text.",
@@ -505,31 +679,30 @@ def build_tutor_prompt(c: PromptCtx, t: TutorInput) -> str:
 
 
 def build_star_prompt(c: PromptCtx, s: StarInput) -> str:
+    p = profile_of(c)
     variant = ""
     if s.variant == "simplify":
         variant = f'Here is the current answer:\n"""\n{s.existing_answer}\n"""\nRewrite it in simpler language for a learner who found it hard: shorter sentences, a quick definition for every technical term, smaller steps and one easy analogy. Keep the same headings, and keep the code and the complexity correct.'
     elif s.variant == "example":
         variant = f'Here is the current answer:\n"""\n{s.existing_answer}\n"""\nWrite ANOTHER worked example for the same question: a different input or scenario, under the same headings (one or two sentences each for Situation and Task, then a step-by-step Action and Result). Do not repeat the earlier example.'
     return blocks(
-        "You are a senior engineer writing a complete reference answer to ONE question with the STAR framework (Situation, Task, Action, Result), adapted for technical questions.",
+        f"You are {p.star_writer} writing a complete reference answer to ONE question with the STAR framework (Situation, Task, Action, Result), {p.star_for}.",
         problem_block(c),
         lines(position_block(s.pos), question_block(s.question)),
         f'The lesson text the learner has seen:\n"""\n{s.explanation}\n"""' if s.explanation else "",
         f'The coding exercise of this question:\n"""\n{s.exercise_prompt}\n"""' if s.exercise_prompt else "",
         lines(
             "Adapt STAR to the kind of question:",
-            "- concept: use STAR as a structured explanation. Situation is where the concept matters, Task is what must be understood, Action is how it works step by step, Result is what it gives you.",
-            "- implementation: focus on the actual implementation and its code.",
-            "- algorithm: explain the reasoning, a step-by-step execution trace and the complexity.",
-            "- scenario: use the traditional Situation, Task, Action and Result with a clearly hypothetical example.",
+            p.star_kinds,
             "Never invent personal experiences, project outcomes or metrics. For technical questions use concrete hypothetical examples and say that they are examples.",
+            p.lab_note,
         ),
         lines(
             "Write Markdown with exactly these headings, in this order:",
             "## S — Situation: the context of the problem, where the concept is relevant, the underlying challenge.",
             "## T — Task: what needs to be achieved, the technical requirement, the expected outcome.",
-            f"## A — Action: the approach step by step; the data structures and algorithms involved; Python 3 code in fenced {FENCE}python blocks; why the approach works; alternatives and trade-offs where relevant; a small execution walkthrough or text diagram when it helps.",
-            "## R — Result: the outcome; time complexity; space complexity; edge cases and the expected behaviour.",
+            f"## A — Action: {p.star_action}",
+            f"## R — Result: {p.star_result}",
             "## Common mistakes",
             "## Interview tips",
         ),

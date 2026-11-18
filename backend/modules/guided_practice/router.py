@@ -1,5 +1,5 @@
 """Guided Practice: the dedicated page behind a lab topic's "Guided Practice" card (a generated path of questions,
-the learner's progress, an AI tutor and STAR answers). The labs are DSA and CV (`lab`, default dsa; anything else is a 422).
+the learner's progress, an AI tutor and STAR answers). The labs are every lab (`lab` = dsa, cv, system_design, communication, finance, python or genai; default dsa; anything else is a 422).
 
     GET/PUT/DELETE /guided-practice/state    the learner's saved path and progress for one page of a lab
     GET            /guided-practice/summary  what the topic page's card shows, without the whole document
@@ -351,10 +351,15 @@ def get_summary(
 # ── AI ──────────────────────────────────────────────────────────────────────
 
 
+# Per provider request, in seconds. The providers' own defaults (45-60 s) are far too short for a 4,000-token answer from a slow
+# model; this is the AI_TIMEOUT_MS of fe-apis/guidedPractice/handlers.ts.
+_AI_TIMEOUT_S = 240
+
+
 def _run_ai(task: str, prompt: str, payload: AISettings) -> dict:
     """Run one prompt with the model chosen in Config and return the raw answer (the browser parses it)."""
     try:
-        text = call_ai_text(prompt, payload, max_tokens=MAX_TOKENS[task])
+        text = call_ai_text(prompt, payload, max_tokens=MAX_TOKENS[task], timeout=_AI_TIMEOUT_S)
     except Exception as exc:
         message = str(exc)
         if _NO_KEY_MARKER in message:

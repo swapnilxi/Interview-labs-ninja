@@ -5,7 +5,7 @@ import GenerateLessonModule from '@/modules/ai-lms/GenerateLessonModule';
 import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
-  title: 'Generate Lesson - AI LMS | InterviewNinja',
+  title: 'Generate Lesson - AI LMS | Lab Ninja',
   description: 'Turn topics, notes, or documents into an interactive standalone HTML lesson with quizzes and system design diagrams.',
 };
 

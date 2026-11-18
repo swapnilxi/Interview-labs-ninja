@@ -149,7 +149,7 @@ def _gemini_model(model: str, exact: bool) -> str:
     return model if exact and model not in ("gemini", "gemma") else _gemini_model_name(model)
 
 
-def call_ai_text(prompt: str, settings: AISettings, max_tokens: int = 2048) -> str:
+def call_ai_text(prompt: str, settings: AISettings, max_tokens: int = 2048, timeout: Optional[int] = None) -> str:
     """Call the configured AI provider and return raw text.
 
     Falls back through other providers the caller has keys for (in relevance
@@ -164,50 +164,57 @@ def call_ai_text(prompt: str, settings: AISettings, max_tokens: int = 2048) -> s
     value explicitly -- 2048 tokens is not enough to complete one, and every
     provider here silently truncates mid-output rather than erroring, so an
     undersized budget looks like a valid-but-incomplete response, not a failure.
+
+    `timeout` (seconds, per provider request) replaces each provider's own default (45-60 s): pass a larger one when the
+    answer is long and the model slow. A connection that cannot be made is retried regardless (see _urlopen_retrying).
+    Twin: the `timeoutMs` argument of callAIText() in frontend/fe-apis/ai/client.ts.
     """
     model = resolve_model(settings.model)
     preferred = _preferred_env_provider(model)
     errors: dict = {}
+    tk = {"timeout": timeout} if timeout else {}
 
     for provider in _effective_order(model):
         exact = provider == preferred
         try:
             if provider == "vertex":
-                return _call_vertex(prompt, _vertex_model_name(model), max_tokens=max_tokens)
+                return _call_vertex(prompt, _vertex_model_name(model), max_tokens=max_tokens, **tk)
             if provider == "gemini":
                 gemini_key = settings.geminiKey or os.environ.get("GEMINI_API_KEY", "")
                 if gemini_key:
                     gemini_model = _gemini_model(model, exact)
-                    return _call_gemini(prompt, gemini_key, gemini_model, max_tokens=max_tokens)
+                    return _call_gemini(prompt, gemini_key, gemini_model, max_tokens=max_tokens, **tk)
             if provider == "openrouter":
                 openrouter_key = settings.openrouterKey or os.environ.get("OPENROUTER_API_KEY", "")
                 if openrouter_key:
                     openrouter_url = (settings.openrouterUrl or "https://openrouter.ai/api/v1").rstrip("/")
                     openrouter_model = model if exact or "/" in model else "meta-llama/llama-3.3-70b-instruct"
-                    return _call_openai_compatible(prompt, openrouter_key, openrouter_url, openrouter_model, max_tokens=max_tokens)
+                    return _call_openai_compatible(prompt, openrouter_key, openrouter_url, openrouter_model, max_tokens=max_tokens, **tk)
             if provider == "deepseek":
                 deepseek_key = settings.deepseekKey or os.environ.get("DEEPSEEK_API_KEY", "")
                 if deepseek_key:
                     deepseek_model = _deepseek_model(model, exact)
+                    options = _deepseek_call_options(deepseek_model, max_tokens)
+                    if timeout:  # a reasoning model keeps its own longer timeout when that is larger
+                        options["timeout"] = max(timeout, options.get("timeout", 0))
                     return _call_openai_compatible(
-                        prompt, deepseek_key, "https://api.deepseek.com", deepseek_model,
-                        **_deepseek_call_options(deepseek_model, max_tokens),
+                        prompt, deepseek_key, "https://api.deepseek.com", deepseek_model, **options,
                     )
             if provider == "groq":
                 groq_key = settings.groqKey or os.environ.get("GROQ_API_KEY", "")
                 if groq_key:
                     groq_model = model if exact or model in GROQ_MODELS else "llama-3.3-70b-versatile"
-                    return _call_openai_compatible(prompt, groq_key, "https://api.groq.com/openai/v1", groq_model, max_tokens=max_tokens)
+                    return _call_openai_compatible(prompt, groq_key, "https://api.groq.com/openai/v1", groq_model, max_tokens=max_tokens, **tk)
             if provider == "openai":
                 openai_key = settings.openaiKey or os.environ.get("OPENAI_API_KEY", "")
                 if openai_key:
                     openai_model = model if exact or model.startswith("gpt") else "gpt-4o-mini"
-                    return _call_openai_compatible(prompt, openai_key, "https://api.openai.com/v1", openai_model, max_tokens=max_tokens)
+                    return _call_openai_compatible(prompt, openai_key, "https://api.openai.com/v1", openai_model, max_tokens=max_tokens, **tk)
             if provider == "anthropic":
                 anthropic_key = settings.anthropicKey or os.environ.get("ANTHROPIC_API_KEY", "")
                 if anthropic_key:
                     anthropic_model = model if exact or model.startswith("claude") else PROVIDER_DEFAULT_MODELS["anthropic"]
-                    return _call_anthropic(prompt, anthropic_key, anthropic_model, max_tokens=max_tokens)
+                    return _call_anthropic(prompt, anthropic_key, anthropic_model, max_tokens=max_tokens, **tk)
             if provider == "custom":
                 # Generic OpenAI-compatible endpoint (Together.ai, Fireworks, a local
                 # LM Studio/vLLM server, etc.) for anything not natively named above.
@@ -215,7 +222,7 @@ def call_ai_text(prompt: str, settings: AISettings, max_tokens: int = 2048) -> s
                 custom_base_url = settings.customBaseUrl or os.environ.get("CUSTOM_AI_BASE_URL", "")
                 custom_model = settings.customModel or os.environ.get("CUSTOM_AI_MODEL", "")
                 if custom_key and custom_base_url and custom_model:
-                    return _call_openai_compatible(prompt, custom_key, custom_base_url, custom_model, max_tokens=max_tokens)
+                    return _call_openai_compatible(prompt, custom_key, custom_base_url, custom_model, max_tokens=max_tokens, **tk)
             if provider == "ollama":
                 return _call_ollama(prompt, settings.ollamaUrl, _ollama_model_name(model, settings.ollamaModel))
         except Exception as exc:

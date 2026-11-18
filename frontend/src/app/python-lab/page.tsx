@@ -7,7 +7,7 @@ import RequireAuth from '@/modules/auth/RequireAuth';
 import { LabScreenLoading } from '@/modules/labs/common/labNavigation';
 
 export const metadata: Metadata = {
-  title: 'Python Lab — InterviewNinja',
+  title: 'Python Lab — Lab Ninja',
   description:
     'Python from your first program to OOP, testing, concurrency and building data and AI apps.',
 };

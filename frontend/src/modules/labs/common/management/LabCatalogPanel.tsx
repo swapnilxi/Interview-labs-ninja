@@ -72,7 +72,7 @@ export default function LabCatalogPanel<T extends ManagedTopic>({
             e.preventDefault();
             void submitGroup();
           }}
-          className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-3"
+          className="lab-edge flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-3"
         >
           <input
             autoFocus
@@ -136,7 +136,7 @@ export default function LabCatalogPanel<T extends ManagedTopic>({
               {list.length === 0 ? (
                 <p className="px-1 text-sm text-muted-foreground">No topics yet</p>
               ) : (
-                <ul className="divide-y overflow-hidden rounded-2xl border bg-card">
+                <ul className="lab-edge divide-y overflow-hidden rounded-2xl border bg-card">
                   {list.map((t) => (
                     <li
                       key={t.id}

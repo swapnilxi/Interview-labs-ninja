@@ -874,12 +874,12 @@ function TopicDetail({
   };
   const genCount = Object.values(sections).filter((s) => s.generated).length;
   const navCard =
-    'todo-focus group flex min-w-0 flex-1 items-center gap-3 rounded-lg border bg-card px-4 py-3 transition-smooth hover:mix-border-primary/40';
+    'todo-focus group flex min-w-0 flex-1 items-center gap-3 rounded-lg border bg-card px-4 py-3 lab-edge lab-edge-link';
 
   return (
     <div className="lab-container max-w-card space-y-[1.5rem]">
-      {/* ── Header: a plain hairline card (the signature wash is the wiki hero's); meta chips, title and description, prerequisites, progress, actions ── */}
-      <header className="rounded-lg border bg-card p-[1.25rem] sm:p-[1.5rem]">
+      {/* ── Header: a glow-edge card (the signature wash is the wiki hero's); meta chips, title and description, prerequisites, progress, actions ── */}
+      <header className="lab-edge lab-rim rounded-lg border bg-card p-[1.25rem] sm:p-[1.5rem]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Tag tone="accent">{topic.category}</Tag>
           <DifficultyTag difficulty={topic.difficulty} />
@@ -1033,7 +1033,7 @@ function TopicDetail({
       {/* ── Guided Practice: a dedicated page (/dsa-lab/guided-practice), not a section of this one ── */}
       <GuidedPracticeCard lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} name={name} />
 
-      <LabPageVideos lab="dsa" topicId={topic.id} subtopicId={subtopic?.id ?? ''} />
+      <LabPageVideos lab="dsa" topic={topic} subtopic={subtopic ?? null} />
 
       {/* ── On-demand sections ── */}
       <div className="space-y-4">

@@ -11,6 +11,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { PHASE_COUNT } from './constants';
+import type { ImportedPath } from './importPath';
 import { baseFields, pathTitles, questionFields, siblingTitles } from './context';
 import {
   AiParseError,
@@ -20,6 +21,7 @@ import {
   parseLesson,
   splitTutorReply,
 } from './parse';
+import { labConfig } from './labs';
 import { runTests, summarize, verifyExercise, type RunResult } from './runner';
 import { aiBreakdown, aiCurriculum, aiDeeper, aiLesson, aiStar, aiTutor } from './service';
 import {
@@ -139,6 +141,14 @@ export function useGuided(topic: TopicRef | null) {
         create(createState(topic, parseCurriculum(reply.text), focus.trim()));
       }),
     [run, topic, create]
+  );
+
+  /** A path pasted as JSON (importPath.ts): the same start as a generated one, with no AI call. */
+  const importPath = useCallback(
+    (path: ImportedPath, focus: string) => {
+      if (topic) create(createState(topic, path.curriculum, focus.trim()));
+    },
+    [topic, create]
   );
 
   // ── Moving around ─────────────────────────────────────────────────────────
@@ -354,7 +364,12 @@ export function useGuided(topic: TopicRef | null) {
           const learnerMessage: TutorMessage = {
             id: uid('m'),
             role: 'learner',
-            text: action === 'ask' ? text : TUTOR_ACTION_LABELS[action],
+            text:
+              action === 'ask'
+                ? text
+                : action === 'exercise'
+                  ? `Give me a ${labConfig(topic.lab).exerciseLabel}`
+                  : TUTOR_ACTION_LABELS[action],
             action: action === 'ask' ? undefined : action,
             at: nowIso(),
           };
@@ -549,6 +564,7 @@ export function useGuided(topic: TopicRef | null) {
   const actions = useMemo(
     () => ({
       generatePath,
+      importPath,
       select,
       toggleOpen,
       setOpen,
@@ -572,6 +588,7 @@ export function useGuided(topic: TopicRef | null) {
     }),
     [
       generatePath,
+      importPath,
       select,
       toggleOpen,
       setOpen,

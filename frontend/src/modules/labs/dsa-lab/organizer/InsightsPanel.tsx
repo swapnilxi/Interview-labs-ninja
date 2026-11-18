@@ -12,7 +12,7 @@ const TONE: Record<Insight['tone'], { dot: string; sr: string }> = {
 /**
  * Collapsible strip of plain-sentence observations about the plan (from `weekPlan.insights`), each
  * with its action: fill an empty week, spread the load evenly, or jump to the week it is about.
- * A plain hairline card (no glow, no glass). It sizes its columns to what it has to say: one insight is one column, however
+ * A glow-edge card (no glass). It sizes its columns to what it has to say: one insight is one column, however
  * wide the board is.
  */
 export default function InsightsPanel({
@@ -39,7 +39,7 @@ export default function InsightsPanel({
   const used = Math.max(1, Math.min(columns, insights.length));
   const grid = used === 3 ? 'grid-cols-3' : used === 2 ? 'grid-cols-2' : 'grid-cols-1';
   return (
-    <section aria-labelledby="org-insights-title" className="rounded-lg border bg-card">
+    <section aria-labelledby="org-insights-title" className="lab-edge rounded-lg border bg-card">
       <h2 className="text-base">
         <button
           id="org-insights-title"

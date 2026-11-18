@@ -630,6 +630,97 @@ test('labConfig falls back to the DSA lab for an unknown or missing lab', () => 
   assert.strictEqual(labs.labConfig('dsa').topicsApi, '/dsa/topics');
 });
 
+const LAB_FOLDERS = {
+  dsa: 'dsa-lab',
+  cv: 'cv-lab',
+  system_design: 'system-design-lab',
+  communication: 'communication-lab',
+  finance: 'finance-lab',
+  python: 'python-lab',
+  genai: 'genai-lab',
+};
+
+test('every lab has Guided Practice: a config, a page and the card on its topic pages', () => {
+  const labs = require(path.join(B, 'labs.js'));
+  assert.deepStrictEqual([...labs.GUIDED_LABS], Object.keys(LAB_FOLDERS));
+  assert.strictEqual(new Set(labs.GUIDED_LABS).size, 7);
+  for (const lab of labs.GUIDED_LABS) {
+    const c = labs.labConfig(lab);
+    assert.strictEqual(c.lab, lab, lab);
+    assert.strictEqual(c.pagePath, `${c.labPath}/guided-practice`, lab);
+    for (const key of [
+      'labName',
+      'labPath',
+      'pagePath',
+      'topicsApi',
+      'noun',
+      'intro',
+      'cardLine',
+      'bossLine',
+      'exerciseLabel',
+      'focusExample',
+      'progressLine',
+    ])
+      assert.ok(typeof c[key] === 'string' && c[key].trim().length > 0, `${lab}.${key}`);
+    const boss = c.boss('Sample topic');
+    assert.ok(boss.title.includes('Sample topic'), `${lab} boss title names the topic`);
+    assert.ok(boss.story.trim() && boss.objective.trim(), `${lab} boss story and objective`);
+    // the page is a real route
+    assert.ok(
+      fs.existsSync(path.join(root, 'src', 'app', LAB_FOLDERS[lab], 'guided-practice', 'page.tsx')),
+      `${lab}: its guided-practice route exists`
+    );
+    assert.strictEqual(c.labPath, `/${LAB_FOLDERS[lab]}`, lab);
+  }
+  // The card: TopicLab labs set the flag in their config (and the topics API is the config's own); DSA has its own page.
+  for (const lab of labs.GUIDED_LABS.filter((l) => l !== 'dsa')) {
+    const src = fs.readFileSync(
+      path.join(root, 'src', 'modules', 'labs', LAB_FOLDERS[lab], 'labConfig.ts'),
+      'utf8'
+    );
+    assert.ok(src.includes(`guidedPractice: '${lab}'`), `${lab}: labConfig sets guidedPractice`);
+    const prefix = /apiPrefix: '([^']+)'/.exec(src)?.[1];
+    assert.strictEqual(labs.labConfig(lab).topicsApi, `${prefix}/topics`, `${lab}: topics API`);
+  }
+  const dsaPage = fs.readFileSync(
+    path.join(root, 'src', 'modules', 'labs', 'dsa-lab', 'DSALabModule.tsx'),
+    'utf8'
+  );
+  assert.ok(dsaPage.includes('GuidedPracticeCard'), 'the DSA page shows the card itself');
+});
+
+test('a lab with no code says so: its words differ where the exercise is not code', () => {
+  const labs = require(path.join(B, 'labs.js'));
+  assert.strictEqual(labs.labConfig('dsa').exerciseLabel, 'coding exercise');
+  assert.strictEqual(labs.labConfig('cv').exerciseLabel, 'coding exercise');
+  assert.strictEqual(labs.labConfig('communication').exerciseLabel, 'practice task');
+  assert.ok(!/coding streak/.test(labs.labConfig('communication').progressLine));
+  assert.ok(/coding streak/.test(labs.labConfig('dsa').progressLine));
+  // a kind note, when a lab has one, is for a real question kind
+  for (const lab of labs.GUIDED_LABS)
+    for (const kind of Object.keys(labs.labConfig(lab).kindNotes ?? {}))
+      assert.ok(['concept', 'implementation', 'algorithm', 'scenario'].includes(kind), `${lab}.${kind}`);
+});
+
+test("every lab's default boss names its topic when the AI wrote none", () => {
+  const noBoss = parse.parseCurriculum(JSON.stringify({ phases: outline.phases }));
+  const labs = require(path.join(B, 'labs.js'));
+  for (const lab of labs.GUIDED_LABS) {
+    const state = tree.createState({ ...topic, lab, name: 'Sample topic', subName: '' }, noBoss, '');
+    assert.ok(
+      state.questions[state.bossId].title.includes('Sample topic'),
+      `${lab}: ${state.questions[state.bossId].title}`
+    );
+    assert.strictEqual(state.topic.lab, lab);
+    // the boss asks for an exercise only where the lab is code (a scenario or a design has none to write)
+    assert.strictEqual(state.questions[state.bossId].wantsExercise, labs.labConfig(lab).bossExercise, `${lab} boss exercise`);
+  }
+  assert.strictEqual(labs.labConfig('dsa').bossExercise, true);
+  assert.strictEqual(labs.labConfig('cv').bossExercise, true);
+  assert.strictEqual(labs.labConfig('communication').bossExercise, false);
+  assert.strictEqual(labs.labConfig('system_design').bossExercise, false);
+});
+
 test("createState uses the lab's own default boss; an old document without a lab is DSA", () => {
   const cvTopic = { ...topic, lab: 'cv', name: 'Object Detection with YOLO', subName: '' };
   const noBoss = parse.parseCurriculum(JSON.stringify({ phases: outline.phases }));

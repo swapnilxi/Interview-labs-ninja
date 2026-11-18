@@ -2,7 +2,7 @@ import { getWritablePath } from './sqliteReader';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.LABNINJA_JWT_SECRET || 'dev-secret-interview-labs-ninja-key';
+const JWT_SECRET = process.env.LABNINJA_JWT_SECRET || 'dev-secret-lab-ninja-key';
 
 export interface UserRecord {
   id: number;

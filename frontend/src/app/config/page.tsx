@@ -3,7 +3,7 @@ import Header from '@/components/common/Header';
 import ConfigInteractive from '@/modules/config/ConfigModule';
 
 export const metadata: Metadata = {
-  title: 'Settings - InterviewNinja',
+  title: 'Settings - Lab Ninja',
   description:
     'Choose your AI model, add API keys, and set how the app looks. Keys stay in your browser.',
 };

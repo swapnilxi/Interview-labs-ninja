@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 from typing import List, Tuple
@@ -32,11 +33,39 @@ def _format_http_error(exc: urllib.error.HTTPError) -> str:
     return f"HTTP {exc.code}: {detail}" if detail else f"HTTP Error {exc.code}: {exc.reason}"
 
 
+# A connection that never got going (a dropped packet, a DNS hiccup, a refused or reset connect) is worth another try; a request
+# the provider answered, or one that waited a long time for its answer, is not. Twin: fetchRetrying() in
+# frontend/fe-apis/ai/providers.ts (same retries, same wait, same quick-failure rule).
+_CONNECT_RETRIES = 2
+_CONNECT_QUICK_FAIL_SECONDS = 20
+
+
+def _urlopen_retrying(req, timeout: int = 60):
+    """urllib.request.urlopen that tries again (after 1 s, then 2 s) when the connection could not be made.
+
+    URLError is the connect/send phase, ConnectionError a connection the provider dropped before answering. A failure that took
+    longer than _CONNECT_QUICK_FAIL_SECONDS (a connection lost in the middle of a long generation) is not retried, and neither
+    is an HTTPError, which is an answer.
+    """
+    attempt = 0
+    while True:
+        started = time.monotonic()
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, ConnectionError):
+            if attempt >= _CONNECT_RETRIES or time.monotonic() - started > _CONNECT_QUICK_FAIL_SECONDS:
+                raise
+            attempt += 1
+            time.sleep(attempt)
+
+
 def _urlopen_surfacing_errors(req, timeout: int = 60):
-    """urllib.request.urlopen, but on an HTTP error raise with the provider's
-    own error message folded in (see _format_http_error)."""
+    """urllib.request.urlopen (retrying a failed connect, see _urlopen_retrying), but on an HTTP error raise with the
+    provider's own error message folded in (see _format_http_error)."""
     try:
-        return urllib.request.urlopen(req, timeout=timeout)
+        return _urlopen_retrying(req, timeout=timeout)
     except urllib.error.HTTPError as exc:
         raise RuntimeError(_format_http_error(exc)) from exc
 

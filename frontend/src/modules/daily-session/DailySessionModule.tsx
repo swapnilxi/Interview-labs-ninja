@@ -682,7 +682,7 @@ export default function DailySessionInteractive() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `interview-ninja-session-${sessionDate}.md`;
+      a.download = `lab-ninja-session-${sessionDate}.md`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -843,7 +843,7 @@ export default function DailySessionInteractive() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `interview-ninja-questions.csv`;
+    a.download = `lab-ninja-questions.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

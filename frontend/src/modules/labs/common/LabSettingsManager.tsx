@@ -289,7 +289,7 @@ export default function LabSettingsManager({
           {/* ── The whole lab ── */}
           <section
             aria-labelledby={wideId}
-            className="rounded-2xl border bg-card p-[1.25rem] sm:p-[1.5rem]"
+            className="lab-edge rounded-2xl border bg-card p-[1.25rem] sm:p-[1.5rem]"
           >
             <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
               <div className="min-w-0">
@@ -433,7 +433,7 @@ export default function LabSettingsManager({
                 No section matches “{searchQuery.trim()}”
               </p>
             ) : (
-              <ul className="divide-y overflow-hidden rounded-2xl border bg-card">
+              <ul className="lab-edge divide-y overflow-hidden rounded-2xl border bg-card">
                 {filteredSections.map((sec) => {
                   const saved = settings[sec.id];
                   const parts = [

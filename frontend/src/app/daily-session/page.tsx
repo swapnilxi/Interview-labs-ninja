@@ -4,7 +4,7 @@ import DailySessionContainer from '@/modules/daily-session/DailySessionContainer
 import RequireAuth from '@/modules/auth/RequireAuth';
 
 export const metadata: Metadata = {
-  title: 'Daily Session & Practice - InterviewNinja',
+  title: 'Daily Session & Practice - Lab Ninja',
   description: 'Practice 10 customized technical and Computer Vision interview questions daily, targeted drills, rapid-fire blitz, progress analytics, and question repository.',
 };
 

@@ -374,7 +374,7 @@ export function createState(topic: TopicRef, parsed: ParsedCurriculum, focus: st
     kind: 'algorithm',
     difficulty: 'hard',
     effort: boss.effort,
-    wantsExercise: true,
+    wantsExercise: labConfig(topic.lab).bossExercise,
   });
   state = madeBoss.state;
   const first = phases[0];

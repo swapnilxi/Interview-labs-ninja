@@ -6,7 +6,8 @@
  * Direction. Product: a guided path through one problem, with a tutor, a reference answer and tests that run in the browser.
  * Character: calm, exact, encouraging. World: a trail map read at a study desk at night. Moments: the three rings at the top and
  * the route line down the path. Signature: that route line, one hairline through the waypoints that fills as you advance.
- * Chrome stays quiet: solid grouped cards on the neutral ramp, hairlines, no gradients, glows or coloured shadows. Material
+ * Chrome stays quiet: solid grouped cards on the neutral ramp with the labs' soft glow edge in the page's purple (.gp-card), no
+ * gradients or other glows. Material
  * (translucent and blurred) is only for what floats: the title bar, reward banners, sheets.
  *
  * The one deliberate exception to the lab visual system: this page has its own accent, purple #9172EC (VISUAL-GUIDELINES.md,
@@ -67,9 +68,16 @@ html.dark .gp-accent {
 /* ── Surfaces ────────────────────────────────────────────────────────────────────────────────────────────────────────
    Cards are solid steps of the neutral ramp with a hairline: the page, then the card. Depth is the step, not a shadow. */
 .gp-card {
-  border: 1px solid var(--color-border);
+  /* The labs' soft glow edge (tailwind.css, .lab-edge) in this page's purple: tinted hairline, halo ring, faint outer glow, and the corner wash. */
+  border: 1px solid color-mix(in srgb, var(--gp-accent) var(--edge-line), var(--color-border));
   border-radius: 16px;
-  background: var(--color-card);
+  background-color: var(--color-card);
+  background-image:
+    radial-gradient(ellipse 70% 130% at 100% 0%, color-mix(in srgb, var(--gp-accent) var(--edge-wash), transparent), transparent 66%),
+    linear-gradient(135deg, color-mix(in srgb, var(--gp-accent) var(--edge-wash-2), transparent), transparent 52%);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--gp-accent) var(--edge-halo), transparent),
+    0 0 22px -2px color-mix(in srgb, var(--gp-accent) var(--edge-glow), transparent);
 }
 
 /* Material: translucent and blurred, the way iOS draws a navigation bar or a banner. Only for what floats over content. */
@@ -375,6 +383,9 @@ html.dark .gp-accent {
 
 .gp-stop[data-status='locked'] .gp-card {
   background: transparent;
+  background-image: none;
+  border-color: var(--color-border); /* a locked phase stays quiet: no glow */
+  box-shadow: none;
 }
 
 /* ── Questions ───────────────────────────────────────────────────────────────────────────────────────────────────────── */

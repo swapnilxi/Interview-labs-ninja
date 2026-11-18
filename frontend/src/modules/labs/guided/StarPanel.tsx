@@ -30,6 +30,7 @@ export default function StarPanel({
   onHide,
   onAskTutor,
   onClearError,
+  kindNotes,
 }: {
   question: Question;
   progress: QuestionProgress;
@@ -40,6 +41,8 @@ export default function StarPanel({
   onHide: (hidden: boolean) => void;
   onAskTutor: () => void;
   onClearError: () => void;
+  /** The lab's own wording for a question kind where the default does not fit (labs.ts). */
+  kindNotes?: Partial<Record<Question['kind'], string>>;
 }) {
   const { versions, activeId, hidden } = progress.star;
   const active = versions.find((v) => v.id === activeId) ?? versions[versions.length - 1] ?? null;
@@ -62,7 +65,8 @@ export default function StarPanel({
           Answer in STAR
         </h3>
         <p className="text-xs text-muted-foreground">
-          Situation, Task, Action, Result, written as {KIND_NOTE[question.kind]}.
+          Situation, Task, Action, Result, written as{' '}
+          {kindNotes?.[question.kind] ?? KIND_NOTE[question.kind]}.
         </p>
         <span className="flex-1" />
         {active && hidden && (

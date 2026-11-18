@@ -68,11 +68,11 @@ export default function LmsHtmlFrame({
     const onCustomThemeChange = () => {
       handleThemeSync();
     };
-    window.addEventListener('interview-ninja-theme-change', onCustomThemeChange);
+    window.addEventListener('lab-ninja-theme-change', onCustomThemeChange);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener('interview-ninja-theme-change', onCustomThemeChange);
+      window.removeEventListener('lab-ninja-theme-change', onCustomThemeChange);
     };
   }, []);
 
@@ -97,10 +97,10 @@ export default function LmsHtmlFrame({
         const nextTheme = data.theme;
         setHostTheme(nextTheme);
         try {
-          localStorage.setItem('interview-ninja-theme', nextTheme);
+          localStorage.setItem('lab-ninja-theme', nextTheme);
         } catch (e) {}
         document.documentElement.classList.toggle('dark', nextTheme === 'dark');
-        window.dispatchEvent(new CustomEvent('interview-ninja-theme-change', { detail: nextTheme }));
+        window.dispatchEvent(new CustomEvent('lab-ninja-theme-change', { detail: nextTheme }));
         return;
       }
       if (data.type === 'external') {

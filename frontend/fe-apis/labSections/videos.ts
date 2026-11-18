@@ -5,8 +5,9 @@
  * backend/modules/lab_sections/videos.py: the same table, limits, validation texts and status codes, so change both.
  * The link rules are the shared src/lib/video/videoLinks.ts (Python's mirror: backend/modules/common/video_links.py).
  *
- * They belong to the signed-in user alone, like their saved sections and progress: another user's id answers 404.
- * `subtopic_id` is '' for the topic's own page. The route table entries that call these are at the end of
+ * They belong to the signed-in user alone, like their saved sections and progress: another user's id answers 404; an
+ * admin can also add one for everyone (user_id 0), and give any link a preview image and a card shape. `subtopic_id` is
+ * '' for the topic's own page. The route table entries that call these are at the end of
  * handlers.ts (they use its lab/page validation).
  */
 
@@ -14,7 +15,11 @@ import {
   VIDEO_DUPLICATE_ERROR,
   VIDEO_LIMIT_ERROR,
   VIDEO_MAX_PER_ITEM,
+  VIDEO_SHAPE_DEFAULT,
+  VIDEO_SHARED_ERROR,
   cleanVideoTitle,
+  normalizePreviewImage,
+  normalizeVideoShape,
   normalizeVideoUrl,
 } from '@/lib/video/videoLinks';
 import { HttpError, type Row } from '../todo/_shared';
@@ -22,6 +27,11 @@ import { withLabDb } from './db';
 
 /** user_id of a link an admin added for everyone (backend/modules/lab_sections/videos.py SHARED_USER). */
 const SHARED_USER = 0;
+
+const NOTHING_TO_CHANGE = 'Send a title, a preview image, a shape or shared to change.';
+const NOT_ADMIN_SHARE = 'Only an admin can add a video for everyone.';
+const NOT_ADMIN_LOOK = "Only an admin can set a link's preview image or shape.";
+const NOT_ADMIN_PATCH = "Only an admin can change a link's preview image, shape or audience.";
 
 function isAdmin(db: { get<T = Row>(sql: string, ...params: unknown[]): T | undefined }, userId: number): boolean {
   const role = db.get<{ role?: string }>('SELECT role FROM users WHERE id = ?', userId)?.role;
@@ -36,6 +46,8 @@ function rowOut(row: Row) {
     title: row.title as string,
     order_index: Number(row.order_index),
     created_at: row.created_at as string,
+    preview_image: row.preview_image as string,
+    shape: row.shape as string,
   };
 }
 
@@ -66,7 +78,12 @@ export function listPageVideos(userId: number, lab: string, topicId: string, sub
   return withLabDb((db) => ({ videos: pageRows(db, userId, lab, topicId, subtopicId) }));
 }
 
-/** Checks run in this order in both twins (after the route has checked lab and page ids): url, title, limit, duplicate. */
+/**
+ * Checks run in this order in both twins (after the route has checked lab and page ids): url, title, shape, preview image
+ * (all 422), admin (403: `shared`, or a preview image or shape sent), limit (422), duplicate (409). The limit counts the
+ * bucket being added to (the caller's own, or the shared one); the duplicate check looks at everything the caller sees.
+ * `previewRaw` undefined, null or '' and `shapeRaw` undefined or null mean "not sent".
+ */
 export function addPageVideo(
   userId: number,
   lab: string,
@@ -74,15 +91,25 @@ export function addPageVideo(
   subtopicId: string,
   urlRaw: unknown,
   titleRaw: unknown,
-  shared = false
+  shared = false,
+  previewRaw: unknown = null,
+  shapeRaw: unknown = null
 ) {
   const url = normalizeVideoUrl(urlRaw);
   if (!url.ok) throw new HttpError(422, url.error);
   const title = cleanVideoTitle(titleRaw);
   if (!title.ok) throw new HttpError(422, title.error);
+  const shape = normalizeVideoShape(shapeRaw);
+  if (!shape.ok) throw new HttpError(422, shape.error);
+  const preview = normalizePreviewImage(previewRaw);
+  if (!preview.ok) throw new HttpError(422, preview.error);
   return withLabDb((db) =>
     db.transaction(() => {
-      if (shared && !isAdmin(db, userId)) throw new HttpError(403, 'Only an admin can add a video for everyone.');
+      const admin = isAdmin(db, userId);
+      if (shared && !admin) throw new HttpError(403, NOT_ADMIN_SHARE);
+      if ((preview.image !== '' || shape.shape !== null) && !admin) {
+        throw new HttpError(403, NOT_ADMIN_LOOK);
+      }
       const owner = shared ? SHARED_USER : userId;
       const existing = pageRows(db, owner, lab, topicId, subtopicId, true);
       if (existing.length >= VIDEO_MAX_PER_ITEM) throw new HttpError(422, VIDEO_LIMIT_ERROR);
@@ -91,8 +118,9 @@ export function addPageVideo(
       }
       const orderIndex = existing.length ? existing[existing.length - 1].order_index + 1 : 0;
       const { lastInsertRowid } = db.run(
-        `INSERT INTO lab_page_videos (user_id, lab_name, topic_id, subtopic_id, url, title, order_index, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO lab_page_videos
+           (user_id, lab_name, topic_id, subtopic_id, url, title, order_index, created_at, preview_image, shape)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         owner,
         lab,
         topicId,
@@ -100,9 +128,82 @@ export function addPageVideo(
         url.url,
         title.title,
         orderIndex,
-        new Date().toISOString()
+        new Date().toISOString(),
+        preview.image,
+        shape.shape ?? VIDEO_SHAPE_DEFAULT
       );
       return rowOut(db.get<Row>('SELECT * FROM lab_page_videos WHERE id = ?', lastInsertRowid) as Row);
+    })
+  );
+}
+
+/**
+ * Change one link. A field that is undefined or null (not sent) is left alone; a title of '' clears the title and a preview
+ * image of '' removes the image. Checks, in this order in both twins: nothing sent (422), title, shape, preview image,
+ * shared (422), the link is the caller's own or an admin's shared one (404 otherwise, like a missing id), admin for preview
+ * image, shape and shared (403), then for a change of audience: limit of the target bucket (422), duplicate (409). The title
+ * is the owner's to edit (or any admin's); the rest is admin-only.
+ */
+export function updatePageVideo(
+  userId: number,
+  videoId: number,
+  titleRaw: unknown,
+  previewRaw: unknown,
+  shapeRaw: unknown,
+  sharedRaw: unknown
+) {
+  const sent = (v: unknown) => v !== undefined && v !== null;
+  if (!sent(titleRaw) && !sent(previewRaw) && !sent(shapeRaw) && !sent(sharedRaw)) {
+    throw new HttpError(422, NOTHING_TO_CHANGE);
+  }
+  const title = sent(titleRaw) ? cleanVideoTitle(titleRaw) : null;
+  if (title && !title.ok) throw new HttpError(422, title.error);
+  const shape = normalizeVideoShape(shapeRaw);
+  if (!shape.ok) throw new HttpError(422, shape.error);
+  const preview = sent(previewRaw) ? normalizePreviewImage(previewRaw) : null;
+  if (preview && !preview.ok) throw new HttpError(422, preview.error);
+  if (sent(sharedRaw) && typeof sharedRaw !== 'boolean') {
+    throw new HttpError(422, VIDEO_SHARED_ERROR);
+  }
+  return withLabDb((db) =>
+    db.transaction(() => {
+      const admin = isAdmin(db, userId);
+      const owners = admin ? [userId, SHARED_USER] : [userId];
+      const row = db.get<Row>(
+        `SELECT * FROM lab_page_videos WHERE id = ? AND user_id IN (${owners.map(() => '?').join(',')})`,
+        videoId,
+        ...owners
+      );
+      if (!row) throw new HttpError(404, 'Video not found.');
+      if ((preview !== null || shape.shape !== null || sent(sharedRaw)) && !admin) {
+        throw new HttpError(403, NOT_ADMIN_PATCH);
+      }
+      let owner = Number(row.user_id);
+      let orderIndex = Number(row.order_index);
+      if (sent(sharedRaw) && sharedRaw !== (owner === SHARED_USER)) {
+        const target = sharedRaw ? SHARED_USER : userId;
+        const labName = row.lab_name as string;
+        const pageTopic = row.topic_id as string;
+        const pageSub = row.subtopic_id as string;
+        const bucket = pageRows(db, target, labName, pageTopic, pageSub, true);
+        if (bucket.length >= VIDEO_MAX_PER_ITEM) throw new HttpError(422, VIDEO_LIMIT_ERROR);
+        const seen = pageRows(db, userId, labName, pageTopic, pageSub);
+        if (seen.some((v) => v.url === row.url && v.id !== videoId)) {
+          throw new HttpError(409, VIDEO_DUPLICATE_ERROR);
+        }
+        owner = target;
+        orderIndex = bucket.length ? bucket[bucket.length - 1].order_index + 1 : 0;
+      }
+      db.run(
+        'UPDATE lab_page_videos SET user_id = ?, order_index = ?, title = ?, preview_image = ?, shape = ? WHERE id = ?',
+        owner,
+        orderIndex,
+        title === null ? (row.title as string) : title.title,
+        preview === null ? (row.preview_image as string) : preview.image,
+        shape.shape === null ? (row.shape as string) : shape.shape,
+        videoId
+      );
+      return rowOut(db.get<Row>('SELECT * FROM lab_page_videos WHERE id = ?', videoId) as Row);
     })
   );
 }
