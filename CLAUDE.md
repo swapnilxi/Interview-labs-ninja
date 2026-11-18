@@ -270,11 +270,12 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   null `lab_section_content.project_id` / `lab_quiz_questions.project_id` on a project delete, and always scope
   section queries by user *and* project. `backend/tests/lab_projects_test.py` covers it.
 - **Guided Practice** is the fourth lab twin: `backend/modules/guided_practice/` ↔ `frontend/fe-apis/guidedPractice/`
-  (`/guided-practice/*`, one set of endpoints for `lab` = `dsa` | `cv`; page code in `frontend/src/modules/labs/guided/`, routes
+  (`/guided-practice/*`, one set of endpoints for every guided lab; page code in `frontend/src/modules/labs/guided/`, routes
   `/dsa-lab/guided-practice` and `/cv-lab/guided-practice`). It stores one document per user, lab, topic and subtopic
-  (`guided_practice_state`, saved with a version, a stale save is a 409) and runs six AI prompts that return raw text (the browser
-  parses it). **The prompts (`prompts.ts` ↔ `prompts.py`) must stay byte-identical**: run
-  `cd backend && uv run python tests/guided_practice_prompts_test.py` (1,369 inputs, every builder x branch x lab, through both
+  (`guided_practice_state`, saved with a version, a stale save is a 409) and runs AI prompts that return raw text (the browser
+  parses it). **A path is written in pages** (`POST /outline` = the plan, `POST /phase` = one phase of five full questions, also used by Regenerate
+  phase and Generate more) so no single answer can be cut off; a planned phase that is not written yet is `Phase.pending` and must never count as done. **The prompts (`prompts.ts` ↔ `prompts.py`) must stay byte-identical**: run
+  `cd backend && uv run python tests/guided_practice_prompts_test.py` (5,679 cases, every builder x branch x lab, through both
   builders; needs Node 22.18+), not by eye. A new lab = `guided/labs.ts` + `GUIDED_LABS`/`PROFILES` on both servers + a route + a
   `guidedPractice` flag in its `TopicLabConfig`. The page has its own purple accent (`.gp-accent`, VISUAL-GUIDELINES.md "Module
   notes"); AI results and progress are applied through `useGuidedStore.mutate` (never from a stale closure). Exercises run in the

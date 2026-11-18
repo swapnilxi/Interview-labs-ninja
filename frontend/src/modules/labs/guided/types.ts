@@ -91,6 +91,8 @@ export interface Phase {
   title: string;
   goal: string;
   questionIds: string[];
+  /** Planned but not written yet: the learner asks for its questions ("Generate more"). Never counts as done. */
+  pending?: boolean;
 }
 
 // ── The learner's progress ──────────────────────────────────────────────────
@@ -239,7 +241,7 @@ export interface OutlineQuestion {
 }
 
 export interface ParsedCurriculum {
-  phases: { title: string; goal: string; questions: OutlineQuestion[] }[];
+  phases: { title: string; goal: string; questions: OutlineQuestion[]; pending?: boolean }[];
   boss: {
     title: string;
     story: string;
@@ -247,6 +249,19 @@ export interface ParsedCurriculum {
     difficulty: Difficulty;
     effort: string;
   } | null;
+}
+
+/** The plan of a path (`/outline`): its phases with no questions yet, and the boss. */
+export interface ParsedOutline {
+  phases: { title: string; goal: string }[];
+  boss: ParsedCurriculum['boss'];
+}
+
+/** One page of the path (`/phase`): the questions of one phase. */
+export interface ParsedPhase {
+  title: string;
+  goal: string;
+  questions: OutlineQuestion[];
 }
 
 export interface ParsedBranch {

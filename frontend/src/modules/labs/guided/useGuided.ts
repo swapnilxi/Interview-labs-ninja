@@ -10,24 +10,29 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { PHASE_COUNT } from './constants';
+import { MAX_GENERATED_PHASES, PHASE_COUNT } from './constants';
 import type { ImportedPath } from './importPath';
 import { baseFields, pathTitles, questionFields, siblingTitles } from './context';
 import {
   AiParseError,
   cleanMarkdown,
+  normTitle,
   parseBranch,
-  parseCurriculum,
   parseLesson,
+  parseOutline,
+  parsePhase,
   splitTutorReply,
 } from './parse';
 import { labConfig } from './labs';
 import { runTests, summarize, verifyExercise, type RunResult } from './runner';
-import { aiBreakdown, aiCurriculum, aiDeeper, aiLesson, aiStar, aiTutor } from './service';
+import { aiBreakdown, aiDeeper, aiLesson, aiOutline, aiPhase, aiStar, aiTutor } from './service';
 import {
+  appendPhases,
   applyBranch,
+  applyPhase,
   canGrow,
   childrenOf,
+  createPlannedState,
   createState,
   descendantsOf,
   hasProgress,
@@ -44,6 +49,8 @@ import { useGuidedStore } from './useGuidedStore';
 import type {
   GuidedState,
   LearnMode,
+  ParsedOutline,
+  ParsedPhase,
   Question,
   StarVersion,
   TopicRef,
@@ -84,6 +91,52 @@ export function activeStar(state: GuidedState, id: string): StarVersion | null {
   );
 }
 
+/** Titles of the main questions of every phase but `exceptPhaseId`, and the boss: what a new page must not repeat. */
+function otherTitles(state: GuidedState, exceptPhaseId: string | null): string[] {
+  const titles: string[] = [];
+  for (const phase of state.phases) {
+    if (phase.id === exceptPhaseId) continue;
+    for (const id of phase.questionIds)
+      if (state.questions[id]) titles.push(state.questions[id].title);
+  }
+  if (state.bossId && state.questions[state.bossId])
+    titles.push(state.questions[state.bossId].title);
+  return titles;
+}
+
+interface PageRequest {
+  number: number;
+  /** Empty for a phase the plan does not have: the AI chooses its title and goal. */
+  title: string;
+  goal: string;
+  plan: { title: string; goal: string }[];
+  others: string[];
+  /** Questions of this phase that stay (a regenerate keeps worked ones). */
+  kept: string[];
+  focus: string;
+}
+
+/** One page of the path: ask for the questions of one phase and read them (never repeating what the path has). */
+async function requestPage(
+  topic: TopicRef,
+  state: GuidedState | null,
+  a: PageRequest
+): Promise<ParsedPhase> {
+  const reply = await aiPhase({
+    ...baseFields(topic, state),
+    phase_number: Math.min(Math.max(a.number, 1), 50),
+    phase_title: clip(a.title, 200),
+    phase_goal: clip(a.goal, 500),
+    outline: a.plan
+      .slice(0, 12)
+      .map((o) => ({ title: clip(o.title, 200) || 'Phase', goal: clip(o.goal, 500) })),
+    other_titles: a.others.slice(0, 60).map((t) => clip(t, 300)),
+    kept_titles: a.kept.slice(0, 8).map((t) => clip(t, 400)),
+    focus: clip(a.focus, 600),
+  });
+  return parsePhase(reply.text, new Set([...a.others, ...a.kept].map(normTitle)));
+}
+
 export function useGuided(topic: TopicRef | null) {
   const store = useGuidedStore(topic);
   const { get, mutate, create } = store;
@@ -92,6 +145,10 @@ export function useGuided(topic: TopicRef | null) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [runs, setRuns] = useState<Record<string, RunResult>>({});
   const inflight = useRef(new Set<string>());
+  /** What a path being written is doing now ("Planning the path…", "Writing phase 1…"): the start screen shows it. */
+  const [stage, setStage] = useState('');
+  /** The plan of a path whose first page failed, so a retry does not plan again (same focus only). */
+  const draft = useRef<{ focus: string; outline: ParsedOutline } | null>(null);
   /** A tutor call that failed: what to send again (the learner's message is already in the thread). */
   const failedTutor = useRef(new Map<string, { action: TutorAction; message: string }>());
 
@@ -129,26 +186,143 @@ export function useGuided(topic: TopicRef | null) {
 
   // ── The path ──────────────────────────────────────────────────────────────
 
+  /** A fresh path in two small calls: the plan, then its first page of five full questions. The other phases wait as "Generate more". */
+  const writeFreshPath = useCallback(
+    async (focus: string): Promise<GuidedState | null> => {
+      if (!topic) return null;
+      const wanted = focus.trim();
+      let outline = draft.current && draft.current.focus === wanted ? draft.current.outline : null;
+      try {
+        if (!outline) {
+          setStage('Planning the path…');
+          const reply = await aiOutline({
+            ...baseFields(topic, null),
+            phase_count: PHASE_COUNT,
+            focus: clip(wanted, 600),
+          });
+          outline = parseOutline(reply.text);
+          draft.current = { focus: wanted, outline };
+        }
+        const first = outline.phases[0];
+        setStage(`Writing phase 1: ${first.title}…`);
+        const page = await requestPage(topic, null, {
+          number: 1,
+          title: first.title,
+          goal: first.goal,
+          plan: outline.phases,
+          others: [],
+          kept: [],
+          focus: wanted,
+        });
+        draft.current = null;
+        return createPlannedState(topic, outline, page, wanted);
+      } finally {
+        setStage('');
+      }
+    },
+    [topic]
+  );
+
   const generatePath = useCallback(
     (focus: string) =>
       run('outline', async () => {
-        if (!topic) return;
-        const reply = await aiCurriculum({
-          ...baseFields(topic, null),
-          phase_count: PHASE_COUNT,
-          focus: clip(focus.trim(), 600),
-        });
-        create(createState(topic, parseCurriculum(reply.text), focus.trim()));
+        const fresh = await writeFreshPath(focus);
+        if (fresh) create(fresh);
       }),
-    [run, topic, create]
+    [run, writeFreshPath, create]
   );
 
-  /** A path pasted as JSON (importPath.ts): the same start as a generated one, with no AI call. */
+  /** Writes a new path over this one with the same focus. Progress on this page (XP, answers) is replaced, as with Start over. */
+  const regeneratePath = useCallback(
+    () =>
+      run('regenerate', async () => {
+        const fresh = await writeFreshPath(get()?.focus ?? '');
+        if (fresh) create(fresh);
+      }),
+    [run, writeFreshPath, get, create]
+  );
+
+  /**
+   * Writes the questions of one phase: a phase that is still planned ("Generate more"), or a written one again (Regenerate: the
+   * questions the learner worked on stay, the rest are replaced).
+   */
+  const writePhase = useCallback(
+    (phaseId: string) =>
+      run(`phase:${phaseId}`, async () => {
+        const s = get();
+        const phase = s?.phases.find((p) => p.id === phaseId);
+        if (!s || !phase || !topic) return;
+        const page = await requestPage(topic, s, {
+          number: phase.number,
+          title: phase.title,
+          goal: phase.goal,
+          plan: s.phases,
+          others: otherTitles(s, phase.id),
+          kept: phase.questionIds
+            .filter((id) => s.questions[id] && hasProgress(s, id))
+            .map((id) => s.questions[id].title),
+          focus: s.focus,
+        });
+        mutate(
+          (cur) =>
+            cur.phases.some((p) => p.id === phaseId) ? applyPhase(cur, phaseId, page).state : null,
+          {
+            immediate: true,
+          }
+        );
+      }),
+    [run, get, mutate, topic]
+  );
+
+  /** "Generate more" past the plan: the AI chooses the next phase and writes its five questions. */
+  const addPhase = useCallback(
+    () =>
+      run('phase:new', async () => {
+        const s = get();
+        if (!s || !topic || s.phases.length >= MAX_GENERATED_PHASES) return;
+        const number = s.phases.length + 1;
+        const page = await requestPage(topic, s, {
+          number,
+          title: '',
+          goal: '',
+          plan: s.phases,
+          others: otherTitles(s, null),
+          kept: [],
+          focus: s.focus,
+        });
+        mutate(
+          (cur) => {
+            const r = appendPhases(cur, [
+              { title: page.title, goal: page.goal, questions: page.questions },
+            ]);
+            return r.added ? r.state : null;
+          },
+          { immediate: true }
+        );
+      }),
+    [run, get, mutate, topic]
+  );
+
+  /**
+   * A path pasted as JSON (importPath.ts), with no AI call. `replace` starts the page's path with it (progress is replaced, as with
+   * Start over); `append` adds its phases after the last one and before the boss, keeping everything the learner has done.
+   */
   const importPath = useCallback(
-    (path: ImportedPath, focus: string) => {
-      if (topic) create(createState(topic, path.curriculum, focus.trim()));
+    (path: ImportedPath, focus: string, mode: 'replace' | 'append' = 'replace') => {
+      if (!topic) return;
+      if (mode === 'append') {
+        mutate(
+          (cur) => {
+            const r = appendPhases(cur, path.curriculum.phases);
+            return r.added ? r.state : null;
+          },
+          { immediate: true }
+        );
+      } else {
+        create(createState(topic, path.curriculum, focus.trim()));
+      }
     },
-    [topic, create]
+    [topic, create, mutate]
   );
 
   // ── Moving around ─────────────────────────────────────────────────────────
@@ -564,6 +738,9 @@ export function useGuided(topic: TopicRef | null) {
   const actions = useMemo(
     () => ({
       generatePath,
+      regeneratePath,
+      writePhase,
+      addPhase,
       importPath,
       select,
       toggleOpen,
@@ -588,6 +765,9 @@ export function useGuided(topic: TopicRef | null) {
     }),
     [
       generatePath,
+      regeneratePath,
+      writePhase,
+      addPhase,
       importPath,
       select,
       toggleOpen,
@@ -612,7 +792,7 @@ export function useGuided(topic: TopicRef | null) {
     ]
   );
 
-  return { ...store, busy, errors, runs, actions };
+  return { ...store, busy, errors, runs, stage, actions };
 }
 
 export type Guided = ReturnType<typeof useGuided>;

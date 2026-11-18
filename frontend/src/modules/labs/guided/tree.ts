@@ -6,7 +6,7 @@
  * those can have their own (Breakdown is recursive). The final boss stands outside the phases.
  */
 
-import { MAX_DEPTH } from './constants';
+import { MAX_DEPTH, PHASE_QUESTIONS } from './constants';
 import { labConfig } from './labs';
 import { normTitle } from './parse';
 import type {
@@ -14,6 +14,8 @@ import type {
   GuidedState,
   ParsedBranch,
   ParsedCurriculum,
+  ParsedOutline,
+  ParsedPhase,
   Phase,
   Question,
   QuestionContent,
@@ -172,6 +174,7 @@ export function phaseTitles(state: GuidedState, phaseId: string): string[] {
 export type PhaseStatus = 'locked' | 'active' | 'completed';
 
 export function isPhaseDone(state: GuidedState, phase: Phase): boolean {
+  if (phase.pending) return false;
   return phase.questionIds.length > 0 && phase.questionIds.every((id) => isDone(state, id));
 }
 
@@ -224,11 +227,15 @@ export function overall(state: GuidedState): Overall {
   const required = state.phases.flatMap((p) => p.questionIds);
   if (state.bossId) required.push(state.bossId);
   const requiredDone = required.filter((id) => isDone(state, id)).length;
+  // A phase that is planned but not written yet is a page of questions still to come: without it the bar would read 100% after
+  // the first page.
+  const requiredTotal =
+    required.length + state.phases.filter((p) => p.pending).length * PHASE_QUESTIONS;
   const ids = Object.keys(state.questions);
   return {
-    percent: required.length ? Math.round((requiredDone / required.length) * 100) : 0,
+    percent: requiredTotal ? Math.round((requiredDone / requiredTotal) * 100) : 0,
     requiredDone,
-    requiredTotal: required.length,
+    requiredTotal,
     completed: ids.filter((id) => isDone(state, id)).length,
     total: ids.length,
     phases: state.phases.length,
@@ -343,6 +350,7 @@ export function createState(topic: TopicRef, parsed: ParsedCurriculum, focus: st
       title: p.title,
       goal: p.goal,
       questionIds: [],
+      ...(p.pending ? { pending: true } : {}),
     };
     for (const q of p.questions) {
       const made = newQuestion(state, {
@@ -386,6 +394,127 @@ export function createState(topic: TopicRef, parsed: ParsedCurriculum, focus: st
     // finishing a phase folds it and opens the next without any bookkeeping.
     ui: { phaseId: first.id, questionId: null, open: {} },
   };
+}
+
+/**
+ * The start of a path written in pages: the plan (every phase, the boss) with only the first phase written. The other phases
+ * wait as `pending` until the learner asks for them ("Generate more"), so no single answer has to hold the whole path.
+ */
+export function createPlannedState(
+  topic: TopicRef,
+  outline: ParsedOutline,
+  first: ParsedPhase,
+  focus: string
+): GuidedState {
+  const phases = outline.phases.map((p, i) =>
+    i === 0
+      ? { title: p.title, goal: first.goal || p.goal, questions: first.questions }
+      : { title: p.title, goal: p.goal, questions: [], pending: true }
+  );
+  return createState(topic, { phases, boss: outline.boss }, focus);
+}
+
+export interface PageResult {
+  state: GuidedState;
+  added: number;
+  removed: number;
+}
+
+/**
+ * Applies one written page to a phase. A phase that was `pending` gets its questions (and stops waiting). A written phase that is
+ * regenerated loses only the questions nobody worked on: those with progress stay, so XP and answers are never thrown away and a
+ * regenerate cannot be used to farm XP (a replaced question had earned nothing yet).
+ */
+export function applyPhase(state: GuidedState, phaseId: string, parsed: ParsedPhase): PageResult {
+  const phase = state.phases.find((p) => p.id === phaseId);
+  if (!phase) return { state, added: 0, removed: 0 };
+  const questions = { ...state.questions };
+  const progress = { ...state.progress };
+  const keep: string[] = [];
+  let removed = 0;
+  for (const id of phase.questionIds) {
+    if (!questions[id]) continue;
+    if (hasProgress(state, id)) {
+      keep.push(id);
+      continue;
+    }
+    for (const doomed of [id, ...descendantsOf(state, id).map((d) => d.id)]) {
+      delete questions[doomed];
+      delete progress[doomed];
+    }
+    removed += 1;
+  }
+
+  let working: GuidedState = { ...state, questions, progress };
+  const created: string[] = [];
+  for (const q of parsed.questions) {
+    const made = newQuestion(working, {
+      title: q.title,
+      phaseId: phase.id,
+      relation: 'base',
+      objective: q.objective,
+      kind: q.kind,
+      difficulty: q.difficulty,
+      effort: q.effort,
+      wantsExercise: q.exercise,
+    });
+    working = made.state;
+    created.push(made.question.id);
+  }
+  const next: Phase = {
+    ...phase,
+    // The plan's title stays; a phase the plan had no title for takes the AI's
+    title: phase.title || parsed.title || `Phase ${phase.number}`,
+    goal: phase.goal || parsed.goal,
+    questionIds: [...keep, ...created],
+  };
+  delete next.pending;
+  return {
+    state: { ...working, phases: state.phases.map((p) => (p.id === phase.id ? next : p)) },
+    added: created.length,
+    removed,
+  };
+}
+
+/** The most phases a path takes through import or "Generate more": more than that is a different path. */
+const MAX_PATH_PHASES = 30;
+
+/**
+ * Adds written phases after the last one (before the boss). Used by "Generate more" past the plan and by importing JSON into a path.
+ * The boss stays last, and a finished phase never reopens: the new phase is simply the next one.
+ */
+export function appendPhases(state: GuidedState, parsed: ParsedCurriculum['phases']): PageResult {
+  let working = state;
+  const phases = [...state.phases];
+  let added = 0;
+  for (const p of parsed) {
+    if (phases.length >= MAX_PATH_PHASES) break;
+    const number = Math.max(0, ...phases.map((x) => x.number)) + 1;
+    const phase: Phase = {
+      id: `p${number}`,
+      number,
+      title: p.title || `Phase ${number}`,
+      goal: p.goal,
+      questionIds: [],
+    };
+    for (const q of p.questions) {
+      const made = newQuestion(working, {
+        title: q.title,
+        phaseId: phase.id,
+        relation: 'base',
+        objective: q.objective,
+        kind: q.kind,
+        difficulty: q.difficulty,
+        effort: q.effort,
+        wantsExercise: q.exercise,
+      });
+      working = made.state;
+      phase.questionIds.push(made.question.id);
+      added += 1;
+    }
+    phases.push(phase);
+  }
+  return { state: { ...working, phases }, added, removed: 0 };
 }
 
 /** A question, any of its descendants, has been worked on (so regenerating must not throw that work away). */

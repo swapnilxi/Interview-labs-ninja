@@ -12,6 +12,8 @@ import type {
   OutlineQuestion,
   ParsedBranch,
   ParsedCurriculum,
+  ParsedOutline,
+  ParsedPhase,
   QuestionContent,
   QuestionKind,
   TestCase,
@@ -190,18 +192,52 @@ export function parseCurriculum(text: string): ParsedCurriculum {
     .filter((p: { questions: unknown[] }) => p.questions.length > 0);
   if (!phases.length) throw new AiParseError('The AI did not write any phases. Try again.');
 
-  let boss: ParsedCurriculum['boss'] = null;
-  const b = raw?.boss as Record<string, unknown> | undefined;
-  if (b && typeof b === 'object' && oneLine(b.title, 200).length >= 4) {
-    boss = {
-      title: oneLine(b.title, 200),
-      story: oneLine(b.story, 400),
-      objective: oneLine(b.objective, 400),
-      difficulty: 'hard',
-      effort: oneLine(b.effort, 30) || '25 min',
-    };
+  return { phases, boss: parseBoss(raw?.boss) };
+}
+
+/** The final boss of an answer, or null when it has none worth keeping (the lab's own boss is used then). */
+function parseBoss(raw: unknown): ParsedCurriculum['boss'] {
+  const b = raw as Record<string, unknown> | undefined;
+  if (!b || typeof b !== 'object' || oneLine(b.title, 200).length < 4) return null;
+  return {
+    title: oneLine(b.title, 200),
+    story: oneLine(b.story, 400),
+    objective: oneLine(b.objective, 400),
+    difficulty: 'hard',
+    effort: oneLine(b.effort, 30) || '25 min',
+  };
+}
+
+/** The plan of a path (`/outline`): phases with a title and a goal, and the boss. */
+export function parseOutline(text: string): ParsedOutline {
+  const raw = extractJson(text) as { phases?: unknown; boss?: unknown };
+  const list = Array.isArray(raw?.phases) ? raw.phases : [];
+  const phases = list.slice(0, MAX_PHASES).map((p: Record<string, unknown>, i: number) => ({
+    title: oneLine(p?.title, 120) || `Phase ${i + 1}`,
+    goal: oneLine(p?.goal, 260),
+  }));
+  if (!phases.length) throw new AiParseError('The AI did not plan any phases. Try again.');
+  return { phases, boss: parseBoss(raw?.boss) };
+}
+
+/**
+ * One page of the path (`/phase`): the questions of one phase. `known` is every normalized title the rest of the path
+ * has (and the questions of this phase that stay): a question that repeats one is dropped.
+ */
+export function parsePhase(text: string, known: Set<string>): ParsedPhase {
+  const raw = extractJson(text) as { title?: unknown; goal?: unknown; questions?: unknown };
+  const list = (Array.isArray(raw?.questions) ? raw.questions : [])
+    .map(outlineQuestion)
+    .filter((q: OutlineQuestion | null): q is OutlineQuestion => !!q);
+  const questions = dedupe(list, new Set(known)).slice(0, MAX_QUESTIONS_PER_PHASE);
+  if (!questions.length) {
+    throw new AiParseError(
+      list.length
+        ? 'The AI only repeated questions you already have. Try again.'
+        : 'The AI did not write any questions. Try again.'
+    );
   }
-  return { phases, boss };
+  return { title: oneLine(raw?.title, 120), goal: oneLine(raw?.goal, 260), questions };
 }
 
 /**

@@ -1,20 +1,122 @@
 'use client';
 
+import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import { XP } from './constants';
+import { confirmDialog } from '@/lib/ui/confirm';
+import { MAX_GENERATED_PHASES, PHASE_QUESTIONS, XP } from './constants';
+import ImportPathPanel from './ImportPathPanel';
 import { labConfig } from './labs';
 import { setPref, usePrefs } from './prefs';
 import { QuestionNode, type PathCtx } from './QuestionRow';
-import { Collapse, ProgressBar, plural } from './ui';
-import { bossStatus, isDone, phaseStatus, progressOf, visibleInPath } from './tree';
+import { Collapse, InlineError, ProgressBar, Spinner, plural } from './ui';
+import { bossStatus, hasProgress, isDone, phaseStatus, progressOf, visibleInPath } from './tree';
 import type { Phase } from './types';
 
 const STATUS_TEXT = { locked: 'Locked', active: 'Active', completed: 'Completed' } as const;
+
+/** A phase the plan has but nobody has written yet: one button writes its questions (five, in one small call). */
+function PendingStop({ phase, ctx }: { phase: Phase; ctx: PathCtx }) {
+  const { state, guided } = ctx;
+  const key = `phase:${phase.id}`;
+  const busy = !!guided.busy[key];
+  const error = guided.errors[key];
+  const previous = state.phases[phase.number - 2];
+  const ready = !previous || !previous.pending;
+  return (
+    <li className="gp-stop" data-status="locked">
+      <span className="gp-node" aria-hidden="true">
+        {phase.number}
+      </span>
+      <section
+        className="gp-card p-4"
+        aria-label={`Phase ${phase.number}: ${phase.title}, not written yet`}
+      >
+        <p className="text-xs text-muted-foreground">Phase {phase.number} · not written yet</p>
+        <h2 className="mt-0.5 text-sm font-semibold leading-snug text-foreground">{phase.title}</h2>
+        {phase.goal && (
+          <p className="mt-1 text-xs leading-snug text-muted-foreground">{phase.goal}</p>
+        )}
+        {error && (
+          <div className="mt-3">
+            <InlineError
+              message={error}
+              onRetry={() => void guided.actions.writePhase(phase.id)}
+              onDismiss={() => guided.actions.clearError(key)}
+            />
+          </div>
+        )}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void guided.actions.writePhase(phase.id)}
+            disabled={busy || !ready}
+            className="todo-btn todo-btn-primary"
+          >
+            {busy ? (
+              <Spinner size={14} />
+            ) : (
+              <Icon name="SparklesIcon" size={15} aria-hidden="true" />
+            )}
+            {busy ? 'Writing…' : 'Generate more'}
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {ready
+              ? `${PHASE_QUESTIONS} questions, written while you study.`
+              : `Written after phase ${previous.number}.`}
+          </span>
+        </div>
+      </section>
+    </li>
+  );
+}
+
+/** After the last phase: ask for one more (the AI chooses it and writes five questions that build on the path). */
+function GenerateMoreStop({ ctx }: { ctx: PathCtx }) {
+  const { state, guided } = ctx;
+  if (state.phases.some((p) => p.pending) || state.phases.length >= MAX_GENERATED_PHASES) {
+    return null;
+  }
+  const busy = !!guided.busy['phase:new'];
+  const error = guided.errors['phase:new'];
+  return (
+    <li className="gp-stop" data-status="locked">
+      <span className="gp-node" aria-hidden="true">
+        <Icon name="PlusIcon" size={14} />
+      </span>
+      <section className="gp-card p-4" aria-label="Generate more questions">
+        <h2 className="text-sm font-semibold leading-snug text-foreground">Want more practice?</h2>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">
+          A new phase of {PHASE_QUESTIONS} questions that builds on this path. The boss waits for
+          it.
+        </p>
+        {error && (
+          <div className="mt-3">
+            <InlineError
+              message={error}
+              onRetry={() => void guided.actions.addPhase()}
+              onDismiss={() => guided.actions.clearError('phase:new')}
+            />
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => void guided.actions.addPhase()}
+          disabled={busy}
+          className="todo-btn todo-btn-secondary mt-3"
+        >
+          {busy ? <Spinner size={14} /> : <Icon name="SparklesIcon" size={15} aria-hidden="true" />}
+          {busy ? 'Writing…' : 'Generate more'}
+        </button>
+      </section>
+    </li>
+  );
+}
 
 /** One stop of the route: a phase, with its number, title, question count and status; its questions open and fold (only the active phase is open by default). */
 function PhaseStop({ phase, ctx }: { phase: Phase; ctx: PathCtx }) {
   const { state, guided, selectedId } = ctx;
   const { todoOnly } = usePrefs();
+  if (phase.pending) return <PendingStop phase={phase} ctx={ctx} />;
   const status = phaseStatus(state, phase);
   const flag = state.ui.open[`ph:${phase.id}`];
   const open = status !== 'locked' && (flag ?? status === 'active');
@@ -22,6 +124,13 @@ function PhaseStop({ phase, ctx }: { phase: Phase; ctx: PathCtx }) {
   const previous = state.phases[phase.number - 2];
   const bodyId = `gp-phase-${phase.id}`;
   const shown = phase.questionIds.filter((id) => visibleInPath(state, id, todoOnly, selectedId));
+  // Regenerating replaces only what nobody worked on, so there has to be something to replace
+  const canRegenerate = phase.questionIds.some(
+    (id) => state.questions[id] && !hasProgress(state, id)
+  );
+  const regenKey = `phase:${phase.id}`;
+  const regenerating = !!guided.busy[regenKey];
+  const regenError = guided.errors[regenKey];
 
   return (
     <li className="gp-stop" data-status={status}>
@@ -95,6 +204,35 @@ function PhaseStop({ phase, ctx }: { phase: Phase; ctx: PathCtx }) {
                   <QuestionNode key={id} id={id} depth={0} ctx={ctx} />
                 ))}
               </ul>
+            )}
+            {regenError && (
+              <div className="px-2.5 pt-2">
+                <InlineError
+                  message={regenError}
+                  onRetry={() => void guided.actions.writePhase(phase.id)}
+                  onDismiss={() => guided.actions.clearError(regenKey)}
+                />
+              </div>
+            )}
+            {canRegenerate && (
+              <div className="flex flex-wrap items-center gap-2 px-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => void guided.actions.writePhase(phase.id)}
+                  disabled={regenerating}
+                  className="todo-btn todo-btn-quiet"
+                >
+                  {regenerating ? (
+                    <Spinner size={14} />
+                  ) : (
+                    <Icon name="ArrowPathIcon" size={15} aria-hidden="true" />
+                  )}
+                  {regenerating ? 'Regenerating…' : 'Regenerate phase'}
+                </button>
+                <span className="text-xs text-muted-foreground">
+                  Questions you have worked on stay.
+                </span>
+              </div>
             )}
           </div>
         </Collapse>
@@ -174,11 +312,39 @@ function BossStop({ ctx }: { ctx: PathCtx }) {
 /** The path: a route of stops (the phases, then the boss), with the switch between every question and only those still to do. */
 export default function PathView({ ctx }: { ctx: PathCtx }) {
   const { compact, todoOnly } = usePrefs();
+  const { state, guided } = ctx;
+  const [menu, setMenu] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const regenerating = !!guided.busy.regenerate;
+
+  const regenerateAll = async () => {
+    setMenu(false);
+    const ok = await confirmDialog({
+      title: 'Write a new path?',
+      message:
+        'The AI writes a new plan and its first five questions. Your current path, progress, XP and answers on this page are replaced. This cannot be undone.',
+      confirmLabel: 'Regenerate',
+      tone: 'danger',
+    });
+    if (ok) void guided.actions.regeneratePath();
+  };
+
   return (
     <div data-compact={compact}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-foreground">Path</h2>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            aria-expanded={menu}
+            aria-label="Path options"
+            title="Path options"
+            disabled={regenerating}
+            onClick={() => setMenu((v) => !v)}
+            className="todo-btn todo-btn-quiet h-9 w-9 px-0 aria-expanded:todo-btn-active"
+          >
+            <Icon name="EllipsisHorizontalIcon" size={18} aria-hidden="true" />
+          </button>
           <button
             type="button"
             aria-pressed={compact}
@@ -209,10 +375,70 @@ export default function PathView({ ctx }: { ctx: PathCtx }) {
           </div>
         </div>
       </div>
+      {menu && (
+        <div
+          className="gp-card mb-3 flex flex-wrap gap-2 p-3"
+          role="group"
+          aria-label="Path options"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setMenu(false);
+              setImporting(true);
+            }}
+            className="todo-btn todo-btn-secondary"
+          >
+            <Icon name="ArrowUpTrayIcon" size={15} aria-hidden="true" />
+            Add questions from JSON
+          </button>
+          <button
+            type="button"
+            onClick={() => void regenerateAll()}
+            className="todo-btn todo-btn-secondary"
+          >
+            <Icon name="ArrowPathIcon" size={15} aria-hidden="true" />
+            Regenerate path
+          </button>
+        </div>
+      )}
+      {importing && (
+        <div className="mb-3">
+          <ImportPathPanel
+            existing
+            topicName={state.topic.subName || state.topic.name}
+            focus={state.focus}
+            onImport={(path, mode) => {
+              guided.actions.importPath(path, state.focus, mode);
+              setImporting(false);
+            }}
+            onClose={() => setImporting(false)}
+          />
+        </div>
+      )}
+      {regenerating && (
+        <p
+          role="status"
+          className="gp-card mb-3 flex items-center gap-2 p-3 text-sm text-muted-foreground"
+        >
+          <Spinner size={14} />
+          {guided.stage || 'Writing a new path…'}
+        </p>
+      )}
+      {guided.errors.regenerate && (
+        <div className="mb-3">
+          <InlineError
+            message={guided.errors.regenerate}
+            onRetry={() => void guided.actions.regeneratePath()}
+            onDismiss={() => guided.actions.clearError('regenerate')}
+          />
+        </div>
+      )}
       <ol className="gp-route">
-        {ctx.state.phases.map((phase) => (
+        {state.phases.map((phase) => (
           <PhaseStop key={phase.id} phase={phase} ctx={ctx} />
         ))}
+        <GenerateMoreStop ctx={ctx} />
         <BossStop ctx={ctx} />
       </ol>
     </div>
