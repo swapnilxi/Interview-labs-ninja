@@ -103,6 +103,9 @@ async function ai(path: string, body: Record<string, unknown>): Promise<AiReply>
 }
 
 export const aiCurriculum = (body: Record<string, unknown>) => ai('curriculum', body);
+/** The plan of a path (phase titles and goals, the boss), and then one phase of it at a time: the path is written in pages. */
+export const aiOutline = (body: Record<string, unknown>) => ai('outline', body);
+export const aiPhase = (body: Record<string, unknown>) => ai('phase', body);
 export const aiLesson = (body: Record<string, unknown>) => ai('question', body);
 export const aiBreakdown = (body: Record<string, unknown>) => ai('breakdown', body);
 export const aiDeeper = (body: Record<string, unknown>) => ai('deeper', body);

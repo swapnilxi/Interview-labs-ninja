@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import ImportPathPanel from './ImportPathPanel';
+import { FormatHelp, FormatHelpButton } from './JsonFormatHelp';
 import type { ImportedPath } from './importPath';
 import { labConfig } from './labs';
 import { InlineError, Spinner } from './ui';
@@ -16,6 +17,7 @@ import type { TopicRef } from './types';
 export default function StartScreen({
   topic,
   busy,
+  stage,
   error,
   onGenerate,
   onImport,
@@ -23,6 +25,8 @@ export default function StartScreen({
 }: {
   topic: TopicRef;
   busy: boolean;
+  /** What the path being written is doing now ("Planning the path…"). */
+  stage?: string;
   error: string | undefined;
   onGenerate: (focus: string) => void;
   /** A path pasted as JSON instead of written by the AI. */
@@ -31,6 +35,8 @@ export default function StartScreen({
 }) {
   const [focus, setFocus] = useState('');
   const [importing, setImporting] = useState(false);
+  const [help, setHelp] = useState(false);
+  const helpId = useId();
   const name = topic.subName || topic.name;
   const cfg = labConfig(topic.lab);
 
@@ -105,7 +111,7 @@ export default function StartScreen({
           className="todo-btn todo-btn-primary h-11 px-5"
         >
           {busy ? <Spinner size={14} /> : <Icon name="SparklesIcon" size={15} aria-hidden="true" />}
-          {busy ? 'Writing your path…' : 'Generate my path'}
+          {busy ? stage || 'Writing your path…' : 'Generate my path'}
         </button>
         <button
           type="button"
@@ -117,11 +123,14 @@ export default function StartScreen({
           <Icon name="ArrowUpTrayIcon" size={15} aria-hidden="true" />
           Import from JSON
         </button>
+        <FormatHelpButton open={help} onToggle={() => setHelp((v) => !v)} controlsId={helpId} />
         <p className="text-xs text-muted-foreground">
-          Generating uses the AI model chosen in Config and takes about half a minute. Importing
-          needs no AI.
+          Generating uses the AI model chosen in Config: a plan, then your first five questions
+          (about 20 seconds). You can ask for more later. Importing needs no AI.
         </p>
       </div>
+
+      {help && <FormatHelp id={helpId} existing={false} />}
 
       {importing && !busy && (
         <ImportPathPanel

@@ -395,6 +395,7 @@ export default function GuidedPracticePage({
                 <StartScreen
                   topic={topic}
                   busy={!!guided.busy.outline}
+                  stage={guided.stage}
                   error={guided.errors.outline}
                   onGenerate={(focus) => void actions.generatePath(focus)}
                   onImport={(path, focus) => actions.importPath(path, focus)}

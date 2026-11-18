@@ -5,7 +5,7 @@
  * texts match the Python so both backends answer alike -- keep the two in sync.
  *
  *   GET/PUT/DELETE /state, GET /summary      the learner's saved path and progress for one DSA page
- *   POST /curriculum | /question | /breakdown | /deeper | /tutor | /star
+ *   POST /curriculum | /outline | /phase | /question | /breakdown | /deeper | /tutor | /star
  *                                            build a prompt (prompts.ts), run it with the model chosen in Config
  *                                            and return the raw answer: the browser parses it
  */
@@ -18,6 +18,8 @@ import {
   buildBreakdownPrompt,
   buildCurriculumPrompt,
   buildDeeperPrompt,
+  buildOutlinePrompt,
+  buildPhasePrompt,
   buildQuestionPrompt,
   buildStarPrompt,
   buildTutorPrompt,
@@ -27,6 +29,7 @@ import {
   TUTOR_ACTIONS,
   type ExistingChild,
   type ExistingDeeper,
+  type OutlinePhase,
   type PathPos,
   type PromptCtx,
   type QuestionRef,
@@ -214,6 +217,13 @@ async function runAi(task: keyof typeof MAX_TOKENS, prompt: string, body: Row) {
   return { text, model: resolveModel(settings.model) };
 }
 
+function parseOutlinePhases(body: Row): OutlinePhase[] {
+  return objectList(body, 'outline', 12).map((o) => ({
+    title: strField(o, 'title', 200, { min: 1, label: 'outline.title' }),
+    goal: strField(o, 'goal', 500, { def: '', label: 'outline.goal' }),
+  }));
+}
+
 function parseExistingChildren(body: Row): ExistingChild[] {
   return objectList(body, 'existing_children', 12).map((e) => ({
     title: strField(e, 'title', 400, { min: 1, label: 'existing_children.title' }),
@@ -333,6 +343,35 @@ export const routes: TodoRoute[] = [
       const phaseCount = intField(body, 'phase_count', 3, 6, 5);
       const focus = strField(body, 'focus', 600, { def: '' });
       return runAi('curriculum', buildCurriculumPrompt(ctx, phaseCount, focus), body);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/outline',
+    handler: async ({ json }) => {
+      const body = await readBody(json);
+      const ctx = parseCtx(body);
+      const phaseCount = intField(body, 'phase_count', 3, 6, 5);
+      const focus = strField(body, 'focus', 600, { def: '' });
+      return runAi('outline', buildOutlinePrompt(ctx, phaseCount, focus), body);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/phase',
+    handler: async ({ json }) => {
+      const body = await readBody(json);
+      const ctx = parseCtx(body);
+      const prompt = buildPhasePrompt(ctx, {
+        number: intField(body, 'phase_number', 1, 50, 1),
+        title: strField(body, 'phase_title', 200, { def: '' }),
+        goal: strField(body, 'phase_goal', 500, { def: '' }),
+        outline: parseOutlinePhases(body),
+        otherTitles: stringList(body, 'other_titles', 60, 300),
+        keptTitles: stringList(body, 'kept_titles', 8, 400),
+        focus: strField(body, 'focus', 600, { def: '' }),
+      });
+      return runAi('phase', prompt, body);
     },
   },
   {
