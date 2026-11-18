@@ -331,6 +331,10 @@ export const LEVEL_NAMES: Record<number, string> = {
 
 export const MAX_TOKENS = {
   curriculum: 4096,
+  /** The plan of the path: phase titles and goals, and the boss. */
+  outline: 1500,
+  /** One page of the path: PHASE_QUESTIONS full questions. */
+  phase: 3000,
   question: 5000,
   breakdown: 3000,
   deeper: 3000,
@@ -477,6 +481,99 @@ export function buildCurriculumPrompt(c: PromptCtx, phaseCount: number, focus: s
     ),
     'Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:',
     '{"phases":[{"title":"...","goal":"one sentence: what the learner can do after this phase","questions":[{"title":"...","objective":"one sentence: what the learner will be able to do","kind":"concept","difficulty":"easy","effort":"5 min","exercise":false}]}],"boss":{"title":"...","story":"...","objective":"...","difficulty":"hard","effort":"25 min"}}'
+  );
+}
+
+// ── The path in pages: a plan, then one phase at a time ─────────────────────
+//
+// The one-shot curriculum above asks for the whole path in one answer; on a slow or verbose model that answer is cut off.
+// These two prompts split it: `outline` plans the phases (titles and goals) and the boss, `phase` writes ONE phase of
+// PHASE_QUESTIONS full questions. The learner asks for the next page with "Generate more", and "Regenerate phase" is the same call.
+
+/** Questions the AI writes per call. Twin: PHASE_QUESTIONS in prompts.py. */
+export const PHASE_QUESTIONS = 5;
+
+export interface OutlinePhase {
+  title: string;
+  goal: string;
+}
+
+export interface PhaseInput {
+  number: number;
+  /** Empty: a phase the plan does not have yet, so the AI also chooses its title and goal. */
+  title: string;
+  goal: string;
+  /** Every phase of the plan, in order. */
+  outline: OutlinePhase[];
+  /** Questions the rest of the path already has. */
+  otherTitles: string[];
+  /** Questions of THIS phase that stay (a regenerate keeps worked ones). */
+  keptTitles: string[];
+  focus: string;
+}
+
+export function buildOutlinePrompt(c: PromptCtx, phaseCount: number, focus: string): string {
+  const wanted = focus.trim();
+  const p = profileOf(c);
+  return blocks(
+    `You are a senior ${p.instructor} planning a guided practice path for ONE ${p.kind}. The learner works through it phase by phase, question by question, and ${p.practice}. Each phase is written later, on its own: you plan only the outline now.`,
+    problemBlock(c),
+    learnerBlock(c),
+    wanted ? `The learner asked the path to focus on:\n"""\n${wanted}\n"""` : '',
+    lines(
+      `Plan a path of exactly ${phaseCount} phases that takes the learner from not knowing the ${p.thing} to ${p.goal}:`,
+      `- Start from the very beginning: phase 1 is the plain basics, what the ${p.thing} is, what it is for and how it works, in the simplest words, before any technique. Do not assume the learner already knows them.`,
+      `- Build up in small steps: ${p.steps}. Name the phases for this ${p.thing}; do not use generic titles.`,
+      '- Across the phases the learner must also meet the limits of the idea: why it is used instead of the alternatives, and when it fails or becomes the wrong choice.',
+      '- Every phase has a "goal": one sentence on what the learner can do after it.',
+      `- Also plan one final boss: ${p.finalTask}, with a one-sentence framing in "story".`,
+      p.labNote ? `- ${p.labNote}` : ''
+    ),
+    'Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:',
+    '{"phases":[{"title":"...","goal":"one sentence: what the learner can do after this phase"}],"boss":{"title":"...","story":"...","objective":"...","difficulty":"hard","effort":"25 min"}}'
+  );
+}
+
+export function buildPhasePrompt(c: PromptCtx, ph: PhaseInput): string {
+  const wanted = ph.focus.trim();
+  const p = profileOf(c);
+  const plan = ph.outline
+    .map((o, i) => `${i + 1}. ${o.title}` + (o.goal ? ` - ${o.goal}` : ''))
+    .join('\n');
+  const count = ph.keptTitles.length
+    ? Math.max(1, PHASE_QUESTIONS - ph.keptTitles.length)
+    : PHASE_QUESTIONS;
+  const what = `Write the questions of phase ${ph.number}` + (ph.title ? `: "${ph.title}".` : '.');
+  return blocks(
+    `You are a senior ${p.instructor} writing one phase of a guided practice path for ONE ${p.kind}. The learner works through it phase by phase, question by question, and ${p.practice}.`,
+    problemBlock(c),
+    learnerBlock(c),
+    wanted ? `The learner asked the path to focus on:\n"""\n${wanted}\n"""` : '',
+    plan ? `The whole path, phase by phase:\n${plan}` : '',
+    lines(
+      what,
+      ph.goal ? `Goal of this phase: ${ph.goal}` : '',
+      ph.title
+        ? ''
+        : '- This phase is not in the plan yet: choose its title and its goal, continuing naturally from the phases above and going one step further.',
+      ph.keptTitles.length
+        ? `- These questions of this phase stay as they are: ${quoted(ph.keptTitles)}. Write exactly ${count} NEW questions that fit with them.`
+        : `- Write exactly ${count} questions.`,
+      `- Put them in learning order, easiest first. Build up in small steps: ${p.steps}.`,
+      '- Do not assume the learner knows the basics. The first time an idea appears, ask a plain "What is ...?" question about it before anything harder. Mix the kinds of question: what it is, why it is used here instead of the alternatives, how it works, when it fails or becomes the wrong choice (limits, edge cases, trade-offs), and how to spot and fix a mistake.',
+      '- Every question is one clear question or task a learner can attempt on their own, about one idea or one step. Write each title as a full sentence: a question or an instruction.',
+      `- "kind" is one of: ${p.kinds}`,
+      '- "exercise" is true when the learner should write code to answer the question (most implementation and algorithm questions) and false for pure concept questions.',
+      p.exerciseNote ? `- ${p.exerciseNote}` : '',
+      '- "difficulty" is easy, medium or hard. "effort" is a short estimate such as "5 min".',
+      '- Do not give away the final solution: no solution code, and no question that states the complete algorithm outright. The questions guide the learner toward it.',
+      ph.otherTitles.length
+        ? `- Do not repeat any question the path already has: ${quoted(ph.otherTitles)}`
+        : '- No two questions may repeat each other.',
+      p.labNote ? `- ${p.labNote}` : ''
+    ),
+    'Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:',
+    '{"title":"...","goal":"one sentence: what the learner can do after this phase","questions":[{"title":"...","objective":"one sentence: what the learner will be able to do","kind":"concept","difficulty":"easy","effort":"5 min","exercise":false}]}'
   );
 }
 

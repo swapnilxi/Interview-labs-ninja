@@ -121,8 +121,8 @@ ai_calls: list[dict] = []
 ai_answer: dict = {"value": "MOCK", "error": None}
 
 
-def fake_ai(prompt: str, settings, max_tokens: int = 2048) -> str:
-    ai_calls.append({"prompt": prompt, "max_tokens": max_tokens, "model": settings.model})
+def fake_ai(prompt: str, settings, max_tokens: int = 2048, timeout=None) -> str:
+    ai_calls.append({"prompt": prompt, "max_tokens": max_tokens, "model": settings.model, "timeout": timeout})
     if ai_answer["error"]:
         raise RuntimeError(ai_answer["error"])
     return ai_answer["value"]
@@ -158,7 +158,7 @@ STALE = "Your saved progress changed somewhere else (another tab or device). Rel
 for method, path, extra in [
     ("GET", "/state?topic_id=t", {}), ("PUT", "/state", {"json": {"topic_id": "t", "state": {}}}), ("DELETE", "/state?topic_id=t", {}),
     ("GET", "/summary?topic_id=t", {}),
-    *[("POST", f"/{name}", {"json": {"topic_id": "t", "topic_name": "T", "question": {"title": "Q"}, "message": "m"}}) for name in ("curriculum", "question", "breakdown", "deeper", "tutor", "star")],
+    *[("POST", f"/{name}", {"json": {"topic_id": "t", "topic_name": "T", "question": {"title": "Q"}, "message": "m"}}) for name in ("curriculum", "outline", "phase", "question", "breakdown", "deeper", "tutor", "star")],
 ]:
     check(f"guest is refused: {method} {path.split('?')[0]}", call(None, method, path, **extra).status_code == 401)
 
@@ -487,15 +487,44 @@ refused("star: existing_answer over 12000", "star", {**CTX, "question": Q, "vari
 accepted("star: existing_answer of 12000", "star", {**CTX, "question": Q, "variant": "simplify", "existing_answer": "a" * 12000})
 refused("star: explanation over 2500", "star", {**CTX, "question": Q, "explanation": "e" * 2501})
 refused("star: exercise_prompt over 1500", "star", {**CTX, "question": Q, "exercise_prompt": "e" * 1501})
-for endpoint in ("curriculum", "question", "breakdown", "deeper", "tutor", "star"):
+for endpoint in ("curriculum", "outline", "phase", "question", "breakdown", "deeper", "tutor", "star"):
     for raw in ("null", "[]", '[{"topic_id": "t"}]', '"abc"', "5", "true", "", '{"topic_id": "t", '):
         before = len(ai_calls)
         r = call(ALICE, "POST", f"/{endpoint}", raw=raw)
         check(f"{endpoint}: a body of {raw!r} is 422 and no model call", r.status_code == 422 and len(ai_calls) == before, f"{r.status_code} {r.text[:100]}")
 
+# ── outline + phase (the path in pages): limits of their own fields ──────────
+refused("phase_count of 2", "outline", {**CTX, "phase_count": 2})
+refused("phase_count of 7", "outline", {**CTX, "phase_count": 7})
+accepted("phase_count of 6", "outline", {**CTX, "phase_count": 6})
+refused("focus over 600", "outline", {**CTX, "focus": "x" * 601})
+accepted("focus of 600", "outline", {**CTX, "focus": "x" * 600})
+refused("phase_number of 0", "phase", {**CTX, "phase_number": 0})
+refused("phase_number of 51", "phase", {**CTX, "phase_number": 51})
+accepted("phase_number of 50", "phase", {**CTX, "phase_number": 50})
+refused("phase_number as a string", "phase", {**CTX, "phase_number": "2"})
+refused("phase_title over 200", "phase", {**CTX, "phase_title": "t" * 201})
+accepted("phase_title of 200", "phase", {**CTX, "phase_title": "t" * 200})
+refused("phase_goal over 500", "phase", {**CTX, "phase_goal": "g" * 501})
+accepted("phase_goal of 500", "phase", {**CTX, "phase_goal": "g" * 500})
+refused("an outline of 13 phases", "phase", {**CTX, "outline": [{"title": "t"}] * 13})
+accepted("an outline of 12 phases", "phase", {**CTX, "outline": [{"title": "t"}] * 12})
+refused("an outline phase with no title", "phase", {**CTX, "outline": [{"goal": "g"}]})
+refused("an outline title over 200", "phase", {**CTX, "outline": [{"title": "t" * 201}]})
+refused("an outline goal over 500", "phase", {**CTX, "outline": [{"title": "t", "goal": "g" * 501}]})
+refused("61 other_titles", "phase", {**CTX, "other_titles": ["t"] * 61})
+accepted("60 other_titles", "phase", {**CTX, "other_titles": ["t"] * 60})
+refused("an other title of 301 characters", "phase", {**CTX, "other_titles": ["t" * 301]})
+refused("9 kept_titles", "phase", {**CTX, "kept_titles": ["t"] * 9})
+accepted("8 kept_titles", "phase", {**CTX, "kept_titles": ["t"] * 8})
+refused("a kept title of 401 characters", "phase", {**CTX, "kept_titles": ["t" * 401]})
+refused("focus over 600", "phase", {**CTX, "focus": "x" * 601})
+
 # ── AI endpoints: what a good request does ───────────────────────────────────
 BODIES = {
     "curriculum": ({**CTX, "phase_count": 4, "focus": "pointers"}, 4096, "You are a senior algorithms instructor designing a guided practice path"),
+    "outline": ({**CTX, "phase_count": 4, "focus": "pointers"}, 1500, "You are a senior algorithms instructor planning a guided practice path"),
+    "phase": ({**CTX, "phase_number": 2, "phase_title": "Hash maps", "outline": [{"title": "Basics", "goal": "g"}, {"title": "Hash maps", "goal": "h"}]}, 3000, "You are a senior algorithms instructor writing one phase of a guided practice path"),
     "question": ({**CTX, "question": Q}, 5000, "You are a patient senior algorithms instructor writing the full lesson"),
     "breakdown": ({**CTX, "question": Q}, 3000, "You are a patient senior algorithms instructor. A learner finds the question below too difficult."),
     "deeper": ({**CTX, "question": Q}, 3000, "You are a senior algorithms instructor. A learner understands the question below"),
@@ -510,6 +539,7 @@ for endpoint, (body, max_tokens, opening) in BODIES.items():
     check(f"{endpoint}: asks for {max_tokens} tokens", seen.get("max_tokens") == max_tokens, str(seen.get("max_tokens")))
     check(f"{endpoint}: the prompt opens as the TS twin's does", seen.get("prompt", "").startswith(opening), seen.get("prompt", "")[:80])
     check(f"{endpoint}: the model call got the resolved model", seen.get("model") == "custom")
+    check(f"{endpoint}: waits up to 240 s for the model (the providers' own 45-60 s is too short)", seen.get("timeout") == 240, str(seen.get("timeout")))
 n = len(ai_calls)
 r = post("curriculum", {"topic_id": "t", "topic_name": "T", **{k: v for k, v in AI.items() if k != "model"}})
 check("an empty model resolves to the .env default and is echoed", r.status_code == 200 and r.json()["model"] == resolve_model("") and ai_calls[n]["model"] == resolve_model(""), r.text[:150])
@@ -530,6 +560,8 @@ check("the whole 16-turn history reaches the prompt", ai_calls[n]["prompt"].coun
 # ── AI endpoints: the lab (a few words of every prompt) ──────────────────────
 CV_OPENING = {
     "curriculum": "You are a senior computer vision instructor designing a guided practice path for ONE computer vision topic.",
+    "outline": "You are a senior computer vision instructor planning a guided practice path for ONE computer vision topic.",
+    "phase": "You are a senior computer vision instructor writing one phase of a guided practice path for ONE computer vision topic.",
     "question": "You are a patient senior computer vision instructor writing the full lesson",
     "breakdown": "You are a patient senior computer vision instructor. A learner finds the question below too difficult.",
     "deeper": "You are a senior computer vision instructor. A learner understands the question below",

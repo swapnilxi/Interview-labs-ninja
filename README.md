@@ -689,12 +689,31 @@ streak and achievements. Code: `frontend/src/modules/labs/guided/`; twins `front
   words that differ per lab; the DSA texts are the originals). Context sent (`context.ts`): the topic and subtopic, the learner's level
   and progress and their latest completed titles, the question with its phase and its chain of parent questions, the other titles in
   its phase and its siblings (so the model avoids repeats), and for the tutor the thread, the learner's code and last test report.
-- **Import a path from JSON** (start screen, next to Generate my path; no AI call, so it also works with no key or no network). `importPath.ts`
-  reads a pasted or opened `.json` into the same `ParsedCurriculum` the AI's answer becomes, through the same `parseCurriculum` (kinds and
-  difficulties checked, duplicates dropped, at most `MAX_PHASES` x `MAX_QUESTIONS_PER_PHASE` = 8 x 6, which a note reports when anything is
-  left out). Accepted: the AI's own `{"phases":[...],"boss":{...}}`, a list of phases, or a flat list of questions (grouped into "Part N"
-  phases of six); a question may be a plain string. "Copy a prompt for another AI" hands over a prompt whose answer can be pasted back
-  (`externalPrompt`). `ImportPathPanel.tsx` is the inline panel; `useGuided`'s `importPath` is the action.
+- **The path is written in pages, not in one answer.** One answer for a whole path (5 phases x 4 questions + a boss) was cut off at
+  its token budget on slow or verbose models ("The AI's answer could not be read (it may have been cut off)"). So *Generate my path*
+  makes two small calls: `POST /outline` (the plan: phase titles and goals, and the boss) and `POST /phase` for phase 1 (five full
+  questions, `PHASE_QUESTIONS`). The other phases are saved as `pending` (`Phase.pending`, a plan with no questions yet) and show as
+  "not written yet" with **Generate more**, so the learner studies phase 1 while the next one is written. A pending phase never counts
+  as done (the boss stays locked until every planned phase is written and finished, and the progress bar counts a pending phase as a
+  page of questions to come). **Regenerate phase** is the same `/phase` call: `applyPhase` (tree.ts) replaces only the questions nobody
+  worked on and keeps the others (their titles go to the prompt as `kept_titles`), so XP and answers are never thrown away and a regenerate
+  cannot farm XP. After the last planned phase **Generate more** asks for one more phase whose title the AI chooses (up to
+  `MAX_GENERATED_PHASES`). **Regenerate path** (the ... menu above the path) writes a new plan and first page over the old path and
+  replaces the progress, like Start over, after a confirmation. Each call is saved at once like any other change. A failure shows inside
+  the phase it happened in, with Retry, and the plan of a path whose first page failed is kept so a retry does not plan again.
+  `POST /curriculum` (the one-shot path) is still served but the page no longer uses it. The prompts (`build_outline_prompt`,
+  `build_phase_prompt`) tell the AI not to assume the basics: the first time an idea appears it asks a plain "What is ...?" question,
+  and the questions mix what it is, why it is used here instead of the alternatives, how it works, and when it fails (limits, edge
+  cases, trade-offs). They are twinned and byte-identical (`guided_practice_prompts_test.py`: 5,679 cases).
+- **Import a path from JSON** (the *Import from JSON* button on the start screen, and *Add questions from JSON* in the ... menu above a
+  path; no AI call, so it also works with no key or no network). `importPath.ts` reads a pasted or opened `.json` into the same
+  `ParsedCurriculum` the AI's answer becomes, through the same `parseCurriculum` (kinds and difficulties checked, duplicates dropped, at
+  most `MAX_PHASES` x `MAX_QUESTIONS_PER_PHASE` = 8 x 6, which a note reports when anything is left out). Accepted: the AI's own
+  `{"phases":[...],"boss":{...}}`, a list of phases, or a flat list of questions (grouped into "Part N" phases of six); a question may be
+  a plain string. The **info icon** beside the button (`JsonFormatHelp.tsx`) shows the format and what happens to it. On the start
+  screen the JSON becomes the path. Inside an existing path the person chooses (`ImportPathPanel`, `importPath(path, focus, mode)`):
+  **Add them to my path** (default: new phases after the last one and before the boss, nothing already done changes) or **Replace my
+  path** (asks first; progress and XP are replaced). "Copy a prompt for another AI" hands over a prompt whose answer can be pasted back.
 - **Exercises run in the browser.** Python via Pyodide, loaded once from jsDelivr inside `public/runner/python-worker.js`; after it
   starts the worker drops `fetch`/`XMLHttpRequest`/`WebSocket` and the Python `js` bridge. An endless loop is ended by terminating the
   worker (8 s). The AI writes tests and a reference solution together, so the first run of an exercise runs the reference solution

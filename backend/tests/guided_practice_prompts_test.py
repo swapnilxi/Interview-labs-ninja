@@ -274,6 +274,37 @@ def build_cases():
         add("star", {"ctx": ctx("mixed"), "s": star_input(pick(["generate", "simplify", "example"]), existingAnswer=pick(["", pick(TRICKY)]), explanation=pick(["", pick(TRICKY)]),
                                                                exercisePrompt=pick(["", pick(TRICKY)]), pos=pos("mixed"), question=question("mixed", pick(relations), pick(levels)))}, f"rand{n}")
 
+    # ── outline + phase (the path in pages), appended after the random draws of the older builders ──
+    for ck in CTX_KINDS:
+        for focus in ["", "  focus on pointers  ", "line1\nline2", "\ufeff", "\x1c focus \x1c"]:
+            add("outline", {"ctx": ctx(ck), "phaseCount": rng.choice([3, 4, 5, 6]), "focus": focus}, f"{ck}-focus")
+    for i, ws in enumerate(WS_EDGES):
+        add("outline", {"ctx": ctx("full"), "phaseCount": 5, "focus": ws}, f"ws{i}")
+
+    def plan(n):
+        return [{"title": pick(TITLES), "goal": pick(["", "Know the basics.", pick(TRICKY)])} for _ in range(n)]
+
+    def phase_in(**over):
+        d = {"number": 2, "title": "Hash maps for counting", "goal": "Count things in one pass.", "outline": plan(5),
+             "otherTitles": [], "keptTitles": [], "focus": ""}
+        d.update(over)
+        return d
+
+    for ck in CTX_KINDS:
+        for kept in (0, 1, 3, 5, 6):
+            for others in (0, 4, 40):
+                add("phase", {"ctx": ctx(ck), "ph": phase_in(keptTitles=titles_list(kept), otherTitles=titles_list(others))}, f"{ck}-kept{kept}-others{others}")
+    for title, goal in (("", ""), ("", "A goal with no title"), ("A title with no goal", ""), ("  padded  ", "  padded goal  ")):
+        add("phase", {"ctx": ctx("full"), "ph": phase_in(title=title, goal=goal)}, f"title{len(title)}-goal{len(goal)}")
+    for n_plan in (0, 1, 3, 6, 12):
+        add("phase", {"ctx": ctx("full"), "ph": phase_in(outline=plan(n_plan), number=n_plan + 1)}, f"plan{n_plan}")
+    for i, ws in enumerate(WS_EDGES):
+        add("phase", {"ctx": ctx("full"), "ph": phase_in(focus=ws)}, f"ws{i}")
+    for n in range(20):
+        add("phase", {"ctx": ctx("mixed"), "ph": phase_in(number=rng.choice([1, 2, 5, 9]), title=pick(["", "", pick(TRICKY)]), goal=pick(["", pick(TRICKY)]),
+                                                           outline=plan(rng.choice([0, 3, 5])), otherTitles=titles_list(rng.choice([0, 3, 41])),
+                                                           keptTitles=titles_list(rng.choice([0, 0, 2])), focus=pick(["", pick(TRICKY)]))}, f"rand{n}")
+
     # ── labs: everything above ran WITHOUT `lab` (the dsa fixtures of the first version, unchanged and still first in the list) ──
     # Appended after the random draws on purpose, so the first 611 cases stay byte-for-byte what they were.
     n_dsa = len(cases)
@@ -329,6 +360,8 @@ for (const c of cases) {
   const a = c.args;
   switch (c.fn) {
     case 'curriculum': out[c.id] = m.buildCurriculumPrompt(a.ctx, a.phaseCount, a.focus); break;
+    case 'outline': out[c.id] = m.buildOutlinePrompt(a.ctx, a.phaseCount, a.focus); break;
+    case 'phase': out[c.id] = m.buildPhasePrompt(a.ctx, a.ph); break;
     case 'question': out[c.id] = m.buildQuestionPrompt(a.ctx, a.q, a.pos, a.siblingTitles); break;
     case 'breakdown': out[c.id] = m.buildBreakdownPrompt(a.ctx, a.q, a.pos, a.existing, a.pathTitles, a.regenerate); break;
     case 'deeper': out[c.id] = m.buildDeeperPrompt(a.ctx, a.q, a.pos, a.existing, a.pathTitles, a.regenerate); break;
@@ -337,7 +370,7 @@ for (const c of cases) {
     default: throw new Error('unknown fn ' + c.fn);
   }
 }
-out['__constants__'] = { MAX_TOKENS: m.MAX_TOKENS, LEVEL_NAMES: m.LEVEL_NAMES, TUTOR_ACTIONS: m.TUTOR_ACTIONS, STAR_VARIANTS: m.STAR_VARIANTS, GUIDED_LABS: m.GUIDED_LABS };
+out['__constants__'] = { PHASE_QUESTIONS: m.PHASE_QUESTIONS, MAX_TOKENS: m.MAX_TOKENS, LEVEL_NAMES: m.LEVEL_NAMES, TUTOR_ACTIONS: m.TUTOR_ACTIONS, STAR_VARIANTS: m.STAR_VARIANTS, GUIDED_LABS: m.GUIDED_LABS };
 writeFileSync(outPath, JSON.stringify(out));
 """
 
@@ -386,6 +419,12 @@ def build_py(case):
     a, fn = case["args"], case["fn"]
     if fn == "curriculum":
         return P.build_curriculum_prompt(ctx_of(a["ctx"]), a["phaseCount"], a["focus"])
+    if fn == "outline":
+        return P.build_outline_prompt(ctx_of(a["ctx"]), a["phaseCount"], a["focus"])
+    if fn == "phase":
+        ph = dict(a["ph"])
+        ph["outline"] = [P.OutlinePhase(**conv(o)) for o in ph["outline"]]
+        return P.build_phase_prompt(ctx_of(a["ctx"]), P.PhaseInput(**conv(ph)))
     if fn == "question":
         return P.build_question_prompt(ctx_of(a["ctx"]), qref(a["q"]), pos_of(a["pos"]), a["siblingTitles"])
     if fn == "breakdown":
@@ -422,7 +461,8 @@ def main() -> int:
 
     consts = ts["__constants__"]
     const_ok = (
-        consts["MAX_TOKENS"] == P.MAX_TOKENS
+        consts["PHASE_QUESTIONS"] == P.PHASE_QUESTIONS
+        and consts["MAX_TOKENS"] == P.MAX_TOKENS
         and {int(k): v for k, v in consts["LEVEL_NAMES"].items()} == P.LEVEL_NAMES
         and list(consts["TUTOR_ACTIONS"]) == list(P.TUTOR_ACTIONS)
         and list(consts["STAR_VARIANTS"]) == list(P.STAR_VARIANTS)

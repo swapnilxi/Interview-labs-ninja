@@ -3,7 +3,7 @@ the learner's progress, an AI tutor and STAR answers). The labs are every lab (`
 
     GET/PUT/DELETE /guided-practice/state    the learner's saved path and progress for one page of a lab
     GET            /guided-practice/summary  what the topic page's card shows, without the whole document
-    POST /guided-practice/curriculum | /question | /breakdown | /deeper | /tutor | /star
+    POST /guided-practice/curriculum | /outline | /phase | /question | /breakdown | /deeper | /tutor | /star
                                              build a prompt (prompts.py), run it with the model chosen in Config and
                                              return the raw answer: the browser parses and cleans it
 
@@ -35,7 +35,9 @@ from .prompts import (
     ExistingChild,
     ExistingDeeper,
     GuidedLab,
+    OutlinePhase,
     PathPos,
+    PhaseInput,
     PromptCtx,
     QuestionRef,
     StarInput,
@@ -46,6 +48,8 @@ from .prompts import (
     build_breakdown_prompt,
     build_curriculum_prompt,
     build_deeper_prompt,
+    build_outline_prompt,
+    build_phase_prompt,
     build_question_prompt,
     build_star_prompt,
     build_tutor_prompt,
@@ -101,6 +105,7 @@ _SiblingTitles = _strings(12, 300)
 _PathTitles = _strings(60, 300)
 _ChildTitles = _strings(10, 400)
 _ExerciseTitles = _strings(20, 300)
+_KeptTitles = _strings(8, 400)
 
 
 class _QuestionIn(_Body):
@@ -125,6 +130,11 @@ class _ExistingDeeperIn(_Body):
     title: str = Field(min_length=1, max_length=400)
     level: StrictInt = Field(default=1, ge=1, le=5)
     completed: StrictBool = False
+
+
+class _OutlinePhaseIn(_Body):
+    title: str = Field(min_length=1, max_length=200)
+    goal: str = Field(default="", max_length=500)
 
 
 class _TutorTurnIn(_Body):
@@ -165,6 +175,23 @@ class _QuestionBody(_AiBody):
 
 class CurriculumPayload(_AiBody):
     phase_count: StrictInt = Field(default=5, ge=3, le=6)
+    focus: str = Field(default="", max_length=600)
+
+
+class OutlinePayload(_AiBody):
+    phase_count: StrictInt = Field(default=5, ge=3, le=6)
+    focus: str = Field(default="", max_length=600)
+
+
+class PhasePayload(_AiBody):
+    """One page of the path: the questions of one phase (a new one, a phase of the plan that is not written yet, or a regenerate)."""
+
+    phase_number: StrictInt = Field(default=1, ge=1, le=50)
+    phase_title: str = Field(default="", max_length=200)  # empty: a phase the plan does not have, the AI chooses
+    phase_goal: str = Field(default="", max_length=500)
+    outline: List[_OutlinePhaseIn] = Field(default_factory=list, max_length=12)
+    other_titles: _PathTitles = Field(default_factory=list)  # the questions the rest of the path has: never repeated
+    kept_titles: _KeptTitles = Field(default_factory=list)  # this phase's questions that stay (a regenerate keeps worked ones)
     focus: str = Field(default="", max_length=600)
 
 
@@ -400,6 +427,27 @@ def _pos(p: _QuestionBody) -> PathPos:
 def curriculum(payload: CurriculumPayload) -> dict:
     """The outline of the path: phases of questions plus the final boss."""
     return _run_ai("curriculum", build_curriculum_prompt(_ctx(payload), payload.phase_count, payload.focus), payload)
+
+
+@router.post("/outline")
+def outline(payload: OutlinePayload) -> dict:
+    """The plan of the path: its phases (title and goal) and the final boss. Each phase is written later, by /phase."""
+    return _run_ai("outline", build_outline_prompt(_ctx(payload), payload.phase_count, payload.focus), payload)
+
+
+@router.post("/phase")
+def phase(payload: PhasePayload) -> dict:
+    """One page of the path: a phase of PHASE_QUESTIONS full questions."""
+    ph = PhaseInput(
+        number=payload.phase_number,
+        title=payload.phase_title,
+        goal=payload.phase_goal,
+        outline=[OutlinePhase(title=o.title, goal=o.goal) for o in payload.outline],
+        other_titles=payload.other_titles,
+        kept_titles=payload.kept_titles,
+        focus=payload.focus,
+    )
+    return _run_ai("phase", build_phase_prompt(_ctx(payload), ph), payload)
 
 
 @router.post("/question")
