@@ -336,6 +336,20 @@ export default function PathView({ ctx }: { ctx: PathCtx }) {
         <div className="flex items-center gap-1.5">
           <button
             type="button"
+            aria-expanded={importing}
+            title="Add questions from JSON: paste it or upload a .json file"
+            disabled={regenerating}
+            onClick={() => {
+              setMenu(false);
+              setImporting((v) => !v);
+            }}
+            className="todo-btn todo-btn-secondary h-9 px-3 aria-expanded:todo-btn-active"
+          >
+            <Icon name="ArrowUpTrayIcon" size={15} aria-hidden="true" />
+            <span className="sr-only sm:not-sr-only">Add from JSON</span>
+          </button>
+          <button
+            type="button"
             aria-expanded={menu}
             aria-label="Path options"
             title="Path options"
@@ -381,17 +395,6 @@ export default function PathView({ ctx }: { ctx: PathCtx }) {
           role="group"
           aria-label="Path options"
         >
-          <button
-            type="button"
-            onClick={() => {
-              setMenu(false);
-              setImporting(true);
-            }}
-            className="todo-btn todo-btn-secondary"
-          >
-            <Icon name="ArrowUpTrayIcon" size={15} aria-hidden="true" />
-            Add questions from JSON
-          </button>
           <button
             type="button"
             onClick={() => void regenerateAll()}

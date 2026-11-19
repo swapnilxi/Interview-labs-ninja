@@ -9,7 +9,7 @@
  * Reuses the To-Do suite's plumbing (router, auth, DB connection, AI helpers) from ../todo.
  */
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { compileRoutes, dispatch } from '../todo/router';
 import { routes } from './handlers';
 
@@ -22,8 +22,9 @@ async function dispatchGuided(req: Request, segments: string[]): Promise<Respons
 // Saving or resetting progress pushes lab_ninja.sqlite3 to Neon afterwards (Vercel's /tmp isn't durable). The AI
 // endpoints are POSTs that write nothing, so they skip the push.
 const writeGuided = withNeonSync(dispatchGuided);
+const readGuided = withNeonRead(dispatchGuided);
 
 export function handleGuidedPractice(req: Request, segments: string[]): Promise<Response> {
   const savesProgress = req.method === 'PUT' || req.method === 'DELETE';
-  return savesProgress ? writeGuided(req, segments) : dispatchGuided(req, segments);
+  return savesProgress ? writeGuided(req, segments) : readGuided(req, segments);
 }

@@ -66,6 +66,11 @@ further down in `README.md` — check there before assuming a module's shape.
   that holds a copy named `lab_ninja.sqlite3`, and unset `DATABASE_URL` (set, it pushes
   snapshots to Neon). Auth in that mode uses the same file (so `LABNINJA_DB_DIR`
   protects it too); only on Vercel, where the repo is read-only, is a `/tmp` copy used. Run `git status backend/data` afterwards.
+- **Vercel data lives in ONE Neon row (`sqlite_snapshots`, the whole SQLite file), shared by many warm instances.**
+  `src/lib/server/neonSync.ts`: reads are wrapped in `withNeonRead` (pull if Neon's `updated_at` moved), writes in
+  `withNeonSync` (pull, run, compare-and-set push, replay the request on conflict). A new fe-apis entry point must use
+  both, or a phone and a desktop silently overwrite each other's data (this wiped To-Do items, 2026-11-19). Auto sync
+  runs only on Vercel; local dev never pushes to Neon on its own.
 - **Two silent Tailwind traps** (`frontend/tailwind.config.js` is shared — don't change it to "fix" them, it would
   restyle every module). (1) The theme colours (`primary`, `muted`, `border`, `card`, …) are bare `var(--color-x)`
   strings, so an opacity modifier on them — `bg-muted/20`, `border-border/60`, `hover:bg-primary/90` — compiles to

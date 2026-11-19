@@ -26,6 +26,7 @@ import {
   patchUpdates,
   type Row,
 } from '../_shared';
+import { extractJsonObjectLenient } from '../../ai/utils';
 import { errMsg, pyJsonDumps } from '../py';
 import type { TodoCtx, TodoRoute } from '../router';
 import { normalizeRule } from '@/lib/schedules/scheduleRules';
@@ -120,6 +121,25 @@ function utcNowIso(): string {
 
 export function cleanTitle(value: unknown): string {
   return typeof value === 'string' ? value.trim().slice(0, TITLE_MAX) : '';
+}
+
+const TIMEZONE_RE = /^[A-Za-z0-9_+\-/]{1,64}$/;
+
+/** `_clean_timezone`: an IANA zone name ("Asia/Kolkata") safe to put in a prompt, or null. */
+export function cleanTimezone(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const tz = value.trim();
+  return TIMEZONE_RE.test(tz) ? tz : null;
+}
+
+/**
+ * `_time_line`: the prompt's "now" line. The time zone, when known, is the model's only hint of where the person is:
+ * the web search runs from the server, so without a place in the query "weather" or "local news" comes back for the
+ * server's location, not theirs.
+ */
+export function timeLine(now: string, weekday: string | null, timezone: string | null): string {
+  const zone = timezone ? `; time zone ${timezone}, so likely where they are unless they say otherwise` : '';
+  return `Current local date and time: ${now} (${weekday}${zone}).`;
 }
 
 export function cleanText(value: unknown): string | null {
@@ -332,16 +352,19 @@ export function cleanAgentTasks(raw: unknown, limit = 5): Row[] {
   return out;
 }
 
-/** `_json_object`: the reply's JSON object, or null when there is none (the raw text is then the answer). */
+/**
+ * `_json_object`: the reply's JSON object, or null when there is none (the raw text is then the answer). A reply that
+ * isn't strict JSON (a <think> block first, raw newlines in the markdown, cut off at max_tokens) is read leniently, so
+ * the person sees the answer and not a raw `{"reply": ...` blob with its actions lost.
+ */
 export function jsonObject(text: string): Row | null {
   try {
     const candidate = extractJsonObject(text);
-    return candidate && typeof candidate === 'object' && !Array.isArray(candidate)
-      ? candidate
-      : null;
+    if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) return candidate;
   } catch {
-    return null;
+    // not strict JSON: read it leniently below
   }
+  return extractJsonObjectLenient(text);
 }
 
 /** `_run_budget`: output tokens for one run: a full report needs room, a notification doesn't. */
@@ -363,8 +386,7 @@ function runPrompt(
       'at most 4000 characters",'
     : '';
   const searchLine = askSearch
-    ? '\n  "web_search": "A short web search query when this run needs current information from the internet, ' +
-      'else null",'
+    ? '\n  "web_search": "A short web search query for the current information this run needs",'
     : '';
   let extraRules = '';
   if (schedule.write_report)
@@ -372,11 +394,13 @@ function runPrompt(
       '- message is the short version for the notification; report is the complete answer.\n';
   if (askSearch)
     extraRules +=
-      '- web_search: if you set it, leave the other fields empty; you will get the results and answer then.\n';
+      '- web_search: this job reads the web on every run. Set it to a short search query for what this run needs ' +
+      '(name the place for weather or anything local; add the month and year for news, prices or releases) and leave ' +
+      'the other fields empty; you will get the results and answer then.\n';
   if (web)
     extraRules += '- Use the web results for current facts; never make up news, prices or dates.\n';
   return `You are the scheduled assistant inside LabNinja, a personal to-do app. A job the person scheduled is running now, and your answer is shown to them as a phone notification.
-Current local date and time: ${now} (${weekday}).
+${timeLine(now, weekday, cleanTimezone(schedule.timezone))}
 
 Job: ${schedule.title}
 Instructions: ${schedule.message || 'No extra instructions.'}
@@ -440,7 +464,11 @@ async function runScheduleHandler(ctx: TodoCtx) {
       runBudget(schedule)
     );
     obj = jsonObject(responseText);
-    query = obj && schedule.use_web ? searchQuery(obj.web_search) : null;
+    // A job set to read the web always searches: when the model answered instead of asking (from its training data,
+    // so stale news, prices and weather), the job's title is the query.
+    query = schedule.use_web
+      ? (obj ? searchQuery(obj.web_search) : null) ?? searchQuery(schedule.title)
+      : null;
     if (query !== null) {
       results = await runSearch(query);
       responseText = await callAi(

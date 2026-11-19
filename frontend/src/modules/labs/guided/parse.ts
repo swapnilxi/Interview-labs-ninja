@@ -69,18 +69,11 @@ export function repairJson(src: string): string {
   return out;
 }
 
-/** The first JSON object in the answer (fences and chatter around it are ignored). */
-export function extractJson(text: string): unknown {
-  let t = (text ?? '').trim();
-  t = t
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/, '')
-    .trim();
-  const start = t.indexOf('{');
-  const end = t.lastIndexOf('}');
-  if (start === -1 || end <= start)
-    throw new AiParseError('The AI’s answer was not valid JSON. Try again.');
-  const body = t.slice(start, end + 1);
+const NOT_JSON = 'The AI’s answer was not valid JSON. Try again.';
+const CUT_OFF = 'The AI’s answer could not be read (it may have been cut off). Try again.';
+
+/** JSON.parse, then JSON.parse of the repaired text; undefined when neither reads. */
+function tryParse(body: string): unknown {
   try {
     return JSON.parse(body);
   } catch {
@@ -89,10 +82,120 @@ export function extractJson(text: string): unknown {
   try {
     return JSON.parse(repairJson(body));
   } catch {
-    throw new AiParseError(
-      'The AI’s answer could not be read (it may have been cut off). Try again.'
-    );
+    return undefined;
   }
+}
+
+interface Scan {
+  /** Index just past the bracket that closes the one at `start`, or -1 when the text ends first (a cut-off answer). */
+  end: number;
+  /** Where the text could be cut and closed again: just past a closed `}`/`]`, with the brackets still open there. */
+  safe: { at: number; open: string[] } | null;
+}
+
+/** Walks the JSON value that starts at `start` (a `{` or `[`), string-aware, without trusting the text to be valid. */
+function scanValue(src: string, start: number): Scan {
+  const open: string[] = [];
+  let inString = false;
+  let escaped = false;
+  let safe: Scan['safe'] = null;
+  for (let i = start; i < src.length; i++) {
+    const ch = src[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{' || ch === '[') open.push(ch);
+    else if (ch === '}' || ch === ']') {
+      open.pop();
+      if (!open.length) return { end: i + 1, safe };
+      safe = { at: i + 1, open: [...open] };
+    }
+  }
+  return { end: -1, safe };
+}
+
+/**
+ * A cut-off answer made whole: everything after the last value that was closed is dropped and the brackets still open are
+ * closed, so `{"phases":[{"title":"A"},{"title":"B","go` reads as `{"phases":[{"title":"A"}]}`.
+ */
+function closeTruncated(src: string, start: number, safe: NonNullable<Scan['safe']>): string {
+  const body = src.slice(start, safe.at).replace(/[\s,]+$/, '');
+  const closers = [...safe.open].reverse().map((b) => (b === '{' ? '}' : ']'));
+  return body + closers.join('');
+}
+
+export interface ExtractOptions {
+  /**
+   * Read an answer that was cut off (the model's token budget ran out) by keeping the items that were complete. Only for
+   * lists where fewer items are still useful (the plan, a page of questions); a lesson must be whole.
+   */
+  salvage?: boolean;
+}
+
+/**
+ * The JSON object in the answer. Ignored: Markdown fences, chatter before and after, a reasoning model's `<think>` block, and
+ * braces in that chatter. Repaired: raw newlines and control characters inside strings, trailing commas, bad escapes, and
+ * (with `salvage`) an answer that was cut off. A bare top-level array is returned as is (the parsers below accept it).
+ */
+export function extractJson(text: string, opts: ExtractOptions = {}): unknown {
+  let t = (text ?? '').replace(/^﻿/, '').trim();
+  // A reasoning model's thinking, when the provider leaves it in the text.
+  t = t.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '').trim();
+  // A fenced block anywhere in the answer is the JSON; without one (or a fence that was never closed), the whole text.
+  const fenced = /```(?:json|javascript|js)?[ \t]*\r?\n?([\s\S]*?)```/i.exec(t);
+  if (fenced && /[{[]/.test(fenced[1])) t = fenced[1].trim();
+  else
+    t = t
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim();
+  // Curly quotes as JSON's own quotes (only when the answer has no straight double quote at all, so content is never touched).
+  if (!t.includes('"') && /[“”]/.test(t)) t = t.replace(/[“”]/g, '"');
+
+  // A bare array of objects (`[{"title":...}]`) that comes before any object.
+  const firstObject = t.indexOf('{');
+  const firstArray = t.indexOf('[');
+  if (firstArray !== -1 && (firstObject === -1 || firstArray < firstObject)) {
+    const scan = scanValue(t, firstArray);
+    const value = scan.end === -1 ? undefined : tryParse(t.slice(firstArray, scan.end));
+    if (Array.isArray(value) && value.some((v) => v && typeof v === 'object')) return value;
+  }
+  if (firstObject === -1) throw new AiParseError(NOT_JSON);
+
+  // Each top-level `{` is a candidate and the first that reads wins, so braces in chatter before the JSON are skipped. A
+  // candidate that does not read is skipped whole (its inner objects are fragments, not the answer).
+  let empty: unknown;
+  for (let start = firstObject, tries = 0; start !== -1 && tries < 40; tries++) {
+    const scan = scanValue(t, start);
+    if (scan.end === -1) {
+      // It runs to the end of the answer: the answer was cut off.
+      if (opts.salvage && scan.safe) {
+        const value = tryParse(closeTruncated(t, start, scan.safe));
+        if (value && typeof value === 'object') return value;
+      }
+      if (empty !== undefined) return empty;
+      throw new AiParseError(CUT_OFF);
+    }
+    const value = tryParse(t.slice(start, scan.end));
+    if (value && typeof value === 'object') {
+      if (Object.keys(value).length) return value;
+      if (empty === undefined) empty = value; // `{}` in chatter: only the answer if nothing better follows
+    }
+    start = t.indexOf('{', scan.end);
+  }
+  if (empty !== undefined) return empty;
+  throw new AiParseError(CUT_OFF);
+}
+
+/** The list a parser reads: `raw[key]`, or the answer itself when the model sent the bare array. */
+function listOf(raw: unknown, key: string): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  const v = (raw as Record<string, unknown> | null)?.[key];
+  return Array.isArray(v) ? v : [];
 }
 
 // ── Text ────────────────────────────────────────────────────────────────────
@@ -173,8 +276,8 @@ export const MAX_PHASES = 8;
 export const MAX_QUESTIONS_PER_PHASE = 6;
 
 export function parseCurriculum(text: string): ParsedCurriculum {
-  const raw = extractJson(text) as { phases?: unknown; boss?: unknown };
-  const list = Array.isArray(raw?.phases) ? raw.phases : [];
+  const raw = extractJson(text, { salvage: true }) as { phases?: unknown; boss?: unknown };
+  const list = listOf(raw, 'phases') as Record<string, unknown>[];
   const seen = new Set<string>();
   const phases = list
     .slice(0, MAX_PHASES)
@@ -210,8 +313,8 @@ function parseBoss(raw: unknown): ParsedCurriculum['boss'] {
 
 /** The plan of a path (`/outline`): phases with a title and a goal, and the boss. */
 export function parseOutline(text: string): ParsedOutline {
-  const raw = extractJson(text) as { phases?: unknown; boss?: unknown };
-  const list = Array.isArray(raw?.phases) ? raw.phases : [];
+  const raw = extractJson(text, { salvage: true }) as { phases?: unknown; boss?: unknown };
+  const list = listOf(raw, 'phases') as Record<string, unknown>[];
   const phases = list.slice(0, MAX_PHASES).map((p: Record<string, unknown>, i: number) => ({
     title: oneLine(p?.title, 120) || `Phase ${i + 1}`,
     goal: oneLine(p?.goal, 260),
@@ -225,8 +328,12 @@ export function parseOutline(text: string): ParsedOutline {
  * has (and the questions of this phase that stay): a question that repeats one is dropped.
  */
 export function parsePhase(text: string, known: Set<string>): ParsedPhase {
-  const raw = extractJson(text) as { title?: unknown; goal?: unknown; questions?: unknown };
-  const list = (Array.isArray(raw?.questions) ? raw.questions : [])
+  const raw = extractJson(text, { salvage: true }) as {
+    title?: unknown;
+    goal?: unknown;
+    questions?: unknown;
+  };
+  const list = listOf(raw, 'questions')
     .map(outlineQuestion)
     .filter((q: OutlineQuestion | null): q is OutlineQuestion => !!q);
   const questions = dedupe(list, new Set(known)).slice(0, MAX_QUESTIONS_PER_PHASE);
@@ -245,8 +352,11 @@ export function parsePhase(text: string, known: Set<string>): ParsedPhase {
  * path already has: a question that repeats one is dropped, which is the "never duplicate" rule.
  */
 export function parseBranch(text: string, deeper: boolean, known: Set<string>): ParsedBranch {
-  const raw = extractJson(text) as { prerequisites?: unknown; questions?: unknown };
-  const list = (Array.isArray(raw?.questions) ? raw.questions : [])
+  const raw = extractJson(text, { salvage: true }) as {
+    prerequisites?: unknown;
+    questions?: unknown;
+  };
+  const list = listOf(raw, 'questions')
     .map(outlineQuestion)
     .filter((q: OutlineQuestion | null): q is OutlineQuestion => !!q);
   let questions = dedupe(list, new Set(known));

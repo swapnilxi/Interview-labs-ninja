@@ -218,7 +218,13 @@ export async function callGeminiText(
   }
   if (!res || !res.ok) throw new Error(`HTTP ${res?.status}`);
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  // The answer can come in several text parts (and a thinking model's thought parts are not the answer): join them, or a
+  // JSON answer split across parts reads as cut off. Twin: _gemini_text() in backend/modules/common/ai/providers.py.
+  const parts: { text?: unknown; thought?: unknown }[] = data.candidates?.[0]?.content?.parts ?? [];
+  const text = parts
+    .filter((p) => !p?.thought && typeof p?.text === 'string')
+    .map((p) => p.text as string)
+    .join('');
   if (!text) throw new Error('Empty response');
   return text;
 }

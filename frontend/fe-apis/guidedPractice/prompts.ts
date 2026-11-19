@@ -331,10 +331,13 @@ export const LEVEL_NAMES: Record<number, string> = {
 
 export const MAX_TOKENS = {
   curriculum: 4096,
-  /** The plan of the path: phase titles and goals, and the boss. */
-  outline: 1500,
-  /** One page of the path: PHASE_QUESTIONS full questions. */
-  phase: 3000,
+  /**
+   * The plan of the path: phase titles and goals, and the boss. The answer itself is short (~600 tokens), but a reasoning
+   * model's hidden thinking counts against this budget: 1500 left it cut off mid-JSON ("not valid JSON").
+   */
+  outline: 4096,
+  /** One page of the path: PHASE_QUESTIONS full questions (room for a reasoning model's thinking, as above). */
+  phase: 6144,
   question: 5000,
   breakdown: 3000,
   deeper: 3000,
@@ -560,7 +563,9 @@ export function buildPhasePrompt(c: PromptCtx, ph: PhaseInput): string {
         ? `- These questions of this phase stay as they are: ${quoted(ph.keptTitles)}. Write exactly ${count} NEW questions that fit with them.`
         : `- Write exactly ${count} questions.`,
       `- Put them in learning order, easiest first. Build up in small steps: ${p.steps}.`,
-      '- Do not assume the learner knows the basics. The first time an idea appears, ask a plain "What is ...?" question about it before anything harder. Mix the kinds of question: what it is, why it is used here instead of the alternatives, how it works, when it fails or becomes the wrong choice (limits, edge cases, trade-offs), and how to spot and fix a mistake.',
+      ph.number === 1
+        ? `- This is phase 1, the learner's very first contact with the ${p.thing}, so keep every question very basic: all "easy", about 5 minutes each. Pitch it like the first lesson of a beginner course, the way a Python course starts with "What is a dictionary?" and "Multiply two short lists item by item.": first ask what each building block is, in the simplest words, then give tiny hands-on tasks on one small example, one step at a time. No edge cases, trade-offs, limits, complexity or interview-style problems yet: the later phases cover those.`
+        : '- Do not assume the learner knows the basics. The first time an idea appears, ask a plain "What is ...?" question about it before anything harder. Mix the kinds of question: what it is, why it is used here instead of the alternatives, how it works, when it fails or becomes the wrong choice (limits, edge cases, trade-offs), and how to spot and fix a mistake.',
       '- Every question is one clear question or task a learner can attempt on their own, about one idea or one step. Write each title as a full sentence: a question or an instruction.',
       `- "kind" is one of: ${p.kinds}`,
       '- "exercise" is true when the learner should write code to answer the question (most implementation and algorithm questions) and false for pure concept questions.',

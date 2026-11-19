@@ -44,7 +44,9 @@ export function cleanHtmlOutput(text: string): string {
 }
 
 export function extractJsonObject(text: string): Record<string, any> {
-  const cleaned = text.replace(/```[a-z]*\n?/g, '').replace(/`/g, '').trim();
+  // Only the fences and the backticks around the whole reply go, as in Python's extract_json_object: a backtick inside
+  // a string value is the model's inline code, not packaging.
+  const cleaned = text.trim().replace(/```[a-z]*\n?/g, '').trim().replace(/^`+|`+$/g, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   if (start === -1 || end === -1) {
@@ -218,4 +220,59 @@ export function extractJsonItems(text: string | null | undefined): { items: Reco
 
   if (cutOff) throw new Error("the AI's reply was cut off before it finished its first result (too much asked in one reply)");
   throw new Error(`the AI's reply had no JSON list in it (it began: \u201c${excerpt(cleaned)}\u201d)`);
+}
+
+/**
+ * Closes a JSON object the reply stopped in the middle of (max_tokens): `{"reply": "Long text` becomes
+ * `{"reply": "Long text"}`. When that doesn't parse (it stopped inside a key or after a colon), it cuts back to the last
+ * comma outside a string and closes there. Null when neither parses. Twin: _close_truncated in utils.py.
+ */
+function closeTruncated(text: string): Record<string, any> | null {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  let lastComma: { at: number; stack: string[] } | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') stack.push('}');
+    else if (ch === '[') stack.push(']');
+    else if (ch === '}' || ch === ']') stack.pop();
+    else if (ch === ',') lastComma = { at: i, stack: [...stack] };
+  }
+  let body = escaped ? text.slice(0, -1) : text;
+  if (inString) body += '"';
+  const whole = tryParse(body + [...stack].reverse().join(''));
+  if (isObject(whole)) return whole;
+  if (!lastComma) return null;
+  const cut = tryParse(text.slice(0, lastComma.at) + [...lastComma.stack].reverse().join(''));
+  return isObject(cut) ? cut : null;
+}
+
+/**
+ * The JSON object a reply was meant to be, read as leniently as it allows, for callers that show the reply's fields
+ * (the To-Do Assistant and AI jobs) and would otherwise show the raw JSON: a <think> block and fences are dropped, prose
+ * around the object is skipped, the usual slips are repaired (raw newlines in strings, stray backslashes, unescaped
+ * quotes, trailing commas) and a reply cut off at max_tokens is closed where it stopped. Null when there is no object.
+ * Twin: extract_json_object_lenient in backend/modules/common/ai/utils.py.
+ */
+export function extractJsonObjectLenient(text: string | null | undefined): Record<string, any> | null {
+  const cleaned = cleanReply(text);
+  let tries = 0;
+  for (let i = 0; i < cleaned.length && tries < 20; i++) {
+    if (cleaned[i] !== '{') continue;
+    tries += 1;
+    const candidate = repairJson(cleaned.slice(i));
+    const end = balancedEnd(candidate, 0);
+    if (end === -1) return closeTruncated(candidate);
+    const value = tryParse(candidate.slice(0, end + 1));
+    if (isObject(value)) return value;
+  }
+  return null;
 }

@@ -11,7 +11,7 @@ import re
 import time
 import urllib.error
 import urllib.request
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 def _format_http_error(exc: urllib.error.HTTPError) -> str:
@@ -217,6 +217,75 @@ def _salvage_objects(text: str, start: int) -> List[dict]:
         else:
             i += 1
     return items
+
+
+def _close_truncated(text: str) -> Optional[dict]:
+    """Close a JSON object the reply stopped in the middle of (max_tokens): `{"reply": "Long text` becomes
+    `{"reply": "Long text"}`. When that doesn't parse (it stopped inside a key or after a colon), cut back to the last
+    comma outside a string and close there. None when neither parses. Twin: closeTruncated in fe-apis/ai/utils.ts."""
+    stack: List[str] = []
+    in_string = False
+    escaped = False
+    last_comma: Optional[Tuple[int, List[str]]] = None
+    for i, ch in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            stack.append("}")
+        elif ch == "[":
+            stack.append("]")
+        elif ch in "}]":
+            if stack:
+                stack.pop()
+        elif ch == ",":
+            last_comma = (i, list(stack))
+    body = text[:-1] if escaped else text
+    if in_string:
+        body += '"'
+    for candidate in (body + "".join(reversed(stack)),) + (
+        (text[: last_comma[0]] + "".join(reversed(last_comma[1])),) if last_comma else ()
+    ):
+        try:
+            value = json.loads(candidate)
+        except ValueError:
+            continue
+        return value if isinstance(value, dict) else None
+    return None
+
+
+def extract_json_object_lenient(text: Optional[str]) -> Optional[dict]:
+    """The JSON object a reply was meant to be, read as leniently as it allows, for callers that show the reply's fields
+    (the To-Do Assistant and AI jobs) and would otherwise show the raw JSON: a <think> block and fences are dropped,
+    prose around the object is skipped, the usual slips are repaired (raw newlines in strings, stray backslashes,
+    unescaped quotes, trailing commas) and a reply cut off at max_tokens is closed where it stopped. None when there is
+    no object. Twin: extractJsonObjectLenient in fe-apis/ai/utils.ts."""
+    cleaned = _clean_reply(text or "")
+    tries = 0
+    for i, ch in enumerate(cleaned):
+        if tries >= 20:
+            break
+        if ch != "{":
+            continue
+        tries += 1
+        candidate = _repair_json(cleaned[i:])
+        end = _balanced_end(candidate, 0)
+        if end == -1:
+            return _close_truncated(candidate)
+        try:
+            value = json.loads(candidate[: end + 1])
+        except ValueError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
 
 
 def _excerpt(text: str, limit: int = 120) -> str:
