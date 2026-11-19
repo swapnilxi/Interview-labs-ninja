@@ -11,7 +11,7 @@
  * handler's own 422, like FastAPI, not an uncaught URIError.
  */
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { compileRoutes, dispatch } from '../todo/router';
 import { routes } from './weekPlan';
 
@@ -23,11 +23,12 @@ async function dispatchDsaLab(req: Request, segments: string[]): Promise<Respons
 
 // Writes push lab_ninja.sqlite3 to Neon afterwards (Vercel's /tmp isn't durable).
 const writeDsaLab = withNeonSync(dispatchDsaLab);
+const readDsaLab = withNeonRead(dispatchDsaLab);
 
 export function handleDsaLab(req: Request, segments: string[]): Promise<Response> {
   // The AI organizer changes nothing (apart from the idempotent legacy migration, which every route
   // repeats): skip the Neon upload, which would eat into its 60 s and gains nothing.
   const readOnly =
     req.method === 'GET' || (req.method === 'POST' && segments.join('/') === 'week-plan/auto');
-  return readOnly ? dispatchDsaLab(req, segments) : writeDsaLab(req, segments);
+  return readOnly ? readDsaLab(req, segments) : writeDsaLab(req, segments);
 }

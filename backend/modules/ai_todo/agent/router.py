@@ -31,11 +31,13 @@ from ..schedules.router import (
     KINDS,
     _clean_agent_tasks,
     _clean_text,
+    _clean_timezone,
     _clean_title,
     _js_string,
     _json_object,
     _local_now,
     _one_of,
+    _time_line,
     _weekday_of,
 )
 from ..schedules.rules import js_slice, js_trim, normalize_rule
@@ -54,7 +56,9 @@ SPEECH_MAX = 600
 ACTIONS_MAX = 8
 TASKS_PER_ACTION = 10
 SOURCE_TEXT_MAX = 500
-CHAT_BUDGET = 2048
+# A report in the chat can be REPLY_MAX characters of markdown inside a JSON string plus speech and actions: 2048
+# tokens cut those off mid-string. Twin: CHAT_BUDGET in handlers.ts.
+CHAT_BUDGET = 4096
 ROLES = ("user", "assistant")
 ID_RE = re.compile(r"[0-9]{1,12}")
 EMPTY_REPLY = "I couldn't put an answer together. Try asking another way."
@@ -63,6 +67,7 @@ EMPTY_REPLY = "I couldn't put an answer together. Try asking another way."
 class AgentChatRequest(AISettings):
     messages: Any = None
     now: Any = None
+    timezone: Any = None
     voice: Any = None
 
 
@@ -109,8 +114,8 @@ def _as_id(value: Any) -> Optional[int]:
 
 
 def _chat_prompt(
-    now: str, weekday: Optional[str], workspace: str, schedules: str, web: str, transcript: str, voice: bool,
-    ask_search: bool,
+    now: str, weekday: Optional[str], timezone: Optional[str], workspace: str, schedules: str, web: str,
+    transcript: str, voice: bool, ask_search: bool,
 ) -> str:
     voice_rule = (
         "- They are talking to you by voice right now and hear your speech: keep reply short too, unless they asked for "
@@ -121,12 +126,13 @@ def _chat_prompt(
     search_rule = (
         "- web_search: when answering needs current information from the internet that isn't above (news, prices, "
         "weather, releases, facts you aren't sure of), set it to a short search query and leave reply, speech and "
-        "actions empty; you will get the results and answer then. Otherwise null.\n"
+        "actions empty; you will get the results and answer then. Otherwise null. For weather or anything local, put "
+        "the place in the query (their time zone hints where they are when they don't say).\n"
         if ask_search
         else "- You already searched the web: answer now from the results above and keep web_search null.\n"
     )
     return f"""You are the Assistant in LabNinja, the person's personal to-do and learning app. You talk with them in a chat, sometimes by voice. You answer questions about their work from the data below, write reports and summaries, look things up on the web, and schedule reminders and AI jobs that run later.
-Current local date and time: {now} ({weekday}).
+{_time_line(now, weekday, timezone)}
 
 Their To-Do workspace (JSON):
 {workspace}
@@ -269,6 +275,7 @@ async def agent_chat_endpoint(payload: AgentChatRequest, user_id: int = Depends(
         raise HTTPException(status_code=400, detail="Say or type something to ask.")
     now = _local_now(payload.now)
     weekday = _weekday_of(now)
+    timezone = _clean_timezone(payload.timezone)
     voice = payload.voice is True
     workspace = json.dumps(workspace_context(user_id, now[:10]))
     schedules = json.dumps(schedules_context(user_id))
@@ -278,7 +285,7 @@ async def agent_chat_endpoint(payload: AgentChatRequest, user_id: int = Depends(
     results: List[Dict[str, Any]] = []
     try:
         text = call_ai(
-            _chat_prompt(now, weekday, workspace, schedules, "", transcript, voice, ask_search=True),
+            _chat_prompt(now, weekday, timezone, workspace, schedules, "", transcript, voice, ask_search=True),
             payload,
             CHAT_BUDGET,
         )
@@ -288,7 +295,8 @@ async def agent_chat_endpoint(payload: AgentChatRequest, user_id: int = Depends(
             results = await run_search(query)
             text = call_ai(
                 _chat_prompt(
-                    now, weekday, workspace, schedules, web_block(query, results), transcript, voice, ask_search=False
+                    now, weekday, timezone, workspace, schedules, web_block(query, results), transcript, voice,
+                    ask_search=False,
                 ),
                 payload,
                 CHAT_BUDGET,

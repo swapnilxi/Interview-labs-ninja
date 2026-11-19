@@ -7,7 +7,7 @@
  * here, or the two backend modes silently diverge (see CLAUDE.md, "Dual deployment modes").
  */
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { compileRoutes, dispatch } from './router';
 import { routes as tasksCoreRoutes } from './tasks/handlersCore';
 import { routes as tasksPlanningRoutes } from './tasks/handlersPlanning';
@@ -47,15 +47,18 @@ async function dispatchPareto(req: Request, segments: string[]): Promise<Respons
 // Writes push lab_ninja.sqlite3 to Neon afterwards (Vercel's /tmp isn't durable).
 const writeTodo = withNeonSync(dispatchTodo);
 const writePareto = withNeonSync(dispatchPareto);
+// Reads first pull Neon's copy if another Vercel instance wrote since (phone vs desktop).
+const readTodo = withNeonRead(dispatchTodo);
+const readPareto = withNeonRead(dispatchPareto);
 
 /** POSTs that only read (the Assistant chat): no Neon push afterwards. */
 const READ_ONLY_POSTS = new Set(['agent/chat']);
 
 export function handleTodo(req: Request, segments: string[]): Promise<Response> {
   const readOnly = req.method === 'GET' || READ_ONLY_POSTS.has(segments.join('/'));
-  return readOnly ? dispatchTodo(req, segments) : writeTodo(req, segments);
+  return readOnly ? readTodo(req, segments) : writeTodo(req, segments);
 }
 
 export function handlePareto(req: Request, segments: string[]): Promise<Response> {
-  return req.method === 'GET' ? dispatchPareto(req, segments) : writePareto(req, segments);
+  return req.method === 'GET' ? readPareto(req, segments) : writePareto(req, segments);
 }

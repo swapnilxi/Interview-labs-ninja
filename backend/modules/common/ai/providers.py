@@ -80,7 +80,19 @@ def _call_gemini(
         parts.append({"inline_data": {"mime_type": "image/jpeg", "data": image_b64}})
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     data = _post_generate_content(url, {"Content-Type": "application/json"}, [{"parts": parts}], temperature, max_tokens, timeout)
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    return _gemini_text(data)
+
+
+def _gemini_text(data: dict) -> str:
+    """The answer of a generateContent reply: every text part joined (a thinking model's thought parts are not the answer).
+
+    Reading only the first part cut a JSON answer split across parts. Twin: callGeminiText() in frontend/fe-apis/ai/providers.ts.
+    """
+    parts = (((data.get("candidates") or [{}])[0].get("content") or {}).get("parts")) or []
+    text = "".join(p["text"] for p in parts if isinstance(p, dict) and not p.get("thought") and isinstance(p.get("text"), str))
+    if not text:
+        raise RuntimeError("Empty response")
+    return text
 
 
 # ── Vertex AI (standard, OAuth2) ─────────────────────────────────────────────
@@ -145,7 +157,7 @@ def _call_vertex(
     )
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {_vertex_access_token()}"}
     data = _post_generate_content(url, headers, [{"role": "user", "parts": parts}], temperature, max_tokens, timeout)
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    return _gemini_text(data)
 
 
 # Extra tokens for the one retry of an OpenAI-compatible call whose whole budget went on hidden reasoning.
