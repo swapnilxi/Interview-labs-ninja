@@ -67,6 +67,15 @@ export interface ChatTurn {
   content: string;
 }
 
+/** The browser's IANA time zone: the Assistant's only hint of where the person is (weather, local news). */
+function browserTimezone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 export const agentService = {
   async chat(turns: ChatTurn[], opts: { voice?: boolean } = {}): Promise<AgentReply> {
     const res = await todoFetch('/todo/agent/chat', {
@@ -74,6 +83,7 @@ export const agentService = {
       body: JSON.stringify({
         messages: turns,
         now: toLocalStamp(new Date()),
+        timezone: browserTimezone(),
         voice: !!opts.voice,
         ...defaultAIRequestFields(),
       }),

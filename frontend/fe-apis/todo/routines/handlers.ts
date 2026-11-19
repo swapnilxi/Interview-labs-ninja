@@ -16,7 +16,7 @@
  *   POST   /todo/quick-tasks/:task_id/move-to-routine  Quick Daily task -> a group {group_id}
  */
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { pushLocalWrite } from '@/lib/server/neonSync';
 import { HttpError, patchUpdates, type Row } from '../_shared';
 import type { TodoCtx, TodoRoute } from '../router';
 import { createQuickTask, deleteQuickTask, getQuickTask } from '../quick/db';
@@ -202,7 +202,7 @@ export const routes: TodoRoute[] = [
     handler: async (ctx) => {
       // GETs skip the Neon push (index.ts), so a Dailies made on this read is pushed here, once, or a cold start on
       // Vercel would lose it while the browser already holds its id.
-      if (ensureDailies(ctx.userId)) await withNeonSync(async () => undefined)();
+      if (ensureDailies(ctx.userId)) await pushLocalWrite();
       return listGroups(ctx.userId);
     },
   },

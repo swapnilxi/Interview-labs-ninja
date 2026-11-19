@@ -8,6 +8,8 @@
 
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
 
 const USER_AGENT = 'Mozilla/5.0 (compatible; LabNinjaResearch/1.0; read-only)';
 export const MAX_QUERY_CHARS = 200;
@@ -19,9 +21,12 @@ const SNIPPET_CHARS = 300;
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_REDIRECTS = 3;
 const SEARCH_URL = 'https://html.duckduckgo.com/html/';
-// DuckDuckGo sometimes answers a burst of queries with a results-free throttling page (HTTP 202) for the form POST,
-// while a plain GET of the same endpoint still works: retry once after a pause as a GET, and remember answers for a
-// while so the same query isn't asked twice. Twin: SEARCH_RETRY_S / SEARCH_CACHE_* in web.py.
+const LITE_SEARCH_URL = 'https://lite.duckduckgo.com/lite/';
+// DuckDuckGo sometimes answers a burst of queries with a results-free throttling page (HTTP 202) for the form POST.
+// A plain GET is no way round it: checked 2026-11-19, a GET of either endpoint gets the bot-check page (HTTP 202,
+// "anomaly") while the form POST of both works. So the retry, after a pause, is a form POST to the lite endpoint (its
+// own markup, own counter). Answers are remembered for a while so the same query isn't asked twice.
+// Twin: SEARCH_RETRY_S / SEARCH_CACHE_* in web.py.
 const SEARCH_RETRY_MS = 800;
 const SEARCH_CACHE_TTL_MS = 15 * 60_000;
 const SEARCH_CACHE_MAX = 100;
@@ -101,26 +106,65 @@ export async function checkPublicUrl(url: string): Promise<URL> {
   return u;
 }
 
-async function readCapped(res: Response): Promise<Uint8Array> {
-  const reader = res.body?.getReader();
-  if (!reader) return new Uint8Array();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (total < MAX_PAGE_BYTES) {
-    const { done, value } = await reader.read();
-    if (done || !value) break;
-    chunks.push(value);
-    total += value.length;
-  }
-  reader.cancel().catch(() => {});
-  const out = new Uint8Array(Math.min(total, MAX_PAGE_BYTES));
-  let at = 0;
-  for (const c of chunks) {
-    const part = c.subarray(0, Math.max(0, out.length - at));
-    out.set(part, at);
-    at += part.length;
-  }
-  return out;
+type RawResponse = { status: number; location: string | null; contentType: string; body: Uint8Array };
+
+/**
+ * One request with node:http(s), no redirects followed, the body capped at MAX_PAGE_BYTES. Not `fetch`: checked
+ * 2026-11-19, DuckDuckGo answers every request from Node's fetch (undici) with its bot-check page (HTTP 202, no
+ * results), whatever the headers, while the same request through node:https (and Python's urllib) gets the results.
+ * No Accept-Encoding is sent, so the body comes back uncompressed, as with urllib.
+ */
+function rawRequest(url: string, form: string | undefined): Promise<RawResponse> {
+  const u = new URL(url);
+  const client = u.protocol === 'https:' ? https : http;
+  return new Promise<RawResponse>((resolve, reject) => {
+    const req = client.request(
+      u,
+      {
+        method: form !== undefined ? 'POST' : 'GET',
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'text/html,*/*;q=0.5',
+          ...(form !== undefined
+            ? { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(form) }
+            : {}),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        let total = 0;
+        const done = () => {
+          clearTimeout(timer);
+          const header = res.headers['content-type'];
+          resolve({
+            status: res.statusCode ?? 0,
+            location: typeof res.headers.location === 'string' ? res.headers.location : null,
+            contentType: Array.isArray(header) ? header.join(', ') : header ?? '',
+            body: new Uint8Array(Buffer.concat(chunks).subarray(0, MAX_PAGE_BYTES)),
+          });
+        };
+        res.on('data', (chunk: Buffer) => {
+          chunks.push(chunk);
+          total += chunk.length;
+          if (total >= MAX_PAGE_BYTES) {
+            res.destroy();
+            done();
+          }
+        });
+        res.on('end', done);
+        res.on('error', (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      }
+    );
+    const timer = setTimeout(() => req.destroy(new Error('timed out')), FETCH_TIMEOUT_MS);
+    req.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    req.end(form);
+  });
 }
 
 /** GET (or form POST) `url`, following up to MAX_REDIRECTS redirects through the public-host check. */
@@ -129,25 +173,15 @@ export async function safeGet(url: string, form?: string): Promise<{ url: string
   let body = form;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     await checkPublicUrl(current);
-    const res = await fetch(current, {
-      method: body !== undefined ? 'POST' : 'GET',
-      headers: {
-        'User-Agent': USER_AGENT,
-        Accept: 'text/html,*/*;q=0.5',
-        ...(body !== undefined ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
-      },
-      body,
-      redirect: 'manual',
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    const location = [301, 302, 303, 307, 308].includes(res.status) ? res.headers.get('location') : null;
+    const res = await rawRequest(current, body);
+    const location = [301, 302, 303, 307, 308].includes(res.status) ? res.location : null;
     if (location) {
       current = new URL(location, current).toString();
       body = undefined;
       continue;
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return { url: current, contentType: res.headers.get('content-type') ?? '', body: await readCapped(res) };
+    if (res.status < 200 || res.status > 299) throw new Error(`HTTP ${res.status}`);
+    return { url: current, contentType: res.contentType, body: res.body };
   }
   throw new UnsafeUrlError('Too many redirects.');
 }
@@ -184,6 +218,27 @@ export function pageText(raw: Uint8Array, contentType: string, limit = PAGE_TEXT
 
 const RESULT_RE = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
 const SNIPPET_RE = /class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+// lite.duckduckgo.com: <a rel="nofollow" href="URL" class='result-link'>Title</a> ... <td class='result-snippet'>..</td>
+const LITE_RESULT_RE = /<a\b([^>]*class=['"]result-link['"][^>]*)>([\s\S]*?)<\/a>/g;
+const LITE_HREF_RE = /href="([^"]+)"/;
+const LITE_SNIPPET_RE = /class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/g;
+
+type RawHit = { href: string; title: string; snippet: string };
+
+/** [{href, title, snippet}] from a results page; `lite` picks the lite endpoint's markup. */
+function parseResults(doc: string, lite: boolean): RawHit[] {
+  if (lite) {
+    const snippets = [...doc.matchAll(LITE_SNIPPET_RE)].map((m) => m[1]);
+    const hits: RawHit[] = [];
+    [...doc.matchAll(LITE_RESULT_RE)].forEach((m, i) => {
+      const href = m[1].match(LITE_HREF_RE);
+      if (href) hits.push({ href: href[1], title: m[2], snippet: snippets[i] ?? '' });
+    });
+    return hits;
+  }
+  const snippets = [...doc.matchAll(SNIPPET_RE)].map((m) => m[1]);
+  return [...doc.matchAll(RESULT_RE)].map((m, i) => ({ href: m[1], title: m[2], snippet: snippets[i] ?? '' }));
+}
 
 function realUrl(href: string): string {
   let h = unescapeHtml(href);
@@ -201,28 +256,25 @@ export async function webSearch(query: string, maxResults = MAX_RESULTS): Promis
   const cacheKey = `${q.toLowerCase()}|${maxResults}`;
   const hit = searchCache.get(cacheKey);
   if (hit && Date.now() - hit.at < SEARCH_CACHE_TTL_MS) return hit.results.map((r) => ({ ...r }));
-  let links: RegExpMatchArray[] = [];
-  let snippets: RegExpMatchArray[] = [];
+  let hits: RawHit[] = [];
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let doc = '';
     try {
       const form = new URLSearchParams({ q }).toString();
-      const { body } =
-        attempt === 0 ? await safeGet(SEARCH_URL, form) : await safeGet(`${SEARCH_URL}?${form}`);
+      const { body } = await safeGet(attempt === 0 ? SEARCH_URL : LITE_SEARCH_URL, form);
       doc = new TextDecoder('utf-8', { fatal: false }).decode(body);
     } catch {
       doc = '';
     }
-    links = [...doc.matchAll(RESULT_RE)];
-    snippets = [...doc.matchAll(SNIPPET_RE)];
-    if (links.length) break;
+    hits = parseResults(doc, attempt === 1);
+    if (hits.length) break;
     if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, SEARCH_RETRY_MS));
   }
   const out: Omit<ResearchResult, 'text'>[] = [];
   const seen = new Set<string>();
-  links.forEach((m, i) => {
+  hits.forEach((m) => {
     if (out.length >= maxResults) return;
-    const url = realUrl(m[1]);
+    const url = realUrl(m.href);
     let host = '';
     try {
       host = new URL(url).host;
@@ -232,9 +284,9 @@ export async function webSearch(query: string, maxResults = MAX_RESULTS): Promis
     if (!url.startsWith('http') || host.includes('duckduckgo.com') || seen.has(url)) return;
     seen.add(url);
     out.push({
-      title: clip(squash(m[2].replace(TAG_RE, ' ')), 140),
+      title: clip(squash(m.title.replace(TAG_RE, ' ')), 140),
       url,
-      snippet: snippets[i] ? clip(squash(snippets[i][1].replace(TAG_RE, ' ')), SNIPPET_CHARS) : '',
+      snippet: clip(squash(m.snippet.replace(TAG_RE, ' ')), SNIPPET_CHARS),
     });
   });
   if (out.length) {

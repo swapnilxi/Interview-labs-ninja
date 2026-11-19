@@ -3,7 +3,7 @@
  *
  * Port of backend/modules/ai_todo/agent/router.py (the To-Do Assistant, mounted at /todo):
  *
- *   POST /todo/agent/chat   {messages: [{role: "user"|"assistant", content}], now, voice?, ...AISettings}
+ *   POST /todo/agent/chat   {messages: [{role: "user"|"assistant", content}], now, timezone?, voice?, ...AISettings}
  *        -> {reply, speech, actions, notes, sources, searched}
  *
  * Each turn reads a fresh snapshot of the workspace and the schedules (context.ts) into the prompt; the model may ask
@@ -23,10 +23,12 @@ import {
   KINDS,
   cleanAgentTasks,
   cleanText,
+  cleanTimezone,
   cleanTitle,
   jsonBody,
   jsonObject,
   localNow,
+  timeLine,
   weekdayOf,
 } from '../schedules/handlers';
 import { schedulesContext, workspaceContext } from './context';
@@ -40,7 +42,9 @@ const SPEECH_MAX = 600;
 const ACTIONS_MAX = 8;
 const TASKS_PER_ACTION = 10;
 const SOURCE_TEXT_MAX = 500;
-const CHAT_BUDGET = 2048;
+// A report in the chat can be REPLY_MAX characters of markdown inside a JSON string plus speech and actions: 2048
+// tokens cut those off mid-string. Twin: CHAT_BUDGET in router.py.
+const CHAT_BUDGET = 4096;
 const ROLES = new Set(['user', 'assistant']);
 const ID_RE = /^[0-9]{1,12}$/;
 const EMPTY_REPLY = "I couldn't put an answer together. Try asking another way.";
@@ -87,6 +91,7 @@ const jsString = (value: unknown): string =>
 function chatPrompt(
   now: string,
   weekday: string | null,
+  timezone: string | null,
   workspace: string,
   schedules: string,
   web: string,
@@ -101,10 +106,11 @@ function chatPrompt(
   const searchRule = askSearch
     ? "- web_search: when answering needs current information from the internet that isn't above (news, prices, " +
       "weather, releases, facts you aren't sure of), set it to a short search query and leave reply, speech and " +
-      'actions empty; you will get the results and answer then. Otherwise null.\n'
+      'actions empty; you will get the results and answer then. Otherwise null. For weather or anything local, put ' +
+      "the place in the query (their time zone hints where they are when they don't say).\n"
     : '- You already searched the web: answer now from the results above and keep web_search null.\n';
   return `You are the Assistant in LabNinja, the person's personal to-do and learning app. You talk with them in a chat, sometimes by voice. You answer questions about their work from the data below, write reports and summaries, look things up on the web, and schedule reminders and AI jobs that run later.
-Current local date and time: ${now} (${weekday}).
+${timeLine(now, weekday, timezone)}
 
 Their To-Do workspace (JSON):
 ${workspace}
@@ -249,6 +255,7 @@ async function agentChatHandler(ctx: TodoCtx) {
   }
   const now = localNow(body.now);
   const weekday = weekdayOf(now);
+  const timezone = cleanTimezone(body.timezone);
   const voice = body.voice === true;
   const workspace = pyJsonDumps(workspaceContext(ctx.userId, now.slice(0, 10)));
   const schedules = pyJsonDumps(schedulesContext(ctx.userId));
@@ -261,7 +268,7 @@ async function agentChatHandler(ctx: TodoCtx) {
   let obj: Row | null;
   try {
     text = await callAi(
-      chatPrompt(now, weekday, workspace, schedules, '', transcript, voice, true),
+      chatPrompt(now, weekday, timezone, workspace, schedules, '', transcript, voice, true),
       settings,
       CHAT_BUDGET
     );
@@ -273,6 +280,7 @@ async function agentChatHandler(ctx: TodoCtx) {
         chatPrompt(
           now,
           weekday,
+          timezone,
           workspace,
           schedules,
           webBlock(query, results),

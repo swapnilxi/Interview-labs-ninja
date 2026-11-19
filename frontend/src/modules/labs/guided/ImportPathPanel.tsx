@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { confirmDialog } from '@/lib/ui/confirm';
 import { toast } from '@/lib/ui/toast';
@@ -44,6 +44,14 @@ export default function ImportPathPanel({
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ImportMode>('append');
   const [help, setHelp] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    []
+  );
 
   const submit = async () => {
     let path: ImportedPath;
@@ -91,6 +99,9 @@ export default function ImportPathPanel({
     try {
       await navigator.clipboard.writeText(externalPrompt(topicName, focus));
       toast.success('Prompt copied. Paste the AI’s answer back here.');
+      setCopied(true);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error('Could not copy. Select the text yourself instead.');
     }
@@ -112,9 +123,15 @@ export default function ImportPathPanel({
           <button
             type="button"
             onClick={() => void copyPrompt()}
-            className="text-[13px] text-muted-foreground hover:text-foreground hover:underline"
+            title="Copies a prompt you can paste into ChatGPT, Gemini or any other AI"
+            className="todo-btn todo-btn-secondary"
           >
-            Copy a prompt for another AI
+            <Icon
+              name={copied ? 'CheckIcon' : 'ClipboardDocumentIcon'}
+              size={15}
+              aria-hidden="true"
+            />
+            {copied ? 'Prompt copied' : 'Copy prompt for another AI'}
           </button>
         </div>
       </div>

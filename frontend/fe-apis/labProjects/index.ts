@@ -10,7 +10,7 @@
  * the labs' generation twin (../labSections) calls to put the selected project into a prompt.
  */
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { compileRoutes, dispatch } from '../todo/router';
 import { routes } from './handlers';
 
@@ -22,9 +22,8 @@ async function dispatchLabProjects(req: Request, segments: string[]): Promise<Re
 
 // Writes push lab_ninja.sqlite3 to Neon afterwards (Vercel's /tmp isn't durable).
 const writeLabProjects = withNeonSync(dispatchLabProjects);
+const readLabProjects = withNeonRead(dispatchLabProjects);
 
 export function handleLabProjects(req: Request, segments: string[]): Promise<Response> {
-  return req.method === 'GET'
-    ? dispatchLabProjects(req, segments)
-    : writeLabProjects(req, segments);
+  return req.method === 'GET' ? readLabProjects(req, segments) : writeLabProjects(req, segments);
 }

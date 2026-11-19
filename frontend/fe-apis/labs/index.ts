@@ -23,7 +23,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { compileRoutes, dispatch, type TodoRoute } from '../todo/router';
 import { HttpError, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
 import { pyJsonDumps } from '../todo/py';
@@ -468,5 +468,5 @@ const writers: Record<LabKey, (req: Request, segments: string[]) => Promise<Resp
 
 /** Entry point for src/app/api/{dsa,cv,system-design,communication,finance,python,genai}/[...path]/route.ts. */
 export function handleLabTopics(key: LabKey, req: Request, segments: string[]): Promise<Response> {
-  return req.method === 'GET' ? dispatchLab(key)(req, segments) : writers[key](req, segments);
+  return req.method === 'GET' ? withNeonRead(dispatchLab(key))(req, segments) : writers[key](req, segments);
 }

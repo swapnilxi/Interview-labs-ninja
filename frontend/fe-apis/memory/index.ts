@@ -6,7 +6,7 @@
  * All login-required; every row belongs to the caller. Writes push the DB snapshot to Neon like the other modules.
  */
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { compileRoutes, dispatch, type TodoRoute } from '../todo/router';
 import { HttpError } from '../todo/_shared';
 import { MemoryInputError, clearMemory, deleteFact, listFacts, memoryLines, record } from './db';
@@ -50,8 +50,9 @@ const ROUTES: TodoRoute[] = [
 const COMPILED = compileRoutes(ROUTES);
 
 const write = withNeonSync((req: Request, segments: string[]) => dispatch(COMPILED, req, segments));
+const read = withNeonRead((req: Request, segments: string[]) => dispatch(COMPILED, req, segments));
 
 /** Entry point for src/app/api/memory/[[...path]]/route.ts (`segments` exclude the 'memory' prefix). */
 export function handleMemory(req: Request, segments: string[]): Promise<Response> {
-  return req.method === 'GET' ? dispatch(COMPILED, req, segments) : write(req, segments);
+  return req.method === 'GET' ? read(req, segments) : write(req, segments);
 }

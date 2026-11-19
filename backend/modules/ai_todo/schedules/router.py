@@ -31,6 +31,7 @@ from pydantic import BaseModel, field_validator
 
 from modules.auth.dependencies import get_current_user_id
 from modules.common.ai import AISettings, extract_json_object
+from modules.common.ai.utils import extract_json_object_lenient
 
 from ..shared.ai_helpers import call_ai
 from ..shared.patch import patch_updates
@@ -168,6 +169,25 @@ def _clean_title(value: Any) -> str:
 
 def _clean_text(value: Any) -> Optional[str]:
     return js_trim(value) if isinstance(value, str) and js_trim(value) else None
+
+
+TIMEZONE_RE = re.compile(r"[A-Za-z0-9_+\-/]{1,64}")
+
+
+def _clean_timezone(value: Any) -> Optional[str]:
+    """An IANA zone name ("Asia/Kolkata") safe to put in a prompt, or None. Twin: cleanTimezone in handlers.ts."""
+    if not isinstance(value, str):
+        return None
+    tz = js_trim(value)
+    return tz if TIMEZONE_RE.fullmatch(tz) else None
+
+
+def _time_line(now: str, weekday: Optional[str], timezone: Optional[str]) -> str:
+    """The prompt's "now" line. The time zone, when known, is the model's only hint of where the person is: the web
+    search runs from the server, so without a place in the query "weather" or "local news" comes back for the server's
+    location, not theirs."""
+    zone = f"; time zone {timezone}, so likely where they are unless they say otherwise" if timezone else ""
+    return f"Current local date and time: {now} ({weekday}{zone})."
 
 
 def _one_of(value: Any, allowed: tuple) -> bool:
@@ -389,12 +409,16 @@ def _clean_agent_tasks(raw: Any, limit: int = 5) -> List[Dict[str, Any]]:
 
 
 def _json_object(text: str) -> Optional[Dict[str, Any]]:
-    """The reply's JSON object, or None when there is none (the raw text is then the answer)."""
+    """The reply's JSON object, or None when there is none (the raw text is then the answer). A reply that isn't strict
+    JSON (a <think> block first, raw newlines in the markdown, cut off at max_tokens) is read leniently, so the person
+    sees the answer and not a raw `{"reply": ...` blob with its actions lost."""
     try:
         candidate = extract_json_object(text)
+        if isinstance(candidate, dict):
+            return candidate
     except Exception:
-        return None
-    return candidate if isinstance(candidate, dict) else None
+        pass  # not strict JSON: read it leniently below
+    return extract_json_object_lenient(text)
 
 
 def _run_budget(schedule: Dict[str, Any]) -> int:
@@ -413,8 +437,7 @@ def _run_prompt(
         else ""
     )
     search_line = (
-        '\n  "web_search": "A short web search query when this run needs current information from the internet, '
-        'else null",'
+        '\n  "web_search": "A short web search query for the current information this run needs",'
         if ask_search
         else ""
     )
@@ -423,12 +446,14 @@ def _run_prompt(
         extra_rules += "- message is the short version for the notification; report is the complete answer.\n"
     if ask_search:
         extra_rules += (
-            "- web_search: if you set it, leave the other fields empty; you will get the results and answer then.\n"
+            "- web_search: this job reads the web on every run. Set it to a short search query for what this run needs "
+            "(name the place for weather or anything local; add the month and year for news, prices or releases) and leave "
+            "the other fields empty; you will get the results and answer then.\n"
         )
     if web:
         extra_rules += "- Use the web results for current facts; never make up news, prices or dates.\n"
     return f"""You are the scheduled assistant inside LabNinja, a personal to-do app. A job the person scheduled is running now, and your answer is shown to them as a phone notification.
-Current local date and time: {now} ({weekday}).
+{_time_line(now, weekday, _clean_timezone(schedule.get('timezone')))}
 
 Job: {schedule['title']}
 Instructions: {schedule['message'] or 'No extra instructions.'}
@@ -495,7 +520,13 @@ async def run_schedule_endpoint(
             _run_budget(schedule),
         )
         obj = _json_object(response_text)
-        query = search_query(obj.get("web_search")) if obj is not None and schedule["use_web"] else None
+        # A job set to read the web always searches: when the model answered instead of asking (from its training data,
+        # so stale news, prices and weather), the job's title is the query.
+        query = None
+        if schedule["use_web"]:
+            query = search_query(obj.get("web_search")) if obj is not None else None
+            if query is None:
+                query = search_query(schedule["title"])
         if query is not None:
             results = await run_search(query)
             response_text = call_ai(

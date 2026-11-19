@@ -31,9 +31,12 @@ SNIPPET_CHARS = 300
 FETCH_TIMEOUT_S = 8
 MAX_REDIRECTS = 3
 SEARCH_URL = "https://html.duckduckgo.com/html/"
-# DuckDuckGo sometimes answers a burst of queries with a results-free throttling page (HTTP 202) for the form POST,
-# while a plain GET of the same endpoint still works: retry once after a pause as a GET, and remember answers for a
-# while so the same query isn't asked twice. Twin: SEARCH_RETRY_MS / SEARCH_CACHE_* in web.ts.
+LITE_SEARCH_URL = "https://lite.duckduckgo.com/lite/"
+# DuckDuckGo sometimes answers a burst of queries with a results-free throttling page (HTTP 202) for the form POST.
+# A plain GET is no way round it: checked 2026-11-19, a GET of either endpoint gets the bot-check page (HTTP 202,
+# "anomaly") while the form POST of both works. So the retry, after a pause, is a form POST to the lite endpoint (its
+# own markup, own counter). Answers are remembered for a while so the same query isn't asked twice.
+# Twin: SEARCH_RETRY_MS / SEARCH_CACHE_* in web.ts.
 SEARCH_RETRY_S = 0.8
 SEARCH_CACHE_TTL_S = 15 * 60
 SEARCH_CACHE_MAX = 100
@@ -129,6 +132,24 @@ def page_text(raw: bytes, content_type: str, limit: int = PAGE_TEXT_CHARS) -> Tu
 
 _RESULT_RE = re.compile(r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', re.S)
 _SNIPPET_RE = re.compile(r'class="result__snippet"[^>]*>(.*?)</a>', re.S)
+# lite.duckduckgo.com: <a rel="nofollow" href="URL" class='result-link'>Title</a> ... <td class='result-snippet'>..</td>
+_LITE_RESULT_RE = re.compile(r"""<a\b([^>]*class=['"]result-link['"][^>]*)>(.*?)</a>""", re.S)
+_LITE_HREF_RE = re.compile(r'href="([^"]+)"')
+_LITE_SNIPPET_RE = re.compile(r"""class=['"]result-snippet['"][^>]*>(.*?)</td>""", re.S)
+
+
+def _parse_results(doc: str, lite: bool) -> List[Tuple[str, str, str]]:
+    """[(href, title, snippet)] from a results page; `lite` picks the lite endpoint's markup."""
+    if lite:
+        snippets = _LITE_SNIPPET_RE.findall(doc)
+        hits = []
+        for i, (attrs, title) in enumerate(_LITE_RESULT_RE.findall(doc)):
+            href = _LITE_HREF_RE.search(attrs)
+            if href:
+                hits.append((href.group(1), title, snippets[i] if i < len(snippets) else ""))
+        return hits
+    snippets = _SNIPPET_RE.findall(doc)
+    return [(href, title, snippets[i] if i < len(snippets) else "") for i, (href, title) in enumerate(_RESULT_RE.findall(doc))]
 
 
 def _real_url(href: str) -> str:
@@ -148,22 +169,21 @@ def web_search(query: str, max_results: int = MAX_RESULTS) -> List[dict]:
     hit = _search_cache.get(key)
     if hit and time.monotonic() - hit[0] < SEARCH_CACHE_TTL_S:
         return [dict(r) for r in hit[1]]
-    links, snippets = [], []
+    hits: List[Tuple[str, str, str]] = []
     for attempt in range(2):
         try:
             form = urllib.parse.urlencode({"q": query})
-            _, _, body = safe_get(SEARCH_URL, data=form.encode()) if attempt == 0 else safe_get(f"{SEARCH_URL}?{form}")
+            _, _, body = safe_get(SEARCH_URL if attempt == 0 else LITE_SEARCH_URL, data=form.encode())
         except Exception:
             body = b""
         doc = body.decode("utf-8", errors="replace")
-        links = _RESULT_RE.findall(doc)
-        snippets = _SNIPPET_RE.findall(doc)
-        if links:
+        hits = _parse_results(doc, lite=attempt == 1)
+        if hits:
             break
         if attempt == 0:
             time.sleep(SEARCH_RETRY_S)
     out, seen = [], set()
-    for i, (href, title) in enumerate(links):
+    for href, title, snippet in hits:
         url = _real_url(href)
         host = urllib.parse.urlparse(url).netloc
         if not url.startswith("http") or "duckduckgo.com" in host or url in seen:
@@ -172,7 +192,7 @@ def web_search(query: str, max_results: int = MAX_RESULTS) -> List[dict]:
         out.append({
             "title": _squash(_TAG_RE.sub(" ", title))[:140],
             "url": url,
-            "snippet": _squash(_TAG_RE.sub(" ", snippets[i]))[:SNIPPET_CHARS] if i < len(snippets) else "",
+            "snippet": _squash(_TAG_RE.sub(" ", snippet))[:SNIPPET_CHARS],
         })
         if len(out) >= max_results:
             break

@@ -9,7 +9,7 @@
 
 import { NextResponse } from 'next/server';
 import { getUserFromAuthHeader, type UserRecord } from '../_shared/db';
-import { downloadSnapshot, uploadSnapshot } from '@/lib/server/neonSync';
+import { downloadSnapshot, markPulled, uploadSnapshot } from '@/lib/server/neonSync';
 import { getWritablePath } from '@/lib/server/sqliteReader';
 import fs from 'fs';
 
@@ -53,5 +53,6 @@ export async function handlePullDb(req: Request): Promise<NextResponse> {
     );
   }
   fs.writeFileSync(getWritablePath('lab_ninja'), snapshot);
+  markPulled('lab_ninja');
   return NextResponse.json({ status: 'pulled' });
 }

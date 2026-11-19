@@ -249,8 +249,10 @@ LEVEL_NAMES: Dict[int, str] = {
 # Output budget per task (the default 2048 would cut a lesson or a STAR answer off mid-sentence).
 MAX_TOKENS: Dict[str, int] = {
     "curriculum": 4096,
-    "outline": 1500,  # the plan of the path: phase titles and goals, and the boss
-    "phase": 3000,  # one page of the path: PHASE_QUESTIONS full questions
+    # The plan of the path: phase titles and goals, and the boss. The answer itself is short (~600 tokens), but a
+    # reasoning model's hidden thinking counts against this budget: 1500 left it cut off mid-JSON ("not valid JSON").
+    "outline": 4096,
+    "phase": 6144,  # one page of the path: PHASE_QUESTIONS full questions (room for thinking, as above)
     "question": 5000,
     "breakdown": 3000,
     "deeper": 3000,
@@ -538,7 +540,11 @@ def build_phase_prompt(c: PromptCtx, ph: PhaseInput) -> str:
             "" if ph.title else "- This phase is not in the plan yet: choose its title and its goal, continuing naturally from the phases above and going one step further.",
             f"- These questions of this phase stay as they are: {quoted(ph.kept_titles)}. Write exactly {count} NEW questions that fit with them." if ph.kept_titles else f"- Write exactly {count} questions.",
             f"- Put them in learning order, easiest first. Build up in small steps: {p.steps}.",
-            '- Do not assume the learner knows the basics. The first time an idea appears, ask a plain "What is ...?" question about it before anything harder. Mix the kinds of question: what it is, why it is used here instead of the alternatives, how it works, when it fails or becomes the wrong choice (limits, edge cases, trade-offs), and how to spot and fix a mistake.',
+            (
+                f"- This is phase 1, the learner's very first contact with the {p.thing}, so keep every question very basic: all \"easy\", about 5 minutes each. Pitch it like the first lesson of a beginner course, the way a Python course starts with \"What is a dictionary?\" and \"Multiply two short lists item by item.\": first ask what each building block is, in the simplest words, then give tiny hands-on tasks on one small example, one step at a time. No edge cases, trade-offs, limits, complexity or interview-style problems yet: the later phases cover those."
+                if ph.number == 1
+                else '- Do not assume the learner knows the basics. The first time an idea appears, ask a plain "What is ...?" question about it before anything harder. Mix the kinds of question: what it is, why it is used here instead of the alternatives, how it works, when it fails or becomes the wrong choice (limits, edge cases, trade-offs), and how to spot and fix a mistake.'
+            ),
             "- Every question is one clear question or task a learner can attempt on their own, about one idea or one step. Write each title as a full sentence: a question or an instruction.",
             f'- "kind" is one of: {p.kinds}',
             '- "exercise" is true when the learner should write code to answer the question (most implementation and algorithm questions) and false for pure concept questions.',

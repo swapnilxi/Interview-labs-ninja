@@ -9,7 +9,7 @@
  * Reuses the To-Do suite's plumbing (router, auth, DB connection, AI helpers) from ../todo.
  */
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { compileRoutes, dispatch } from '../todo/router';
 import { routes } from './handlers';
 
@@ -21,9 +21,8 @@ async function dispatchLabSections(req: Request, segments: string[]): Promise<Re
 
 // Writes push lab_ninja.sqlite3 to Neon afterwards (Vercel's /tmp isn't durable).
 const writeLabSections = withNeonSync(dispatchLabSections);
+const readLabSections = withNeonRead(dispatchLabSections);
 
 export function handleLabSections(req: Request, segments: string[]): Promise<Response> {
-  return req.method === 'GET'
-    ? dispatchLabSections(req, segments)
-    : writeLabSections(req, segments);
+  return req.method === 'GET' ? readLabSections(req, segments) : writeLabSections(req, segments);
 }

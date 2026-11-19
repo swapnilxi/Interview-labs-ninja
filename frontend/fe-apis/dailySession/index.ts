@@ -39,7 +39,7 @@
  * Python code (CLAUDE.md, "Dual deployment modes").
  */
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { compileRoutes, dispatch, type TodoRoute } from '../todo/router';
 import { evaluateAnswer, expandAnswer, generateAnswer, learnChat } from './coach';
 import { HttpError, aiSettings, callAi, extractJsonArray, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
@@ -893,6 +893,7 @@ async function dispatchSession(req: Request, segments: string[]): Promise<Respon
 }
 
 const writeSession = withNeonSync(dispatchSession);
+const readSession = withNeonRead(dispatchSession);
 
 /**
  * Entry point for src/app/api/{sessions,questions,session-progress}/[[...path]]/route.ts and src/app/api/lab/[...path].
@@ -906,5 +907,5 @@ export function handleDailySession(req: Request, segments: string[]): Promise<Re
   const AI_ONLY = ['generate-session-questions', 'generate-answer', 'expand-answer', 'learn-chat'];
   const readOnly =
     req.method === 'GET' || segments[0] === 'lab' || (segments[0] === 'sessions' && AI_ONLY.includes(segments[1]));
-  return readOnly ? dispatchSession(req, segments) : writeSession(req, segments);
+  return readOnly ? readSession(req, segments) : writeSession(req, segments);
 }

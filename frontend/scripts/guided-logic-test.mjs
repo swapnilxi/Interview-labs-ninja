@@ -76,6 +76,76 @@ test('extractJson ignores chatter around the object', () => {
 test('extractJson rejects text with no object', () => {
   assert.throws(() => parse.extractJson('nope'), /not valid JSON/);
 });
+test('extractJson skips a <think> block, even one with braces in it', () => {
+  const v = parse.extractJson(
+    '<think>The shape is {"phases": [...]}, so {x}</think>\n{"phases":[{"title":"A"}]}'
+  );
+  assert.deepStrictEqual(v, { phases: [{ title: 'A' }] });
+});
+test('extractJson finds a fenced block in the middle of prose', () => {
+  const v = parse.extractJson(
+    'Here is the plan:\n```json\n{"a": 1}\n```\nLet me know {if} you want more.'
+  );
+  assert.deepStrictEqual(v, { a: 1 });
+});
+test('extractJson skips braces in chatter before the JSON', () => {
+  assert.deepStrictEqual(parse.extractJson('Use {curly} braces: {"a": {"b": 2}} done'), {
+    a: { b: 2 },
+  });
+});
+test('extractJson keeps code with braces and backslashes inside strings', () => {
+  const v = parse.extractJson(
+    '{"code": "def f(d):\n    return {k: v for k, v in d.items()}\\n", "re": "\\d+"}'
+  );
+  assert.strictEqual(v.code, 'def f(d):\n    return {k: v for k, v in d.items()}\n');
+  assert.strictEqual(v.re, 'd+');
+});
+test('extractJson reads curly quotes when the answer has no straight ones', () => {
+  assert.deepStrictEqual(parse.extractJson('{“a”: “b”}'), { a: 'b' });
+});
+test('extractJson returns a bare array of objects', () => {
+  assert.deepStrictEqual(parse.extractJson('[{"title":"A"}]'), [{ title: 'A' }]);
+});
+test('extractJson says a cut-off answer was cut off, and salvage keeps the complete items', () => {
+  const cut =
+    '```json\n{"phases":[{"title":"Basics of it","goal":"g1"},{"title":"Second step","goal":"g2"},{"title":"Thi';
+  assert.throws(() => parse.extractJson(cut), /cut off/);
+  assert.throws(() => parse.extractJson('{"phases":[{"title":"Wha'), /cut off/);
+  assert.deepStrictEqual(parse.extractJson(cut, { salvage: true }), {
+    phases: [
+      { title: 'Basics of it', goal: 'g1' },
+      { title: 'Second step', goal: 'g2' },
+    ],
+  });
+});
+test('parseOutline and parsePhase read a cut-off answer and a bare array', () => {
+  const o = parse.parseOutline(
+    '{"phases":[{"title":"What it is","goal":"g"},{"title":"How it works","goal":"g"}],"boss":{"title":"Big fin'
+  );
+  assert.deepStrictEqual(
+    o.phases.map((p) => p.title),
+    ['What it is', 'How it works']
+  );
+  assert.strictEqual(o.boss, null);
+  assert.strictEqual(parse.parseOutline('[{"title":"Only phase","goal":"g"}]').phases.length, 1);
+  const p = parse.parsePhase(
+    '{"title":"T","goal":"G","questions":[{"title":"What is a hash map?","kind":"concept"},{"title":"How does hashi',
+    new Set()
+  );
+  assert.deepStrictEqual(
+    p.questions.map((q) => q.title),
+    ['What is a hash map?']
+  );
+});
+test('parseLesson does not salvage a cut-off lesson', () => {
+  assert.throws(
+    () =>
+      parse.parseLesson(
+        '{"explanation":"Some text","exercise":{"prompt":"Write it","tests":[{"args":[1]}'
+      ),
+    /cut off/
+  );
+});
 
 const outline = {
   phases: [
