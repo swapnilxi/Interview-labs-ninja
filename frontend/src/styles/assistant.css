@@ -31,6 +31,11 @@
   }
 }
 
+/* The page has no bottom padding on this tab (the chat's box sits at the bottom edge): the list keeps its own. */
+.agt-side {
+  padding-bottom: 1.5rem;
+}
+
 .agt-main {
   display: flex;
   min-width: 0;
@@ -529,45 +534,37 @@
   outline-offset: 2px;
 }
 
-/* ── Composer: pinned to the bottom of the view (above the phone tab bar) ── */
+/* ── Composer: pinned to the bottom of the To-Do's scrolling pane ──
+   The pane (main in app/ai-todo/page.tsx, an .h-app-screen shell) already ends above the phone tab bar, so the dock
+   sits at the pane's bottom edge; adding --mobile-tab-h here again floated the box ~86px above the tab bar. The
+   bottom padding is page colour, so the conversation doesn't show through under the box. */
 .agt-dock {
   position: sticky;
-  bottom: max(var(--mobile-tab-h, 0px), calc(var(--safe-bottom, 0px) + 0.75rem));
+  bottom: 0;
   z-index: 20;
   margin-top: auto;
   padding-top: 0.75rem;
+  padding-bottom: calc(var(--safe-bottom, 0px) + 0.75rem);
   background: linear-gradient(to bottom, transparent, var(--color-background) 0.75rem);
 }
-html.keyboard-open .agt-dock {
-  bottom: 0.5rem;
+/* The tab bar's reserved band already covers the home indicator. */
+html.has-mobile-tabs .agt-dock {
+  padding-bottom: 0.75rem;
 }
-/* Phones: the band between the box and the floating tab bar is page colour, so the conversation doesn't show
-   through under the box (it still scrolls behind the tab bar's glass, which sits above this). */
-@media (max-width: 767px) {
-  .agt-dock::after {
-    content: '';
-    position: absolute;
-    left: -1rem;
-    right: -1rem;
-    top: 100%;
-    height: var(--mobile-tab-h, 0px);
-    background: var(--color-background);
-    pointer-events: none;
-  }
-  html.keyboard-open .agt-dock::after {
-    display: none;
-  }
+html.keyboard-open .agt-dock {
+  padding-bottom: 0.5rem;
 }
 .agt-composer {
   border-radius: 1.5rem;
   padding: 0.375rem;
-  border: 1px solid var(--color-separator);
+  /* A visible hairline (the bare separator vanished against the dark page), still neutral: no accent. */
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 16%, var(--color-separator));
   background: var(--color-card);
   box-shadow: var(--shadow-float, var(--shadow-card));
   transition: border-color var(--dur-fast) var(--ease-out);
 }
 .agt-composer:focus-within {
-  border-color: color-mix(in srgb, var(--color-foreground) 22%, var(--color-separator));
+  border-color: color-mix(in srgb, var(--color-foreground) 30%, var(--color-separator));
 }
 .agt-input {
   display: block;
@@ -843,8 +840,7 @@ html.keyboard-open .agt-dock {
   padding-bottom: calc(1.5rem + var(--safe-bottom, 0px));
 }
 
-/* The scroll target for "show the latest": below the box, clear of the phone tab bar. */
+/* The scroll target for "show the latest": below the box (the pane already ends above the phone tab bar). */
 .agt-end {
   height: 1px;
-  scroll-margin-bottom: var(--mobile-tab-h, 0px);
 }

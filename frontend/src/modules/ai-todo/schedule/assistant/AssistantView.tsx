@@ -156,10 +156,10 @@ export default function AssistantView() {
 
   return (
     <div className="agt-view" data-pane={pane}>
-      <section className="agt-main" aria-label="Assistant">
+      <section className="agt-main" aria-label="Scheduler">
         <header className="agt-head">
           <div className="min-w-0">
-            <h2 className="todo-section-title font-semibold">Assistant</h2>
+            <h2 className="todo-section-title font-semibold">Scheduler</h2>
             <p className="todo-section-sub">
               Ask, get reports, or put anything on a schedule. Type or talk.
             </p>
@@ -278,7 +278,7 @@ function PaneSwitch({
     <div
       className="todo-segmented mb-[1rem] w-full min-[1100px]:hidden"
       role="group"
-      aria-label="Assistant view"
+      aria-label="Scheduler view"
     >
       <button
         type="button"

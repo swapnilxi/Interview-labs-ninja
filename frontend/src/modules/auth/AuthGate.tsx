@@ -13,6 +13,8 @@ import { isLoggedIn } from '@/lib/auth/tokenStore';
 export const PUBLIC_PATH_PREFIXES = [
   // The log in / sign up screen. Signing up is also how someone without an account asks for access.
   '/login',
+  // Waiting-for-approval screen for accounts that are pending or rejected.
+  '/pending-approval',
   // Published Career Studio portfolios and resumes for visitors (/p/<slug>, /r/<slug>, /…/v/<n>).
   '/p',
   '/r',
@@ -43,6 +45,9 @@ function AuthSkeleton() {
  * sent to /login?next=<this page>; the /login screen sends them back after logging in. Until the login
  * state is known (AuthContext's /auth/me check) a protected page renders only AuthSkeleton, on the server
  * too, so its content never flashes. The backends enforce the same rule on every API call.
+ *
+ * Pending or rejected accounts: sent to /pending-approval (also listed in PUBLIC_PATH_PREFIXES so the
+ * waiting screen itself is always reachable). PendingApprovalModule redirects approved users away.
  */
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '';
@@ -60,6 +65,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     const here = `${window.location.pathname}${window.location.search}`;
     router.replace(`/login?next=${encodeURIComponent(here)}`);
   }, [loading, allowed, router]);
+
+  // Pending / rejected users are allowed to see public paths (login, /pending-approval) but nothing else.
+  useEffect(() => {
+    if (loading || isPublic) return;
+    if (user?.status === 'pending' || user?.status === 'rejected') {
+      router.replace('/pending-approval');
+    }
+  }, [loading, user, isPublic, router]);
 
   if (!allowed) return <AuthSkeleton />;
   return <>{children}</>;

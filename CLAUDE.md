@@ -180,6 +180,14 @@ further down in `README.md` — check there before assuming a module's shape.
   `fe-apis` has the same gate in `requireUserId` (`fe-apis/lms/index.ts`, same allowlist) — keep the two in sync.
   Role/landing-editor checks: `tests/e2e/ai-lms/` (Playwright, README there) and `backend/tests/lms_roles_test.py`.
 - **AI LMS class membership, updates and practice reminders:** `classes/<c>/membership` (PUT/DELETE, allowlisted for non-editors) and `classes/<c>/notifications` (POST, editor+, deliberately not allowlisted) + `GET /notifications` live in both twins (`ai_lms/updates.py` ↔ `fe-apis/lms/updates.ts`, same texts and codes; only the Next.js layer pushes). A class practice reminder is a Scheduler reminder marked `source_text = 'lms-class:<slug>'` (`lib/schedules/classReminders.ts`); never show the marker. README: "Class membership, updates and practice reminders".
+- **AI LMS Workbooks** (`lms_workbooks` + per-learner `lms_workbook_progress`): `ai_lms/workbooks.py` <-> `fe-apis/lms/workbooks.ts`
+  (+ `workbookHandlers.ts`), same rules and texts; check with `python3 backend/tests/lms_workbooks_test.py` (both twins, diffed).
+  Allowlisted for non-editors on purpose (anyone may make a private one): the module enforces owner/editor/visibility itself, and
+  a learner's answers are never returned to anyone else, admins included. Generation is outline, then one call per chapter:
+  `ai_lms/workbook_gen.py` <-> `fe-apis/lms/workbookGen.ts` (prompts byte-identical, normalizers same JSON; the test diffs both).
+  Learner progress = one versioned document per learner (stale save = 409); instructors get names/percentages only, never answers.
+  Voice lives in `workbooks/voice/`; `/api/voice/stt` takes `?language=en|hi` on both twins (Hindi needs it).
+  README: "Workbooks (AI Interactive Workbooks)".
 - AI-powered endpoints/methods are login-required everywhere, on purpose — don't add
   guest-mode fallbacks for them without checking with the user first.
 - **AI LMS class folders (`frontend/src/modules/ai-lms/classes/`) are synced both ways with

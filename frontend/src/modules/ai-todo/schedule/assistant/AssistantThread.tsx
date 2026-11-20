@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import type { ThreadItem } from '@/lib/services/agentService';
-import type { ActivityRun } from '@/lib/services/scheduleService';
+import { parseServerTime, type ActivityRun } from '@/lib/services/scheduleService';
 import AssistantMarkdown from './AssistantMarkdown';
 import ActionCard from './ActionCard';
 import type { TimelineEntry } from './useAssistant';
@@ -238,8 +238,25 @@ function Sources({ sources }: { sources: { title: string; url: string }[] }) {
   );
 }
 
+/**
+ * A "Run it now" card's outcome: the status of that schedule's first run started since the message (a minute of
+ * slack: the run starts while the reply is still being saved), or undefined while none shows yet.
+ */
+function runStatusSince(
+  timeline: TimelineEntry[],
+  scheduleId: number,
+  since: number
+): ActivityRun['status'] | undefined {
+  for (const row of timeline) {
+    if (row.kind !== 'run' || row.run.schedule_id !== scheduleId) continue;
+    if (parseServerTime(row.run.started_at) >= since - 60_000) return row.run.status;
+  }
+  return undefined;
+}
+
 function BotMessage({
   item,
+  timeline,
   speakingId,
   onSpeak,
   onRetry,
@@ -264,6 +281,11 @@ function BotMessage({
           <ActionCard
             key={i}
             entry={entry}
+            runStatus={
+              entry.action.type === 'run_schedule'
+                ? runStatusSince(timeline, entry.action.id, item.at)
+                : undefined
+            }
             onUndo={() => onUndo(item.id, i)}
             onConfirm={(yes) => onConfirm(item.id, i, yes)}
             onEditSchedule={onEditSchedule}

@@ -420,6 +420,49 @@ export default function AdminModule() {
         </div>
       )}
 
+      {/* Pending signups — shown only when there are accounts waiting for approval */}
+      {users.filter((u) => u.status === 'pending').length > 0 && (
+        <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
+          <div className="p-18 border-b mix-border-warning/30 flex items-center gap-6 mix-bg-warning/5">
+            <Icon name="ClockIcon" size={18} className="text-warning" />
+            <h2 className="font-heading text-base font-semibold text-foreground">Pending signups</h2>
+            <span className="text-xs font-normal text-muted-foreground">
+              ({users.filter((u) => u.status === 'pending').length} waiting)
+            </span>
+          </div>
+          <ul className="divide-y divide-border">
+            {users
+              .filter((u) => u.status === 'pending')
+              .map((u) => (
+                <li key={u.id} className="p-18 flex items-start justify-between gap-18 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="font-medium text-foreground truncate">
+                      {u.display_name || u.email}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {u.display_name ? u.email : ''} · signed up {formatDate(u.created_at)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6 shrink-0">
+                    <button
+                      onClick={() => setPending({ type: 'approve-account', user: u })}
+                      className="py-6 px-12 rounded-md text-xs font-medium text-white bg-success hover:mix-bg-success/90 transition-smooth focus-ring"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => setPending({ type: 'reject-account', user: u })}
+                      className="py-6 px-12 rounded-md text-xs font-medium border border-border bg-card hover:bg-muted text-foreground transition-smooth focus-ring"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+
       {/* Access requests */}
       <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
         <div className="p-18 border-b border-border flex items-center gap-6">

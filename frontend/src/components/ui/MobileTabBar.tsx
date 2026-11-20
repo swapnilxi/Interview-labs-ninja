@@ -178,8 +178,11 @@ export default function MobileTabBar() {
           className={`${tab(todo)} mobile-tab-orb`}
           aria-current={todo ? 'page' : undefined}
         >
-          <span className="mobile-tab-orb-disc" aria-hidden="true">
-            <Icon name="CheckIcon" size={26} strokeWidth={2.4} />
+          {/* The well draws the bar's curved bump (the cradle) behind the disc: see .mobile-tab-orb-well. */}
+          <span className="mobile-tab-orb-well" aria-hidden="true">
+            <span className="mobile-tab-orb-disc">
+              <Icon name="CheckIcon" size={26} strokeWidth={2.4} />
+            </span>
           </span>
           <span>To-Do</span>
         </Link>

@@ -429,10 +429,10 @@ def _run_budget(schedule: Dict[str, Any]) -> int:
 def _run_prompt(
     schedule: Dict[str, Any], now: str, weekday: Optional[str], tasks_block: str, web: str, ask_search: bool
 ) -> str:
-    """The run prompt. A job without the newer options (workspace, web, report) gets exactly the original prompt."""
+    """The run prompt; the report and web lines and rules are added only for jobs that use them."""
     report_line = (
         '\n  "report": "The full report, shown in the app: markdown allowed (### headings, bullet lists, **bold**), '
-        'at most 4000 characters",'
+        'no emoji, at most 4000 characters",'
         if schedule["write_report"]
         else ""
     )
@@ -467,7 +467,9 @@ Instructions: {schedule['message'] or 'No extra instructions.'}
   ]
 }}
 Rules:
-- Follow the instructions. Be specific, and use the person's tasks when they matter; never invent tasks they don't have.
+- Follow the instructions (the job's title says what it is for when they are short). Be specific, and use the person's tasks when they matter; never invent tasks they don't have.
+- Do the job now, for today, and give the finished result: never say you will do it later, and never ask the person anything or wait for an answer (they can't reply to this). A quiz gives its questions with the answers below them.
+- Refer to tasks by title, never by id.
 - tasks: new tasks only when the instructions ask you to create, plan or suggest tasks (at most 5); otherwise [].
 {extra_rules}- Keep the person's language.
 No extra text, no markdown blocks, just the raw JSON object."""
