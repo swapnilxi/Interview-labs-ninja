@@ -295,6 +295,48 @@ test('cleanMarkdown removes a wrapping fence only', () => {
   assert.strictEqual(parse.cleanMarkdown('## S\n```python\nx=1\n```'), '## S\n```python\nx=1\n```');
 });
 
+test('extractPython takes the python block, without its fences', () => {
+  const code = 'def f(x):\n    return x + 1\n\nprint(f(1))';
+  assert.strictEqual(parse.extractPython('```python\n' + code + '\n```'), code);
+  assert.strictEqual(parse.extractPython('  ```py\n' + code + '\n```  \n'), code);
+  assert.strictEqual(parse.extractPython('```python\r\nx = 1\r\n```\r\n'), 'x = 1');
+});
+test('extractPython: python blocks win over an output block, several are joined, a missing fence is fine', () => {
+  const reply = '```python\nprint(1)\n```\n\nOutput:\n```\n1\n```';
+  assert.strictEqual(parse.extractPython(reply), 'print(1)');
+  assert.strictEqual(
+    parse.extractPython('```python\na = 1\n```\ntext\n```python\nb = 2\n```'),
+    'a = 1\n\nb = 2'
+  );
+  assert.strictEqual(parse.extractPython('```\nx = 1\n```'), 'x = 1');
+  assert.strictEqual(parse.extractPython('x = 1\nprint(x)'), 'x = 1\nprint(x)');
+});
+test('extractPython keeps a reply cut off before its closing fence', () => {
+  assert.strictEqual(
+    parse.extractPython('```python\ndef f():\n    return 1'),
+    'def f():\n    return 1'
+  );
+});
+test('extractPython refuses another language and empty code (the feature is Python only)', () => {
+  assert.throws(() => parse.extractPython('```java\nclass A {}\n```'), /other than Python/);
+  assert.throws(
+    () => parse.extractPython('```javascript\nlet x = 1;\n```\n```ts\nlet y = 2;\n```'),
+    /other than Python/
+  );
+  assert.throws(() => parse.extractPython(''), /no code/);
+  assert.throws(() => parse.extractPython('```python\n\n```'), /no code/);
+  // a java block next to a python block: the python one is the answer
+  assert.strictEqual(parse.extractPython('```java\nint x;\n```\n```python\nx = 1\n```'), 'x = 1');
+});
+test('fencedPython fences with more backticks than the code holds, and extractPython reads it back', () => {
+  const plain = 'x = 1';
+  assert.strictEqual(parse.fencedPython(plain), '```python\nx = 1\n```');
+  const tricky = 'doc = """\n```python\nprint(1)\n```\n"""\nprint(doc)';
+  const fenced = parse.fencedPython(tricky);
+  assert.ok(fenced.startsWith('````python\n') && fenced.endsWith('\n````'), fenced);
+  assert.strictEqual(parse.extractPython(fenced), tricky);
+});
+
 // ── tree + xp ───────────────────────────────────────────────────────────────
 const topic = {
   id: 'dsa-1',
@@ -678,6 +720,44 @@ test('hydrateState fills gaps and refuses non-documents', () => {
   assert.strictEqual(h.player.streak.current, 0);
 });
 
+test('a new STAR answer version keeps the code implementation (it once dropped it)', () => {
+  const code = { text: 'print(1)', at: 'x', hidden: false };
+  const before = { versions: [], activeId: null, hidden: true, code };
+  const version = { id: 's1', variant: 'generate', label: 'Answer', text: '## S', at: 'x' };
+  const after = tree.starWithVersion(before, version);
+  assert.deepStrictEqual(after.code, code);
+  assert.deepStrictEqual(after.versions, [version]);
+  assert.strictEqual(after.activeId, 's1');
+  assert.strictEqual(after.hidden, false, 'a new answer is shown');
+  assert.deepStrictEqual(before.versions, [], 'the old state is not changed');
+  const second = tree.starWithVersion(after, { ...version, id: 's2', variant: 'example' });
+  assert.deepStrictEqual(
+    second.versions.map((v) => v.id),
+    ['s1', 's2']
+  );
+  assert.deepStrictEqual(second.code, code);
+});
+
+test('hydrateState keeps a saved code implementation, and drops anything that is not one', () => {
+  const saved = JSON.parse(JSON.stringify(state));
+  saved.progress[q1].star = {
+    versions: [],
+    activeId: null,
+    hidden: false,
+    code: { text: 'print(1)', at: '2026-11-20T10:00:00.000Z', hidden: true },
+  };
+  const kept = tree.hydrateState(saved).progress[q1].star.code;
+  assert.deepStrictEqual(kept, { text: 'print(1)', at: '2026-11-20T10:00:00.000Z', hidden: true });
+  for (const junk of [undefined, null, 'x', 5, {}, { text: '' }, { text: '  \n' }, { text: 7 }]) {
+    const s = JSON.parse(JSON.stringify(state));
+    s.progress[q1].star = { versions: [], activeId: null, hidden: false, code: junk };
+    assert.strictEqual(tree.hydrateState(s).progress[q1].star.code, null, JSON.stringify(junk));
+  }
+  const old = JSON.parse(JSON.stringify(state)); // saved before the feature: no `code` key at all
+  delete old.progress[q1].star.code;
+  assert.strictEqual(tree.hydrateState(old).progress[q1].star.code, null);
+});
+
 test('nextQuestionId skips locked phases and completed questions', () => {
   const fresh = tree.createState(topic, curriculum, '');
   const first = fresh.phases[0].questionIds[0];
@@ -688,6 +768,13 @@ test('nextQuestionId skips locked phases and completed questions', () => {
     first,
     'phase 2 is locked, so it wraps to the first unfinished one in an unlocked phase'
   );
+});
+
+test('every lab offers Show code implementation except the one that is all wording', () => {
+  const labs = require(path.join(B, 'labs.js'));
+  for (const lab of ['dsa', 'cv', 'system_design', 'finance', 'python', 'genai'])
+    assert.strictEqual(labs.labConfig(lab).codeImplementation, true, lab);
+  assert.strictEqual(labs.labConfig('communication').codeImplementation, false);
 });
 
 test('labConfig falls back to the DSA lab for an unknown or missing lab', () => {

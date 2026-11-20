@@ -142,7 +142,7 @@ export interface ExtractOptions {
  * (with `salvage`) an answer that was cut off. A bare top-level array is returned as is (the parsers below accept it).
  */
 export function extractJson(text: string, opts: ExtractOptions = {}): unknown {
-  let t = (text ?? '').replace(/^﻿/, '').trim();
+  let t = (text ?? '').replace(/^\ufeff/, '').trim();
   // A reasoning model's thinking, when the provider leaves it in the text.
   t = t.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '').trim();
   // A fenced block anywhere in the answer is the JSON; without one (or a fence that was never closed), the whole text.
@@ -237,6 +237,55 @@ export function cleanMarkdown(text: string): string {
   const t = (text ?? '').trim();
   const m = /^\s*```(?:markdown|md)?\s*\n([\s\S]*)\n```\s*$/i.exec(t);
   return (m ? m[1] : t).trim();
+}
+
+const PYTHON_FENCE_LANGS = new Set(['python', 'python3', 'py']);
+
+/**
+ * The code of a "Show code implementation" reply: the Python of its fenced block(s), without the fences (the page draws its
+ * own). Blocks tagged python win; blocks with no tag are used only when there are none, so a trailing "expected output"
+ * block never ends up in the program. A reply with no fence at all is taken as the code (the model forgot them). A reply
+ * whose only code is in another language is refused: this feature is Python only.
+ */
+export function extractPython(text: string): string {
+  const source = (text ?? '').replace(/\r\n?/g, '\n').trim();
+  const blocks: { lang: string; code: string[] }[] = [];
+  let open: { marker: string; lang: string; code: string[] } | null = null;
+  for (const line of source.split('\n')) {
+    const fence = /^\s{0,3}(`{3,}|~{3,})\s*([\w+#.-]*)[^\n]*$/.exec(line);
+    if (!open) {
+      if (fence) open = { marker: fence[1], lang: fence[2].toLowerCase(), code: [] };
+    } else if (
+      fence &&
+      !fence[2] &&
+      fence[1][0] === open.marker[0] &&
+      fence[1].length >= open.marker.length &&
+      /^\s{0,3}[`~]+\s*$/.test(line)
+    ) {
+      blocks.push({ lang: open.lang, code: open.code });
+      open = null;
+    } else {
+      open.code.push(line);
+    }
+  }
+  if (open) blocks.push({ lang: open.lang, code: open.code }); // cut off before the closing fence: keep what came
+
+  let picked = blocks.filter((b) => PYTHON_FENCE_LANGS.has(b.lang));
+  if (!picked.length) picked = blocks.filter((b) => !b.lang);
+  if (!picked.length && blocks.length)
+    throw new AiParseError('The AI answered in a language other than Python. Try again.');
+  const code = (
+    picked.length ? picked.map((b) => b.code.join('\n').trim()).join('\n\n') : source
+  ).trim();
+  if (!code) throw new AiParseError('The AI returned no code. Try again.');
+  return code;
+}
+
+/** The code as a Markdown block, fenced with more backticks than any run inside it so the code cannot close it early. */
+export function fencedPython(code: string): string {
+  const longest = Math.max(0, ...(code.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = '`'.repeat(Math.max(3, longest + 1));
+  return `${fence}python\n${code}\n${fence}`;
 }
 
 // ── Outline questions (the path, a breakdown, deeper questions) ─────────────

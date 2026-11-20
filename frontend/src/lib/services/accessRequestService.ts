@@ -23,7 +23,7 @@ export interface AccessRequest {
 }
 
 export interface SubmitAccessRequestInput {
-  requested_role?: 'editor' | 'admin' | 'superadmin';
+  requested_role?: 'editor' | 'instructor' | 'admin' | 'superadmin';
   permission?: string;
   message?: string;
 }

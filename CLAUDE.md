@@ -288,11 +288,12 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   (`guided_practice_state`, saved with a version, a stale save is a 409) and runs AI prompts that return raw text (the browser
   parses it). **A path is written in pages** (`POST /outline` = the plan, `POST /phase` = one phase of five full questions, also used by Regenerate
   phase and Generate more) so no single answer can be cut off; a planned phase that is not written yet is `Phase.pending` and must never count as done. **The prompts (`prompts.ts` ↔ `prompts.py`) must stay byte-identical**: run
-  `cd backend && uv run python tests/guided_practice_prompts_test.py` (5,679 cases, every builder x branch x lab, through both
+  `cd backend && uv run python tests/guided_practice_prompts_test.py` (6,179 cases, every builder x branch x lab, through both
   builders; needs Node 22.18+), not by eye. A new lab = `guided/labs.ts` + `GUIDED_LABS`/`PROFILES` on both servers + a route + a
   `guidedPractice` flag in its `TopicLabConfig`. The page has its own purple accent (`.gp-accent`, VISUAL-GUIDELINES.md "Module
   notes"); AI results and progress are applied through `useGuidedStore.mutate` (never from a stale closure). Exercises run in the
-  browser (Pyodide, `public/runner/python-worker.js`); the AI's own tests are verified against its reference solution first. The game
+  browser (Pyodide, `public/runner/python-worker.js`); the AI's own tests are verified against its reference solution first. *Show code
+  implementation* on a STAR answer is `POST /star` with `variant: "code"` (Python only, kept in `progress.star.code`). The game
   rules (`parse.ts`, `tree.ts`, `xp.ts`) are pure: `npm run test:guided` (from `frontend/`) checks them. README: "Guided Practice".
 - **Data twins for the rest of the labs and Daily Session** (so nextjs-api mode shows the SQLite data):
   `fe-apis/labs` = topics + sections of DSA/CV/System Design (`/dsa/topics|sections` share the

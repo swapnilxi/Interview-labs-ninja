@@ -848,7 +848,7 @@ export function buildTutorPrompt(c: PromptCtx, t: TutorInput): string {
 
 // ── Answer in STAR ──────────────────────────────────────────────────────────
 
-export const STAR_VARIANTS = ['generate', 'simplify', 'example'] as const;
+export const STAR_VARIANTS = ['generate', 'simplify', 'example', 'code'] as const;
 export type StarVariant = (typeof STAR_VARIANTS)[number];
 
 export interface StarInput {
@@ -860,7 +860,37 @@ export interface StarInput {
   existingAnswer: string;
 }
 
+/**
+ * The `code` variant: the Python implementation of the question, as one code block. It is written when the learner presses
+ * "Show code implementation", and follows the approach of their STAR answer when they have one (`existingAnswer`, optional).
+ * Python only, standard library only: it is the language of every exercise in the path.
+ */
+function buildStarCodePrompt(c: PromptCtx, s: StarInput): string {
+  return blocks(
+    `You are a senior ${profileOf(c).instructor} writing the Python implementation for ONE question.`,
+    problemBlock(c),
+    lines(positionBlock(s.pos), questionBlock(s.question)),
+    s.explanation ? `The lesson text the learner has seen:\n"""\n${s.explanation}\n"""` : '',
+    s.exercisePrompt ? `The coding exercise of this question:\n"""\n${s.exercisePrompt}\n"""` : '',
+    s.existingAnswer
+      ? `The STAR answer the learner has for this question. Implement the approach it describes:\n"""\n${s.existingAnswer}\n"""`
+      : '',
+    lines(
+      'Rules:',
+      '- Python 3 only. Do not write any other programming language, not even in a comment.',
+      '- Use the standard library and plain Python data structures only: no third-party packages such as numpy, pandas, OpenCV or PyTorch.',
+      '- Write one complete program that runs as it is: imports first, clear names, and small helper functions where they make it easier to read.',
+      '- Give every function a short docstring that says what it does and its time and space complexity. Comment the lines that need a reason, not the obvious ones.',
+      '- Finish with an if __name__ == "__main__": block that runs two or three small examples with print() and shows the expected output in comments.',
+      '- If the question is about an idea and there is no algorithm to write, write a short runnable Python demonstration of the idea instead.',
+      profileOf(c).labNote
+    ),
+    `Respond with exactly one fenced ${FENCE}python code block and nothing else: no explanation before or after it.`
+  );
+}
+
 export function buildStarPrompt(c: PromptCtx, s: StarInput): string {
+  if (s.variant === 'code') return buildStarCodePrompt(c, s);
   let variant = '';
   if (s.variant === 'simplify') {
     variant = `Here is the current answer:\n"""\n${s.existingAnswer}\n"""\nRewrite it in simpler language for a learner who found it hard: shorter sentences, a quick definition for every technical term, smaller steps and one easy analogy. Keep the same headings, and keep the code and the complexity correct.`;

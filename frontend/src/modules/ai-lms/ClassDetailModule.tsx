@@ -38,10 +38,12 @@ interface ClassDetailModuleProps {
 }
 
 export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps) {
-  const { canEdit: canEditReal } = useAuth();
+  const { user, canEdit: canEditReal } = useAuth();
   const { isPreviewingAsStudent } = useLmsViewMode();
   const canEdit = canEditReal && !isPreviewingAsStudent;
   const [lmsClass, setLmsClass] = useState<LmsClass | null>(null);
+  const isOwner = Boolean(user?.id && lmsClass?.owner_id === user.id);
+  const canEditClass = canEdit || isOwner;
   useLmsCopilotContext(lmsClass ? classCopilotContext(lmsClass) : null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -225,7 +227,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
             <ExportClassButton classSlug={lmsClass.slug} className={LMS_TOOLBAR_BTN} />
           </div>
 
-          {canEdit && (
+          {canEditClass && (
             <div className="flex flex-wrap items-center gap-2">
               <Link href={`/ai-lms/generate?class=${lmsClass.slug}`} className={LMS_TOOLBAR_BTN_PRIMARY}>
                 <Icon name="SparklesIcon" size={14} />
@@ -295,7 +297,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
                   : 'No custom AI instructions set. AI will use standard defaults. Click "Edit Context" to provide domain depth, target audience, or stack requirements.'}
               </p>
             </div>
-            {canEdit && (
+            {canEditClass && (
               <button
                 type="button"
                 onClick={() => setIsClassEditOpen(true)}
@@ -309,7 +311,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
         </div>
       </header>
 
-      <LmsVideos scope="class" refId={lmsClass.id} canEdit={canEdit} />
+      <LmsVideos scope="class" refId={lmsClass.id} canEdit={canEditClass} />
 
       {/* Normal Classes: Show Subjects Grid */}
       {!isOtherClass && (
@@ -351,12 +353,12 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               icon="FolderIcon"
               title="No subjects or projects created yet"
               description={`Add a subject to teach concepts, or a project to generate a step-by-step implementation roadmap under ${lmsClass.name}.`}
-              primaryAction={canEdit ? {
+              primaryAction={canEditClass ? {
                 label: 'Create Subject',
                 onClick: () => setIsSubjectModalOpen(true),
                 icon: 'PlusIcon',
               } : undefined}
-              secondaryAction={canEdit ? {
+              secondaryAction={canEditClass ? {
                 label: 'Add Project',
                 onClick: () => setIsProjectModalOpen(true),
                 icon: 'CodeBracketSquareIcon',
@@ -369,15 +371,15 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
                   key={subj.id}
                   subject={subj}
                   classSlug={lmsClass.slug}
-                  onEdit={canEdit ? (s) => setSubjectToEdit(s) : undefined}
-                  onDelete={canEdit ? (s) => setSubjectToDelete(s) : undefined}
+                  onEdit={canEditClass ? (s) => setSubjectToEdit(s) : undefined}
+                  onDelete={canEditClass ? (s) => setSubjectToDelete(s) : undefined}
                   isOrganizeMode={isOrganizeSubjects}
                   orderIndex={idx}
                   canMoveLeft={idx > 0}
                   canMoveRight={idx < subjects.length - 1}
                   // Reordering changes shared content: only instructors get the arrows (a learner's tap would be a 403).
-                  onMoveLeft={canEdit ? () => handleMoveSubject(idx, 'left') : undefined}
-                  onMoveRight={canEdit ? () => handleMoveSubject(idx, 'right') : undefined}
+                  onMoveLeft={canEditClass ? () => handleMoveSubject(idx, 'left') : undefined}
+                  onMoveRight={canEditClass ? () => handleMoveSubject(idx, 'right') : undefined}
                 />
               ))}
             </div>
@@ -404,12 +406,12 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
               icon="DocumentTextIcon"
               title="No standalone lessons yet"
               description="Generate a lesson under the Other class without needing to specify a subject."
-              primaryAction={canEdit ? {
+              primaryAction={canEditClass ? {
                 label: 'Generate Lesson',
                 href: `/ai-lms/generate?class=${lmsClass.slug}`,
                 icon: 'SparklesIcon',
               } : undefined}
-              secondaryAction={canEdit ? {
+              secondaryAction={canEditClass ? {
                 label: 'Create Manually',
                 onClick: () => {
                   setLessonToEdit(null);
@@ -422,12 +424,12 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
             <LessonList
               lessons={directLessons}
               classSlug={lmsClass.slug}
-              onEdit={canEdit ? (l) => {
+              onEdit={canEditClass ? (l) => {
                 setLessonToEdit(l);
                 setIsLessonModalOpen(true);
               } : undefined}
-              onDelete={canEdit ? (l) => setLessonToDelete(l) : undefined}
-              onReorder={canEdit ? handleReorderDirectLessons : undefined}
+              onDelete={canEditClass ? (l) => setLessonToDelete(l) : undefined}
+              onReorder={canEditClass ? handleReorderDirectLessons : undefined}
             />
           )}
         </section>

@@ -28,6 +28,8 @@ export interface PageVideo {
   preview_image?: string;
   /** The card shape; absent on an older server = wide. */
   shape?: VideoShape;
+  /** A LINK_ICONS slug the owner picked; '' = guessed from the url. */
+  icon?: string;
 }
 
 /** '' for the topic's own page. */
@@ -41,10 +43,11 @@ export async function fetchLabPageVideos(
   return data.videos ?? [];
 }
 
-/** What only an admin may send with a new link. */
+/** How a link's card looks: set by its owner (or an admin on a shared one). */
 export interface PageVideoLook {
   preview_image?: string;
   shape?: VideoShape;
+  icon?: string;
 }
 
 export function addLabPageVideo(
@@ -67,17 +70,18 @@ export function addLabPageVideo(
       shared,
       ...(look.preview_image ? { preview_image: look.preview_image } : {}),
       ...(look.shape ? { shape: look.shape } : {}),
+      ...(look.icon ? { icon: look.icon } : {}),
     }),
   });
 }
 
 export interface PageVideoPatch extends PageVideoLook {
   title?: string;
-  /** Admin only, like the preview image and the shape. */
+  /** Admin only. */
   shared?: boolean;
 }
 
-/** Only the fields present are changed; `preview_image: ''` removes the image. */
+/** Only the fields present are changed; `preview_image: ''` removes the image, `icon: ''` goes back to automatic. */
 export function updateLabPageVideo(id: number, patch: PageVideoPatch): Promise<PageVideo> {
   return apiJson<PageVideo>(`/lab-sections/videos/${id}`, {
     method: 'PATCH',

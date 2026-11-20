@@ -2088,7 +2088,7 @@
     background:
       radial-gradient(circle at 50% 50%, #ffffff 0 6.5px, #161616 6.5px 8.5px, transparent 8.5px),
       linear-gradient(#161616 0 0) center / 100% 12px no-repeat,
-      linear-gradient(180deg, #ee1515 0 50%, #ffffff 50% 100%);
+      linear-gradient(180deg, #c41e3a 0 50%, #ffffff 50% 100%);
   }
 
   html[data-accent-preset='pokemon'] .mobile-tab-orb-disc svg {
@@ -3355,6 +3355,37 @@
     background-image:
       radial-gradient(ellipse 70% 130% at 100% 0%, color-mix(in srgb, var(--edge-hue) var(--wash-a), transparent), transparent 66%),
       linear-gradient(135deg, color-mix(in srgb, var(--edge-hue) var(--wash-b), transparent), transparent 52%);
+  }
+
+  /* The picture area of a link / resource card with no preview image: a soft wash of the accent behind the card's mark. */
+  .link-card-media {
+    background:
+      radial-gradient(ellipse 80% 90% at 50% 40%, color-mix(in srgb, var(--lab-accent, var(--color-primary)) 14%, transparent), transparent 70%),
+      color-mix(in srgb, var(--color-foreground) 4%, var(--color-card));
+  }
+
+  /* Section heading cards (reading-card) sit stacked in a list, so their glow is kept softer than standalone lab-cards. */
+  :is(.lab-shell, .lab-page) .reading-card {
+    --edge-halo: 3%;
+    --edge-glow: 9%;
+    --edge-wash: 10%;
+    --edge-wash-2: 4%;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :is(.lab-shell, .lab-page) .reading-card {
+      --edge-halo: 4%;
+      --edge-glow: 11%;
+      --edge-wash: 11%;
+      --edge-wash-2: 4%;
+    }
+  }
+
+  :root[data-theme='dark'] :is(.lab-shell, .lab-page) .reading-card {
+    --edge-halo: 4%;
+    --edge-glow: 11%;
+    --edge-wash: 11%;
+    --edge-wash-2: 4%;
   }
 
   /* Hover and focus: the edge turns to the accent and the glow grows (a near glow and a wide one), and the wash fades up. The card lifts
@@ -4694,7 +4725,7 @@
     background:
       radial-gradient(circle at 50% 50%, #ffffff 0 6px, #161616 6px 7.5px, transparent 7.5px),
       linear-gradient(#161616 0 0) center / 100% 10px no-repeat,
-      linear-gradient(180deg, #ee1515 0 50%, #ffffff 50% 100%);
+      linear-gradient(180deg, #c41e3a 0 50%, #ffffff 50% 100%);
   }
 
   /* Dragon Ball swatch: the Dragon Ball artwork instead of a plain colour dot. */

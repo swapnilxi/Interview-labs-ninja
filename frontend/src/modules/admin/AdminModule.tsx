@@ -1,8 +1,9 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { notify } from '@/lib/ui/notifications';
 import {
   fetchStats,
   fetchUsers,
@@ -24,6 +25,8 @@ import {
   type AdminUser,
   type AppRole,
   type AdminAccessRequest,
+  type SortableUserField,
+  type SortDir,
 } from '@/lib/services/adminService';
 
 /** Human-readable labels for the permission keys the portal can grant/revoke. */
@@ -108,6 +111,13 @@ function RoleBadge({ role }: { role: AppRole }) {
       </span>
     );
   }
+  if (role === 'instructor') {
+    return (
+      <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium mix-bg-info/12 text-info border mix-border-info/25">
+        <Icon name="AcademicCapIcon" size={12} /> Instructor
+      </span>
+    );
+  }
   return role === 'admin' || role === 'superadmin' ? (
     <span className="inline-flex items-center gap-6 px-12 py-6 rounded-full text-[11px] font-medium mix-bg-primary/12 text-primary border mix-border-primary/25">
       <Icon name="ShieldCheckIcon" size={12} variant="solid" />{' '}
@@ -168,14 +178,21 @@ const DESTRUCTIVE_ACTION_TYPES: ReadonlySet<PendingAction['type']> = new Set([
   'db-pull',
 ]);
 
+const SIGNUP_ALERT_KEY = 'admin:last_pending_at';
+const SIGNUP_POLL_MS = 60_000;
+
 export default function AdminModule() {
   const { user: me, hasPermission } = useAuth();
   const isSuper = me?.role === 'superadmin';
   const canDelete = hasPermission('users:delete');
+  const isAdmin = me?.role === 'admin' || me?.role === 'superadmin';
+
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [accessRequests, setAccessRequests] = useState<AdminAccessRequest[]>([]);
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<SortableUserField>('created_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -184,12 +201,15 @@ export default function AdminModule() {
   const [working, setWorking] = useState(false);
   const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
 
-  const load = useCallback(async (searchTerm: string) => {
+  const sortRef = useRef({ sortBy, sortDir });
+  sortRef.current = { sortBy, sortDir };
+
+  const load = useCallback(async (searchTerm: string, sb?: SortableUserField, sd?: SortDir) => {
     setError(null);
     try {
       const [s, u, r] = await Promise.all([
         fetchStats(),
-        fetchUsers(searchTerm || undefined),
+        fetchUsers(searchTerm || undefined, sb, sd),
         fetchAccessRequests('pending'),
       ]);
       setStats(s);
@@ -203,18 +223,83 @@ export default function AdminModule() {
   }, []);
 
   useEffect(() => {
-    load('');
+    load('', sortBy, sortDir);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
-  // Debounced search
+  // Debounced search + re-fetch when sort changes
   useEffect(() => {
     const t = setTimeout(() => {
-      fetchUsers(search || undefined)
+      fetchUsers(search || undefined, sortBy, sortDir)
         .then(setUsers)
         .catch(() => {});
     }, 300);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, sortBy, sortDir]);
+
+  // Poll for new pending signups and notify admins
+  useEffect(() => {
+    if (!isAdmin) return;
+    const poll = async () => {
+      try {
+        const s = await fetchStats();
+        if (!s.latest_pending_at) return;
+        const stored = localStorage.getItem(SIGNUP_ALERT_KEY);
+        if (stored !== s.latest_pending_at) {
+          if (stored !== null) {
+            // A signup happened after the last time we stored a value
+            notify({
+              source: 'system',
+              title: 'New signup pending approval',
+              body: `${s.pending_users} account${s.pending_users === 1 ? '' : 's'} waiting for review.`,
+              tone: 'warning',
+              href: '/admin',
+              toast: true,
+            });
+          }
+          localStorage.setItem(SIGNUP_ALERT_KEY, s.latest_pending_at);
+          // Refresh user list too so the pending row appears
+          setStats(s);
+          fetchUsers(undefined, sortRef.current.sortBy, sortRef.current.sortDir)
+            .then(setUsers)
+            .catch(() => {});
+        }
+      } catch {
+        // silent — polling failure is not an error to surface
+      }
+    };
+    // Seed the stored value on mount without alerting (first load)
+    fetchStats()
+      .then((s) => {
+        if (s.latest_pending_at && !localStorage.getItem(SIGNUP_ALERT_KEY)) {
+          localStorage.setItem(SIGNUP_ALERT_KEY, s.latest_pending_at);
+        }
+      })
+      .catch(() => {});
+    const id = setInterval(() => void poll(), SIGNUP_POLL_MS);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  const handleSort = (col: SortableUserField) => {
+    if (col === sortBy) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(col);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ col }: { col: SortableUserField }) => {
+    if (col !== sortBy) {
+      return <Icon name="ChevronUpDownIcon" size={13} className="ml-4 opacity-30" />;
+    }
+    return sortDir === 'asc' ? (
+      <Icon name="ChevronUpIcon" size={13} className="ml-4 text-primary" />
+    ) : (
+      <Icon name="ChevronDownIcon" size={13} className="ml-4 text-primary" />
+    );
+  };
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -258,7 +343,7 @@ export default function AdminModule() {
       }
       setPending(null);
       setResetPw('');
-      await load(search);
+      await load(search, sortBy, sortDir);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Action failed');
     } finally {
@@ -275,7 +360,7 @@ export default function AdminModule() {
       } else {
         await setUserPermission(user.id, permission, allowed);
       }
-      await load(search);
+      await load(search, sortBy, sortDir);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not update that permission');
     } finally {
@@ -311,7 +396,7 @@ export default function AdminModule() {
           </p>
         </div>
         <button
-          onClick={() => load(search)}
+          onClick={() => load(search, sortBy, sortDir)}
           className="inline-flex items-center gap-6 py-12 px-18 rounded-md border border-border bg-card hover:bg-muted text-sm text-foreground transition-smooth focus-ring"
         >
           <Icon name="ArrowPathIcon" size={16} /> Refresh
@@ -539,17 +624,63 @@ export default function AdminModule() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground border-b border-border mix-bg-muted/40">
-                <th className="px-18 py-12 font-medium">User</th>
-                <th className="px-18 py-12 font-medium">Role</th>
-                <th className="px-18 py-12 font-medium hidden md:table-cell">Resources</th>
-                <th className="px-18 py-12 font-medium hidden lg:table-cell">Joined</th>
+                <th className="px-18 py-12 font-medium">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('display_name')}
+                    className="inline-flex items-center hover:text-foreground transition-smooth"
+                    title="Sort by name"
+                  >
+                    User <SortIcon col="display_name" />
+                  </button>
+                </th>
+                <th className="px-18 py-12 font-medium">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('role')}
+                    className="inline-flex items-center hover:text-foreground transition-smooth"
+                    title="Sort by role"
+                  >
+                    Role <SortIcon col="role" />
+                  </button>
+                </th>
+                <th className="px-18 py-12 font-medium hidden md:table-cell">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('resource_count')}
+                    className="inline-flex items-center hover:text-foreground transition-smooth"
+                    title="Sort by resource count"
+                  >
+                    Resources <SortIcon col="resource_count" />
+                  </button>
+                </th>
+                <th className="px-18 py-12 font-medium hidden lg:table-cell">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('created_at')}
+                    className="inline-flex items-center hover:text-foreground transition-smooth"
+                    title="Sort by join date"
+                  >
+                    Joined <SortIcon col="created_at" />
+                  </button>
+                </th>
+                <th className="px-18 py-12 font-medium hidden lg:table-cell">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('status')}
+                    className="inline-flex items-center hover:text-foreground transition-smooth"
+                    title="Sort by status"
+                  >
+                    Status <SortIcon col="status" />
+                  </button>
+                </th>
                 <th className="px-18 py-12 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-18 py-24 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-18 py-24 text-center text-muted-foreground">
                     No users found.
                   </td>
                 </tr>
@@ -578,16 +709,16 @@ export default function AdminModule() {
                         </div>
                       </td>
                       <td className="px-18 py-12">
-                        <div className="flex flex-wrap items-center gap-6">
-                          <RoleBadge role={u.role} />
-                          <StatusBadge status={u.status} />
-                        </div>
+                        <RoleBadge role={u.role} />
                       </td>
                       <td className="px-18 py-12 hidden md:table-cell text-muted-foreground tabular-nums">
                         {u.resource_count}
                       </td>
                       <td className="px-18 py-12 hidden lg:table-cell text-muted-foreground">
                         {formatDate(u.created_at)}
+                      </td>
+                      <td className="px-18 py-12 hidden lg:table-cell">
+                        <StatusBadge status={u.status} />
                       </td>
                       <td className="px-18 py-12">
                         <div className="flex items-center justify-end gap-6">
@@ -626,6 +757,7 @@ export default function AdminModule() {
                           >
                             <option value="user">User</option>
                             <option value="editor">Editor</option>
+                            <option value="instructor">Instructor</option>
                             <option value="admin" disabled={!isSuper}>
                               Admin
                             </option>
@@ -669,7 +801,7 @@ export default function AdminModule() {
                     </tr>
                     {expandedUserId === u.id && (
                       <tr className="border-b border-border mix-bg-muted/20">
-                        <td colSpan={5} className="px-18 py-18">
+                        <td colSpan={6} className="px-18 py-18">
                           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-12">
                             Permissions for {u.email}
                           </div>
@@ -771,6 +903,8 @@ export default function AdminModule() {
                   <span className="font-medium text-foreground">{pending.next}</span>.{' '}
                   {pending.next === 'editor' &&
                     'Editors can create and change LMS content but cannot manage users.'}
+                  {pending.next === 'instructor' &&
+                    'Instructors can manage AI-LMS and its classes with create, edit, and delete actions.'}
                   {pending.next === 'admin' && 'Admins can edit content and manage users.'}
                   {pending.next === 'superadmin' &&
                     'Superadmins can also grant or revoke admin roles.'}

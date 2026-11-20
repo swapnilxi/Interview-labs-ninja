@@ -9,7 +9,7 @@ export interface UserRecord {
   email: string;
   password_hash: string;
   display_name: string | null;
-  role: 'user' | 'editor' | 'admin' | 'superadmin';
+  role: 'user' | 'editor' | 'instructor' | 'admin' | 'superadmin';
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +72,7 @@ const ADMIN_EQUIVALENT_PERMISSIONS = ['users:manage', 'users:delete'];
 const KNOWN_PERMISSIONS = ['ai_lms:edit', ...ADMIN_EQUIVALENT_PERMISSIONS];
 const DEFAULT_PERMISSIONS: Record<string, string[]> = {
   editor: ['ai_lms:edit'],
+  instructor: ['ai_lms:edit'],
   admin: ['ai_lms:edit', ...ADMIN_EQUIVALENT_PERMISSIONS],
   superadmin: ['ai_lms:edit', ...ADMIN_EQUIVALENT_PERMISSIONS],
 };

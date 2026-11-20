@@ -22,6 +22,7 @@ import {
 } from './db';
 import { buildQuizPrompt, normalizeQuestions } from './quiz';
 import { addPageVideo, deletePageVideo, listPageVideos, updatePageVideo } from './videos';
+import { addSnippet, deleteSnippet, listSnippets, updateSnippet } from './snippets';
 import { buildScriptPrompt, fetchScript, saveScript, SCRIPT_MAX_TOKENS } from './videoScript';
 import {
   generationRef,
@@ -720,22 +721,75 @@ Be accurate and concrete. Use short paragraphs or "- " bullets, **bold** for key
         body.title,
         body.shared === true,
         body.preview_image,
-        body.shape
+        body.shape,
+        body.icon
       );
     },
   },
   {
-    // Edit a link: its title (the owner or an admin), or its preview image, shape and audience (admin only).
+    // Edit a link: title, preview image, shape and icon (the owner, or an admin on a shared one); audience (admin only).
     method: 'PATCH',
     path: '/videos/:video_id',
     handler: async ({ userId, json, intParam }) => {
       const body = await json();
-      return updatePageVideo(userId, intParam('video_id'), body.title, body.preview_image, body.shape, body.shared);
+      return updatePageVideo(
+        userId,
+        intParam('video_id'),
+        body.title,
+        body.preview_image,
+        body.shape,
+        body.shared,
+        body.icon
+      );
     },
   },
   {
     method: 'DELETE',
     path: '/videos/:video_id',
     handler: ({ userId, intParam }) => deletePageVideo(userId, intParam('video_id')),
+  },
+  // ── Code snippets on a section ──
+  {
+    method: 'GET',
+    path: '/snippets',
+    handler: ({ userId, query }) => {
+      const { lab, topicId, subtopicId } = queryPage(query);
+      const sectionId = query.get('section_id') ?? '';
+      if (sectionId.length < 1 || sectionId.length > 100)
+        throw new HttpError(422, "Query 'section_id' must be 1-100 characters");
+      return listSnippets(userId, lab, topicId, subtopicId, sectionId);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/snippets',
+    status: 201,
+    handler: async ({ userId, json }) => {
+      const body = await json();
+      return addSnippet(
+        userId,
+        oneOf(body.lab, LAB_NAMES, 'lab'),
+        strField(body, 'topic_id', 200, { min: 1 }),
+        strField(body, 'subtopic_id', 200, { def: '' }),
+        strField(body, 'section_id', 100, { min: 1 }),
+        body.title,
+        body.language,
+        body.code,
+        body.shared === true
+      );
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/snippets/:snippet_id',
+    handler: async ({ userId, json, intParam }) => {
+      const body = await json();
+      return updateSnippet(userId, intParam('snippet_id'), body.title ?? null, body.language ?? null, body.code ?? null);
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/snippets/:snippet_id',
+    handler: ({ userId, intParam }) => deleteSnippet(userId, intParam('snippet_id')),
   },
 ];

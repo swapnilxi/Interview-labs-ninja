@@ -224,8 +224,21 @@ def count_admins() -> int:
         conn.close()
 
 
-def list_users(search: Optional[str] = None) -> list[dict]:
-    """All users with a total resource count each, newest first. `search` filters on email/name."""
+_ALLOWED_SORT_COLS = {"email", "display_name", "created_at", "role", "status"}
+
+
+def list_users(
+    search: Optional[str] = None,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+) -> list[dict]:
+    """All users with a total resource count each. `search` filters on email/name.
+    `sort_by` accepts: email, display_name, created_at, role, status, resource_count.
+    `sort_dir` is asc or desc."""
+    if sort_by not in _ALLOWED_SORT_COLS | {"resource_count"}:
+        sort_by = "created_at"
+    sort_dir = "ASC" if sort_dir.lower() == "asc" else "DESC"
+
     conn = sqlite3.connect(get_db_path())
     try:
         cursor = conn.cursor()
@@ -236,9 +249,13 @@ def list_users(search: Optional[str] = None) -> list[dict]:
             where = "WHERE email LIKE ? OR IFNULL(display_name, '') LIKE ?"
             like = f"%{search}%"
             params = [like, like]
+
+        # resource_count is computed after the query, so sort by created_at first and
+        # re-sort in Python after totals are attached when the caller asks for it.
+        db_order = "created_at" if sort_by == "resource_count" else sort_by
         cursor.execute(
             f"SELECT id, email, display_name, role, created_at, updated_at, status FROM users {where} "
-            "ORDER BY created_at DESC, id DESC",
+            f"ORDER BY {db_order} {sort_dir}, id DESC",
             params,
         )
         rows = cursor.fetchall()
@@ -255,7 +272,7 @@ def list_users(search: Optional[str] = None) -> list[dict]:
 
         overrides = _list_permission_overrides(cursor)
 
-        return [
+        result = [
             {
                 "id": r[0],
                 "email": r[1],
@@ -269,6 +286,11 @@ def list_users(search: Optional[str] = None) -> list[dict]:
             }
             for r in rows
         ]
+
+        if sort_by == "resource_count":
+            result.sort(key=lambda u: u["resource_count"], reverse=(sort_dir == "DESC"))
+
+        return result
     finally:
         conn.close()
 
@@ -281,10 +303,11 @@ def system_stats() -> dict:
         cursor.execute(
             "SELECT COUNT(*), "
             "SUM(CASE WHEN role IN ('admin', 'superadmin') THEN 1 ELSE 0 END), "
-            "SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) "
+            "SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), "
+            "MAX(CASE WHEN status = 'pending' THEN created_at END) "
             "FROM users"
         )
-        total_users, admin_users, pending_users = cursor.fetchone()
+        total_users, admin_users, pending_users, latest_pending_at = cursor.fetchone()
         admin_users = admin_users or 0
         pending_users = pending_users or 0
 
@@ -306,6 +329,7 @@ def system_stats() -> dict:
             "total_users": total_users,
             "admin_users": admin_users,
             "pending_users": pending_users,
+            "latest_pending_at": latest_pending_at,
             "new_users_7d": new_users_7d,
             "total_resources": total_resources,
             "resources_by_table": dict(sorted(resources.items(), key=lambda kv: kv[1], reverse=True)),

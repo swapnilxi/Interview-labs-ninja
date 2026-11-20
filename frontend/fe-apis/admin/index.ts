@@ -296,7 +296,7 @@ async function handleSetRole(req: Request, userId: number): Promise<Response> {
     const { admin } = requirePermission(req, 'users:manage');
     const body = (await req.json()) as { role?: string };
     const role = body.role;
-    if (!role || !['user', 'editor', 'admin', 'superadmin'].includes(role)) {
+    if (!role || !['user', 'editor', 'instructor', 'admin', 'superadmin'].includes(role)) {
       throw new HttpError(422, 'Invalid role');
     }
     return withAdminDb((db) => {

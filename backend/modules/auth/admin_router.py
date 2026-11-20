@@ -38,7 +38,7 @@ db_router = APIRouter(prefix="/api/admin/db", tags=["admin"])
 
 
 class RoleUpdateRequest(BaseModel):
-    role: str = Field(pattern="^(user|editor|admin|superadmin)$")
+    role: str = Field(pattern="^(user|editor|instructor|admin|superadmin)$")
 
 
 class PasswordResetRequest(BaseModel):
@@ -67,12 +67,22 @@ async def get_stats(_admin: dict = Depends(require_permission("users:manage"))) 
     return auth_db.system_stats()
 
 
+_VALID_SORT_COLS = {"email", "display_name", "created_at", "role", "status", "resource_count"}
+
+
 @router.get("/users")
 async def get_users(
     search: str | None = Query(default=None),
+    sort_by: str | None = Query(default=None),
+    sort_dir: str | None = Query(default=None, pattern="^(asc|desc)$"),
     _admin: dict = Depends(require_permission("users:manage")),
 ) -> list[dict]:
-    users = auth_db.list_users(search=search.strip() if search else None)
+    safe_sort_by = sort_by if sort_by in _VALID_SORT_COLS else "created_at"
+    users = auth_db.list_users(
+        search=search.strip() if search else None,
+        sort_by=safe_sort_by,
+        sort_dir=sort_dir or "desc",
+    )
     for u in users:
         u["permissions"] = effective_permissions(u)
     return users

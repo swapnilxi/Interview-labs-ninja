@@ -7,9 +7,9 @@ for the topic's own page (not NULL, as in the other lab tables). Any lab key wor
 
 A link is stored with its url and an optional title; the provider, playlist or video, start time and embed address are
 derived from the url in the browser (frontend/src/lib/video/videoLinks.ts). On top of that an admin can give a link a
-`preview_image` (an https link, or an uploaded image as a data URL up to 200 KB) and a card `shape` (wide, side or slim;
-default wide), and can switch it between "only me" and "everyone" with `PATCH`. A learner can add and delete their own
-links and edit their titles; the preview image, the shape and the audience are admin-only (403 for anyone else). The link
+`preview_image` (an https link, or an uploaded image as a data URL up to 200 KB), a card `shape` (wide, side or slim;
+default wide) and an `icon` (a slug from LINK_ICONS, '' = picked from the url in the browser). The owner of a link sets
+all three on it (an admin also on the shared ones); only the audience ("only me" / "everyone") is admin-only (403). The link
 rules are in modules/common/video_links.py, shared with AI LMS (modules/ai_lms/videos.py).
 
 Twin: frontend/fe-apis/labSections/videos.ts (+ videosSchema.ts). Same table, limits, validation texts and status
@@ -42,10 +42,24 @@ __all__ = ["VideoError"]
 
 SHARED_USER = 0  # user_id of a link an admin added for everyone
 
-NOTHING_TO_CHANGE = "Send a title, a preview image, a shape or shared to change."
+NOTHING_TO_CHANGE = "Send a title, a preview image, a shape, an icon or shared to change."
 NOT_ADMIN_SHARE = "Only an admin can add a video for everyone."
-NOT_ADMIN_LOOK = "Only an admin can set a link's preview image or shape."
-NOT_ADMIN_PATCH = "Only an admin can change a link's preview image, shape or audience."
+NOT_ADMIN_PATCH = "Only an admin can change who sees a link."
+
+# The icons a card can show for its kind of link; '' = guess from the url. Same list in fe-apis/labSections/videos.ts.
+LINK_ICONS = (
+    "link", "video", "article", "doc", "pdf", "code", "repo", "slides", "sheet", "book", "course", "image", "audio", "tool",
+)
+ICON_ERROR = "icon must be one of: " + ", ".join(LINK_ICONS) + " (or empty)."
+
+
+def clean_icon(raw: Any) -> str | None:
+    """None = not sent; '' = automatic."""
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or (raw != "" and raw not in LINK_ICONS):
+        raise VideoError(422, ICON_ERROR)
+    return raw
 
 
 def ensure_table(cursor: sqlite3.Cursor) -> None:
@@ -77,6 +91,8 @@ def ensure_table(cursor: sqlite3.Cursor) -> None:
         cursor.execute("ALTER TABLE lab_page_videos ADD COLUMN preview_image TEXT NOT NULL DEFAULT ''")
     if "shape" not in have:
         cursor.execute("ALTER TABLE lab_page_videos ADD COLUMN shape TEXT NOT NULL DEFAULT 'wide'")
+    if "icon" not in have:
+        cursor.execute("ALTER TABLE lab_page_videos ADD COLUMN icon TEXT NOT NULL DEFAULT ''")
 
 
 @contextmanager
@@ -114,6 +130,7 @@ def _row(row: sqlite3.Row) -> Dict[str, Any]:
         "created_at": row["created_at"],
         "preview_image": row["preview_image"],
         "shape": row["shape"],
+        "icon": row["icon"],
     }
 
 
@@ -149,20 +166,19 @@ def add_video(
     shared: bool = False,
     preview_raw: Any = None,
     shape_raw: Any = None,
+    icon_raw: Any = None,
 ) -> Dict[str, Any]:
     """Checks run in this order in both twins (after the router has checked lab and page ids): url, title, shape, preview
-    image (all 422), admin (403: `shared`, or a preview image or shape sent), limit (422), duplicate (409). The limit counts
+    image, icon (all 422), admin (403: `shared`), limit (422), duplicate (409). The limit counts
     the bucket being added to (the caller's own, or the shared one); the duplicate check looks at everything the caller sees.
     `preview_raw` None or '' and `shape_raw` None mean "not sent"."""
     url = clean_url(url_raw)
     title = clean_title(title_raw)
     shape = clean_shape(shape_raw)
     preview = clean_preview_image(preview_raw)
-    admin = _is_admin(user_id)
-    if shared and not admin:
+    icon = clean_icon(icon_raw) or ""
+    if shared and not _is_admin(user_id):
         raise VideoError(403, NOT_ADMIN_SHARE)
-    if (preview != "" or shape is not None) and not admin:
-        raise VideoError(403, NOT_ADMIN_LOOK)
     owner = SHARED_USER if shared else user_id
     with _db() as conn:
         existing = _page(conn, owner, lab, topic_id, subtopic_id, only_user=True)
@@ -174,10 +190,10 @@ def add_video(
         cursor = conn.execute(
             """
             INSERT INTO lab_page_videos
-                (user_id, lab_name, topic_id, subtopic_id, url, title, order_index, created_at, preview_image, shape)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (user_id, lab_name, topic_id, subtopic_id, url, title, order_index, created_at, preview_image, shape, icon)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (owner, lab, topic_id, subtopic_id, url, title, order_index, now_iso(), preview, shape or DEFAULT_SHAPE),
+            (owner, lab, topic_id, subtopic_id, url, title, order_index, now_iso(), preview, shape or DEFAULT_SHAPE, icon),
         )
         return _row(conn.execute("SELECT * FROM lab_page_videos WHERE id = ?", (cursor.lastrowid,)).fetchone())
 
@@ -189,17 +205,19 @@ def update_video(
     preview_raw: Any = None,
     shape_raw: Any = None,
     shared_raw: Any = None,
+    icon_raw: Any = None,
 ) -> Dict[str, Any]:
-    """Change one link. A field that is None (not sent) is left alone; a title of '' clears the title and a preview image of ''
-    removes the image. Checks, in this order in both twins: nothing sent (422), title, shape, preview image, shared (422),
-    the link is the caller's own or an admin's shared one (404 otherwise, like a missing id), admin for preview image, shape
-    and shared (403), then for a change of audience: limit of the target bucket (422), duplicate (409). The title is the
-    owner's to edit (or any admin's); the rest is admin-only."""
-    if title_raw is None and preview_raw is None and shape_raw is None and shared_raw is None:
+    """Change one link. A field that is None (not sent) is left alone; a title of '' clears the title, a preview image of ''
+    removes the image and an icon of '' goes back to automatic. Checks, in this order in both twins: nothing sent (422),
+    title, shape, preview image, icon, shared (422), the link is the caller's own or an admin's shared one (404 otherwise,
+    like a missing id), admin for shared (403), then for a change of audience: limit of the target bucket (422), duplicate
+    (409)."""
+    if title_raw is None and preview_raw is None and shape_raw is None and shared_raw is None and icon_raw is None:
         raise VideoError(422, NOTHING_TO_CHANGE)
     title = clean_title(title_raw) if title_raw is not None else None
     shape = clean_shape(shape_raw)
     preview = clean_preview_image(preview_raw) if preview_raw is not None else None
+    icon = clean_icon(icon_raw)
     if shared_raw is not None and not isinstance(shared_raw, bool):
         raise VideoError(422, SHARED_ERROR)
     admin = _is_admin(user_id)
@@ -210,7 +228,7 @@ def update_video(
         ).fetchone()
         if row is None:
             raise VideoError(404, "Video not found.")
-        if (preview is not None or shape is not None or shared_raw is not None) and not admin:
+        if shared_raw is not None and not admin:
             raise VideoError(403, NOT_ADMIN_PATCH)
         owner = row["user_id"]
         order_index = row["order_index"]
@@ -225,13 +243,14 @@ def update_video(
             owner = target
             order_index = (bucket[-1]["order_index"] + 1) if bucket else 0
         conn.execute(
-            "UPDATE lab_page_videos SET user_id = ?, order_index = ?, title = ?, preview_image = ?, shape = ? WHERE id = ?",
+            "UPDATE lab_page_videos SET user_id = ?, order_index = ?, title = ?, preview_image = ?, shape = ?, icon = ? WHERE id = ?",
             (
                 owner,
                 order_index,
                 row["title"] if title is None else title,
                 row["preview_image"] if preview is None else preview,
                 row["shape"] if shape is None else shape,
+                row["icon"] if icon is None else icon,
                 video_id,
             ),
         )

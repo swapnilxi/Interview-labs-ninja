@@ -458,7 +458,8 @@ export const routes: TodoRoute[] = [
       const ctx = parseCtx(body);
       const variant: StarVariant = oneOf(body.variant, STAR_VARIANTS, 'variant', 'generate');
       const existingAnswer = strField(body, 'existing_answer', 12000, { def: '' });
-      if (variant !== 'generate' && !existingAnswer.trim())
+      // A rewrite needs the answer it rewrites; the code of the answer follows it when there is one, and works without.
+      if (variant !== 'generate' && variant !== 'code' && !existingAnswer.trim())
         throw new HttpError(422, 'existing_answer is required');
       const prompt = buildStarPrompt(ctx, {
         question: parseQuestionRef(body),
