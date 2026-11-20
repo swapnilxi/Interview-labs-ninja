@@ -14,6 +14,8 @@ export interface AccentPreset {
   label: string;
   /** null = the app's built-in default (lime on dark, fern on light: --accent-default in tailwind.css), i.e. no override. */
   hex: string | null;
+  /** true = use the brand colour as-is (skip the contrast stepping). For hues like yellow that turn muddy when darkened. */
+  exact?: boolean;
 }
 
 export const ACCENT_PRESETS: AccentPreset[] = [
@@ -38,6 +40,12 @@ export const ACCENT_PRESETS: AccentPreset[] = [
   { key: 'ios-indigo', label: 'Indigo (iOS)', hex: '#5E5CE6' },
   { key: 'ios-brown', label: 'Brown', hex: '#AC8E68' },
   { key: 'vision-graphite', label: 'Graphite', hex: '#8E8E93' },
+  // Pokémon Edition: the brand Poké Ball red. The centre tab orb is redrawn as a Poké Ball (tailwind.css) while
+  // this accent tints buttons, links, focus rings and glows app-wide red, with the page staying white in light mode.
+  { key: 'pokemon', label: 'Pokemon Edition', hex: '#EE1515' },
+  // Dragon Ball: Goku's yellow, kept exact (the contrast stepping would turn it a muddy orange). The centre tab orb
+  // shows the dragonball.png artwork (tailwind.css).
+  { key: 'dragonball', label: 'Dragon Ball', hex: '#FACC15', exact: true },
 ];
 
 type RGB = [number, number, number];
@@ -106,15 +114,19 @@ export function contrastRatio(a: RGB, b: RGB): number {
  * whichever of white / ink contrasts more. KEEP IN SYNC with the pre-paint script in app/layout.tsx (same steps), or
  * the page would flash a different shade before hydration.
  */
-export function deriveAccentTokens(hex: string, isDark: boolean): DerivedAccentTokens {
+export function deriveAccentTokens(hex: string, isDark: boolean, exact = false): DerivedAccentTokens {
   const base = hexToRgb(hex);
   const surface = isDark ? DARK_SURFACE : LIGHT_SURFACE;
   const toward = isDark ? WHITE : BLACK;
   let step = isDark ? 0 : 0.12;
   let primaryRgb = mixRgb(base, toward, step);
-  while (step < 0.7 && contrastRatio(primaryRgb, surface) < MIN_TEXT_CONTRAST) {
-    step += 0.04;
-    primaryRgb = mixRgb(base, toward, step);
+  if (!exact) {
+    while (step < 0.7 && contrastRatio(primaryRgb, surface) < MIN_TEXT_CONTRAST) {
+      step += 0.04;
+      primaryRgb = mixRgb(base, toward, step);
+    }
+  } else {
+    primaryRgb = base;
   }
   const ringRgb = mixRgb(primaryRgb, WHITE, isDark ? 0.14 : 0.08);
   const glowAlpha = isDark ? 0.22 : 0.16;
@@ -146,10 +158,13 @@ export function withColorTransition(run: () => void): void {
   run();
 }
 
-/** Applies (or clears, for hex === null) the accent to the live document. */
-export function applyAccent(hex: string | null): void {
+/** Applies (or clears, for hex === null) the accent to the live document. `presetKey` (if any) is mirrored to
+ *  `data-accent-preset` on <html> so CSS can restyle themed surfaces (e.g. the Poké Ball centre tab). */
+export function applyAccent(hex: string | null, presetKey?: string | null): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
+  if (presetKey) root.setAttribute('data-accent-preset', presetKey);
+  else root.removeAttribute('data-accent-preset');
   if (!hex || !isValidHex(hex)) {
     root.style.removeProperty('--color-primary');
     root.style.removeProperty('--color-primary-foreground');
@@ -158,7 +173,8 @@ export function applyAccent(hex: string | null): void {
     return;
   }
   const isDark = root.classList.contains('dark');
-  const tokens = deriveAccentTokens(hex, isDark);
+  const exact = ACCENT_PRESETS.some((p) => p.key === presetKey && p.exact);
+  const tokens = deriveAccentTokens(hex, isDark, exact);
   root.style.setProperty('--color-primary', tokens.primary);
   root.style.setProperty('--color-primary-foreground', tokens.primaryForeground);
   root.style.setProperty('--color-ring', tokens.ring);
@@ -179,10 +195,22 @@ export function getStoredAccent(): string | null {
   }
 }
 
-export function setStoredAccent(hex: string | null): void {
+export function getStoredAccentPreset(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return typeof parsed?.presetKey === 'string' ? parsed.presetKey : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredAccent(hex: string | null, presetKey: string | null = null): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ accentHex: hex }));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ accentHex: hex, presetKey }));
   } catch {
     // Ignore storage errors (private browsing, quota, etc.) — the in-memory
     // apply still happened, it just won't persist across reloads.
@@ -191,7 +219,7 @@ export function setStoredAccent(hex: string | null): void {
 
 /** Re-applies whatever accent is currently stored — call after a dark/light toggle. */
 export function reapplyStoredAccent(): void {
-  applyAccent(getStoredAccent());
+  applyAccent(getStoredAccent(), getStoredAccentPreset());
 }
 
 export const appearanceService = {
@@ -201,6 +229,7 @@ export const appearanceService = {
   withColorTransition,
   applyAccent,
   getStoredAccent,
+  getStoredAccentPreset,
   setStoredAccent,
   reapplyStoredAccent,
 };

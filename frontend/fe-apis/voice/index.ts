@@ -10,14 +10,22 @@
  * backends behave identically regardless of which one is live.
  */
 
-import { transcribeAudio as transcribeAudioDeepgram, synthesizeSpeech as synthesizeSpeechDeepgram } from './deepgram';
+import {
+  transcribeAudio as transcribeAudioDeepgram,
+  synthesizeSpeech as synthesizeSpeechDeepgram,
+} from './deepgram';
 import { transcribeAudioLocal } from './localWhisper';
 import { synthesizeSpeechLocal } from './localTts';
 
-export async function transcribeAudio(audioBuffer: ArrayBuffer, contentType: string): Promise<string> {
+/** `language` ('en' or 'hi') reaches Deepgram; the local Whisper detects the language itself. */
+export async function transcribeAudio(
+  audioBuffer: ArrayBuffer,
+  contentType: string,
+  language?: string | null
+): Promise<string> {
   const provider = (process.env.VOICE_STT_PROVIDER || 'deepgram').trim().toLowerCase();
   if (provider === 'local') return transcribeAudioLocal(audioBuffer, contentType);
-  return transcribeAudioDeepgram(audioBuffer, contentType);
+  return transcribeAudioDeepgram(audioBuffer, contentType, language);
 }
 
 export async function synthesizeSpeech(text: string): Promise<ArrayBuffer> {

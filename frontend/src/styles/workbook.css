@@ -1,0 +1,793 @@
+/*
+ * AI Interactive Workbooks (modules/ai-lms/workbooks): the Workbooks band on a class page and the workbook pages.
+ * Plain CSS on the shared tokens, imported after tailwind.css by index.css (so do not put a conflicting utility on a
+ * .wb-* element). Every tint is color-mix()ed: theme colours are bare var()s, so an opacity modifier on them compiles
+ * to nothing.
+ *
+ * Direction. Product: a book turned into a workbook you fill in. Character: calm, warm, encouraging, never childish.
+ * World: a bound journal on a light desk in the morning. Signature: the soft pastel wash (mint, peach, lilac) behind a
+ * workbook's title and in the corner of its cards, like light on paper. Moment: the progress line filling on a card.
+ *
+ * The one deliberate exception to VISUAL-GUIDELINES.md, by request (2026-11-19): workbook pages have their own soft
+ * sage accent and a gentle pastel glow. `.wb-accent` re-points --color-primary inside them only; the rest of the LMS
+ * keeps its design. Everything else (type, radii, hairlines, spacing, motion, semantic colours, light and dark) is the
+ * app's. Anything portalled to <body> from a workbook page carries `wb-accent` itself.
+ */
+
+/* ── The accent and the pastel palette ──────────────────────────────────────────────────────────────────────────────
+   Sage #4f9d8b is 3.3:1 under white, so a filled button carries dark ink (5.6:1); small accent text uses --wb-ink. */
+.wb-accent {
+  --wb-accent: #4f9d8b;
+  --wb-mint: #bfe8da;
+  --wb-peach: #fbd9c4;
+  --wb-lilac: #ddd3f7;
+  --wb-ink: color-mix(in srgb, var(--wb-accent) 62%, var(--color-foreground));
+  --wb-line: color-mix(in srgb, var(--wb-accent) 22%, var(--color-border));
+  --wb-wash-strength: 38%;
+  --color-primary: var(--wb-accent);
+  --color-primary-foreground: #0b1a16;
+  --color-ring: color-mix(in srgb, var(--wb-accent) 80%, #ffffff);
+  --color-glow: color-mix(in srgb, var(--wb-accent) 18%, transparent);
+}
+
+html.dark .wb-accent {
+  --wb-accent: #6bb8a6;
+  --wb-mint: #1f4a40;
+  --wb-peach: #4d3426;
+  --wb-lilac: #3a3160;
+  --wb-ink: color-mix(in srgb, var(--wb-accent) 70%, var(--color-foreground));
+  --wb-line: color-mix(in srgb, var(--wb-accent) 26%, var(--color-border));
+  --wb-wash-strength: 55%;
+}
+
+/* The pastel wash: three soft pools of colour, strongest in one corner. Used behind a title and on card corners. */
+.wb-wash {
+  background-image:
+    radial-gradient(
+      60% 90% at 0% 0%,
+      color-mix(in srgb, var(--wb-mint) var(--wb-wash-strength), transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      50% 80% at 100% 0%,
+      color-mix(in srgb, var(--wb-lilac) var(--wb-wash-strength), transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      60% 70% at 70% 100%,
+      color-mix(in srgb, var(--wb-peach) calc(var(--wb-wash-strength) * 0.7), transparent),
+      transparent 72%
+    );
+}
+
+/* ── Page frame ───────────────────────────────────────────────────────────────────────────────────────────────────── */
+.wb-page {
+  min-height: 100vh;
+  padding-top: 60px; /* the fixed app header */
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+.wb-hero {
+  position: relative;
+  border: 1px solid var(--wb-line);
+  border-radius: 20px;
+  background-color: var(--color-card);
+  box-shadow: 0 0 32px -8px color-mix(in srgb, var(--wb-accent) 22%, transparent);
+  overflow: hidden;
+}
+
+@keyframes wb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.wb-enter {
+  animation: wb-rise 220ms var(--ease-out, ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-enter {
+    animation: none;
+  }
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.wb-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--wb-line);
+  border-radius: 16px;
+  background-color: var(--color-card);
+  box-shadow: 0 0 22px -6px color-mix(in srgb, var(--wb-accent) 16%, transparent);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.wb-card-link:hover,
+.wb-card-link:focus-within {
+  border-color: color-mix(in srgb, var(--wb-accent) 55%, var(--color-border));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--wb-accent) 14%, transparent),
+    0 0 26px -4px color-mix(in srgb, var(--wb-accent) 26%, transparent);
+}
+
+/* The cover: an icon on the pastel wash. */
+.wb-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--wb-line);
+  background-color: color-mix(in srgb, var(--wb-mint) 40%, var(--color-card));
+  color: var(--wb-ink);
+}
+
+/* Neutral chips; hue only where it means something (the accent marks a shared workbook). */
+.wb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.wb-chip-accent {
+  border-color: color-mix(in srgb, var(--wb-accent) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--wb-accent) 12%, var(--color-card));
+  color: var(--wb-ink);
+}
+
+/* The progress line. */
+.wb-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-muted);
+  overflow: hidden;
+}
+
+.wb-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--wb-accent) 70%, var(--wb-mint)),
+    var(--wb-accent)
+  );
+  transition: width 400ms var(--ease-out, ease-out);
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.wb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.wb-btn:hover:not(:disabled) {
+  background: var(--color-muted);
+}
+
+.wb-btn:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+.wb-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wb-btn-primary {
+  border-color: transparent;
+  background: var(--wb-accent);
+  color: var(--color-primary-foreground);
+  font-weight: 600;
+}
+
+.wb-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wb-accent) 88%, var(--color-foreground));
+}
+
+.wb-btn-danger {
+  color: var(--color-destructive);
+}
+
+.wb-btn-sm {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+@media (pointer: coarse) {
+  .wb-btn {
+    min-height: 44px;
+  }
+}
+
+.wb-field {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-foreground);
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.wb-field::placeholder {
+  color: var(--color-muted-foreground);
+}
+
+.wb-field:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--wb-accent) 60%, var(--color-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wb-accent) 18%, transparent);
+}
+
+.wb-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.wb-hint {
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+
+/* Segmented control (two or three choices). */
+.wb-seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 12px;
+  background: var(--color-muted);
+}
+
+.wb-seg button {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+}
+
+.wb-seg button[aria-pressed='true'] {
+  background: var(--color-card);
+  color: var(--color-foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-foreground) 12%, transparent);
+}
+
+/* The drop zone for source files. */
+.wb-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 160px;
+  padding: 20px;
+  border: 1.5px dashed color-mix(in srgb, var(--wb-accent) 40%, var(--color-border));
+  border-radius: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.wb-drop:hover,
+.wb-drop[data-over='true'] {
+  background: color-mix(in srgb, var(--wb-mint) 22%, transparent);
+}
+
+.wb-drop:focus-within {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+/* The privacy notice: quiet, always reachable, never alarming. */
+.wb-notice {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--wb-line);
+  background: color-mix(in srgb, var(--wb-mint) 18%, var(--color-card));
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-foreground);
+}
+
+.wb-notice-icon {
+  flex-shrink: 0;
+  color: var(--wb-ink);
+  margin-top: 1px;
+}
+
+/* ── Chapters (ChaptersPanel) ─────────────────────────────────────────────────────────────────────────────────────── */
+.wb-chapter {
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-background);
+}
+
+.wb-chapter-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wb-chapter-ready {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--wb-accent) 22%, var(--color-card));
+  color: var(--wb-ink);
+}
+
+/* The status line while AI writes. */
+.wb-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--wb-line);
+  background: color-mix(in srgb, var(--wb-mint) 16%, var(--color-card));
+  text-align: left;
+}
+
+@keyframes wb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wb-spinner {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--wb-accent) 25%, transparent);
+  border-top-color: var(--wb-accent);
+  animation: wb-spin 800ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-spinner {
+    animation-duration: 2400ms;
+  }
+}
+
+/* ── Chapter preview (ChapterPreview, authors only) ───────────────────────────────────────────────────────────────── */
+.wb-block {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+}
+
+.wb-block-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--wb-ink);
+}
+
+/* Where a learner will write: an empty, dashed box (or a single line in a planner). */
+.wb-blank {
+  min-height: 56px;
+  border: 1px dashed var(--color-border);
+  border-radius: 10px;
+}
+
+.wb-blank-line {
+  min-height: 0;
+  height: 0;
+  margin-top: 18px;
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
+
+.wb-box {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  border-radius: 5px;
+  border: 1.5px solid var(--color-border);
+}
+
+.wb-day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+}
+
+/* The right answer, marked for the author. */
+.wb-answer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wb-accent) 16%, var(--color-card));
+  color: var(--wb-ink);
+  font-weight: 500;
+}
+
+/* ── Working through a chapter (ChapterView, InteractiveBlock, QuizBlock) ─────────────────────────────────────────── */
+.wb-block-live {
+  padding: 18px 20px;
+  border-radius: 16px;
+  transition: border-color 200ms ease;
+}
+
+.wb-block-done {
+  border-color: color-mix(in srgb, var(--wb-accent) 40%, var(--color-border));
+}
+
+.wb-done-mark {
+  color: var(--wb-accent);
+  line-height: 0;
+}
+
+.wb-prose {
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.wb-prose > p + p {
+  margin-top: 10px;
+}
+
+.wb-btn-done {
+  border-color: color-mix(in srgb, var(--wb-accent) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--wb-accent) 12%, var(--color-card));
+  color: var(--wb-ink);
+}
+
+/* A checklist row: the whole row is the hit area. */
+.wb-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.wb-check:hover {
+  background: var(--color-muted);
+}
+
+.wb-check input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--wb-accent);
+}
+
+.wb-check input:checked + span {
+  color: var(--color-muted-foreground);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--color-muted-foreground) 50%, transparent);
+}
+
+/* Tracker days and rating steps: round toggles. */
+.wb-day-button {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-foreground);
+  background: var(--color-card);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.wb-day-button:hover {
+  border-color: color-mix(in srgb, var(--wb-accent) 50%, var(--color-border));
+}
+
+.wb-day-button[aria-pressed='true'],
+.wb-day-button[aria-checked='true'] {
+  border-color: transparent;
+  background: var(--wb-accent);
+  color: var(--color-primary-foreground);
+}
+
+.wb-day-button:focus-visible,
+.wb-choice:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .wb-day-button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Quiz choices. */
+.wb-choice {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-card);
+  color: var(--color-foreground);
+  text-align: left;
+  font-size: 14px;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.wb-choice:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--wb-accent) 45%, var(--color-border));
+}
+
+.wb-choice:disabled {
+  cursor: default;
+}
+
+.wb-choice-dot {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-border);
+}
+
+.wb-choice[aria-checked='true'] {
+  border-color: var(--wb-accent);
+  background: color-mix(in srgb, var(--wb-accent) 10%, var(--color-card));
+}
+
+.wb-choice[aria-checked='true'] .wb-choice-dot {
+  border: 5px solid var(--wb-accent);
+}
+
+/* After a check these win over the selected state (same specificity otherwise). */
+.wb-choice.wb-choice-right {
+  border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 10%, var(--color-card));
+  color: var(--color-foreground);
+}
+
+.wb-choice.wb-choice-wrong {
+  border-color: color-mix(in srgb, var(--color-destructive) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-destructive) 7%, var(--color-card));
+}
+
+.wb-scenario {
+  padding: 10px 14px;
+  border-left: 3px solid var(--wb-accent);
+  border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--wb-lilac) 22%, var(--color-card));
+  color: var(--color-foreground);
+}
+
+.wb-gap {
+  display: inline-block;
+  min-width: 64px;
+  margin: 0 4px;
+  border-bottom: 2px solid var(--wb-accent);
+  color: transparent;
+  line-height: 1.1;
+  user-select: none;
+}
+
+.wb-match {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.wb-match .wb-hint {
+  grid-column: 2;
+}
+
+@media (max-width: 480px) {
+  .wb-match {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wb-match .wb-hint {
+    grid-column: 1;
+  }
+}
+
+.wb-ok {
+  color: var(--wb-ink);
+  font-weight: 500;
+}
+
+/* After a check: quiet feedback, hue only for right (accent) and "try again" (amber). */
+.wb-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.wb-feedback > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.wb-feedback-right {
+  background: color-mix(in srgb, var(--wb-accent) 14%, var(--color-card));
+}
+
+.wb-feedback-right > svg {
+  color: var(--wb-accent);
+}
+
+.wb-feedback-wrong {
+  background: color-mix(in srgb, #f59e0b 12%, var(--color-card));
+}
+
+.wb-feedback-wrong > svg {
+  color: #b45309;
+}
+
+html.dark .wb-feedback-wrong > svg {
+  color: #fbbf24;
+}
+
+.wb-score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--wb-line);
+  background: color-mix(in srgb, var(--wb-mint) 18%, var(--color-card));
+}
+
+/* Autosave status. */
+.wb-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+
+.wb-save-problem {
+  color: var(--color-destructive);
+}
+
+.wb-link {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.wb-choice.wb-choice-wrong .wb-choice-dot {
+  border-color: var(--color-destructive);
+}
+
+/* ── Voice (read aloud, explain, dictation) ──────────────────────────────────────────────────────────────────────── */
+.wb-listen {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.wb-rate select {
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: 13px;
+}
+
+/* The paragraph being read aloud. */
+.wb-reading-now {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--wb-accent) 16%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--wb-accent) 16%, transparent);
+  transition: background-color 200ms ease;
+}
+
+.wb-explain {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--wb-line);
+  background: color-mix(in srgb, var(--wb-lilac) 14%, var(--color-card));
+}
+
+.wb-review {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--wb-accent) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--wb-mint) 12%, var(--color-card));
+}
+
+.wb-seg-sm button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.wb-mic {
+  border: 1px solid var(--color-border);
+}

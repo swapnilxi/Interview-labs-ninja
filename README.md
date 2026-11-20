@@ -373,6 +373,88 @@ frontend/src/modules/ai-lms/classes/<class>/
   - On the Vercel deployment, `/api` is served by the Python function, which runs DB-only. After
     editing files, open the app (or run the CLI) before committing the DB.
 
+### Workbooks (AI Interactive Workbooks)
+
+A third band on every class page, beside Subjects & Projects: a book, chapter, PDF, Word file or pasted text turned into
+chapters of exercises a learner fills in. **Phases 1-3 (2026-11-19) are in:** tables, access rules, create page,
+workbook page, management, AI generation, the interactive chapters with quizzes, private autosaved progress and resets,
+and voice (read aloud, "Explain this to me", English/Hindi dictation). XP/gamification, the companion and personalization
+come next (plan: memory `ai-workbooks-decisions`). Validated end to end with a real model (DeepSeek) on a real 13,600-word
+book PDF: 16 chapters, ~10-30 s each.
+
+- **Tables:** `lms_workbooks` (the shared template: details, `source_text`, `instructions`, `content_json`, `visibility`
+  `private|class`, `status` `draft|published|archived`, `template_version`) and `lms_workbook_progress` (one row per
+  workbook and learner: `state_json`, `summary_json`, `version`; only ever read with `user_id = <caller>`). Deleting a class
+  or a workbook deletes everyone's progress in it.
+- **Who sees what** (`workbooks.py` <-> `fe-apis/lms/workbooks.ts`, same texts and codes; change both):
+  - private: its owner only. Any signed-in user can create one, in any class.
+  - class: everyone who opens the class once published; editors (`ai_lms:edit`, role or per-user grant) also see drafts and
+    archived copies and can edit them. Only an editor can share a workbook with the class or publish/archive a shared one.
+  - not visible = 404, never 403. Learners never receive `source_text` or `instructions`. Nobody, admins included, can read
+    another person's answers.
+- **Endpoints:** `GET|POST /api/lms/classes/{c}/workbooks`, `GET|PATCH|DELETE /api/lms/workbooks/{id}`. They are in the
+  non-editor allowlist (`_NON_EDIT_WRITES` / `NON_EDIT_WRITES`) because the module checks every rule itself, and in
+  `_NO_SYNC_POST` (not class-folder files). Next.js handlers: `fe-apis/lms/workbookHandlers.ts` (Neon read/sync wrapped).
+- **Pages:** `/ai-lms/classes/<c>/workbooks/new` (create), `/ai-lms/classes/<c>/workbooks/<id>` (the workbook);
+  `/ai-lms/classes/<c>/workbooks` redirects to the class page's `#workbooks` band. `workbooks` is a reserved subject slug.
+  Code: `frontend/src/modules/ai-lms/workbooks/`; styles `src/styles/workbook.css` (`.wb-accent`, the one LMS area with its
+  own accent, see VISUAL-GUIDELINES.md).
+- **Generation, in pages** (`workbook_gen.py` <-> `fe-apis/lms/workbookGen.ts`: prompts byte-identical, normalizers give the
+  same JSON; change both). The source is split into numbered parts (whole paragraphs, 1,200-4,000 characters, ~24 parts).
+  `POST /api/lms/workbooks/{id}/generate/outline` plans the chapters (each a run of consecutive parts; the full text, or for a
+  long book the opening of each part, up to 48,000 characters) and stores them all `pending`, moving `template_version` on.
+  `POST .../generate/sections/{sid}` writes one chapter from its own parts only (up to 24,000 characters) and marks it
+  `ready`. The browser (`ChaptersPanel.tsx`) walks the pending chapters one call at a time, so it can stop and resume and no
+  answer is cut off. The AI's JSON is never stored as is: only the known block types (`reading`, `key_points`, `reflection`,
+  `short_answer`, `checklist`, `planner`, `habit_tracker`, `scale`, `action`, `quiz` with `mcq`, `true_false`, `fill_blank`,
+  `matching`, `scenario`) survive, every text is clipped, ids are stable (`s1-b3`, `s1-b9-q2`, `s1-b4-i1`). The content
+  shape is documented at the top of `workbook_gen.py`.
+- **Generation rules:** only someone who can edit the workbook may generate it (a learner may generate their own private
+  one, with their own Config keys). A chapter written for an older outline is refused (409, the template version). A
+  published workbook is locked: no re-plan or rewrite until it is moved back to draft. Publishing (or marking a private one
+  ready) needs every chapter written (409 `Write every chapter before publishing.`). Authors get a read-only preview with the
+  answers marked (`ChapterPreview.tsx`); learners never do.
+- **Neon:** in nextjs-api mode the AI call runs outside `withNeonSync`; only the save is a synced write (replayed without a
+  second AI call). The two route files set `maxDuration = 300`; the provider timeout is 240 s on both sides.
+- **FastAPI note:** these endpoints are plain `def` (the AI call blocks, so they run in the threadpool). `router.py` needs
+  Python 3.12+ to import (an existing f-string), so on a 3.9/3.10 machine only `workbooks.py` / `workbook_gen.py` are run
+  directly (the test below does that).
+- **Working through it:** `?chapter=<id>` on the workbook page opens one written chapter (`ChapterView.tsx`,
+  `InteractiveBlock.tsx`, `QuizBlock.tsx`): readings and actions are marked done, reflections/answers/planners are typed,
+  checklists ticked, trackers ticked per day, scales rated; quiz questions are checked one by one (wrong = try again or
+  show the answer, with the explanation; typed answers ignore case and surrounding punctuation; matching choices are a
+  stable shuffle) and the score counts first-try answers, with "Retake the quiz". What counts as done is
+  `progress.ts` (`isBlockDone`), the only place it is decided.
+- **Private progress** (`GET|PUT|DELETE /api/lms/workbooks/{id}/progress`, both twins): one JSON document per workbook
+  and learner, always read and written with `user_id = <caller>`. The browser owns its shape (`answers`, `quiz`,
+  `section`, `done`); the server only counts `done` entries that are real written blocks (floor percent) and caps the
+  document at 400,000 characters (413). A save quotes the version it loaded: a stale one is a 409, and the page then says
+  "Changed elsewhere" with Reload instead of overwriting. `useWorkbookProgress` saves 0.8 s after the last change, one
+  save at a time, and on tab hide; remembering the last chapter opened is a quiet change that never saves on its own
+  (otherwise opening a chapter in a second tab would make the first one stale).
+- **Resets:** a learner resets their own progress (overview, confirm). Instructors of a class workbook get a learner
+  list (`GET .../learners`: name, percent, done/total, started/last opened, never the document) and can reset one
+  learner (`DELETE .../learners/{userId}/progress`, confirm); everyone else's progress is untouched. Both are 403 for
+  non-instructors and only exist for `class` workbooks.
+- **Voice** (`frontend/src/modules/ai-lms/workbooks/voice/`):
+  - *Read aloud* (`useReadAloud`): the browser's own speech engine, one paragraph at a time, so the paragraph being read
+    is highlighted; play/pause/resume/stop, speed 0.75-1.5x (remembered per device), a `hi-IN` voice for Devanagari
+    text; one reader at a time; nothing leaves the device. On readings, key points and "Try this" blocks.
+  - *Explain this to me* (`POST /api/lms/workbooks/{id}/explain`, both twins, prompt `build_explain_prompt` <->
+    `buildExplainPrompt`, byte-identical): anyone who can see the workbook; `block_id` + optional `question` (max 500);
+    a quiz block gives its questions, never its answers; nothing is saved. The answer can be read aloud.
+  - *Dictation* (`DictateButton`, on reflections and short answers): English or हिन्दी, then a review box; only "Add to
+    my answer" puts it in. Uses the shared `useVoiceInput` (now `{ lang }`) and `/api/voice/stt?language=en|hi` (both
+    twins pass `language` to Deepgram nova-2; anything else = the old default). Hindi needs `language=hi`: without it
+    Deepgram returns nothing for Hindi speech. No recording is kept; the mic is asked for only on press.
+- **Upload:** reuses `POST /api/lms/upload-source`. Its Next.js twin's PDF branch used to save `[object Object]` per page
+  (it joined page objects); it now joins the page texts, answers a broken PDF with 422 `Failed to read PDF: ...` and an
+  empty one with Python's `No text content could be extracted from the file.` Its Next.js twin now reads `.docx` (`fe-apis/lms/docxText.ts`, node:zlib,
+  no dependency); before, it returned the zip bytes as text. `.doc` is refused in the browser (save as .docx).
+- **Check:** `cd backend && python3 tests/lms_workbooks_test.py` runs one scenario through both twins on DB copies (rules,
+  generation with canned AI answers, prompts and normalizers, two-learner progress isolation and resets + a step-by-step
+  diff; no FastAPI needed; Node 22.18+).
+
 ### Class membership, updates and practice reminders
 
 - **Who is "in" a class:** `lms_class_members(class_id, user_id, status, joined_at)`. `enrolled` = the learner pressed

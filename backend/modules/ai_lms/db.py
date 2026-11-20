@@ -17,6 +17,8 @@ from .videos import clean_plan_videos
 from .videos import ensure_tables as ensure_video_tables
 from .videos import purge_class as purge_class_videos
 from .videos import purge_subject as purge_subject_videos
+from .workbooks import ensure_tables as ensure_workbook_tables
+from .workbooks import purge_class as purge_class_workbooks
 
 
 def slugify(text: str) -> str:
@@ -39,9 +41,9 @@ MODULE_LANDING_ID = "home"
 
 
 # Subject slugs that would collide with a static route segment
-# (/classes/<c>/lesson/<l>, /classes/<c>/landing) or with the class folder's own
+# (/classes/<c>/lesson/<l>, /classes/<c>/landing, /classes/<c>/workbooks) or with the class folder's own
 # lessons/ directory (see class_folders.py). Mirrored in fe-apis/lms/db.ts.
-RESERVED_SUBJECT_SLUGS = {"lesson", "landing", "lessons"}
+RESERVED_SUBJECT_SLUGS = {"lesson", "landing", "lessons", "workbooks"}
 
 
 INITIAL_CLASSES = [
@@ -391,6 +393,9 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
         # ── 5c. Video links on classes and subjects (see videos.py) ────────────
         ensure_video_tables(cursor)
 
+        # ── 5d. Workbooks and each learner's private progress in them (see workbooks.py) ──
+        ensure_workbook_tables(cursor)
+
         # ── 6. Module-root Landing Page (singleton) ────────────────────────────
         # The AI LMS home/intro landing page (frontend/src/modules/ai-lms/classes/landingpage.html),
         # separate from any one class -- see class_folders.py's "Module-root landing page" section.
@@ -629,6 +634,8 @@ def delete_class(identifier: str) -> bool:
         purge_class_updates(cursor, cls["id"])
         # Video links of the class and of its subjects (before the subjects go with the class).
         purge_class_videos(cursor, cls["id"])
+        # Workbooks and every learner's progress in them.
+        purge_class_workbooks(cursor, cls["id"])
         cursor.execute("DELETE FROM lms_classes WHERE id = ?", (cls["id"],))
         conn.commit()
     return True

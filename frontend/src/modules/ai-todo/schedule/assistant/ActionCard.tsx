@@ -15,15 +15,18 @@ interface Props {
   onUndo: () => void;
   onConfirm: (yes: boolean) => void;
   onEditSchedule: (id: number) => void;
+  /** run_schedule: that run's status once it shows in the conversation (undefined until then). */
+  runStatus?: 'ok' | 'error' | 'running';
 }
 
 const PRIORITY_LABEL: Record<string, string> = { p1: 'Urgent', p2: 'High', p3: '', p4: 'Low' };
 
 function whenLine(rule: ScheduleRule): string {
   const next = nextOccurrence(rule, new Date());
-  return next
-    ? `${describeRule(rule)} · next ${formatReminder(next.toISOString())}`
-    : describeRule(rule);
+  if (!next) return describeRule(rule);
+  // A one-time job: its only run is the time itself ("Once · Today, 7:17 PM", not "Once · Thu… · next Today…").
+  if (rule.repeat === 'once') return `Once · ${formatReminder(next.toISOString())}`;
+  return `${describeRule(rule)} · next ${formatReminder(next.toISOString())}`;
 }
 
 function jobChips(
@@ -44,7 +47,7 @@ function jobChips(
   return chips;
 }
 
-export default function ActionCard({ entry, onUndo, onConfirm, onEditSchedule }: Props) {
+export default function ActionCard({ entry, onUndo, onConfirm, onEditSchedule, runStatus }: Props) {
   const { action: a, state } = entry;
   const working = state === 'working';
   const undone = state === 'undone';
@@ -100,9 +103,17 @@ export default function ActionCard({ entry, onUndo, onConfirm, onEditSchedule }:
     }
     case 'run_schedule':
       icon = 'PlayIcon';
-      kicker = 'Running now';
+      kicker = runStatus === 'ok' ? 'Ran' : runStatus === 'error' ? 'Run failed' : 'Running now';
       title = a.title;
-      meta = <span>The result shows up here when it’s done.</span>;
+      meta = (
+        <span>
+          {runStatus === 'ok'
+            ? 'The result is below.'
+            : runStatus === 'error'
+              ? 'It didn’t finish: the reason is below.'
+              : 'The result shows up here when it’s done.'}
+        </span>
+      );
       canUndo = false;
       break;
     case 'delete_schedule':

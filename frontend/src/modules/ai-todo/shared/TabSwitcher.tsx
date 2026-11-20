@@ -17,7 +17,7 @@ const TABS: { id: TodoTab; label: string; short: string; description: string; ic
   { id: 'smart', label: 'Smart To-Do', short: 'Tasks', description: 'Full task manager with AI breakdowns', icon: 'brain' },
   { id: 'plan', label: 'Plan & Project', short: 'Projects', description: 'Projects & roadmaps', icon: 'plan' },
   { id: 'goals', label: 'Goals', short: 'Goals', description: 'Big-picture planning', icon: 'trophy' },
-  { id: 'schedule', label: 'Assistant', short: 'Assistant', description: 'Ask, get reports and schedule anything with AI, by text or voice', icon: 'ai' },
+  { id: 'schedule', label: 'Scheduler', short: 'Scheduler', description: 'Ask, get reports and schedule anything with AI, by text or voice', icon: 'ai' },
 ];
 
 /**

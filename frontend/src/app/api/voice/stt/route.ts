@@ -18,9 +18,14 @@ export async function POST(req: NextRequest) {
     const audioBuffer = await req.arrayBuffer();
     const contentType = req.headers.get('content-type') || 'audio/webm';
 
-    const transcript = await transcribeAudio(audioBuffer, contentType);
+    // Optional ?language=en|hi (workbook dictation offers Hindi); anything else = the default (English).
+    const language = new URL(req.url).searchParams.get('language');
+    const transcript = await transcribeAudio(audioBuffer, contentType, language);
     return NextResponse.json({ text: transcript });
   } catch (err: any) {
-    return NextResponse.json({ detail: err.message || 'Failed to transcribe audio' }, { status: 500 });
+    return NextResponse.json(
+      { detail: err.message || 'Failed to transcribe audio' },
+      { status: 500 }
+    );
   }
 }

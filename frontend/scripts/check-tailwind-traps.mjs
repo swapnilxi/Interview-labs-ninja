@@ -60,6 +60,8 @@ const TODO_ROOTS = [
   'src/lib/ui',
   'src/modules/labs/dsa-lab',
   'src/modules/labs/guided',
+  // AI LMS workbooks (their own folder; the rest of ai-lms is not enforced yet).
+  'src/modules/ai-lms/workbooks',
   'src/app/dsa-lab',
   'src/modules/labs/cv-lab',
   'src/modules/labs/system-design-lab',

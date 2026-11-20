@@ -127,6 +127,11 @@ horizontal page scroll, room above the floating tab bar and the mic button. Chec
   wash in the purple, a locked phase none. The dark
   ink on a purple fill is deliberate: white on `#9172EC` is 3.6:1.
 
+- **AI LMS Workbooks (`ai-lms/workbooks`):** the one LMS area with its own accent, soft sage `#4f9d8b`, and a gentle pastel
+  wash (mint, peach, lilac) behind a workbook's title and in its cards' corners, because its brief asked for it (2026-11-19).
+  `.wb-accent` re-points `--color-primary` inside it only (`styles/workbook.css`); a filled button carries dark ink (white on
+  the sage is 3.3:1). Everything else is this guideline: neutral chips, hue only for meaning, weights 400-600, sentence case.
+
 ## 10. Before you ship a screen
 
 - [ ] One primary action; the accent appears only on it, the selection and progress

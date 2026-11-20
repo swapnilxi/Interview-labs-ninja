@@ -19,7 +19,17 @@ import os
 import urllib.request
 
 
-def transcribe_audio(audio_bytes: bytes, content_type: str = "audio/webm") -> str:
+STT_LANGUAGES = ("en", "hi")
+
+
+def stt_url(language: str | None = None) -> str:
+    """The Deepgram listen URL; `language` ('en' or 'hi') is passed on, anything else keeps Deepgram's default
+    (English). Twin: sttUrl() in frontend/fe-apis/voice/deepgram.ts."""
+    url = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true"
+    return f"{url}&language={language}" if language in STT_LANGUAGES else url
+
+
+def transcribe_audio(audio_bytes: bytes, content_type: str = "audio/webm", language: str | None = None) -> str:
     """Transcribe audio via Deepgram. Raises RuntimeError if DEEPGRAM_API_KEY is
     unset, or the underlying exception if the Deepgram call itself fails."""
     api_key = os.environ.get("DEEPGRAM_API_KEY", "")
@@ -27,7 +37,7 @@ def transcribe_audio(audio_bytes: bytes, content_type: str = "audio/webm") -> st
         raise RuntimeError("Deepgram is not configured on the server.")
 
     dg_request = urllib.request.Request(
-        "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true",
+        stt_url(language),
         data=audio_bytes,
         headers={"Authorization": f"Token {api_key}", "Content-Type": content_type},
         method="POST",

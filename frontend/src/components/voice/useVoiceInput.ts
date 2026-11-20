@@ -19,11 +19,16 @@ type SpeechRecognitionLike = {
   stop: () => void;
 };
 
+export type VoiceLang = 'en' | 'hi';
+
 /**
  * Mic-to-text. Uses Deepgram (server proxy) when enabled and the user is logged in;
- * otherwise falls back to the browser's Web Speech API.
+ * otherwise falls back to the browser's Web Speech API. `lang` picks English (the default) or Hindi.
  */
-export function useVoiceInput(onTranscript: (text: string) => void) {
+export function useVoiceInput(
+  onTranscript: (text: string) => void,
+  { lang = 'en' }: { lang?: VoiceLang } = {}
+) {
   const [state, setState] = useState<'idle' | 'recording' | 'transcribing'>('idle');
   const [error, setError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -54,7 +59,10 @@ export function useVoiceInput(onTranscript: (text: string) => void) {
       stopStream();
       setState('transcribing');
       try {
-        const text = await deepgramSTT(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }));
+        const text = await deepgramSTT(
+          new Blob(chunks, { type: rec.mimeType || 'audio/webm' }),
+          lang === 'hi' ? 'hi' : undefined
+        );
         if (text.trim()) onTranscript(text.trim());
       } catch {
         setError('Transcription failed. Try again.');
@@ -74,7 +82,7 @@ export function useVoiceInput(onTranscript: (text: string) => void) {
       return;
     }
     const rec: SpeechRecognitionLike = new Ctor();
-    rec.lang = 'en-US';
+    rec.lang = lang === 'hi' ? 'hi-IN' : 'en-US';
     rec.interimResults = false;
     rec.continuous = true;
     rec.onresult = (e) => {

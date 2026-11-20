@@ -5,3 +5,5 @@
 @import './routines.css';
 /* Guided Practice, the page behind a DSA topic's Guided Practice card (its own purple accent, see the file). */
 @import './guided-practice.css';
+/* AI Interactive Workbooks in the LMS (their own soft sage accent and pastel wash, see the file). */
+@import './workbook.css';

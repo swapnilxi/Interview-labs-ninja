@@ -78,7 +78,7 @@ export default function AssistantComposer({
     <div className="agt-dock">
       <form onSubmit={submit} className="agt-composer">
         <label htmlFor="agt-input" className="sr-only">
-          Message the Assistant
+          Message the Scheduler
         </label>
         <textarea
           id="agt-input"
@@ -128,7 +128,7 @@ export default function AssistantComposer({
               type="button"
               onClick={onVoiceMode}
               className="agt-round agt-round-primary"
-              aria-label="Talk to the Assistant (voice mode)"
+              aria-label="Talk to the Scheduler (voice mode)"
               title="Voice mode"
             >
               <WaveIcon />

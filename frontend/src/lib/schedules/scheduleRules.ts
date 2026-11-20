@@ -337,7 +337,49 @@ export function describeInterval(minutes: number): string {
   return `Every ${minutes} minutes`;
 }
 
-/** "Every weekday at 9:00 AM", "Every Mon, Wed at 6:30 PM", "Once · 21 Nov, 9:00 AM", "Cron 0 9 * * 1-5". */
+const hhmm = (h: number, m: number) =>
+  `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
+/**
+ * The common cron shapes in words, or null for anything else (shown as the raw expression): the Assistant writes
+ * "*\/30 9-17 * * 1-5" for "every 30 minutes during work hours", which reads as "Weekdays, every 30 minutes,
+ * 9:00 AM–5:30 PM". Only rules that run every month on chosen weekdays (or every day) are put into words.
+ */
+export function describeCron(expr: string): string | null {
+  const cron = parseCron(expr);
+  if (!cron || !cron.domAny || cron.months.length !== 12) return null;
+  const { minutes, hours, dow } = cron;
+  const days = cron.dowAny
+    ? ''
+    : dow.join(',') === '1,2,3,4,5'
+      ? 'Weekdays'
+      : dow.join(',') === '0,6'
+        ? 'Weekends'
+        : `Every ${dow.map((d) => WEEKDAY_SHORT[d]).join(', ')}`;
+  // A few fixed times a day: "Weekdays at 9:00 AM, 1:00 PM".
+  if (minutes.length * hours.length <= 4) {
+    const times = hours.flatMap((h) => minutes.map((m) => clock(hhmm(h, m))));
+    return `${days || 'Every day'} at ${times.join(', ')}`;
+  }
+  // Evenly spaced through a window: "Every 30 minutes, 9:00 AM–5:30 PM".
+  const contiguous = hours.every((h, i) => i === 0 || h === hours[i - 1] + 1);
+  const step = minutes.length > 1 ? minutes[1] - minutes[0] : 60;
+  // Every `step` minutes all hour long (so the gap across the hour is `step` too).
+  const even =
+    60 % step === 0 &&
+    minutes.length === 60 / step &&
+    minutes.every((m, i) => i === 0 || m - minutes[i - 1] === step);
+  if (!contiguous || !even) return null;
+  const every = step === 60 ? 'every hour' : `every ${step} minutes`;
+  const window =
+    hours.length === 24
+      ? ''
+      : `, ${clock(hhmm(hours[0], minutes[0]))}–${clock(hhmm(hours[hours.length - 1], minutes[minutes.length - 1]))}`;
+  const head = days ? `${days}, ${every}` : every.charAt(0).toUpperCase() + every.slice(1);
+  return `${head}${window}`;
+}
+
+/** "Every weekday at 9:00 AM", "Every Mon, Wed at 6:30 PM", "Once · 21 Nov, 9:00 AM", "Weekdays, every 30 minutes, 9:00 AM–5:30 PM". */
 export function describeRule(rule: ScheduleRule): string {
   let text: string;
   switch (rule.repeat) {
@@ -367,7 +409,7 @@ export function describeRule(rule: ScheduleRule): string {
       text = `Monthly on the ${ordinal(rule.day_of_month || 1)} at ${clock(rule.time!)}`;
       break;
     case 'cron':
-      text = `Cron ${rule.cron}`;
+      text = describeCron(rule.cron || '') ?? `Cron ${rule.cron}`;
       break;
     default:
       text = 'Scheduled';

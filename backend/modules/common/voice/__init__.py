@@ -20,11 +20,12 @@ from .whisper_local import transcribe_audio_local
 __all__ = ["transcribe_audio", "synthesize_speech", "get_tts_content_type"]
 
 
-def transcribe_audio(audio_bytes: bytes, content_type: str = "audio/webm") -> str:
+def transcribe_audio(audio_bytes: bytes, content_type: str = "audio/webm", language: str | None = None) -> str:
+    """`language` ('en' or 'hi') reaches Deepgram; the local Whisper detects the language itself."""
     provider = os.environ.get("VOICE_STT_PROVIDER", "deepgram").strip().lower()
     if provider == "local":
         return transcribe_audio_local(audio_bytes, content_type)
-    return deepgram.transcribe_audio(audio_bytes, content_type)
+    return deepgram.transcribe_audio(audio_bytes, content_type, language)
 
 
 def synthesize_speech(text: str) -> bytes:
