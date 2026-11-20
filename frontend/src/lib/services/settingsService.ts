@@ -248,6 +248,20 @@ export const settingsService = {
     return data.models || [];
   },
 
+  /**
+   * Wipes all settings from localStorage — API keys, model choices, everything.
+   * Called on logout so one user's keys and preferences don't remain accessible
+   * to whoever uses the browser next.
+   */
+  clearSettings(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // private / sandboxed window
+    }
+  },
+
   /** Makes one real call to the provider with this key to confirm it actually works. The key is sent straight through, never stored server-side. */
   async testApiKey(
     provider: string,

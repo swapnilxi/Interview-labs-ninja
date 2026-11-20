@@ -14,6 +14,7 @@ from pypdf import PdfReader
 
 from modules.auth.dependencies import get_current_active_user, get_current_user_id, has_permission
 from modules.common.ai import AISettings, NoEmbeddingProviderError, call_ai_text, extract_json_object
+from modules.common.ai.utils import extract_json_object_lenient
 from modules.common.rag import clear_index as rag_clear_index
 from modules.common.rag import index_document as rag_index_document
 from modules.common.rag import index_status as rag_index_status
@@ -32,6 +33,9 @@ from .class_folders import (
     save_module_landing,
 )
 from . import updates
+from starlette.concurrency import run_in_threadpool
+
+from . import workbook_gen, workbooks
 from . import videos as lms_videos
 from .visual_engine import (
     generate_native_visual,
@@ -82,6 +86,8 @@ _NO_SYNC_POST = re.compile(
     r"|projects/[^/]+/suggest-placement"
     r"|subjects/[^/]+/(?:rag/index|summarize-context)"
     r"|classes/[^/]+/(?:membership|notifications)"
+    # Workbooks are not files of the class folder.
+    r"|classes/[^/]+/workbooks|workbooks(?:/.*)?"
     # Video links are not files of the class folder (videos.py).
     r"|videos(?:/reorder|/[0-9]+)?"
     r"|projects/[^/]+/modules/[0-9]+(?:/sublessons/[0-9]+)?/videos"
@@ -98,7 +104,13 @@ _NON_EDIT_WRITES = re.compile(
     r"|classes/[^/]+/landing/ai|landing/ai"
     # A learner joining, leaving or showing interest in a class changes only their own row. Sending an update
     # (POST classes/<c>/notifications) is deliberately NOT here: it needs an editor.
-    r"|classes/[^/]+/membership)/?$"
+    r"|classes/[^/]+/membership"
+    # Workbooks: any signed-in user may create a private one; workbooks.py checks every change itself
+    # (owner, or an instructor for a class workbook; only an instructor may share one with the class). Generating
+    # its chapters is the same "may this user edit it" check; saving or resetting your own progress is your own row;
+    # resetting a learner's progress needs an instructor, checked in workbooks.py.
+    r"|classes/[^/]+/workbooks"
+    r"|workbooks/[^/]+(?:/generate/(?:outline|sections/[^/]+)|/progress|/learners/[^/]+/progress|/explain)?)/?$"
 )
 
 
@@ -492,6 +504,68 @@ async def get_my_updates(
     after_id = _whole_number(after, "after")
     limit_n = _whole_number(limit, "limit")
     return updates.inbox(user_id, after_id, updates.INBOX_DEFAULT_LIMIT if limit_n is None else limit_n)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Workbooks (AI Interactive Workbooks). The logic and every access rule are in workbooks.py (no FastAPI import
+# there); the Next.js twin is fe-apis/lms/workbooks.ts. These paths are in _NON_EDIT_WRITES because any signed-in
+# user may create a private workbook: workbooks.py itself decides who may see, change or publish one.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _workbook_http_error(err: workbooks.WorkbookError) -> HTTPException:
+    return HTTPException(status_code=err.status_code, detail=err.detail)
+
+
+async def _json_body(request: Request, message: str) -> Any:
+    """The parsed body; a body that is not JSON gets the same 422 text the Next.js twin gives."""
+    try:
+        return await request.json()
+    except ValueError:
+        raise HTTPException(status_code=422, detail=message)
+
+
+@router.get("/classes/{class_id_or_slug}/workbooks")
+async def list_class_workbooks(class_id_or_slug: str, user: dict = Depends(get_current_active_user)) -> List[Dict[str, Any]]:
+    try:
+        return workbooks.list_workbooks(class_id_or_slug, user["id"], has_permission(user, "ai_lms:edit"))
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+@router.post("/classes/{class_id_or_slug}/workbooks", status_code=status.HTTP_201_CREATED)
+async def create_class_workbook(
+    class_id_or_slug: str, request: Request, user: dict = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    payload = await _json_body(request, "Send the workbook as a JSON object.")
+    try:
+        return workbooks.create_workbook(class_id_or_slug, user["id"], has_permission(user, "ai_lms:edit"), payload)
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+@router.get("/workbooks/{workbook_id}")
+async def get_workbook(workbook_id: str, user: dict = Depends(get_current_active_user)) -> Dict[str, Any]:
+    try:
+        return workbooks.get_workbook(workbook_id, user["id"], has_permission(user, "ai_lms:edit"))
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+@router.patch("/workbooks/{workbook_id}")
+async def update_workbook(workbook_id: str, request: Request, user: dict = Depends(get_current_active_user)) -> Dict[str, Any]:
+    payload = await _json_body(request, "Send the changes as a JSON object.")
+    try:
+        return workbooks.update_workbook(workbook_id, user["id"], has_permission(user, "ai_lms:edit"), payload)
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+@router.delete("/workbooks/{workbook_id}")
+async def delete_workbook(workbook_id: str, user: dict = Depends(get_current_active_user)) -> Dict[str, Any]:
+    try:
+        return workbooks.delete_workbook(workbook_id, user["id"], has_permission(user, "ai_lms:edit"))
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2732,3 +2806,135 @@ async def lms_copilot(payload: CopilotRequest) -> Dict[str, str]:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     return {"answer": response.strip()}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Workbook generation: plan the chapters, then write them one at a time (the browser walks the pending chapters), so
+# no single answer can be cut off and a long book never has to fit in one prompt. The prompts and the cleaning of the
+# answers are workbook_gen.py; workbooks.py checks the caller before and after the AI call. Twin:
+# fe-apis/lms/workbookHandlers.ts. Plain `def` on purpose: the AI call blocks, so FastAPI runs these in its threadpool.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Per provider request, in seconds: a chapter is a long answer (the providers' own 45-60 s defaults are too short).
+_WORKBOOK_AI_TIMEOUT_S = 240
+
+
+def _run_workbook_ai(prompt: str, max_tokens: int, payload: AISettings) -> Any:
+    """The AI's answer to one generation prompt, read as a JSON object as leniently as it allows (None if it is not)."""
+    return extract_json_object_lenient(_call_workbook_ai(prompt, max_tokens, payload))
+
+
+def _call_workbook_ai(prompt: str, max_tokens: int, payload: AISettings) -> str:
+    """The AI's raw answer; provider failures become the same 400/502 texts as the Next.js twin."""
+    try:
+        raw = call_ai_text(prompt, payload, max_tokens=max_tokens, timeout=_WORKBOOK_AI_TIMEOUT_S)
+    except Exception as exc:
+        message = str(exc)
+        if "No API key configured" in message:
+            raise HTTPException(status_code=400, detail=message)
+        raise HTTPException(status_code=502, detail=f"The AI call failed: {message}")
+    if not (raw or "").strip():
+        raise HTTPException(status_code=502, detail="The AI returned an empty answer. Try again.")
+    return raw
+
+
+@router.post("/workbooks/{workbook_id}/generate/outline")
+def generate_workbook_outline(
+    workbook_id: str, payload: AISettings, user: dict = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    is_editor = has_permission(user, "ai_lms:edit")
+    try:
+        job = workbooks.outline_job(workbook_id, user["id"], is_editor)
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+    parsed = _run_workbook_ai(job["prompt"], job["max_tokens"], payload)
+    try:
+        return workbooks.save_outline(workbook_id, user["id"], is_editor, parsed)
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+@router.post("/workbooks/{workbook_id}/generate/sections/{section_id}")
+def generate_workbook_section(
+    workbook_id: str, section_id: str, payload: AISettings, user: dict = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    is_editor = has_permission(user, "ai_lms:edit")
+    try:
+        job = workbooks.section_job(workbook_id, section_id, user["id"], is_editor)
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+    parsed = _run_workbook_ai(job["prompt"], job["max_tokens"], payload)
+    try:
+        return workbooks.save_section(
+            workbook_id, section_id, user["id"], is_editor, job["template_version"], parsed
+        )
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+
+# Learner progress: the caller's own document (GET/PUT/DELETE), and for instructors the learner list and a reset of
+# one learner. workbooks.py holds every rule; nobody, instructors included, ever receives another person's answers.
+
+@router.get("/workbooks/{workbook_id}/progress")
+async def get_workbook_progress(workbook_id: str, user: dict = Depends(get_current_active_user)) -> Dict[str, Any]:
+    try:
+        return workbooks.get_progress(workbook_id, user["id"], has_permission(user, "ai_lms:edit"))
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+@router.put("/workbooks/{workbook_id}/progress")
+async def save_workbook_progress(
+    workbook_id: str, request: Request, user: dict = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    payload = await _json_body(request, "Send your answers as a JSON object.")
+    try:
+        return workbooks.save_progress(workbook_id, user["id"], has_permission(user, "ai_lms:edit"), payload)
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+@router.delete("/workbooks/{workbook_id}/progress")
+async def reset_workbook_progress(workbook_id: str, user: dict = Depends(get_current_active_user)) -> Dict[str, Any]:
+    try:
+        return workbooks.reset_progress(workbook_id, user["id"], has_permission(user, "ai_lms:edit"))
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+@router.get("/workbooks/{workbook_id}/learners")
+async def list_workbook_learners(workbook_id: str, user: dict = Depends(get_current_active_user)) -> List[Dict[str, Any]]:
+    try:
+        return workbooks.list_learners(workbook_id, user["id"], has_permission(user, "ai_lms:edit"))
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+@router.delete("/workbooks/{workbook_id}/learners/{learner_id}/progress")
+async def reset_workbook_learner(
+    workbook_id: str, learner_id: str, user: dict = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    try:
+        return workbooks.reset_learner(workbook_id, learner_id, user["id"], has_permission(user, "ai_lms:edit"))
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+
+
+
+# "Explain this to me": anyone who can see the workbook may ask; nothing is saved. The body is the AI settings plus
+# `block_id` and an optional `question` (checked in workbooks.explain_job, the same texts as the Next.js twin).
+
+@router.post("/workbooks/{workbook_id}/explain")
+async def explain_workbook_block(
+    workbook_id: str, request: Request, user: dict = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    body = await _json_body(request, "Send the request as a JSON object.")
+    try:
+        job = workbooks.explain_job(workbook_id, user["id"], has_permission(user, "ai_lms:edit"), body)
+    except workbooks.WorkbookError as err:
+        raise _workbook_http_error(err)
+    settings = AISettings(**{k: v for k, v in body.items() if k in AISettings.model_fields})
+    # The AI call blocks: run it in the threadpool so the event loop keeps serving other requests.
+    raw = await run_in_threadpool(_call_workbook_ai, job["prompt"], job["max_tokens"], settings)
+    return {"text": workbook_gen.clean_explanation(raw)}

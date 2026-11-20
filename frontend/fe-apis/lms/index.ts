@@ -56,6 +56,7 @@ import {
 import * as landingEdit from './landingEdit';
 import { withNeonSync } from '@/lib/server/neonSync';
 import { buildZip } from './zip';
+import { docxText } from './docxText';
 import { HttpError } from '../todo/_shared';
 import {
   INBOX_DEFAULT_LIMIT,
@@ -92,8 +93,9 @@ const EDITOR_ROLES = new Set(['editor', 'admin', 'superadmin']);
 // POST/PUT/PATCH/DELETE changes shared LMS content and needs an editor role.
 // `classes/<c>/membership` is a learner joining, leaving or showing interest: their own row only.
 // `classes/<c>/notifications` (sending an update) is deliberately not here: it needs an editor.
+// Workbooks: any signed-in user may create a private one; workbooks.ts checks every change itself.
 const NON_EDIT_WRITES =
-  /^\/api\/lms\/(?:lessons\/[^/]+\/(?:view|complete)|voice-chat|copilot|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai|classes\/[^/]+\/membership)\/?$/;
+  /^\/api\/lms\/(?:lessons\/[^/]+\/(?:view|complete)|voice-chat|copilot|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai|classes\/[^/]+\/membership|classes\/[^/]+\/workbooks|workbooks\/[^/]+(?:\/generate\/(?:outline|sections\/[^/]+)|\/progress|\/learners\/[^/]+\/progress|\/explain)?)\/?$/;
 
 export function requireUserId(req: Request): number | NextResponse {
   const user = getUserFromAuthHeader(req.headers.get('authorization'));
@@ -1439,15 +1441,39 @@ export async function handleUploadSource(req: Request): Promise<NextResponse> {
           '@/modules/swipe-pdf-reader/utils/pdfProcessor'
         );
         const { pageTexts } = await extractPdfTextBestEffort(file);
-        text = pageTexts.join('\n\n');
-      } catch {
-        // Fallback simple read
-        text = await file.text();
+        // Each page is { pageNumber, text }: joining the objects themselves saved "[object Object]" per page.
+        text = pageTexts
+          .map((page) => page.text)
+          .filter((pageText) => pageText.trim())
+          .join('\n\n');
+      } catch (exc) {
+        // Same 422 text as the Python twin (a PDF read as plain text is binary gibberish, not material).
+        return NextResponse.json(
+          { detail: `Failed to read PDF: ${(exc as Error)?.message || exc}` },
+          { status: 422 }
+        );
+      }
+    } else if (fname.endsWith('.docx')) {
+      // A .docx is a zip: file.text() returned its compressed bytes as gibberish. Same 422 text as the Python twin.
+      try {
+        text = docxText(await file.arrayBuffer());
+      } catch (exc) {
+        return NextResponse.json(
+          { detail: `Failed to read DOCX file: ${(exc as Error)?.message || exc}` },
+          { status: 422 }
+        );
       }
     } else {
       text = await file.text();
     }
 
+    if (!text.trim()) {
+      // Same as the Python twin: an image-only (scanned) PDF or an empty file has no text to work from.
+      return NextResponse.json(
+        { detail: 'No text content could be extracted from the file.' },
+        { status: 422 }
+      );
+    }
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     return NextResponse.json({
       filename: file.name,

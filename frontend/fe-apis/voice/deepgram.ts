@@ -9,13 +9,26 @@
  * route handler's job.
  */
 
-export async function transcribeAudio(audioBuffer: ArrayBuffer, contentType: string): Promise<string> {
+const STT_LANGUAGES = ['en', 'hi'];
+
+/** The Deepgram listen URL; `language` ('en' or 'hi') is passed on, anything else keeps Deepgram's default
+ *  (English). Twin: stt_url() in backend/modules/common/voice/deepgram.py. */
+export function sttUrl(language?: string | null): string {
+  const url = 'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true';
+  return language && STT_LANGUAGES.includes(language) ? `${url}&language=${language}` : url;
+}
+
+export async function transcribeAudio(
+  audioBuffer: ArrayBuffer,
+  contentType: string,
+  language?: string | null
+): Promise<string> {
   const apiKey = process.env.DEEPGRAM_API_KEY || '';
   if (!apiKey) {
     throw new Error('Deepgram is not configured on the server.');
   }
 
-  const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true', {
+  const res = await fetch(sttUrl(language), {
     method: 'POST',
     headers: {
       Authorization: `Token ${apiKey}`,

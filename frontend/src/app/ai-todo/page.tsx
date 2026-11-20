@@ -170,7 +170,10 @@ function TodoPageInner() {
                 Skip to Task Copilot
               </button>
             )}
-            <div className="max-w-[1440px] mx-auto px-4 sm:px-[2rem] lg:pl-[2.5rem] lg:pr-[3.5rem] pt-[1rem] sm:pt-[1.5rem] pb-[7rem]">
+            {/* pb-[7rem]: room for the floating mic. The Assistant has no mic and its message box must reach the bottom. */}
+            <div
+              className={`max-w-[1440px] mx-auto px-4 sm:px-[2rem] lg:pl-[2.5rem] lg:pr-[3.5rem] pt-[1rem] sm:pt-[1.5rem] ${activeTab === 'schedule' ? 'pb-0' : 'pb-[7rem]'}`}
+            >
               {/* Page header: a title and one quiet line — no tile, no tagline, no wash behind it. */}
               <header className="relative mb-[1rem] flex items-center justify-between gap-3 sm:items-start">
                 <div className="relative min-w-0">

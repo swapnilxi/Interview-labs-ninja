@@ -24,6 +24,7 @@ import ImportLabModuleButton from './components/ImportLabModuleButton';
 import LmsVideos from './components/LmsVideos';
 import SendClassUpdateButton from './components/SendClassUpdateButton';
 import ShareClassButton from './components/ShareClassButton';
+import ClassWorkbooks from './workbooks/ClassWorkbooks';
 import {
   LMS_TOOLBAR_BTN,
   LMS_TOOLBAR_BTN_ACCENT,
@@ -431,6 +432,9 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
           )}
         </section>
       )}
+
+      {/* Workbooks: books and lessons turned into interactive exercises (private answers per learner) */}
+      <ClassWorkbooks classSlug={lmsClass.slug} className={lmsClass.name} />
 
       {/* Edit Class Modal */}
       <EditClassModal

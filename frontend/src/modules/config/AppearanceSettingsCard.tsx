@@ -70,10 +70,10 @@ export default function AppearanceSettingsCard({
 
   // Same store, same apply as before: the whole interface re-tints at once (CSS variables on <html>), with a short
   // cross-fade instead of a snap.
-  const choose = (hex: string | null) => {
+  const choose = (hex: string | null, presetKey: string | null = null) => {
     setAccentHex(hex);
-    setStoredAccent(hex);
-    withColorTransition(() => applyAccent(hex));
+    setStoredAccent(hex, presetKey);
+    withColorTransition(() => applyAccent(hex, presetKey));
   };
 
   const handleSidebarModeChange = (mode: SidebarMode) => {
@@ -137,12 +137,21 @@ export default function AppearanceSettingsCard({
                 type="button"
                 role="radio"
                 aria-checked={isActive}
-                onClick={() => choose(preset.hex)}
+                onClick={() => choose(preset.hex, preset.key)}
                 title={preset.hex ? `${preset.label} ${preset.hex}` : 'Default (lime on dark, fern on light)'}
                 className="accent-swatch"
                 data-active={isActive || undefined}
               >
-                <span className="accent-swatch-dot" style={{ ['--swatch' as string]: swatch }}>
+                <span
+                  className={`accent-swatch-dot ${
+                    preset.key === 'pokemon'
+                      ? 'accent-swatch-dot-pokeball'
+                      : preset.key === 'dragonball'
+                        ? 'accent-swatch-dot-dragonball'
+                        : ''
+                  }`}
+                  style={{ ['--swatch' as string]: swatch }}
+                >
                   {isActive && (
                     <Icon
                       name="CheckIcon"

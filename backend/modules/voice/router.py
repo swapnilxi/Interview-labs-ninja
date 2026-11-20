@@ -31,8 +31,10 @@ async def stt_endpoint(request: Request) -> Dict[str, str]:
     """Transcribe recorded audio via Deepgram. Client sends the raw audio blob as the body."""
     audio_bytes = await request.body()
     content_type = request.headers.get("content-type", "audio/webm")
+    # Optional ?language=en|hi (workbook dictation offers Hindi); anything else = the default (English).
+    language = request.query_params.get("language")
     try:
-        text = transcribe_audio(audio_bytes, content_type)
+        text = transcribe_audio(audio_bytes, content_type, language)
     except RuntimeError as exc:
         # Missing DEEPGRAM_API_KEY — a server config problem, not a failed call.
         raise HTTPException(status_code=500, detail=str(exc))

@@ -383,7 +383,7 @@ function runPrompt(
 ): string {
   const reportLine = schedule.write_report
     ? '\n  "report": "The full report, shown in the app: markdown allowed (### headings, bullet lists, **bold**), ' +
-      'at most 4000 characters",'
+      'no emoji, at most 4000 characters",'
     : '';
   const searchLine = askSearch
     ? '\n  "web_search": "A short web search query for the current information this run needs",'
@@ -414,7 +414,9 @@ ${tasksBlock}${web}Return ONLY a JSON object:
   ]
 }
 Rules:
-- Follow the instructions. Be specific, and use the person's tasks when they matter; never invent tasks they don't have.
+- Follow the instructions (the job's title says what it is for when they are short). Be specific, and use the person's tasks when they matter; never invent tasks they don't have.
+- Do the job now, for today, and give the finished result: never say you will do it later, and never ask the person anything or wait for an answer (they can't reply to this). A quiz gives its questions with the answers below them.
+- Refer to tasks by title, never by id.
 - tasks: new tasks only when the instructions ask you to create, plan or suggest tasks (at most 5); otherwise [].
 ${extraRules}- Keep the person's language.
 No extra text, no markdown blocks, just the raw JSON object.`;

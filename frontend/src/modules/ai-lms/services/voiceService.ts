@@ -8,8 +8,9 @@ export const isDeepgramEnabled = () =>
   process.env.NEXT_PUBLIC_DEEPGRAM_ENABLED === 'true' ||
   (typeof window !== 'undefined' && window.localStorage.getItem('deepgram_enabled') === 'true');
 
-export async function deepgramSTT(audioBlob: Blob): Promise<string> {
-  const res = await apiFetch('/api/voice/stt', {
+/** `language` 'hi' transcribes Hindi; left out (or 'en') is English, as before. */
+export async function deepgramSTT(audioBlob: Blob, language?: 'en' | 'hi'): Promise<string> {
+  const res = await apiFetch(language ? `/api/voice/stt?language=${language}` : '/api/voice/stt', {
     method: 'POST',
     headers: { 'Content-Type': audioBlob.type },
     body: audioBlob,

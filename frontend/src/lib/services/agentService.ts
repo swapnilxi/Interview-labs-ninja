@@ -93,7 +93,9 @@ export const agentService = {
       throw new Error(
         isMissingKeyError(message)
           ? 'Add an AI key in Config (or pick “Use .env default”), then ask again.'
-          : message
+          : /HTTP 429\b/.test(message)
+            ? 'Your AI provider is limiting requests right now (HTTP 429). Wait a minute and try again, or pick another model in Config.'
+            : message
       );
     }
     const data = (await res.json()) as Partial<AgentReply>;
@@ -221,7 +223,7 @@ export async function applyAction(action: AgentAction): Promise<ActionEntry> {
             title: t.title,
             priority: t.priority,
             due_date: t.due_date,
-            context: 'Added by the Assistant.',
+            context: 'Added by the Scheduler.',
           });
           ids.push(task.id);
         }

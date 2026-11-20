@@ -231,7 +231,7 @@ export default function SchedulerView({ onCount }: Props) {
               Nothing scheduled yet
             </p>
             <p className="mt-1 max-w-[24rem] text-sm text-muted-foreground">
-              Tell the Assistant what to do and when (“every Friday at 6pm, write my weekly
+              Tell the Scheduler what to do and when (“every Friday at 6pm, write my weekly
               report”), or set one up with New. A reminder tells you something; an AI job thinks for
               you at that time and sends you its answer.
             </p>

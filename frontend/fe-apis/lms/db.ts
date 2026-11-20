@@ -11,11 +11,12 @@ import { seedInitialLmsContent } from './seed';
 import { contentHash, recordBackup, refreshLesson } from './classFolders';
 import { UPDATES_DDL, purgeClassUpdates } from './updatesSchema';
 import { VIDEOS_DDL, cleanPlanVideos, purgeClassVideos, purgeSubjectVideos } from './videosSchema';
+import { WORKBOOKS_DDL, purgeClassWorkbooks } from './workbooks';
 
 // Subject slugs that would collide with a static route segment
-// (/classes/[c]/lesson/[l], /classes/[c]/landing) or with the class folder's own
+// (/classes/[c]/lesson/[l], /classes/[c]/landing, /classes/[c]/workbooks) or with the class folder's own
 // lessons/ directory (see classFolders.ts). Mirrors backend/modules/ai_lms/db.py.
-const RESERVED_SUBJECT_SLUGS = new Set(['lesson', 'landing', 'lessons']);
+const RESERVED_SUBJECT_SLUGS = new Set(['lesson', 'landing', 'lessons', 'workbooks']);
 
 // The one row of lms_module_landing: the AI LMS module-root landing page (see
 // classFolders.ts), which isn't tied to any single class. Not to be confused with a
@@ -99,6 +100,8 @@ export function ensureLmsTables(): void {
 
   // Video links on classes and subjects (see videos.ts; same table as backend/modules/ai_lms/videos.py).
   db.exec(VIDEOS_DDL);
+  // Workbooks and each learner's private progress in them (workbooks.ts).
+  db.exec(WORKBOOKS_DDL);
 
   // Migrate columns if table already existed without ai_context
   try {
@@ -365,6 +368,8 @@ export function deleteClass(idOrSlug: string): boolean {
   db.prepare('DELETE FROM lms_subjects WHERE class_id = ?').run(current.id);
   // Members and the class's own updates go with it (no FOREIGN KEY on them; Python's delete_class does the same).
   purgeClassUpdates(db, current.id);
+  // Workbooks and every learner's progress in them (Python's delete_class does the same).
+  purgeClassWorkbooks(db, current.id);
   db.prepare('DELETE FROM lms_classes WHERE id = ?').run(current.id);
   return true;
 }

@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { apiFetch } from '@/lib/http/apiClient';
 import { getToken, setToken, clearToken, isLoggedIn, onAuthChange } from '@/lib/auth/tokenStore';
 import { importGuestDataIntoAccount, type MigrationResult } from '@/lib/services/migration';
-import { pullServerSettingsIfLoggedIn } from '@/lib/services/settingsService';
+import { pullServerSettingsIfLoggedIn, settingsService } from '@/lib/services/settingsService';
 
 export interface AuthUser {
   id: number;
@@ -133,6 +133,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = useCallback(() => {
     apiFetch('/auth/logout', { method: 'POST' }).catch(() => {});
     clearToken();
+    // Wipe all locally-stored settings (API keys, model choice, etc.) so they
+    // don't persist into the next user's session on a shared browser.
+    settingsService.clearSettings();
     setUser(null);
     setLastMigration(null);
   }, []);
