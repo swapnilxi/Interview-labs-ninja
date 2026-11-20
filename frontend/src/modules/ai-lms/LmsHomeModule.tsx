@@ -20,9 +20,10 @@ import { useLmsCopilotContext } from './context/LmsCopilotContext';
 import { homeCopilotContext } from './utils/copilotContext';
 
 export default function LmsHomeModule() {
-  const { canEdit: canEditReal } = useAuth();
+  const { user, canEdit: canEditReal } = useAuth();
   const { isPreviewingAsStudent } = useLmsViewMode();
   const canEdit = canEditReal && !isPreviewingAsStudent;
+  const canCreateClass = (canEdit || Boolean(user)) && !isPreviewingAsStudent;
   const [classes, setClasses] = useState<LmsClass[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -144,13 +145,13 @@ export default function LmsHomeModule() {
             <Link
               href="/ai-lms/landing"
               title="About AI LMS & all classes"
-              className={`lms-btn-secondary ${canEdit && activeTab === 'classes' ? '' : 'col-span-2'}`}
+              className={`lms-btn-secondary ${canCreateClass && activeTab === 'classes' ? '' : 'col-span-2'}`}
             >
               <Icon name="InformationCircleIcon" size={15} />
               <span>About AI LMS</span>
             </Link>
 
-            {canEdit && activeTab === 'classes' && (
+            {canCreateClass && activeTab === 'classes' && (
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
@@ -270,20 +271,23 @@ export default function LmsHomeModule() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[1.5rem] lg:gap-8">
-                {classes.map((cls, idx) => (
-                  <ClassCard
-                    key={cls.id}
-                    lmsClass={cls}
-                    onEdit={canEdit ? (c) => setClassToEdit(c) : undefined}
-                    onDelete={canEdit ? (c) => setClassToDelete(c) : undefined}
-                    isOrganizeMode={isOrganizeMode}
-                    orderIndex={idx}
-                    canMoveLeft={idx > 0}
-                    canMoveRight={idx < classes.length - 1}
-                    onMoveLeft={() => handleMoveClass(idx, 'left')}
-                    onMoveRight={() => handleMoveClass(idx, 'right')}
-                  />
-                ))}
+                {classes.map((cls, idx) => {
+                  const canManage = canEdit || Boolean(user?.id && cls.owner_id === user.id);
+                  return (
+                    <ClassCard
+                      key={cls.id}
+                      lmsClass={cls}
+                      onEdit={canManage ? (c) => setClassToEdit(c) : undefined}
+                      onDelete={canManage ? (c) => setClassToDelete(c) : undefined}
+                      isOrganizeMode={isOrganizeMode}
+                      orderIndex={idx}
+                      canMoveLeft={idx > 0}
+                      canMoveRight={idx < classes.length - 1}
+                      onMoveLeft={() => handleMoveClass(idx, 'left')}
+                      onMoveRight={() => handleMoveClass(idx, 'right')}
+                    />
+                  );
+                })}
               </div>
             )}
           </section>

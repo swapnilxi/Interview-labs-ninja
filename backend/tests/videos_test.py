@@ -5,7 +5,7 @@ Runs against a COPY of the real database (never the live file):
     cd backend && uv run python tests/videos_test.py
 Exits non-zero if any check fails.
 
-Lab links also carry an admin's preview image and card shape, an "everyone" audience and `PATCH`, and a lab page has an
+Lab links also carry their owner's preview image, card shape and icon, an admin-only "everyone" audience and `PATCH`, and a lab page has an
 AI-written video script (modules/lab_sections/video_script.py); both are covered here (the script against a mocked model).
 
 Two parts:
@@ -254,13 +254,16 @@ DATA = "data:image/jpeg;base64," + B64
 
 mine = lab_videos.add_video(LEARNER, *pg, "https://example.com/mine", "Mine")
 check("learner add: defaults are no image and the wide shape", mine["preview_image"] == "" and mine["shape"] == "wide" and mine["shared"] is False)
-check("learner add with a preview image -> 403", raises(lambda: lab_videos.add_video(LEARNER, *pg, "https://example.com/p", "", preview_raw=IMG), 403, lab_videos.NOT_ADMIN_LOOK))
-check("learner add with a shape -> 403 (even the default)", raises(lambda: lab_videos.add_video(LEARNER, *pg, "https://example.com/p", "", shape_raw="wide"), 403, lab_videos.NOT_ADMIN_LOOK))
+looked = lab_videos.add_video(LEARNER, *pg, "https://example.com/p1", "", preview_raw=IMG, shape_raw="side", icon_raw="pdf")
+check("learner add: their own image, shape and icon are stored", looked["preview_image"] == IMG and looked["shape"] == "side" and looked["icon"] == "pdf")
+check("learner add: the icon defaults to automatic ('')", mine["icon"] == "")
+check("bad icon is a 422", raises(lambda: lab_videos.add_video(LEARNER, *pg, "https://example.com/p", "", icon_raw="rocket"), 422, lab_videos.ICON_ERROR))
+check("non-string icon is a 422", raises(lambda: lab_videos.add_video(LEARNER, *pg, "https://example.com/p", "", icon_raw=3), 422, lab_videos.ICON_ERROR))
 check("learner add for everyone -> 403", raises(lambda: lab_videos.add_video(LEARNER, *pg, "https://example.com/p", "", shared=True), 403, lab_videos.NOT_ADMIN_SHARE))
 check("bad shape is a 422 before the admin check", raises(lambda: lab_videos.add_video(LEARNER, *pg, "https://example.com/p", "", shape_raw="round"), 422, vl.SHAPE_ERROR))
 check("bad preview is a 422 before the admin check", raises(lambda: lab_videos.add_video(LEARNER, *pg, "https://example.com/p", "", preview_raw="http://example.com/a.jpg"), 422, vl.PREVIEW_ERROR))
 check("an empty preview from a learner is 'not sent'", lab_videos.add_video(LEARNER, *pg, "https://example.com/e", "", preview_raw="")["preview_image"] == "")
-check("nothing was stored by the refused adds", len(lab_videos.list_videos(LEARNER, *pg)["videos"]) == 2)
+check("nothing was stored by the refused adds", len(lab_videos.list_videos(LEARNER, *pg)["videos"]) == 3)
 
 own = lab_videos.add_video(ADMIN, *pg, "https://example.com/admin-own", "Admin own", preview_raw=DATA, shape_raw="side")
 check("admin add: image and shape are stored", own["preview_image"] == DATA and own["shape"] == "side" and own["shared"] is False)
@@ -278,10 +281,13 @@ check("a learner cannot add a duplicate of a shared link (409)", raises(lambda: 
 check("patch: nothing sent -> 422", raises(lambda: lab_videos.update_video(LEARNER, mine["id"]), 422, lab_videos.NOTHING_TO_CHANGE))
 check("patch: the owner edits the title", lab_videos.update_video(LEARNER, mine["id"], title_raw="  New  title ")["title"] == "New title")
 check("patch: a title of '' clears it", lab_videos.update_video(LEARNER, mine["id"], title_raw="")["title"] == "")
-check("patch: a learner's preview image -> 403", raises(lambda: lab_videos.update_video(LEARNER, mine["id"], preview_raw=IMG), 403, lab_videos.NOT_ADMIN_PATCH))
-check("patch: a learner's shape -> 403", raises(lambda: lab_videos.update_video(LEARNER, mine["id"], shape_raw="side"), 403, lab_videos.NOT_ADMIN_PATCH))
+got = lab_videos.update_video(LEARNER, mine["id"], preview_raw=IMG, shape_raw="side", icon_raw="code")
+check("patch: the owner sets image, shape and icon", got["preview_image"] == IMG and got["shape"] == "side" and got["icon"] == "code")
+got = lab_videos.update_video(LEARNER, mine["id"], preview_raw="", icon_raw="")
+check("patch: '' removes the image and puts the icon back to automatic", got["preview_image"] == "" and got["icon"] == "" and got["shape"] == "side")
+check("patch: an icon alone counts as a change", lab_videos.update_video(LEARNER, mine["id"], icon_raw="repo")["icon"] == "repo")
+check("patch: bad icon -> 422", raises(lambda: lab_videos.update_video(LEARNER, mine["id"], icon_raw="rocket"), 422, lab_videos.ICON_ERROR))
 check("patch: a learner's shared -> 403", raises(lambda: lab_videos.update_video(LEARNER, mine["id"], shared_raw=True), 403, lab_videos.NOT_ADMIN_PATCH))
-check("patch: a learner's empty preview is still 'sent' -> 403", raises(lambda: lab_videos.update_video(LEARNER, mine["id"], preview_raw=""), 403, lab_videos.NOT_ADMIN_PATCH))
 check("patch: someone else's private link -> 404 (learner and admin)", raises(lambda: lab_videos.update_video(LEARNER2, mine["id"], title_raw="x"), 404, "Video not found.") and raises(lambda: lab_videos.update_video(ADMIN, mine["id"], title_raw="x"), 404, "Video not found."))
 check("patch: a learner cannot touch a shared link (404)", raises(lambda: lab_videos.update_video(LEARNER, shared["id"], title_raw="x"), 404, "Video not found."))
 check("patch: a missing id -> 404", raises(lambda: lab_videos.update_video(ADMIN, 99999999, title_raw="x"), 404, "Video not found."))
@@ -441,10 +447,10 @@ else:
         r = call("POST", "/lab-sections/videos", "user", json={**base, "url": "https://example.com/learner", "title": "Mine"})
         check("http: a learner's link has no image and the wide shape", r.status_code == 201 and r.json()["preview_image"] == "" and r.json()["shape"] == "wide" and r.json()["shared"] is False)
         mine_id = r.json()["id"]
-        r = call("POST", "/lab-sections/videos", "user", json={**base, "url": "https://example.com/l2", "preview_image": IMGH})
-        check("http: a learner cannot attach a preview image (403)", r.status_code == 403 and r.json()["detail"] == lab_videos.NOT_ADMIN_LOOK)
-        r = call("POST", "/lab-sections/videos", "user", json={**base, "url": "https://example.com/l2", "shape": "slim"})
-        check("http: a learner cannot choose a shape (403)", r.status_code == 403 and r.json()["detail"] == lab_videos.NOT_ADMIN_LOOK)
+        r = call("POST", "/lab-sections/videos", "user", json={**base, "url": "https://example.com/l-look", "preview_image": IMGH, "shape": "slim", "icon": "slides"})
+        check("http: a learner sets their own image, shape and icon", r.status_code == 201 and r.json()["preview_image"] == IMGH and r.json()["shape"] == "slim" and r.json()["icon"] == "slides")
+        r = call("POST", "/lab-sections/videos", "user", json={**base, "url": "https://example.com/l2", "icon": "rocket"})
+        check("http: a bad icon is a 422 with the plain message", r.status_code == 422 and r.json()["detail"] == lab_videos.ICON_ERROR)
         r = call("POST", "/lab-sections/videos", "user", json={**base, "url": "https://example.com/l2", "shared": True})
         check("http: a learner cannot add for everyone (403)", r.status_code == 403 and r.json()["detail"] == lab_videos.NOT_ADMIN_SHARE)
         r = call("POST", "/lab-sections/videos", "user", json={**base, "url": "https://example.com/l2", "shape": "round"})
@@ -465,10 +471,10 @@ else:
         check("http: a learner cannot delete a shared link (404)", call("DELETE", f"/lab-sections/videos/{shared_id}", "user").status_code == 404)
         check("http: a learner cannot patch a shared link (404)", call("PATCH", f"/lab-sections/videos/{shared_id}", "user", json={"title": "x"}).status_code == 404)
         check("http: a learner edits their own title", call("PATCH", f"/lab-sections/videos/{mine_id}", "user", json={"title": "Renamed"}).json()["title"] == "Renamed")
-        r = call("PATCH", f"/lab-sections/videos/{mine_id}", "user", json={"preview_image": IMGH})
-        check("http: a learner's patch of the preview image is 403", r.status_code == 403 and r.json()["detail"] == lab_videos.NOT_ADMIN_PATCH)
-        check("http: a learner's patch of the shape is 403", call("PATCH", f"/lab-sections/videos/{mine_id}", "user", json={"shape": "slim"}).status_code == 403)
-        check("http: a learner's patch of shared is 403", call("PATCH", f"/lab-sections/videos/{mine_id}", "user", json={"shared": True}).status_code == 403)
+        r = call("PATCH", f"/lab-sections/videos/{mine_id}", "user", json={"preview_image": IMGH, "shape": "slim", "icon": "book"})
+        check("http: a learner patches their own image, shape and icon", r.status_code == 200 and r.json()["preview_image"] == IMGH and r.json()["shape"] == "slim" and r.json()["icon"] == "book")
+        r = call("PATCH", f"/lab-sections/videos/{mine_id}", "user", json={"shared": True})
+        check("http: a learner's patch of shared is 403", r.status_code == 403 and r.json()["detail"] == lab_videos.NOT_ADMIN_PATCH)
         r = call("PATCH", f"/lab-sections/videos/{mine_id}", "user", json={})
         check("http: an empty patch is a 422 with the plain message", r.status_code == 422 and r.json()["detail"] == lab_videos.NOTHING_TO_CHANGE)
         check("http: all-null patch is the same 422", call("PATCH", f"/lab-sections/videos/{mine_id}", "user", json={"title": None, "shape": None}).status_code == 422)

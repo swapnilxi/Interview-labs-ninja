@@ -72,10 +72,11 @@ def get_optional_user_id(user: Optional[dict] = Depends(get_optional_user)) -> O
     return user["id"] if user else None
 
 
-# Role ladder: user < editor < admin < superadmin. "editor" may change LMS content only;
+# Role ladder: user < editor < instructor < admin < superadmin. "editor" and "instructor"
+# may change LMS content; instructor specifically manages AI-LMS and its classes;
 # admin additionally manages users; superadmin additionally manages admins/superadmins.
-ROLES = ("user", "editor", "admin", "superadmin")
-EDITOR_ROLES = frozenset({"editor", "admin", "superadmin"})
+ROLES = ("user", "editor", "instructor", "admin", "superadmin")
+EDITOR_ROLES = frozenset({"editor", "instructor", "admin", "superadmin"})
 ADMIN_ROLES = frozenset({"admin", "superadmin"})
 
 
@@ -118,6 +119,7 @@ ADMIN_EQUIVALENT_PERMISSIONS = frozenset({"users:manage", "users:delete"})
 KNOWN_PERMISSIONS = frozenset({"ai_lms:edit", *ADMIN_EQUIVALENT_PERMISSIONS})
 DEFAULT_PERMISSIONS: dict[str, frozenset[str]] = {
     "editor": frozenset({"ai_lms:edit"}),
+    "instructor": frozenset({"ai_lms:edit"}),
     "admin": frozenset({"ai_lms:edit"} | ADMIN_EQUIVALENT_PERMISSIONS),
     "superadmin": frozenset({"ai_lms:edit"} | ADMIN_EQUIVALENT_PERMISSIONS),
 }

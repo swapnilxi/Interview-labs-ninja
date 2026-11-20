@@ -10,7 +10,7 @@ export interface AuthUser {
   id: number;
   email: string;
   display_name: string | null;
-  role?: 'user' | 'editor' | 'admin' | 'superadmin';
+  role?: 'user' | 'editor' | 'instructor' | 'admin' | 'superadmin';
   /** The effective (role default + per-user overrides) permission set — see
    * backend/modules/auth/dependencies.py: DEFAULT_PERMISSIONS/has_permission. */
   permissions?: string[];
@@ -24,7 +24,8 @@ interface AuthContextValue {
   user: AuthUser | null;
   isGuest: boolean;
   isAdmin: boolean;
-  /** editor, admin or superadmin: may change LMS content (the backend enforces this too). */
+  isInstructor: boolean;
+  /** editor, instructor, admin or superadmin: may change LMS content (the backend enforces this too). */
   canEdit: boolean;
   /** True if the current user holds `permission`, by role default or an explicit grant
    * (the backend enforces this too — this is for conditional UI only). */
@@ -146,7 +147,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     user,
     isGuest: !user,
     isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
-    canEdit: user?.role === 'editor' || user?.role === 'admin' || user?.role === 'superadmin',
+    isInstructor: user?.role === 'instructor',
+    canEdit: user?.role === 'editor' || user?.role === 'instructor' || user?.role === 'admin' || user?.role === 'superadmin',
     hasPermission: (permission: string) => user?.permissions?.includes(permission) ?? false,
     loading,
     login,

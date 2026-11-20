@@ -40,9 +40,9 @@ export const ACCENT_PRESETS: AccentPreset[] = [
   { key: 'ios-indigo', label: 'Indigo (iOS)', hex: '#5E5CE6' },
   { key: 'ios-brown', label: 'Brown', hex: '#AC8E68' },
   { key: 'vision-graphite', label: 'Graphite', hex: '#8E8E93' },
-  // Pokémon Edition: the brand Poké Ball red. The centre tab orb is redrawn as a Poké Ball (tailwind.css) while
-  // this accent tints buttons, links, focus rings and glows app-wide red, with the page staying white in light mode.
-  { key: 'pokemon', label: 'Pokemon Edition', hex: '#EE1515' },
+  // Pokémon Edition: Christmas red (#C41E3A). The centre tab orb is redrawn as a Poké Ball (tailwind.css) while
+  // this accent tints buttons, links, focus rings and glows app-wide in a festive red.
+  { key: 'pokemon', label: 'Pokemon Edition', hex: '#C41E3A' },
   // Dragon Ball: Goku's yellow, kept exact (the contrast stepping would turn it a muddy orange). The centre tab orb
   // shows the dragonball.png artwork (tailwind.css).
   { key: 'dragonball', label: 'Dragon Ball', hex: '#FACC15', exact: true },
@@ -163,7 +163,7 @@ export function withColorTransition(run: () => void): void {
 export function applyAccent(hex: string | null, presetKey?: string | null): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  if (presetKey) root.setAttribute('data-accent-preset', presetKey);
+  if (presetKey && presetKey !== 'default' && hex) root.setAttribute('data-accent-preset', presetKey);
   else root.removeAttribute('data-accent-preset');
   if (!hex || !isValidHex(hex)) {
     root.style.removeProperty('--color-primary');

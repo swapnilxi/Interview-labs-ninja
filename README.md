@@ -285,7 +285,14 @@ these must be made in both `router.py` and `fe-apis/lms/index.ts`.
   `ai_lms/videos.py` <-> `fe-apis/lms/videos.ts`; no allowlist entry, so the editor gate applies.
 - **Labs (personal).** Table `lab_page_videos`, `GET/POST /lab-sections/videos`, `DELETE /lab-sections/videos/{id}`
   (own rows only; another user's id is a 404), any lab key, topic or subtopic page. Python `lab_sections/videos.py` <->
-  `fe-apis/labSections/videos.ts`. Shown by `LabPageVideos` in `TopicLab`.
+  `fe-apis/labSections/videos.ts`. Shown by `LabPageVideos` in `TopicLab`. Every link is a card: the owner (or an admin, on
+  a shared one) sets its preview image, shape and `icon` (a `LINK_ICONS` slug, `''` = automatic); only "Everyone" is
+  admin-only. With no image the card shows its mark (`modules/labs/common/linkIcons.tsx`): the picked icon, else the
+  site's own `/favicon.ico`, else an icon guessed from the url. The AI "References & Resources" section draws its links
+  with the same cards (`ResourceCards.tsx`).
+- **Code snippets** (DSA Approaches / Practical Implementation): table `lab_section_snippets`, `/lab-sections/snippets`
+  (GET/POST, PATCH/DELETE `/{id}`), user_id 0 = shared by an admin. Python `lab_sections/snippets.py` <->
+  `fe-apis/labSections/snippets.ts` (DDL in `videosSchema.ts`); UI `dsa-lab/SnippetPanel.tsx`.
 - **Embeds.** YouTube videos, playlists (`playlist?list=`, `watch?v=&list=`), shorts/live/embed, `m.` and `music.`
   hosts, `t=`/`start=`; Vimeo (with unlisted hash); Loom; direct `.mp4/.webm/.mov/.m4v`. Anything else is a plain link.
   YouTube uses `www.youtube.com/embed`, not `youtube-nocookie.com` (which never sends the viewer's login, so private
@@ -786,7 +793,20 @@ streak and achievements. Code: `frontend/src/modules/labs/guided/`; twins `front
   `POST /curriculum` (the one-shot path) is still served but the page no longer uses it. The prompts (`build_outline_prompt`,
   `build_phase_prompt`) tell the AI not to assume the basics: the first time an idea appears it asks a plain "What is ...?" question,
   and the questions mix what it is, why it is used here instead of the alternatives, how it works, and when it fails (limits, edge
-  cases, trade-offs). They are twinned and byte-identical (`guided_practice_prompts_test.py`: 5,679 cases).
+  cases, trade-offs). They are twinned and byte-identical (`guided_practice_prompts_test.py`: 6,179 cases).
+- **Show code implementation** (a button of the *Answer in STAR* panel, Python only). It sits in the answer's action row (and beside
+  *Write the answer* while no answer exists, and in the header while the answer is hidden) and writes the question as ONE complete
+  Python program: imports, helpers, a docstring with the complexity on every function, an `if __name__ == "__main__":` block with
+  two or three examples. It is `POST /star` with `variant: "code"` (`buildStarCodePrompt` ↔ `build_star_code_prompt`, byte-identical;
+  budget as the STAR answer): it follows the approach of the learner's STAR answer when `existing_answer` is sent (the original
+  answer, not a rewrite) and works without one, unlike `simplify` / `example`, which refuse a request with no answer. The prompt
+  forbids every other language and every package outside the standard library; `extractPython` (parse.ts) enforces it on the reply:
+  the `python` block wins over an "output" block, a reply with no fence is taken as the code, a reply whose only code is another
+  language is refused ("The AI answered in a language other than Python"). The code is kept apart from the answer's versions
+  (`progress.star.code = { text, at, hidden }`, no fences; `fencedPython` draws it, with more backticks than the code holds), so
+  Simplify / Another example never replace it (`starWithVersion` keeps it) and Hide / Show writes nothing. Like the answer, seeing
+  it before completing marks the question not independent (`starViewed`) and never completes it, never pays XP. A lab offers it with
+  `codeImplementation` in `labs.ts` (every lab but Communication). Another request ("Write it again") replaces the code.
 - **Import a path from JSON** (the *Import from JSON* button on the start screen, and *Add questions from JSON* in the ... menu above a
   path; no AI call, so it also works with no key or no network). `importPath.ts` reads a pasted or opened `.json` into the same
   `ParsedCurriculum` the AI's answer becomes, through the same `parseCurriculum` (kinds and difficulties checked, duplicates dropped, at
@@ -823,7 +843,7 @@ streak and achievements. Code: `frontend/src/modules/labs/guided/`; twins `front
   `guided/CvGuidedPage.tsx`), and `guidedPractice: '<lab>'` in the lab's config.
 - **Checks.** `backend/tests/guided_practice_test.py` (the Python router: state, versions, validation, AI error mapping; 508 checks,
   needs `LABNINJA_TEST_DB_PATH`, a copy of the DB); `backend/tests/guided_practice_prompts_test.py` (every prompt through the Python
-  and the TypeScript builders, 1,369 inputs, compared character by character; needs Node 22.18+; no database); the same-requests
+  and the TypeScript builders, 6,179 inputs, compared character by character; needs Node 22.18+; no database); the same-requests
   twin diff described in CLAUDE.md for the endpoints; `npm run test:guided` (from `frontend/`, 30 checks on the pure rules in
   `parse.ts`, `tree.ts`, `xp.ts` and `labs.ts`: it compiles them with the repo's `tsc` into a temp folder and asserts in Node, no
   runner needed). In the browser: scratch DB copy + a mock OpenAI-compatible provider (`customBaseUrl`) + Playwright, as CLAUDE.md
@@ -836,7 +856,7 @@ streak and achievements. Code: `frontend/src/modules/labs/guided/`; twins `front
   string limits count UTF-16 units on Next.js and characters on FastAPI; a repeated query parameter (`?lab=cv&lab=dsa`) takes the first
   value on Next.js and the last on FastAPI; FastAPI words its own 422 texts and its provider errors differently. The app sends none
   of these. Twin check: the same 576 requests (every endpoint, the boundaries, both labs) to the real router and the real handlers on
-  two DB copies and a mock provider, plus 1,369 prompt cases through both builders (every builder, branch and lab, odd lab values
+  two DB copies and a mock provider, plus 6,179 prompt cases through both builders (every builder, branch and lab, odd lab values
   included), compared character by character.
 
 ## Labs home and the Learning Labs (Communication, Finance, Python, GenAI & AI)

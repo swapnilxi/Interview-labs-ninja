@@ -28,6 +28,7 @@ import {
 import Icon from '@/components/ui/AppIcon';
 import LabCopilot, { LabCopilotRail } from '@/modules/labs/common/LabCopilot';
 import OnDemandSection from '@/modules/labs/common/OnDemandSection';
+import ResourceCards from '@/modules/labs/common/ResourceCards';
 import QuizCarousel from '@/modules/labs/common/QuizCarousel';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/http/apiClient';
@@ -1160,6 +1161,9 @@ export default function TopicLab<T extends TopicLabTopic>({
                                 sectionLabel: def.label,
                                 state: s,
                               })
+                        }
+                        renderContent={
+                          def.id === 'references' ? (c) => <ResourceCards content={c} /> : undefined
                         }
                         error={s.error}
                       >

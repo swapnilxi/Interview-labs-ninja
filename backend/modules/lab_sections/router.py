@@ -25,6 +25,7 @@ from modules.auth.dependencies import get_current_user_id
 from modules.common.ai import AISettings, call_ai_text, extract_json_items
 from modules.lab_projects.knowledge import generation_ref, load_project_context, quiz_prompt_parts, section_prompt_parts
 
+from . import snippets as page_snippets
 from . import video_script as page_script
 from . import videos as page_videos
 from .quiz import build_quiz_prompt, normalize_questions
@@ -667,9 +668,10 @@ class PageVideoIn(BaseModel):
     url: Optional[Any] = None
     title: Optional[Any] = None
     shared: bool = False  # admin only: show it to everyone, not just the caller
-    # Admin only too (checked in videos.py): an https link or an uploaded image as a data URL, and the card shape.
+    # The owner's choice (checked in videos.py): an https link or an uploaded image as a data URL, the card shape, the icon.
     preview_image: Optional[Any] = None
     shape: Optional[Any] = None
+    icon: Optional[Any] = None
 
 
 class PageVideoPatch(BaseModel):
@@ -678,6 +680,7 @@ class PageVideoPatch(BaseModel):
     preview_image: Optional[Any] = None
     shape: Optional[Any] = None
     shared: Optional[Any] = None
+    icon: Optional[Any] = None
 
 
 def _video_http_error(err: page_videos.VideoError) -> HTTPException:
@@ -708,6 +711,7 @@ async def add_page_video(payload: PageVideoIn, user_id: int = Depends(get_curren
             payload.shared,
             payload.preview_image,
             payload.shape,
+            payload.icon,
         )
     except page_videos.VideoError as err:
         raise _video_http_error(err)
@@ -715,9 +719,11 @@ async def add_page_video(payload: PageVideoIn, user_id: int = Depends(get_curren
 
 @router.patch("/videos/{video_id}")
 async def update_page_video(video_id: int, payload: PageVideoPatch, user_id: int = Depends(get_current_user_id)) -> dict:
-    """Edit a link: its title (the owner or an admin), or its preview image, shape and audience (admin only)."""
+    """Edit a link: title, preview image, shape and icon (the owner, or an admin on a shared one); audience (admin only)."""
     try:
-        return page_videos.update_video(user_id, video_id, payload.title, payload.preview_image, payload.shape, payload.shared)
+        return page_videos.update_video(
+            user_id, video_id, payload.title, payload.preview_image, payload.shape, payload.shared, payload.icon
+        )
     except page_videos.VideoError as err:
         raise _video_http_error(err)
 
@@ -729,3 +735,73 @@ async def delete_page_video(video_id: int, user_id: int = Depends(get_current_us
         return page_videos.delete_video(user_id, video_id)
     except page_videos.VideoError as err:
         raise _video_http_error(err)
+
+
+# ── Code snippets on a section (approaches / implementation; DSA only for now) ──────────────────────
+# Logic in snippets.py; twin: fe-apis/labSections/snippets.ts (same limits, error texts, status codes).
+
+
+class SnippetIn(BaseModel):
+    lab: LabName
+    topic_id: str = Field(min_length=1, max_length=200)
+    subtopic_id: str = Field(default="", max_length=200)
+    section_id: str = Field(min_length=1, max_length=100)
+    title: Optional[Any] = None
+    language: Optional[Any] = None
+    code: Optional[Any] = None
+    shared: bool = False
+
+
+class SnippetPatch(BaseModel):
+    title: Optional[Any] = None
+    language: Optional[Any] = None
+    code: Optional[Any] = None
+
+
+def _snippet_error(err: page_snippets.SnippetError) -> HTTPException:
+    return HTTPException(status_code=err.status, detail=err.detail)
+
+
+@router.get("/snippets")
+async def get_snippets(
+    lab: LabName,
+    topic_id: str = Query(min_length=1, max_length=200),
+    subtopic_id: str = Query(default="", max_length=200),
+    section_id: str = Query(min_length=1, max_length=100),
+    user_id: int = Depends(get_current_user_id),
+) -> dict:
+    return page_snippets.list_snippets(user_id, lab, topic_id, subtopic_id, section_id)
+
+
+@router.post("/snippets", status_code=201)
+async def add_snippet(payload: SnippetIn, user_id: int = Depends(get_current_user_id)) -> dict:
+    try:
+        return page_snippets.add_snippet(
+            user_id,
+            payload.lab,
+            payload.topic_id,
+            payload.subtopic_id,
+            payload.section_id,
+            payload.title,
+            payload.language,
+            payload.code,
+            payload.shared,
+        )
+    except page_snippets.SnippetError as err:
+        raise _snippet_error(err)
+
+
+@router.patch("/snippets/{snippet_id}")
+async def update_snippet(snippet_id: int, payload: SnippetPatch, user_id: int = Depends(get_current_user_id)) -> dict:
+    try:
+        return page_snippets.update_snippet(user_id, snippet_id, payload.title, payload.language, payload.code)
+    except page_snippets.SnippetError as err:
+        raise _snippet_error(err)
+
+
+@router.delete("/snippets/{snippet_id}")
+async def delete_snippet(snippet_id: int, user_id: int = Depends(get_current_user_id)) -> dict:
+    try:
+        return page_snippets.delete_snippet(user_id, snippet_id)
+    except page_snippets.SnippetError as err:
+        raise _snippet_error(err)

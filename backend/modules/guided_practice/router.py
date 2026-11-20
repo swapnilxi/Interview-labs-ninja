@@ -506,8 +506,9 @@ def tutor(payload: TutorPayload) -> dict:
 
 @router.post("/star")
 def star(payload: StarPayload) -> dict:
-    """A reference answer in STAR form, or a simpler / second-example rewrite of the one the learner has."""
-    if payload.variant != "generate" and not js_trim(payload.existing_answer):
+    """A reference answer in STAR form, a simpler / second-example rewrite of the one the learner has, or the Python code of it."""
+    # A rewrite needs the answer it rewrites; the code of the answer follows it when there is one, and works without.
+    if payload.variant not in ("generate", "code") and not js_trim(payload.existing_answer):
         raise HTTPException(status_code=422, detail="existing_answer is required")
     prompt = build_star_prompt(
         _ctx(payload),

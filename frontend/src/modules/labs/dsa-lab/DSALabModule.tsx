@@ -28,6 +28,9 @@ import SectionPromptModal from '@/modules/labs/common/SectionPromptModal';
 import { useLabSettings } from '@/modules/labs/common/useLabSettings';
 import { DSA_DEFAULT_GUIDANCE } from './sectionGuidance';
 import ApproachTabs from './ApproachTabs';
+import SnippetPanel from './SnippetPanel';
+import ResourceCards from '@/modules/labs/common/ResourceCards';
+import { useSnippets } from './useSnippets';
 import GuidedPracticeCard from '@/modules/labs/guided/GuidedPracticeCard';
 import { buildUrl, useUrlState } from '@/lib/navigation/urlState';
 import { LabBackBar, LabScreenLoading, jumpToAnchor, useLabNav, useScrollToTopOnChange } from '@/modules/labs/common/labNavigation';
@@ -827,6 +830,35 @@ export default function DSALabInteractive() {
 /** A page Previous / Next can go to: a topic or one of its subtopics. */
 type NavItem = { id: string; label: string; topicId: string; type: 'topic' | 'subtopic' };
 
+/** Thin wrapper that owns the snippet hook for a single section card. */
+function SectionSnippetSlot({
+  topicId,
+  subtopicId,
+  sectionId,
+}: {
+  topicId: string;
+  subtopicId: string;
+  sectionId: string;
+}) {
+  const { snippets, loading, error, add, remove, update } = useSnippets(
+    'dsa',
+    topicId,
+    subtopicId,
+    sectionId,
+    true
+  );
+  return (
+    <SnippetPanel
+      snippets={snippets}
+      loading={loading}
+      error={error}
+      onAdd={(title, language, code, shared) => add(title, language, code, shared)}
+      onDelete={remove}
+      onEdit={(id, title, language, code) => update(id, { title, language, code })}
+    />
+  );
+}
+
 function TopicDetail({
   topic,
   subtopic,
@@ -1083,7 +1115,20 @@ function TopicDetail({
                       })
                 }
                 renderContent={
-                  def.id === 'approaches' ? (c) => <ApproachTabs content={c} /> : undefined
+                  def.id === 'approaches'
+                    ? (c) => <ApproachTabs content={c} />
+                    : def.id === 'references'
+                      ? (c) => <ResourceCards content={c} />
+                      : undefined
+                }
+                snippetSlot={
+                  (def.id === 'approaches' || def.id === 'implementation') ? (
+                    <SectionSnippetSlot
+                      topicId={topic.id}
+                      subtopicId={subtopic?.id ?? ''}
+                      sectionId={def.id}
+                    />
+                  ) : undefined
                 }
                 error={s.error}
               >

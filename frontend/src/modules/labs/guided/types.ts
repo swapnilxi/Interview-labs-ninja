@@ -125,6 +125,13 @@ export interface StarVersion {
   at: string;
 }
 
+/** The Python implementation shown by "Show code implementation": the code alone (no fences), kept with the question. */
+export interface StarCode {
+  text: string;
+  at: string;
+  hidden: boolean;
+}
+
 export interface QuestionProgress {
   completed: boolean;
   completedAt: string | null;
@@ -138,11 +145,17 @@ export interface QuestionProgress {
   codingDone: boolean;
   hintsUsed: number;
   solutionRevealed: boolean;
-  /** A STAR answer was opened before the question was completed. */
+  /** A STAR answer, or its code implementation, was opened before the question was completed. */
   starViewed: boolean;
   mode: LearnMode | null;
   tutor: { messages: TutorMessage[]; understood: boolean; hintLevel: number };
-  star: { versions: StarVersion[]; activeId: string | null; hidden: boolean };
+  /** `code` is absent in documents saved before "Show code implementation" existed. */
+  star: {
+    versions: StarVersion[];
+    activeId: string | null;
+    hidden: boolean;
+    code?: StarCode | null;
+  };
   /** Last interaction, ISO. */
   touchedAt: string | null;
 }

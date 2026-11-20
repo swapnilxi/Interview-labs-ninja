@@ -9,7 +9,7 @@
 import { apiFetch, parseApiError } from '@/lib/http/apiClient';
 import type { AccessRequest, AccessRequestStatus } from './accessRequestService';
 
-export type AppRole = 'user' | 'editor' | 'admin' | 'superadmin';
+export type AppRole = 'user' | 'editor' | 'instructor' | 'admin' | 'superadmin';
 export type AccountStatus = 'pending' | 'approved' | 'rejected';
 
 /** The 3 permission keys the portal currently knows about (see backend
@@ -26,10 +26,21 @@ export interface AdminStats {
   total_users: number;
   admin_users: number;
   pending_users: number;
+  /** ISO-ish datetime of the most recently registered pending user, or null when none. */
+  latest_pending_at: string | null;
   new_users_7d: number;
   total_resources: number;
   resources_by_table: Record<string, number>;
 }
+
+export type SortableUserField =
+  | 'email'
+  | 'display_name'
+  | 'created_at'
+  | 'role'
+  | 'status'
+  | 'resource_count';
+export type SortDir = 'asc' | 'desc';
 
 export interface AdminUser {
   id: number;
@@ -54,8 +65,16 @@ export async function fetchStats(): Promise<AdminStats> {
   return json<AdminStats>(await apiFetch('/admin/stats'));
 }
 
-export async function fetchUsers(search?: string): Promise<AdminUser[]> {
-  const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+export async function fetchUsers(
+  search?: string,
+  sortBy?: SortableUserField,
+  sortDir?: SortDir
+): Promise<AdminUser[]> {
+  const p = new URLSearchParams();
+  if (search) p.set('search', search);
+  if (sortBy) p.set('sort_by', sortBy);
+  if (sortDir) p.set('sort_dir', sortDir);
+  const qs = p.size ? `?${p.toString()}` : '';
   return json<AdminUser[]>(await apiFetch(`/admin/users${qs}`));
 }
 

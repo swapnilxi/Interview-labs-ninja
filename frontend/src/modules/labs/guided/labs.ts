@@ -53,6 +53,8 @@ export interface GuidedLabConfig {
   bossExercise: boolean;
   /** How a STAR answer is described for a question kind where the default wording (the one DSA reads) does not fit the lab. */
   kindNotes?: Partial<Record<QuestionKind, string>>;
+  /** Whether a STAR answer offers "Show code implementation" (Python only): every lab that runs Python, not the one that is all wording. */
+  codeImplementation: boolean;
 }
 
 export const LAB_CONFIGS: Record<GuidedLab, GuidedLabConfig> = {
@@ -77,6 +79,7 @@ export const LAB_CONFIGS: Record<GuidedLab, GuidedLabConfig> = {
     focusExample: 'I struggle with pointer problems',
     progressLine: 'XP, levels, a coding streak and achievements',
     bossExercise: true,
+    codeImplementation: true,
   },
   cv: {
     lab: 'cv',
@@ -99,6 +102,7 @@ export const LAB_CONFIGS: Record<GuidedLab, GuidedLabConfig> = {
     focusExample: 'I struggle with pointer problems',
     progressLine: 'XP, levels, a coding streak and achievements',
     bossExercise: true,
+    codeImplementation: true,
   },
   system_design: {
     lab: 'system_design',
@@ -121,6 +125,7 @@ export const LAB_CONFIGS: Record<GuidedLab, GuidedLabConfig> = {
     focusExample: 'I find capacity estimation hard',
     progressLine: 'XP, levels, a coding streak and achievements',
     bossExercise: false,
+    codeImplementation: true,
     kindNotes: {
       implementation: 'a calculation walkthrough',
       algorithm: 'a step-by-step trace',
@@ -147,6 +152,7 @@ export const LAB_CONFIGS: Record<GuidedLab, GuidedLabConfig> = {
     focusExample: 'I freeze when I have to give feedback',
     progressLine: 'XP, levels and achievements',
     bossExercise: false,
+    codeImplementation: false,
     kindNotes: {
       implementation: 'a worked draft',
       algorithm: 'a step-by-step framework',
@@ -173,6 +179,7 @@ export const LAB_CONFIGS: Record<GuidedLab, GuidedLabConfig> = {
     focusExample: 'I get lost when percentages compound',
     progressLine: 'XP, levels, a coding streak and achievements',
     bossExercise: true,
+    codeImplementation: true,
     kindNotes: {
       implementation: 'a calculation walkthrough',
       algorithm: 'a worked calculation',
@@ -199,6 +206,7 @@ export const LAB_CONFIGS: Record<GuidedLab, GuidedLabConfig> = {
     focusExample: 'I mix up lists and tuples',
     progressLine: 'XP, levels, a coding streak and achievements',
     bossExercise: true,
+    codeImplementation: true,
   },
   genai: {
     lab: 'genai',
@@ -221,6 +229,7 @@ export const LAB_CONFIGS: Record<GuidedLab, GuidedLabConfig> = {
     focusExample: 'I do not see why retrieval beats a longer prompt',
     progressLine: 'XP, levels, a coding streak and achievements',
     bossExercise: true,
+    codeImplementation: true,
     kindNotes: {
       algorithm: 'a step-by-step trace',
     },

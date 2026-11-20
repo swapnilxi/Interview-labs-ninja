@@ -20,6 +20,8 @@ import type {
   Question,
   QuestionContent,
   QuestionProgress,
+  StarCode,
+  StarVersion,
   TopicRef,
 } from './types';
 
@@ -57,6 +59,14 @@ const EMPTY_PROGRESS: QuestionProgress = Object.freeze(emptyProgress()) as Quest
 
 export function progressOf(state: GuidedState, id: string): QuestionProgress {
   return state.progress[id] ?? EMPTY_PROGRESS;
+}
+
+/** The STAR state after a new answer version: it becomes the one on show, and nothing else is lost (the code stays). */
+export function starWithVersion(
+  star: QuestionProgress['star'],
+  version: StarVersion
+): QuestionProgress['star'] {
+  return { ...star, versions: [...star.versions, version], activeId: version.id, hidden: false };
 }
 
 /** A new state with `patch` applied to one question's progress (and its last-interaction time, unless `touch` is false). */
@@ -643,6 +653,13 @@ export const canGrow = (state: GuidedState, id: string) =>
 
 // ── Loading a saved document ────────────────────────────────────────────────
 
+/** A saved "code implementation" of a question, or null for anything that is not one (older documents have none). */
+function savedCode(raw: unknown): StarCode | null {
+  const c = (raw && typeof raw === 'object' ? raw : null) as Partial<StarCode> | null;
+  if (!c || typeof c.text !== 'string' || !c.text.trim()) return null;
+  return { text: c.text, at: typeof c.at === 'string' ? c.at : '', hidden: c.hidden === true };
+}
+
 /**
  * A saved document, checked and filled in. It returns null for anything that is not one: the caller then refuses to
  * save over it (starting over is the learner's decision, never a silent overwrite).
@@ -675,6 +692,7 @@ export function hydrateState(raw: unknown): GuidedState | null {
         ...base.star,
         ...(given.star ?? {}),
         versions: Array.isArray(given.star?.versions) ? given.star.versions : [],
+        code: savedCode(given.star?.code),
       },
     };
   }

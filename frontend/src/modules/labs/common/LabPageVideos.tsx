@@ -24,7 +24,7 @@ const SCRIPT_SETTINGS_ID = 'video-script';
 
 /** What the empty section says: only what this viewer can actually do. */
 const EMPTY_ADMIN = 'Add links and video cards, and set a preview.';
-const EMPTY_USER = 'Add links and video cards for this page. Only you can see them.';
+const EMPTY_USER = 'Add links, videos, docs or code repos as cards. Only you can see them.';
 
 /** The ones shared with everyone come first (the server answers in that order). */
 const sharedFirst = (videos: PageVideo[]) => [
@@ -170,6 +170,7 @@ export default function LabPageVideos({
     locked: !!v.shared && !isAdmin,
     previewImage: v.preview_image ?? '',
     shape: v.shape,
+    icon: v.icon ?? '',
   }));
   const writing = genNow.status === 'generating';
 
@@ -204,6 +205,7 @@ export default function LabPageVideos({
           {
             preview_image: input.previewImage || undefined,
             shape: input.shape ?? undefined,
+            icon: input.icon || undefined,
           }
         );
         setState((prev) =>

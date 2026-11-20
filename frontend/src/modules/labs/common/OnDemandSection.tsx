@@ -33,6 +33,8 @@ interface OnDemandSectionProps {
   renderContent?: (content: string) => React.ReactNode;
   /** Adds the project strip under the text: the project it was written for and "Save to Project". */
   projectSave?: SectionSaveInfo;
+  /** An extra panel rendered after the content (e.g. code snippets), always visible once generated. */
+  snippetSlot?: React.ReactNode;
   children?: React.ReactNode; // for custom render (e.g. quiz)
 }
 
@@ -53,13 +55,14 @@ export default function OnDemandSection({
   allowEmptyRegenerate,
   renderContent,
   projectSave,
+  snippetSlot,
   children,
 }: OnDemandSectionProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
 
   return (
-    <div className="reading-card overflow-hidden p-0 transition-smooth mb-4 group/section">
+    <div className="reading-card overflow-hidden p-0 transition-smooth group/section">
       {/* ── Header ── (flat: a hairline under it once there is content, no band and no gradient) */}
       <div
         className={`flex items-center justify-between gap-x-3 gap-y-2 px-[1.25rem] max-sm:flex-wrap py-[0.875rem] transition-colors ${
@@ -217,6 +220,9 @@ export default function OnDemandSection({
       {projectSave && isGenerated && !collapsed && !children && !!content?.trim() && (
         <SectionProjectBar content={content} info={projectSave} busy={isGenerating} />
       )}
+
+      {/* ── Snippet panel (e.g. user code for Approaches / Implementation) ── */}
+      {snippetSlot}
 
       {/* ── Generate failed ── */}
       {!isGenerated && !isGenerating && error && (

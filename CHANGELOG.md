@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added — Instructor role & AI-LMS class ownership model
+
+Added the `instructor` user role with `ai_lms:edit` access to manage classes, subjects, lessons, and workbooks with create, edit, and delete actions. Regular `user` accounts can create custom classes and update/delete their own content (`owner_id`), while classes and content created by instructors and admins are protected against non-owner edits and deletion with HTTP 403. Dual-backend parity maintained across FastAPI and Next.js `fe-apis`.
+
+### Added — Guided Practice: Show code implementation
+
+A **Show code implementation** button on the *Answer in STAR* panel writes the question as one complete, commented Python program
+(Python only, standard library only), following the approach of the learner's STAR answer when there is one. It shows inline with
+Copy, hides and shows without another request, can be written again, and is saved with the question. Offered in every guided lab
+except Communication. `POST /star` takes `variant: "code"` on both twins (`buildStarCodePrompt` ↔ `build_star_code_prompt`).
+Also: a new STAR version no longer drops the saved code, the router test's outline and phase token budgets were brought in line with
+the code (4096 and 6144), and the prompt-parity test now covers 6,179 cases.
+
 ### Added — Guided Practice (DSA and CV labs)
 
 A dedicated page behind a **Guided Practice** card on every DSA and CV topic page: an AI-written path (five phases and a final boss)
