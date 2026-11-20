@@ -127,6 +127,9 @@ export function ensureLmsTables(): void {
     if (!classCols.some((c) => c.name === 'accent_color')) {
       db.exec("ALTER TABLE lms_classes ADD COLUMN accent_color TEXT DEFAULT ''");
     }
+    if (!classCols.some((c) => c.name === 'owner_id')) {
+      db.exec("ALTER TABLE lms_classes ADD COLUMN owner_id INTEGER DEFAULT NULL");
+    }
     // Class-folder sync bookkeeping: where this lesson's .html file was last written
     // (relative to the classes folder) and the hash the DB and the file last agreed on.
     const lessonCols = db.prepare('PRAGMA table_info(lms_lessons)').all() as { name: string }[];
@@ -228,7 +231,7 @@ export function getAllClasses(): Record<string, unknown>[] {
 
   const rows = db.prepare(`
     SELECT 
-      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.created_at, c.updated_at,
+      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.is_system, c.owner_id, c.created_at, c.updated_at,
       COUNT(DISTINCT s.id) AS subject_count,
       COUNT(DISTINCT l.id) AS lesson_count
     FROM lms_classes c
@@ -252,7 +255,7 @@ export function getClassByIdOrSlug(idOrSlug: string): Record<string, unknown> | 
 
   const cls = db.prepare(`
     SELECT 
-      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.created_at, c.updated_at,
+      c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.is_system, c.owner_id, c.created_at, c.updated_at,
       COUNT(DISTINCT s.id) AS subject_count,
       COUNT(DISTINCT l.id) AS lesson_count
     FROM lms_classes c
@@ -298,7 +301,8 @@ export function createClass(
   description: string = '',
   icon: string = 'BookmarkIcon',
   aiContext: string = '',
-  accentColor: string = ''
+  accentColor: string = '',
+  ownerId: number | null = null
 ): Record<string, unknown> {
   ensureLmsTables();
   const res = getSQLiteDatabase('lab_ninja');
@@ -318,9 +322,9 @@ export function createClass(
   const nowIso = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, accent_color, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(classId, name.trim(), slug, description.trim(), aiContext.trim(), icon, accentColor.trim(), nowIso, nowIso);
+    INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, accent_color, is_system, owner_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+  `).run(classId, name.trim(), slug, description.trim(), aiContext.trim(), icon, accentColor.trim(), ownerId, nowIso, nowIso);
 
   return getClassByIdOrSlug(classId)!;
 }

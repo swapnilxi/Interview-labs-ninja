@@ -105,3 +105,7 @@ def register(cursor: sqlite3.Cursor) -> None:
     from .video_script import ensure_table as ensure_video_script_table
 
     ensure_video_script_table(cursor)
+    # User code snippets on section cards (see snippets.py).
+    from .snippets import ensure_table as ensure_snippets_table
+
+    ensure_snippets_table(cursor)

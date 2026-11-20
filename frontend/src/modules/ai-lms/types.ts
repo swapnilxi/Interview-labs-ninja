@@ -7,6 +7,7 @@ export interface LmsClass {
   icon?: string;
   accent_color?: string;
   is_system: number;
+  owner_id?: number | null;
   subject_count: number;
   lesson_count: number;
   subjects?: LmsSubject[];

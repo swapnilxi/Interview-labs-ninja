@@ -4,7 +4,7 @@
  * Everything the Guided Practice page does: it composes the store (load, save) with the AI-driven actions (the path, a
  * lesson, Breakdown, Dive Deeper, the AI Tutor, the STAR answer), the in-browser test runs and the plain progress actions.
  *
- * Every generation is keyed (`outline`, `lesson:<q>`, `bd:<q>`, `dp:<q>`, `tutor:<q>`, `star:<q>`, `run:<q>`) so the page can
+ * Every generation is keyed (`outline`, `lesson:<q>`, `bd:<q>`, `dp:<q>`, `tutor:<q>`, `star:<q>`, `code:<q>`, `run:<q>`) so the page can
  * show a spinner on exactly the control that was pressed, ignore a second press while it runs, and show its error where it
  * happened. Results are applied with `store.mutate`, i.e. to the learner's progress as it is when the answer arrives.
  */
@@ -16,6 +16,7 @@ import { baseFields, pathTitles, questionFields, siblingTitles } from './context
 import {
   AiParseError,
   cleanMarkdown,
+  extractPython,
   normTitle,
   parseBranch,
   parseLesson,
@@ -42,6 +43,7 @@ import {
   patchProgress,
   progressOf,
   setLesson,
+  starWithVersion,
   type BranchKind,
 } from './tree';
 import { completeQuestion, evaluateAchievements, recordRun, uncompleteQuestion } from './xp';
@@ -59,6 +61,7 @@ import type {
 
 export type TutorAction =
   'start' | 'ask' | 'hint' | 'example' | 'simplify' | 'exercise' | 'test' | 'mistake' | 'star';
+/** The STAR answer's own rewrites; the Python code of an answer is the `code` action (`codeRun`), kept apart from the versions. */
 export type StarVariant = 'generate' | 'simplify' | 'example';
 
 /** What the learner sees in the thread for a quick action. */
@@ -677,17 +680,67 @@ export function useGuided(topic: TopicRef | null) {
               mode: 'star',
               // Reading an answer never completes a question; it only means the answer was not worked out alone.
               starViewed: p.starViewed || !p.completed,
-              star: {
-                versions: [...p.star.versions, version],
-                activeId: version.id,
-                hidden: false,
-              },
+              star: starWithVersion(p.star, version),
             });
           },
           { immediate: true }
         );
       }),
     [run, get, mutate, topic]
+  );
+
+  // ── Show code implementation (Python only) ────────────────────────────────
+
+  /**
+   * Writes the Python implementation of a question, when the learner asks for it. It follows the approach of their STAR answer
+   * (the original one, not a simplified rewrite) when there is one, and works without. The code is kept with the question,
+   * apart from the answer's versions. Seeing it before the question is completed counts as seeing an answer: not independent.
+   */
+  const codeRun = useCallback(
+    (qid: string) =>
+      run(`code:${qid}`, async () => {
+        const s = get();
+        const q = s?.questions[qid];
+        if (!s || !q || !topic) return;
+        const original =
+          progressOf(s, qid).star.versions.find((v) => v.variant === 'generate') ??
+          activeStar(s, qid);
+        const reply = await aiStar({
+          ...baseFields(topic, s),
+          ...questionFields(s, q),
+          explanation: clip(q.content?.explanation, 2500),
+          exercise_prompt: clip(q.content?.exercise?.prompt, 1500),
+          variant: 'code',
+          existing_answer: clip(original?.text, 12000),
+        });
+        const text = extractPython(reply.text);
+        mutate(
+          (cur) => {
+            if (!cur.questions[qid]) return null;
+            const p = progressOf(cur, qid);
+            return patchProgress(cur, qid, {
+              mode: 'star',
+              starViewed: p.starViewed || !p.completed,
+              star: { ...p.star, code: { text, at: nowIso(), hidden: false } },
+            });
+          },
+          { immediate: true }
+        );
+      }),
+    [run, get, mutate, topic]
+  );
+
+  const codeHide = useCallback(
+    (qid: string, hidden: boolean) => {
+      mutate((cur) => {
+        const p = progressOf(cur, qid);
+        const code = p.star.code;
+        return !code || code.hidden === hidden
+          ? null
+          : patchProgress(cur, qid, { star: { ...p.star, code: { ...code, hidden } } });
+      });
+    },
+    [mutate]
   );
 
   const starSelect = useCallback(
@@ -760,6 +813,8 @@ export function useGuided(topic: TopicRef | null) {
       starRun,
       starSelect,
       starHide,
+      codeRun,
+      codeHide,
       setMode,
       clearError,
     }),
@@ -787,6 +842,8 @@ export function useGuided(topic: TopicRef | null) {
       starRun,
       starSelect,
       starHide,
+      codeRun,
+      codeHide,
       setMode,
       clearError,
     ]

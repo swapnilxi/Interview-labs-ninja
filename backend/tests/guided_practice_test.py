@@ -483,6 +483,9 @@ refused("star: simplify with a blank existing_answer", "star", {**CTX, "question
 refused("star: simplify with only U+FEFF as existing_answer", "star", {**CTX, "question": Q, "variant": "simplify", "existing_answer": "\ufeff"}, "existing_answer is required")
 accepted("star: simplify with U+001C as existing_answer (JavaScript's trim() keeps it)", "star", {**CTX, "question": Q, "variant": "simplify", "existing_answer": "\x1c"})
 accepted("star: generate without existing_answer", "star", {**CTX, "question": Q})
+accepted("star: code without existing_answer (the code needs no answer to follow)", "star", {**CTX, "question": Q, "variant": "code"})
+accepted("star: code with an existing_answer", "star", {**CTX, "question": Q, "variant": "code", "existing_answer": "## A — Action\nUse a dict."})
+refused("star: code with an existing_answer over 12000", "star", {**CTX, "question": Q, "variant": "code", "existing_answer": "a" * 12001})
 refused("star: existing_answer over 12000", "star", {**CTX, "question": Q, "variant": "simplify", "existing_answer": "a" * 12001})
 accepted("star: existing_answer of 12000", "star", {**CTX, "question": Q, "variant": "simplify", "existing_answer": "a" * 12000})
 refused("star: explanation over 2500", "star", {**CTX, "question": Q, "explanation": "e" * 2501})
@@ -523,8 +526,8 @@ refused("focus over 600", "phase", {**CTX, "focus": "x" * 601})
 # ── AI endpoints: what a good request does ───────────────────────────────────
 BODIES = {
     "curriculum": ({**CTX, "phase_count": 4, "focus": "pointers"}, 4096, "You are a senior algorithms instructor designing a guided practice path"),
-    "outline": ({**CTX, "phase_count": 4, "focus": "pointers"}, 1500, "You are a senior algorithms instructor planning a guided practice path"),
-    "phase": ({**CTX, "phase_number": 2, "phase_title": "Hash maps", "outline": [{"title": "Basics", "goal": "g"}, {"title": "Hash maps", "goal": "h"}]}, 3000, "You are a senior algorithms instructor writing one phase of a guided practice path"),
+    "outline": ({**CTX, "phase_count": 4, "focus": "pointers"}, 4096, "You are a senior algorithms instructor planning a guided practice path"),
+    "phase": ({**CTX, "phase_number": 2, "phase_title": "Hash maps", "outline": [{"title": "Basics", "goal": "g"}, {"title": "Hash maps", "goal": "h"}]}, 6144, "You are a senior algorithms instructor writing one phase of a guided practice path"),
     "question": ({**CTX, "question": Q}, 5000, "You are a patient senior algorithms instructor writing the full lesson"),
     "breakdown": ({**CTX, "question": Q}, 3000, "You are a patient senior algorithms instructor. A learner finds the question below too difficult."),
     "deeper": ({**CTX, "question": Q}, 3000, "You are a senior algorithms instructor. A learner understands the question below"),
@@ -639,6 +642,18 @@ for lab in NEW_LABS:
             check(f"{endpoint}: lab {lab} carries its lab note", prof.lab_note in prompt)
     check(f"{lab}: the tutor is not a programming mentor", "programming mentor" not in prompt_of("tutor", {**BODIES["tutor"][0], "lab": lab})[1])
     check(f"{lab}: the outline starts with its own instructor and kind", prompt_of("curriculum", {**BODIES["curriculum"][0], "lab": lab})[1].startswith(f"You are a senior {prof.instructor} designing a guided practice path for ONE {prof.kind}."))
+# "Show code implementation": the star endpoint's code variant
+_, code_prompt, code_tokens = prompt_of("star", {**CTX, "question": Q, "variant": "code"})
+check("star code: the Python implementation prompt, Python only, one code block", code_prompt.startswith("You are a senior algorithms instructor writing the Python implementation for ONE question.") and "Python 3 only. Do not write any other programming language" in code_prompt and "exactly one fenced ```python code block and nothing else" in code_prompt, code_prompt[:160])
+check("star code: no STAR headings and no answer block when there is no answer", "## S — Situation" not in code_prompt and "The STAR answer the learner has" not in code_prompt)
+check("star code: the same token budget as the STAR answer", code_tokens == BODIES["star"][1], str(code_tokens))
+_, code_prompt, _ = prompt_of("star", {**CTX, "question": Q, "variant": "code", "existing_answer": "## A — Action\nUse a dict of seen values."})
+check("star code: follows the approach of the STAR answer when there is one", 'Implement the approach it describes:\n"""\n## A — Action\nUse a dict of seen values.\n"""' in code_prompt, code_prompt[:400])
+for lab in ("cv", "finance", "system_design", "python", "genai"):
+    _, lab_prompt, _ = prompt_of("star", {**CTX, "lab": lab, "question": Q, "variant": "code"})
+    check(f"star code: lab {lab} still asks for Python only", "Python 3 only" in lab_prompt and "writing the Python implementation" in lab_prompt, lab_prompt[:120])
+_, p, _ = prompt_of("star", {**CTX, "lab": "cv", "question": Q, "variant": "code"})
+check("star code: the cv prompt is written by a computer vision instructor, names the topic and keeps to plain Python", p.startswith("You are a senior computer vision instructor writing the Python implementation") and "Topic: Two Sum" in p and "no third-party packages such as numpy, pandas, OpenCV or PyTorch" in p, p[:200])
 # a few literal spot checks on the wording (the profiles themselves are compared with the TS twin by guided_practice_prompts_test.py)
 _, p, _ = prompt_of("curriculum", {**BODIES["curriculum"][0], "lab": "communication"})
 check("communication curriculum: practice is not code, and 'writes code for most of the questions' is gone", "practises by explaining, drafting, rewriting and role-playing for most of the questions, not by writing code." in p and "writes code for most of the questions" not in p, p[:300])

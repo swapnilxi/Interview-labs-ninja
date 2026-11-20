@@ -7,7 +7,7 @@
  */
 
 import type { TodoDb } from '../todo/_shared';
-import { LAB_VIDEOS_ADDED_COLUMNS, LAB_VIDEOS_DDL, LAB_VIDEO_SCRIPTS_DDL } from './videosSchema';
+import { LAB_SNIPPETS_DDL, LAB_VIDEOS_ADDED_COLUMNS, LAB_VIDEOS_DDL, LAB_VIDEO_SCRIPTS_DDL } from './videosSchema';
 
 export function ensureLabSectionsSchema(db: TodoDb): void {
   db.exec(`
@@ -71,6 +71,8 @@ export function ensureLabSectionsSchema(db: TodoDb): void {
   addVideoColumns(db);
   // The AI-written video script of a lab page (see videoScript.ts; same table as backend/modules/lab_sections/video_script.py).
   db.exec(LAB_VIDEO_SCRIPTS_DDL);
+  // Code snippets on section cards (see snippets.ts; same table as backend/modules/lab_sections/snippets.py).
+  db.exec(LAB_SNIPPETS_DDL);
 }
 
 /** A `lab_page_videos` made before preview images and shapes existed gets the two columns. Port of the same step in videos.ensure_table. */

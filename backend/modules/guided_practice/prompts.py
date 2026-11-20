@@ -263,7 +263,7 @@ MAX_TOKENS: Dict[str, int] = {
 TutorAction = Literal["start", "ask", "hint", "example", "simplify", "exercise", "test", "mistake", "star"]
 TUTOR_ACTIONS: Tuple[str, ...] = get_args(TutorAction)
 
-StarVariant = Literal["generate", "simplify", "example"]
+StarVariant = Literal["generate", "simplify", "example", "code"]
 STAR_VARIANTS: Tuple[str, ...] = get_args(StarVariant)
 
 
@@ -768,7 +768,40 @@ def build_tutor_prompt(c: PromptCtx, t: TutorInput) -> str:
 # ── Answer in STAR ──────────────────────────────────────────────────────────
 
 
+def build_star_code_prompt(c: PromptCtx, s: StarInput) -> str:
+    """The `code` variant: the Python implementation of the question, as one code block.
+
+    It is written when the learner presses "Show code implementation", and follows the approach of their STAR answer when
+    they have one (`existing_answer`, optional). Python only, standard library only: it is the language of every exercise in
+    the path.
+    """
+    p = profile_of(c)
+    return blocks(
+        f"You are a senior {p.instructor} writing the Python implementation for ONE question.",
+        problem_block(c),
+        lines(position_block(s.pos), question_block(s.question)),
+        f'The lesson text the learner has seen:\n"""\n{s.explanation}\n"""' if s.explanation else "",
+        f'The coding exercise of this question:\n"""\n{s.exercise_prompt}\n"""' if s.exercise_prompt else "",
+        f'The STAR answer the learner has for this question. Implement the approach it describes:\n"""\n{s.existing_answer}\n"""'
+        if s.existing_answer
+        else "",
+        lines(
+            "Rules:",
+            "- Python 3 only. Do not write any other programming language, not even in a comment.",
+            "- Use the standard library and plain Python data structures only: no third-party packages such as numpy, pandas, OpenCV or PyTorch.",
+            "- Write one complete program that runs as it is: imports first, clear names, and small helper functions where they make it easier to read.",
+            "- Give every function a short docstring that says what it does and its time and space complexity. Comment the lines that need a reason, not the obvious ones.",
+            '- Finish with an if __name__ == "__main__": block that runs two or three small examples with print() and shows the expected output in comments.',
+            "- If the question is about an idea and there is no algorithm to write, write a short runnable Python demonstration of the idea instead.",
+            p.lab_note,
+        ),
+        f"Respond with exactly one fenced {FENCE}python code block and nothing else: no explanation before or after it.",
+    )
+
+
 def build_star_prompt(c: PromptCtx, s: StarInput) -> str:
+    if s.variant == "code":
+        return build_star_code_prompt(c, s)
     p = profile_of(c)
     variant = ""
     if s.variant == "simplify":

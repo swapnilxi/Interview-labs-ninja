@@ -273,8 +273,8 @@ async function createRequest(req: Request): Promise<Response> {
     const permission = src.permission ?? null;
     const message = src.message ?? '';
     if (role !== null && typeof role !== 'string') throw new HttpError(422, 'requested_role: Input should be a valid string');
-    if (role !== null && !/^(editor|admin|superadmin)$/.test(role))
-      throw new HttpError(422, "requested_role: String should match pattern '^(editor|admin|superadmin)$'");
+    if (role !== null && !/^(editor|instructor|admin|superadmin)$/.test(role))
+      throw new HttpError(422, "requested_role: String should match pattern '^(editor|instructor|admin|superadmin)$'");
     if (permission !== null && typeof permission !== 'string') throw new HttpError(422, 'permission: Input should be a valid string');
     if (typeof message !== 'string') throw new HttpError(422, 'message: Input should be a valid string');
     if (message.length > 2000) throw new HttpError(422, 'message: String should have at most 2000 characters');

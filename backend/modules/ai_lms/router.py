@@ -58,6 +58,7 @@ from .db import (
     get_direct_lessons_by_class,
     get_instructor_by_id_or_slug,
     get_lesson_by_id,
+    get_subject_by_id,
     get_lesson_navigation,
     get_lessons_by_subject,
     get_recent_lessons,
@@ -110,7 +111,13 @@ _NON_EDIT_WRITES = re.compile(
     # its chapters is the same "may this user edit it" check; saving or resetting your own progress is your own row;
     # resetting a learner's progress needs an instructor, checked in workbooks.py.
     r"|classes/[^/]+/workbooks"
-    r"|workbooks/[^/]+(?:/generate/(?:outline|sections/[^/]+)|/progress|/learners/[^/]+/progress|/explain)?)/?$"
+    r"|workbooks/[^/]+(?:/generate/(?:outline|sections/[^/]+)|/progress|/learners/[^/]+/progress|/explain)?"
+    # Classes & custom content: non-editors can create classes and update/delete their own content (owner_id == user.id)
+    r"|classes(?:/[^/]+)?"
+    r"|classes/[^/]+/subjects"
+    r"|subjects/[^/]+"
+    r"|lessons(?:/[^/]+)?"
+    r")/?$"
 )
 
 
@@ -364,9 +371,16 @@ async def list_classes() -> List[Dict[str, Any]]:
 
 
 @router.post("/classes", status_code=status.HTTP_201_CREATED)
-async def handle_create_class(payload: CreateClassRequest) -> Dict[str, Any]:
+async def handle_create_class(payload: CreateClassRequest, user: dict = Depends(get_current_active_user)) -> Dict[str, Any]:
     """Create a new custom class."""
-    return create_class(payload.name, payload.description, payload.icon, payload.ai_context, accent_color=payload.accent_color)
+    return create_class(
+        payload.name,
+        payload.description,
+        payload.icon,
+        payload.ai_context,
+        accent_color=payload.accent_color,
+        owner_id=user["id"],
+    )
 
 
 @router.get("/classes/{class_id_or_slug}")
@@ -384,8 +398,21 @@ async def get_class_detail(class_id_or_slug: str) -> Dict[str, Any]:
 
 
 @router.patch("/classes/{class_id_or_slug}")
-async def handle_update_class(class_id_or_slug: str, payload: UpdateClassRequest) -> Dict[str, Any]:
+async def handle_update_class(
+    class_id_or_slug: str,
+    payload: UpdateClassRequest,
+    user: dict = Depends(get_current_active_user),
+) -> Dict[str, Any]:
     """Update class name, description, ai_context, icon, or accent_color."""
+    cls = get_class_by_id_or_slug(class_id_or_slug)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found.")
+    if not has_permission(user, "ai_lms:edit"):
+        if cls.get("owner_id") != user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot edit content created by an instructor or admin.",
+            )
     updated = update_class(
         class_id_or_slug,
         payload.name,
@@ -400,8 +427,22 @@ async def handle_update_class(class_id_or_slug: str, payload: UpdateClassRequest
 
 
 @router.delete("/classes/{class_id_or_slug}")
-async def handle_delete_class(class_id_or_slug: str) -> Dict[str, Any]:
+async def handle_delete_class(
+    class_id_or_slug: str,
+    user: dict = Depends(get_current_active_user),
+) -> Dict[str, Any]:
     """Delete a custom class. System classes cannot be deleted."""
+    cls = get_class_by_id_or_slug(class_id_or_slug)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found.")
+    if cls.get("is_system") == 1:
+        raise HTTPException(status_code=400, detail="Cannot delete class (system class or not found).")
+    if not has_permission(user, "ai_lms:edit"):
+        if cls.get("owner_id") != user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot delete content created by an instructor or admin.",
+            )
     success = delete_class(class_id_or_slug)
     if not success:
         raise HTTPException(status_code=400, detail="Cannot delete class (system class or not found).")
@@ -1100,8 +1141,21 @@ async def list_subjects_for_class(class_id_or_slug: str) -> List[Dict[str, Any]]
 
 
 @router.post("/classes/{class_id_or_slug}/subjects", status_code=status.HTTP_201_CREATED)
-async def handle_create_subject(class_id_or_slug: str, payload: CreateSubjectRequest) -> Dict[str, Any]:
+async def handle_create_subject(
+    class_id_or_slug: str,
+    payload: CreateSubjectRequest,
+    user: dict = Depends(get_current_active_user),
+) -> Dict[str, Any]:
     """Create a subject under a specific class."""
+    cls = get_class_by_id_or_slug(class_id_or_slug)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found.")
+    if not has_permission(user, "ai_lms:edit"):
+        if cls.get("owner_id") != user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot edit content created by an instructor or admin.",
+            )
     created = create_subject(
         class_id_or_slug,
         payload.name,
@@ -1127,8 +1181,22 @@ async def get_subject_detail(class_id_or_slug: str, subject_id_or_slug: str) -> 
 
 
 @router.patch("/subjects/{subject_id}")
-async def handle_update_subject(subject_id: str, payload: UpdateSubjectRequest) -> Dict[str, Any]:
+async def handle_update_subject(
+    subject_id: str,
+    payload: UpdateSubjectRequest,
+    user: dict = Depends(get_current_active_user),
+) -> Dict[str, Any]:
     """Update subject name, description, ai_context, or accent_color."""
+    subj = get_subject_by_id(subject_id)
+    if not subj:
+        raise HTTPException(status_code=404, detail="Subject not found.")
+    if not has_permission(user, "ai_lms:edit"):
+        cls = get_class_by_id_or_slug(subj["class_id"])
+        if not cls or cls.get("owner_id") != user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot edit content created by an instructor or admin.",
+            )
     updated = update_subject(
         subject_id,
         payload.name,
@@ -1144,8 +1212,21 @@ async def handle_update_subject(subject_id: str, payload: UpdateSubjectRequest) 
 
 
 @router.delete("/subjects/{subject_id}")
-async def handle_delete_subject(subject_id: str) -> Dict[str, Any]:
+async def handle_delete_subject(
+    subject_id: str,
+    user: dict = Depends(get_current_active_user),
+) -> Dict[str, Any]:
     """Delete a subject and its associated lessons."""
+    subj = get_subject_by_id(subject_id)
+    if not subj:
+        raise HTTPException(status_code=404, detail="Subject not found.")
+    if not has_permission(user, "ai_lms:edit"):
+        cls = get_class_by_id_or_slug(subj["class_id"])
+        if not cls or cls.get("owner_id") != user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot delete content created by an instructor or admin.",
+            )
     success = delete_subject(subject_id)
     if not success:
         raise HTTPException(status_code=404, detail="Subject not found.")
@@ -1339,8 +1420,20 @@ async def list_direct_lessons_for_class(class_id_or_slug: str) -> List[Dict[str,
 
 
 @router.post("/lessons", status_code=status.HTTP_201_CREATED)
-async def handle_create_lesson(payload: CreateLessonManualRequest) -> Dict[str, Any]:
+async def handle_create_lesson(
+    payload: CreateLessonManualRequest,
+    user: dict = Depends(get_current_active_user),
+) -> Dict[str, Any]:
     """Manually create a lesson, ensuring full structured HTML."""
+    cls = get_class_by_id_or_slug(payload.class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found.")
+    if not has_permission(user, "ai_lms:edit"):
+        if cls.get("owner_id") != user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot edit content created by an instructor or admin.",
+            )
     html_content = payload.generated_html or ""
     if html_content and "<html" not in html_content.lower():
         # A bare fragment: keep the author's content, just give it a document around it.
@@ -1419,12 +1512,23 @@ async def get_lesson_status(lesson_id: str) -> Dict[str, Any]:
 
 
 @router.patch("/lessons/{lesson_id}")
-async def handle_update_lesson(lesson_id: str, payload: UpdateLessonRequest) -> Dict[str, Any]:
+async def handle_update_lesson(
+    lesson_id: str,
+    payload: UpdateLessonRequest,
+    user: dict = Depends(get_current_active_user),
+) -> Dict[str, Any]:
     """Update lesson title, HTML, summary, or order_index."""
+    current = get_lesson_by_id(lesson_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+    if not has_permission(user, "ai_lms:edit"):
+        cls = get_class_by_id_or_slug(current["class_id"])
+        if not cls or cls.get("owner_id") != user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot edit content created by an instructor or admin.",
+            )
     if payload.base_hash:
-        current = get_lesson_by_id(lesson_id)
-        if not current:
-            raise HTTPException(status_code=404, detail="Lesson not found.")
         if current["content_hash"] != payload.base_hash:
             raise HTTPException(
                 status_code=409,
@@ -1444,8 +1548,21 @@ async def handle_update_lesson(lesson_id: str, payload: UpdateLessonRequest) -> 
 
 
 @router.delete("/lessons/{lesson_id}")
-async def handle_delete_lesson(lesson_id: str) -> Dict[str, Any]:
+async def handle_delete_lesson(
+    lesson_id: str,
+    user: dict = Depends(get_current_active_user),
+) -> Dict[str, Any]:
     """Delete a lesson."""
+    current = get_lesson_by_id(lesson_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+    if not has_permission(user, "ai_lms:edit"):
+        cls = get_class_by_id_or_slug(current["class_id"])
+        if not cls or cls.get("owner_id") != user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot delete content created by an instructor or admin.",
+            )
     success = delete_lesson(lesson_id)
     if not success:
         raise HTTPException(status_code=404, detail="Lesson not found.")
@@ -2785,6 +2902,7 @@ def build_copilot_prompt(payload: "CopilotRequest") -> str:
     turns = "\n".join(
         f"{'Student' if t.role == 'user' else 'Copilot'}: {t.content[:800]}" for t in payload.history[-6:]
     )
+    turns_block = f"Conversation so far:\n{turns}" if turns else ""
     return f"""You are the learning copilot inside an AI LMS. The student currently has {scope_label} open.
 Open item: {payload.contextTitle or "(none)"}
 Where it sits: {payload.breadcrumb or "(top level)"}
@@ -2792,7 +2910,7 @@ Where it sits: {payload.breadcrumb or "(top level)"}
 Content of the open item (excerpt):
 {(payload.contextText or "")[:6000]}
 
-{("Conversation so far:\n" + turns) if turns else ""}
+{turns_block}
 
 Student: {payload.question}
 

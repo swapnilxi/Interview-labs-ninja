@@ -17,6 +17,7 @@ import {
   type VideoShape,
 } from '@/lib/video/videoLinks';
 import { LAB_CHIP } from '@/modules/labs/common/WikiParts';
+import { LinkIconPicker, LinkMark, guessLinkIcon, linkIconLabel } from '@/modules/labs/common/linkIcons';
 
 /**
  * Links and videos on a lab page, as rectangular cards, with an inline form to add more. Lab-only (the AI LMS keeps its own
@@ -24,10 +25,10 @@ import { LAB_CHIP } from '@/modules/labs/common/WikiParts';
  *
  * Every item is a card: a video plays in place after Play (nothing from a provider is loaded for the player until then, and
  * a card never fetches a page to make a preview); a plain link is a card that opens in a new tab. The preview is, in order,
- * the image an admin attached, the thumbnail of a YouTube video (a fixed address built from its id), or a neutral tile
- * with the host. An admin picks each card's shape (wide: image on top; side: image on the left; slim: a small row), attaches
- * the image (an https link, or an upload that is made small first), and chooses who sees the link ("Only me" or
- * "Everyone"). Everyone else adds and removes their own.
+ * the image its owner attached, the thumbnail of a YouTube video (a fixed address built from its id), or a tile with the
+ * card's mark (the icon the owner picked, else the site's favicon, else an icon guessed from the url: linkIcons.tsx). The
+ * owner of a link picks its shape (wide: image on top; side: image on the left; slim: a small row), its image (an https
+ * link, or an upload made small first) and its icon; only an admin chooses who sees it ("Only me" or "Everyone").
  *
  * Presentational: the caller owns the list and passes `onAdd` / `onUpdate` / `onRemove`, which reject with a readable
  * message. `headerExtra` sits beside "Add link" and `children` under the header (the page's video script).
@@ -44,16 +45,19 @@ export interface LinkCardItem {
   /** An https link or a data URL; '' or absent = none. */
   previewImage?: string;
   shape?: VideoShape;
+  /** A link icon slug; '' or absent = automatic. */
+  icon?: string;
 }
 
 export interface LinkCardAdd {
   url: string;
   title: string;
   shared: boolean;
-  /** '' for none. Only sent by an admin. */
+  /** '' for none. */
   previewImage: string;
-  /** null when the viewer cannot choose one. */
   shape: VideoShape | null;
+  /** '' = automatic. */
+  icon: string;
 }
 
 export interface LinkCardPatch {
@@ -61,11 +65,12 @@ export interface LinkCardPatch {
   preview_image?: string;
   shape?: VideoShape;
   shared?: boolean;
+  icon?: string;
 }
 
 interface LinkCardsProps {
   items: LinkCardItem[];
-  /** An admin: the add form and every card get the preview image, shape and audience controls. */
+  /** An admin: the add form and every card also get the audience control (Only me / Everyone). */
   canCurate: boolean;
   onAdd: (input: LinkCardAdd) => Promise<void>;
   onUpdate: (id: string | number, patch: LinkCardPatch) => Promise<void>;
@@ -401,13 +406,16 @@ function Player({ desc, title }: { desc: VideoDescription; title: string }) {
   );
 }
 
-/** The picture area of a card: the preview image, else a neutral tile with the host. `fill` = it takes the height of its row. */
+/** The picture area of a card: the preview image, else a soft tile with the card's mark (and the host on larger cards). */
 function Media({
   src,
   failed,
   onFailed,
   desc,
   canEmbed,
+  url,
+  icon,
+  compact,
   className,
 }: {
   src: string;
@@ -415,11 +423,15 @@ function Media({
   onFailed: () => void;
   desc: VideoDescription;
   canEmbed: boolean;
+  url: string;
+  icon: string;
+  compact: boolean;
   className: string;
 }) {
   const showImage = !!src && !failed;
+  const kind = linkIconLabel(icon || guessLinkIcon(url));
   return (
-    <div className={`relative overflow-hidden mix-bg-foreground/[0.05] ${className}`}>
+    <div className={`link-card-media relative overflow-hidden ${className}`}>
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -432,16 +444,22 @@ function Media({
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (
-        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-2 text-center text-muted-foreground">
-          <Icon
-            name={
-              desc.kind === 'playlist' ? 'QueueListIcon' : canEmbed ? 'PlayCircleIcon' : 'LinkIcon'
-            }
-            size={24}
+        <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-3 text-center">
+          <LinkMark
+            url={url}
+            icon={icon || (desc.kind === 'playlist' || canEmbed ? 'video' : '')}
+            size={compact ? 1.75 : 3}
+            className={compact ? 'rounded-lg' : 'shadow-sm'}
           />
-          {desc.host && (
-            <span className="max-w-full break-all text-xs font-medium leading-tight">
-              {desc.host}
+          {!compact && (
+            <span className="flex max-w-full flex-wrap items-center justify-center gap-x-1.5 text-xs font-medium leading-tight text-muted-foreground">
+              <span>{kind}</span>
+              {desc.host && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="break-all">{desc.host}</span>
+                </>
+              )}
             </span>
           )}
         </span>
@@ -507,12 +525,14 @@ function LinkCard({
   const [draftPreview, setDraftPreview] = useState('');
   const [draftShape, setDraftShape] = useState<VideoShape>(shape);
   const [draftShared, setDraftShared] = useState(false);
+  const [draftIcon, setDraftIcon] = useState('');
 
   const openEditor = () => {
     setDraftTitle(item.title);
     setDraftPreview(item.previewImage ?? '');
     setDraftShape(shape);
     setDraftShared(!!item.shared);
+    setDraftIcon(item.icon ?? '');
     setEditError(null);
     setEditing(true);
   };
@@ -532,7 +552,8 @@ function LinkCard({
     if (cleaned.title !== item.title) patch.title = cleaned.title;
     if (preview.image !== (item.previewImage ?? '')) patch.preview_image = preview.image;
     if (draftShape !== shape) patch.shape = draftShape;
-    if (draftShared !== !!item.shared) patch.shared = draftShared;
+    if (canCurate && draftShared !== !!item.shared) patch.shared = draftShared;
+    if (draftIcon !== (item.icon ?? '')) patch.icon = draftIcon;
     if (Object.keys(patch).length === 0) {
       setEditing(false);
       return;
@@ -574,6 +595,9 @@ function LinkCard({
       onFailed={() => setFailedSrc(src)}
       desc={desc}
       canEmbed={canEmbed}
+      url={item.url}
+      icon={item.icon ?? ''}
+      compact={shape === 'slim'}
       className={
         shape === 'wide'
           ? 'aspect-video w-full'
@@ -694,20 +718,18 @@ function LinkCard({
           {openLink}
           {canEdit && (
             <span className="ml-auto flex items-center gap-1">
-              {canCurate && (
-                <button
-                  type="button"
-                  className={BTN_QUIET}
-                  onClick={() => (editing ? setEditing(false) : openEditor())}
-                  aria-expanded={editing}
-                  aria-controls={editId}
-                  disabled={busy}
-                  aria-label={`Edit ${title}`}
-                >
-                  <Icon name="PencilSquareIcon" size={14} />
-                  <span>Edit</span>
-                </button>
-              )}
+              <button
+                type="button"
+                className={BTN_QUIET}
+                onClick={() => (editing ? setEditing(false) : openEditor())}
+                aria-expanded={editing}
+                aria-controls={editId}
+                disabled={busy}
+                aria-label={`Edit ${title}`}
+              >
+                <Icon name="PencilSquareIcon" size={14} />
+                <span>Edit</span>
+              </button>
               <button
                 type="button"
                 className={BTN_QUIET}
@@ -749,7 +771,7 @@ function LinkCard({
       >
         <Icon name="ArrowTopRightOnSquareIcon" size={16} />
       </a>
-      {canEdit && canCurate && (
+      {canEdit && (
         <button
           type="button"
           className={ICON_BTN}
@@ -809,8 +831,9 @@ function LinkCard({
         />
       </div>
       <PreviewField id={editId} value={draftPreview} onChange={setDraftPreview} />
+      <LinkIconPicker value={draftIcon} onChange={setDraftIcon} />
       <ShapeField value={draftShape} onChange={setDraftShape} />
-      <AudienceField value={draftShared} onChange={setDraftShared} />
+      {canCurate && <AudienceField value={draftShared} onChange={setDraftShared} />}
       {editError && (
         <p role="alert" className="text-xs text-error">
           {editError}
@@ -941,6 +964,7 @@ export default function LinkCards({
   const [shared, setShared] = useState(false);
   const [preview, setPreview] = useState('');
   const [shape, setShape] = useState<VideoShape>(VIDEO_SHAPE_DEFAULT);
+  const [icon, setIcon] = useState('');
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [playingId, setPlayingId] = useState<string | number | null>(null);
@@ -968,6 +992,7 @@ export default function LinkCards({
     setShared(false);
     setPreview('');
     setShape(VIDEO_SHAPE_DEFAULT);
+    setIcon('');
     setFormErrors([]);
     addButtonRef.current?.focus();
   };
@@ -994,7 +1019,7 @@ export default function LinkCards({
         return;
       }
       const image = normalizePreviewImage(preview);
-      if (canCurate && !image.ok) {
+      if (!image.ok) {
         setFormErrors([image.error]);
         return;
       }
@@ -1008,8 +1033,9 @@ export default function LinkCards({
           url: lines[i],
           title: several ? '' : titleText,
           shared: canCurate && shared,
-          previewImage: canCurate && !several ? preview : '',
-          shape: canCurate ? shape : null,
+          previewImage: several ? '' : preview,
+          shape,
+          icon: several ? '' : icon,
         });
         added += 1;
       } catch (err) {
@@ -1040,7 +1066,7 @@ export default function LinkCards({
     <section aria-label={heading} className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h3 className="flex items-center gap-2 font-heading text-base font-semibold text-foreground">
-          <Icon name="VideoCameraIcon" size={18} className="text-muted-foreground" />
+          <Icon name="Squares2X2Icon" size={18} className="text-muted-foreground" />
           <span>{heading}</span>
           {!empty && (
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
@@ -1126,13 +1152,10 @@ export default function LinkCards({
               />
             </div>
           )}
-          {canCurate && (
-            <>
-              {!several && <PreviewField id={formId} value={preview} onChange={setPreview} />}
-              <ShapeField value={shape} onChange={setShape} />
-              <AudienceField value={shared} onChange={setShared} />
-            </>
-          )}
+          {!several && <PreviewField id={formId} value={preview} onChange={setPreview} />}
+          {!several && <LinkIconPicker value={icon} onChange={setIcon} />}
+          <ShapeField value={shape} onChange={setShape} />
+          {canCurate && <AudienceField value={shared} onChange={setShared} />}
           {showYouTubeHelper && (
             <p className="text-xs leading-relaxed text-muted-foreground">
               Private videos and playlists play only for the YouTube account that owns them.

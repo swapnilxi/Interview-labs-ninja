@@ -223,6 +223,9 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
             cursor.execute("ALTER TABLE lms_classes ADD COLUMN landing_data_hash TEXT DEFAULT '';")
         if "accent_color" not in class_cols:
             cursor.execute("ALTER TABLE lms_classes ADD COLUMN accent_color TEXT DEFAULT '';")
+        if "owner_id" not in class_cols:
+            cursor.execute("ALTER TABLE lms_classes ADD COLUMN owner_id INTEGER DEFAULT NULL;")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_lms_classes_owner_id ON lms_classes(owner_id);")
 
         # ── 2. Subjects Table ──────────────────────────────────────────────────
         cursor.execute("""
@@ -517,7 +520,7 @@ def get_all_classes() -> List[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.is_system, c.created_at, c.updated_at,
+                c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.is_system, c.owner_id, c.created_at, c.updated_at,
                 (SELECT COUNT(*) FROM lms_subjects s WHERE s.class_id = c.id) AS subject_count,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.class_id = c.id) AS lesson_count
             FROM lms_classes c
@@ -533,7 +536,7 @@ def get_class_by_id_or_slug(identifier: str) -> Optional[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.is_system, c.created_at, c.updated_at,
+                c.id, c.name, c.slug, c.description, c.ai_context, c.icon, c.accent_color, c.is_system, c.owner_id, c.created_at, c.updated_at,
                 (SELECT COUNT(*) FROM lms_subjects s WHERE s.class_id = c.id) AS subject_count,
                 (SELECT COUNT(*) FROM lms_lessons l WHERE l.class_id = c.id) AS lesson_count
             FROM lms_classes c
@@ -569,7 +572,7 @@ def get_class_by_id_or_slug(identifier: str) -> Optional[Dict[str, Any]]:
         return class_data
 
 
-def create_class(name: str, description: Optional[str] = None, icon: Optional[str] = None, ai_context: Optional[str] = None, accent_color: Optional[str] = None) -> Dict[str, Any]:
+def create_class(name: str, description: Optional[str] = None, icon: Optional[str] = None, ai_context: Optional[str] = None, accent_color: Optional[str] = None, owner_id: Optional[int] = None) -> Dict[str, Any]:
     """Create a new custom class."""
     clean_name = name.strip()
     base_slug = slugify(clean_name)
@@ -588,9 +591,9 @@ def create_class(name: str, description: Optional[str] = None, icon: Optional[st
             cursor.execute("SELECT id FROM lms_classes WHERE slug = ?", (slug,))
 
         cursor.execute("""
-            INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, accent_color, is_system, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
-        """, (new_id, clean_name, slug, description or "", ai_context or "", icon or "BookmarkIcon", accent_color or "", now_iso, now_iso))
+            INSERT INTO lms_classes (id, name, slug, description, ai_context, icon, accent_color, is_system, owner_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+        """, (new_id, clean_name, slug, description or "", ai_context or "", icon or "BookmarkIcon", accent_color or "", owner_id, now_iso, now_iso))
         conn.commit()
 
     return get_class_by_id_or_slug(new_id)  # type: ignore
@@ -662,6 +665,18 @@ def get_subjects_by_class(class_identifier: str) -> List[Dict[str, Any]]:
             ORDER BY s.order_index ASC, s.name ASC
         """, (cls["id"],))
         return [dict(r) for r in cursor.fetchall()]
+
+
+def get_subject_by_id(subject_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve subject by ID across any class."""
+    with _get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, class_id, name, slug, description, ai_context, kind, accent_color FROM lms_subjects WHERE id = ?",
+            (subject_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
 
 
 def get_subject_by_id_or_slug(class_identifier: str, subject_identifier: str) -> Optional[Dict[str, Any]]:

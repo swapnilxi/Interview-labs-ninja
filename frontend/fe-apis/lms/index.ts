@@ -86,7 +86,7 @@ function htmlToText(fragment: string): string {
     .trim();
 }
 
-const EDITOR_ROLES = new Set(['editor', 'admin', 'superadmin']);
+const EDITOR_ROLES = new Set(['editor', 'instructor', 'admin', 'superadmin']);
 
 // Writes that only touch the caller's own state or return AI output without saving anything
 // (mirrors _NON_EDIT_WRITES in backend/modules/ai_lms/router.py). Every other
@@ -94,8 +94,9 @@ const EDITOR_ROLES = new Set(['editor', 'admin', 'superadmin']);
 // `classes/<c>/membership` is a learner joining, leaving or showing interest: their own row only.
 // `classes/<c>/notifications` (sending an update) is deliberately not here: it needs an editor.
 // Workbooks: any signed-in user may create a private one; workbooks.ts checks every change itself.
+// Classes & custom content: non-editors can create classes and update/delete their own content (owner_id == user.id)
 const NON_EDIT_WRITES =
-  /^\/api\/lms\/(?:lessons\/[^/]+\/(?:view|complete)|voice-chat|copilot|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai|classes\/[^/]+\/membership|classes\/[^/]+\/workbooks|workbooks\/[^/]+(?:\/generate\/(?:outline|sections\/[^/]+)|\/progress|\/learners\/[^/]+\/progress|\/explain)?)\/?$/;
+  /^\/api\/lms\/(?:lessons\/[^/]+\/(?:view|complete)|voice-chat|copilot|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai|classes\/[^/]+\/membership|classes\/[^/]+\/workbooks|workbooks\/[^/]+(?:\/generate\/(?:outline|sections\/[^/]+)|\/progress|\/learners\/[^/]+\/progress|\/explain)?|classes(?:(?:\/[^/]+)?)|classes\/[^/]+\/subjects|subjects\/[^/]+|lessons(?:(?:\/[^/]+)?))\/?$/;
 
 export function requireUserId(req: Request): number | NextResponse {
   const user = getUserFromAuthHeader(req.headers.get('authorization'));
@@ -135,6 +136,7 @@ async function handleCreateClassImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
     const body = await req.json();
     if (!body.name || typeof body.name !== 'string') {
       return NextResponse.json({ detail: 'Name is required' }, { status: 400 });
@@ -144,7 +146,8 @@ async function handleCreateClassImpl(req: Request): Promise<NextResponse> {
       body.description || '',
       body.icon || 'BookmarkIcon',
       body.ai_context || '',
-      body.accent_color || ''
+      body.accent_color || '',
+      user ? user.id : null
     );
     return NextResponse.json(created, { status: 201 });
   } catch (err: any) {
@@ -176,6 +179,20 @@ async function handleUpdateClassImpl(classSlug: string, req: Request): Promise<N
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
+    const cls = getClassByIdOrSlug(classSlug);
+    if (!cls) {
+      return NextResponse.json({ detail: 'Class not found' }, { status: 404 });
+    }
+    const canEditAll = Boolean(user && EDITOR_ROLES.has(user.role));
+    if (!canEditAll) {
+      if (!user || cls.owner_id !== user.id) {
+        return NextResponse.json(
+          { detail: 'Cannot edit content created by an instructor or admin.' },
+          { status: 403 }
+        );
+      }
+    }
     const body = await req.json();
     const updated = updateClass(classSlug, body);
     if (!updated) {
@@ -191,6 +208,26 @@ async function handleDeleteClassImpl(classSlug: string, req: Request): Promise<N
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
+    const cls = getClassByIdOrSlug(classSlug);
+    if (!cls) {
+      return NextResponse.json({ detail: 'Class not found' }, { status: 404 });
+    }
+    if (cls.is_system === 1) {
+      return NextResponse.json(
+        { detail: 'Cannot delete class (system class or not found).' },
+        { status: 400 }
+      );
+    }
+    const canEditAll = Boolean(user && EDITOR_ROLES.has(user.role));
+    if (!canEditAll) {
+      if (!user || cls.owner_id !== user.id) {
+        return NextResponse.json(
+          { detail: 'Cannot delete content created by an instructor or admin.' },
+          { status: 403 }
+        );
+      }
+    }
     const ok = deleteClass(classSlug);
     if (!ok) {
       return NextResponse.json({ detail: 'Class not found' }, { status: 404 });
@@ -333,6 +370,20 @@ async function handleCreateSubjectImpl(classSlug: string, req: Request): Promise
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
+    const cls = getClassByIdOrSlug(classSlug);
+    if (!cls) {
+      return NextResponse.json({ detail: 'Class not found' }, { status: 404 });
+    }
+    const canEditAll = Boolean(user && EDITOR_ROLES.has(user.role));
+    if (!canEditAll) {
+      if (!user || cls.owner_id !== user.id) {
+        return NextResponse.json(
+          { detail: 'Cannot edit content created by an instructor or admin.' },
+          { status: 403 }
+        );
+      }
+    }
     const body = await req.json();
     if (!body.name || typeof body.name !== 'string') {
       return NextResponse.json({ detail: 'Name is required' }, { status: 400 });
@@ -371,6 +422,21 @@ async function handleUpdateSubjectImpl(subjectId: string, req: Request): Promise
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
+    const subj = getSubjectByIdAnyClass(subjectId);
+    if (!subj) {
+      return NextResponse.json({ detail: 'Subject not found' }, { status: 404 });
+    }
+    const canEditAll = Boolean(user && EDITOR_ROLES.has(user.role));
+    if (!canEditAll) {
+      const cls = getClassByIdOrSlug(subj.class_id as string);
+      if (!cls || !user || cls.owner_id !== user.id) {
+        return NextResponse.json(
+          { detail: 'Cannot edit content created by an instructor or admin.' },
+          { status: 403 }
+        );
+      }
+    }
     const body = await req.json();
     const updated = updateSubject(subjectId, body);
     if (!updated) {
@@ -386,6 +452,21 @@ async function handleDeleteSubjectImpl(subjectId: string, req: Request): Promise
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
+    const subj = getSubjectByIdAnyClass(subjectId);
+    if (!subj) {
+      return NextResponse.json({ detail: 'Subject not found' }, { status: 404 });
+    }
+    const canEditAll = Boolean(user && EDITOR_ROLES.has(user.role));
+    if (!canEditAll) {
+      const cls = getClassByIdOrSlug(subj.class_id as string);
+      if (!cls || !user || cls.owner_id !== user.id) {
+        return NextResponse.json(
+          { detail: 'Cannot delete content created by an instructor or admin.' },
+          { status: 403 }
+        );
+      }
+    }
     const ok = deleteSubject(subjectId);
     if (!ok) {
       return NextResponse.json({ detail: 'Subject not found' }, { status: 404 });
@@ -1216,9 +1297,23 @@ async function handleCreateLessonImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
     const body = await req.json();
     if (!body.class_id || !body.title || !body.generated_html) {
       return NextResponse.json({ detail: 'class_id, title, and generated_html are required' }, { status: 400 });
+    }
+    const cls = getClassByIdOrSlug(body.class_id);
+    if (!cls) {
+      return NextResponse.json({ detail: 'Class not found' }, { status: 404 });
+    }
+    const canEditAll = Boolean(user && EDITOR_ROLES.has(user.role));
+    if (!canEditAll) {
+      if (!user || cls.owner_id !== user.id) {
+        return NextResponse.json(
+          { detail: 'Cannot edit content created by an instructor or admin.' },
+          { status: 403 }
+        );
+      }
     }
     const created = createLesson({
       class_id: body.class_id,
@@ -1240,14 +1335,25 @@ async function handleUpdateLessonImpl(lessonId: string, req: Request): Promise<N
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
+    const current = getLessonById(lessonId);
+    if (!current) {
+      return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
+    }
+    const canEditAll = Boolean(user && EDITOR_ROLES.has(user.role));
+    if (!canEditAll) {
+      const cls = getClassByIdOrSlug(current.class_id as string);
+      if (!cls || !user || cls.owner_id !== user.id) {
+        return NextResponse.json(
+          { detail: 'Cannot edit content created by an instructor or admin.' },
+          { status: 403 }
+        );
+      }
+    }
     const body = await req.json();
     // base_hash = content_hash of the HTML the editor started from. If the lesson's file
     // was edited in the IDE meanwhile, refuse instead of silently overwriting that edit.
     if (body.base_hash) {
-      const current = getLessonById(lessonId);
-      if (!current) {
-        return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
-      }
       if (current.content_hash !== body.base_hash) {
         return NextResponse.json(
           {
@@ -1272,6 +1378,21 @@ async function handleDeleteLessonImpl(lessonId: string, req: Request): Promise<N
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
+    const user = getUserFromAuthHeader(req.headers.get('authorization'));
+    const current = getLessonById(lessonId);
+    if (!current) {
+      return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });
+    }
+    const canEditAll = Boolean(user && EDITOR_ROLES.has(user.role));
+    if (!canEditAll) {
+      const cls = getClassByIdOrSlug(current.class_id as string);
+      if (!cls || !user || cls.owner_id !== user.id) {
+        return NextResponse.json(
+          { detail: 'Cannot delete content created by an instructor or admin.' },
+          { status: 403 }
+        );
+      }
+    }
     const ok = deleteLesson(lessonId);
     if (!ok) {
       return NextResponse.json({ detail: 'Lesson not found' }, { status: 404 });

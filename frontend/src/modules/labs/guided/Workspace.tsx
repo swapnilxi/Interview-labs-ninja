@@ -381,6 +381,13 @@ export default function Workspace({
           }}
           onClearError={() => actions.clearError(`star:${id}`)}
           kindNotes={labConfig(state.topic.lab).kindNotes}
+          codeEnabled={labConfig(state.topic.lab).codeImplementation}
+          code={progress.star.code ?? null}
+          codeBusy={!!busy[`code:${id}`]}
+          codeError={errors[`code:${id}`]}
+          onWriteCode={() => void actions.codeRun(id)}
+          onHideCode={(hidden) => actions.codeHide(id, hidden)}
+          onClearCodeError={() => actions.clearError(`code:${id}`)}
         />
       )}
 

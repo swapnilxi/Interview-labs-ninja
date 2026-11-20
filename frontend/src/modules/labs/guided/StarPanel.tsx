@@ -4,9 +4,10 @@ import Icon from '@/components/ui/AppIcon';
 import { toast } from '@/lib/ui/toast';
 import Markdown from '@/modules/labs/common/Markdown';
 import { highlightFence } from './highlight';
+import { fencedPython } from './parse';
 import { InlineError, SkeletonLines, Spinner } from './ui';
 import type { StarVariant } from './useGuided';
-import type { Question, QuestionProgress } from './types';
+import type { Question, QuestionProgress, StarCode } from './types';
 
 const KIND_NOTE: Record<Question['kind'], string> = {
   concept: 'a structured explanation',
@@ -15,10 +16,62 @@ const KIND_NOTE: Record<Question['kind'], string> = {
   scenario: 'a worked scenario',
 };
 
+/** One button for the code: it writes the code the first time, then shows or hides it (nothing is written twice). */
+function CodeToggle({
+  code,
+  busy,
+  onWrite,
+  onHide,
+}: {
+  code: StarCode | null;
+  busy: boolean;
+  onWrite: () => void;
+  onHide: (hidden: boolean) => void;
+}) {
+  if (busy) {
+    return (
+      <button type="button" disabled className="todo-btn todo-btn-quiet">
+        <Spinner size={12} />
+        Writing the code…
+      </button>
+    );
+  }
+  const showing = !!code && !code.hidden;
+  return (
+    <button
+      type="button"
+      onClick={() => (code ? onHide(!code.hidden) : onWrite())}
+      className="todo-btn todo-btn-quiet"
+    >
+      <Icon name="CodeBracketIcon" size={14} />
+      {showing ? 'Hide code implementation' : 'Show code implementation'}
+    </button>
+  );
+}
+
+/** The code on show: one highlighted Python block (the block has its own Copy), and a way to write it again. */
+function CodeCard({ code, busy, onWrite }: { code: StarCode; busy: boolean; onWrite: () => void }) {
+  return (
+    <div className="gp-enter mt-4 border-t pt-3" key={code.at} aria-label="Python implementation">
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h4 className="text-xs font-semibold text-foreground">Python implementation</h4>
+        <span className="text-xs text-muted-foreground">Python 3, standard library only.</span>
+        <span className="flex-1" />
+        <button type="button" onClick={onWrite} disabled={busy} className="todo-btn todo-btn-ghost">
+          <Icon name="ArrowPathIcon" size={14} />
+          Write it again
+        </button>
+      </div>
+      <Markdown content={fencedPython(code.text)} highlight={highlightFence} className="text-sm" />
+    </div>
+  );
+}
+
 /**
  * The structured answer, inline under the question: Situation, Task, Action, Result, then common mistakes and interview
  * tips, with Python code highlighted. It is written when the learner asks, kept with the question, and never completes it:
- * reading an answer is not the same as being able to give it.
+ * reading an answer is not the same as being able to give it. "Show code implementation" writes the same question as one
+ * complete Python program (Python only), also on request, kept apart from the answer's versions.
  */
 export default function StarPanel({
   question,
@@ -31,6 +84,13 @@ export default function StarPanel({
   onAskTutor,
   onClearError,
   kindNotes,
+  codeEnabled,
+  code,
+  codeBusy,
+  codeError,
+  onWriteCode,
+  onHideCode,
+  onClearCodeError,
 }: {
   question: Question;
   progress: QuestionProgress;
@@ -43,6 +103,14 @@ export default function StarPanel({
   onClearError: () => void;
   /** The lab's own wording for a question kind where the default does not fit (labs.ts). */
   kindNotes?: Partial<Record<Question['kind'], string>>;
+  /** The lab runs Python, so "Show code implementation" is offered (labs.ts `codeImplementation`). */
+  codeEnabled: boolean;
+  code: StarCode | null;
+  codeBusy: boolean;
+  codeError: string | undefined;
+  onWriteCode: () => void;
+  onHideCode: (hidden: boolean) => void;
+  onClearCodeError: () => void;
 }) {
   const { versions, activeId, hidden } = progress.star;
   const active = versions.find((v) => v.id === activeId) ?? versions[versions.length - 1] ?? null;
@@ -74,6 +142,9 @@ export default function StarPanel({
             <Icon name="EyeIcon" size={14} />
             Show answer
           </button>
+        )}
+        {active && hidden && codeEnabled && (
+          <CodeToggle code={code} busy={codeBusy} onWrite={onWriteCode} onHide={onHideCode} />
         )}
       </div>
 
@@ -145,6 +216,9 @@ export default function StarPanel({
               <Icon name="PlusIcon" size={14} />
               Give another example
             </button>
+            {codeEnabled && (
+              <CodeToggle code={code} busy={codeBusy} onWrite={onWriteCode} onHide={onHideCode} />
+            )}
             <button type="button" onClick={copy} className="todo-btn todo-btn-quiet">
               <Icon name="ClipboardDocumentIcon" size={14} />
               Copy answer
@@ -154,24 +228,43 @@ export default function StarPanel({
               Hide answer
             </button>
           </div>
-          {!progress.completed && (
-            <p className="mt-2 text-xs leading-snug text-muted-foreground">
-              Reading the answer does not complete the question. Run the tests, or show the tutor
-              you understand it.
-            </p>
-          )}
         </>
       )}
 
-      {!active && !busy && !error && (
-        <button
-          type="button"
-          onClick={() => onRun('generate')}
-          className="todo-btn todo-btn-primary"
-        >
-          <Icon name="StarIcon" size={14} />
-          Write the answer
-        </button>
+      {!active && !busy && (
+        <div className="flex flex-wrap items-center gap-2">
+          {!error && (
+            <button
+              type="button"
+              onClick={() => onRun('generate')}
+              className="todo-btn todo-btn-primary"
+            >
+              <Icon name="StarIcon" size={14} />
+              Write the answer
+            </button>
+          )}
+          {codeEnabled && (
+            <CodeToggle code={code} busy={codeBusy} onWrite={onWriteCode} onHide={onHideCode} />
+          )}
+        </div>
+      )}
+
+      {codeEnabled && (
+        <>
+          {codeError && (
+            <div className="mt-3">
+              <InlineError message={codeError} onRetry={onWriteCode} onDismiss={onClearCodeError} />
+            </div>
+          )}
+          {code && !code.hidden && <CodeCard code={code} busy={codeBusy} onWrite={onWriteCode} />}
+        </>
+      )}
+
+      {!progress.completed && ((active && !hidden) || (codeEnabled && code && !code.hidden)) && (
+        <p className="mt-2 text-xs leading-snug text-muted-foreground">
+          Reading the {codeEnabled && code && !code.hidden ? 'answer or the code' : 'answer'} does
+          not complete the question. Run the tests, or show the tutor you understand it.
+        </p>
       )}
     </section>
   );

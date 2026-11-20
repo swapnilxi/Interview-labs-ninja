@@ -19,16 +19,37 @@ export const LAB_VIDEOS_DDL = `
       order_index INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       preview_image TEXT NOT NULL DEFAULT '',
-      shape TEXT NOT NULL DEFAULT 'wide'
+      shape TEXT NOT NULL DEFAULT 'wide',
+      icon TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX IF NOT EXISTS idx_lab_page_videos_page ON lab_page_videos(user_id, lab_name, topic_id, subtopic_id, order_index);
 `;
 
-/** Columns a `lab_page_videos` made before preview images and shapes existed is missing (ALTER TABLE ... ADD COLUMN). */
+/** Columns an older `lab_page_videos` is missing (ALTER TABLE ... ADD COLUMN). */
 export const LAB_VIDEOS_ADDED_COLUMNS: readonly [name: string, definition: string][] = [
   ['preview_image', "TEXT NOT NULL DEFAULT ''"],
   ['shape', "TEXT NOT NULL DEFAULT 'wide'"],
+  ['icon', "TEXT NOT NULL DEFAULT ''"],
 ];
+
+/** User code snippets on a section card. Twin of `ensure_table` in backend/modules/lab_sections/snippets.py. */
+export const LAB_SNIPPETS_DDL = `
+  CREATE TABLE IF NOT EXISTS lab_section_snippets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      lab_name TEXT NOT NULL,
+      topic_id TEXT NOT NULL,
+      subtopic_id TEXT NOT NULL DEFAULT '',
+      section_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      language TEXT NOT NULL DEFAULT 'python',
+      code TEXT NOT NULL,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_lab_section_snippets_page
+      ON lab_section_snippets(user_id, lab_name, topic_id, subtopic_id, section_id, order_index);
+`;
 
 export const LAB_VIDEO_SCRIPTS_DDL = `
   CREATE TABLE IF NOT EXISTS lab_video_scripts (

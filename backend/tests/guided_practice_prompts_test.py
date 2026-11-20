@@ -263,7 +263,7 @@ def build_cases():
         return s
 
 
-    for variant in ("generate", "simplify", "example", "bogus", ""):
+    for variant in ("generate", "simplify", "example", "code", "bogus", ""):
         for answer in ("", "## S — Situation\nOld text\n\n```python\nprint(1)\n```", "  padded answer  ", "\ufeff", "\x1c"):
             for expl, ex in (("", ""), ("A lesson text.\nSecond line.", ""), ("", "Implement `f`."), ("Lesson", "Exercise")):
                 add("star", {"ctx": ctx("full"), "s": star_input(variant, existingAnswer=answer, explanation=expl, exercisePrompt=ex)}, f"{variant or 'empty'}-ans{len(answer)}-{'e' if expl else '_'}{'x' if ex else '_'}")
@@ -304,6 +304,12 @@ def build_cases():
         add("phase", {"ctx": ctx("mixed"), "ph": phase_in(number=rng.choice([1, 2, 5, 9]), title=pick(["", "", pick(TRICKY)]), goal=pick(["", pick(TRICKY)]),
                                                            outline=plan(rng.choice([0, 3, 5])), otherTitles=titles_list(rng.choice([0, 3, 41])),
                                                            keptTitles=titles_list(rng.choice([0, 0, 2])), focus=pick(["", pick(TRICKY)]))}, f"rand{n}")
+
+    # the code variant (Python implementation) over every context and position, with and without the STAR answer it follows
+    for ck in CTX_KINDS:
+        for pk in POS_KINDS:
+            for answer in ("", "## A — Action\nUse a dict.\n\n```python\nprint(1)\n```"):
+                add("star", {"ctx": ctx(ck), "s": star_input("code", pos=pos(pk), question=question("plain", "base"), existingAnswer=answer, explanation="Lesson." if answer else "")}, f"code-{ck}-{pk}-{'ans' if answer else 'bare'}")
 
     # ── labs: everything above ran WITHOUT `lab` (the dsa fixtures of the first version, unchanged and still first in the list) ──
     # Appended after the random draws on purpose, so the first 611 cases stay byte-for-byte what they were.

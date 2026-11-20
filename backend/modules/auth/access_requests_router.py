@@ -17,7 +17,7 @@ router = APIRouter(prefix="/access-requests", tags=["access-requests"])
 
 class AccessRequestCreate(BaseModel):
     # 'user' is excluded -- it's a downgrade, not something to request.
-    requested_role: str | None = Field(default=None, pattern="^(editor|admin|superadmin)$")
+    requested_role: str | None = Field(default=None, pattern="^(editor|instructor|admin|superadmin)$")
     permission: str | None = None
     message: str = Field(default="", max_length=2000)
 
