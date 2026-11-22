@@ -22,7 +22,7 @@ _COLS = (
     "id, user_id, title, company, url, raw_text, created_at, updated_at, "
     "location, employment_type, experience_level, education, salary, "
     "required_skills, preferred_skills, responsibilities, benefits, certifications, "
-    "extraction_confidence"
+    "extraction_confidence, status, priority, applied_at, deadline, notes, rating"
 )
 
 _JSON_LIST_FIELDS = ("required_skills", "preferred_skills", "responsibilities", "benefits", "certifications")
@@ -48,6 +48,8 @@ def _to_dict(r) -> dict:
         "benefits": json.loads(r[16]) if r[16] else [],
         "certifications": json.loads(r[17]) if r[17] else [],
         "extraction_confidence": r[18],
+        "status": r[19] or "saved", "priority": r[20] or "medium",
+        "applied_at": r[21], "deadline": r[22], "notes": r[23] or "", "rating": r[24] or 0,
     }
 
 

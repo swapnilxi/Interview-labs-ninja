@@ -63,6 +63,7 @@ const LAB_LINKS: SidebarLink[] = [toLink(LABS_HOME), ...LAB_GROUP_LINKS.flatMap(
 const LAB_RAIL_DIVIDERS = [...LAB_GROUP_LINKS.map((g) => g.links[0]?.path), LABS_PROJECT_LINK.path].filter(Boolean) as string[];
 
 const CAREER_LINKS: SidebarLink[] = [
+  { label: 'Job Finder', path: '/career?tab=jobfinder', icon: 'MagnifyingGlassIcon', tint: 'cyan' },
   { label: 'Profiles', path: '/career?tab=profiles', icon: 'IdentificationIcon', tint: 'blue' },
   { label: 'Resumes', path: '/career?tab=resumes', icon: 'DocumentTextIcon', tint: 'indigo' },
   { label: 'Portfolios', path: '/career?tab=portfolios', icon: 'GlobeAltIcon', tint: 'teal' },
@@ -192,6 +193,27 @@ export default function Sidebar({
 
   // Rail tooltip: fixed-position so the scrolling <nav> can't clip it.
   const [railTip, setRailTip] = useState<{ label: string; top: number } | null>(null);
+
+  // Rail account menu (Settings, Install app, theme, hide, log out): closes on outside click, Escape and navigation.
+  const [railMenuOpen, setRailMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!railMenuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (t?.closest('[data-rail-menu], [data-rail-menu-trigger]')) return;
+      setRailMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRailMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [railMenuOpen]);
+  useEffect(() => setRailMenuOpen(false), [pathname, search]);
   const tip = (label: string) => ({
     onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
       const r = e.currentTarget.getBoundingClientRect();
@@ -430,57 +452,103 @@ export default function Sidebar({
             {isAdmin && renderRailLink('/admin', 'ShieldCheckIcon', 'gray', 'Admin Portal', isActivePath('/admin'))}
           </nav>
 
-          {/* Bottom actions: all flat outlined glyphs (Install app and Settings are links, the rest buttons). */}
-          <div className="flex flex-col items-center gap-0.5 w-full py-2 border-t border-[color:var(--color-separator)] flex-shrink-0">
-            {/* Settings ▸ Install app (the APK and the web app). Nothing to install from inside the Android app. */}
-            {!isNativeApp &&
-              renderRailQuietLink('/config?section=install', 'ArrowDownTrayIcon', 'Install app', pathname === '/config' && new URLSearchParams(search).get('section') === 'install')}
-
-            {renderRailQuietLink('/config', 'Cog6ToothIcon', 'Settings', pathname === '/config' && new URLSearchParams(search).get('section') !== 'install')}
-
+          {/* Bottom: one account button; Install app, Settings, theme, hide and log out live in its menu. */}
+          <div className="flex flex-col items-center w-full py-2 border-t border-[color:var(--color-separator)] flex-shrink-0">
             <button
               type="button"
-              onClick={onToggleTheme}
-              className="rail-item rail-item-quiet"
-              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-              {...tip(theme === 'dark' ? 'Light Theme' : 'Dark Theme')}
+              onClick={() => {
+                setRailTip(null);
+                setRailMenuOpen((o) => !o);
+              }}
+              className={`rail-item rail-item-quiet ${railMenuOpen || pathname === '/config' ? 'rail-item-active' : ''}`}
+              aria-label="Account and settings"
+              aria-haspopup="menu"
+              aria-expanded={railMenuOpen}
+              data-rail-menu-trigger
+              {...(railMenuOpen ? {} : tip('Account and settings'))}
             >
-              <ThemeToggleIcon theme={theme} size={20} variant="outline" />
-            </button>
-
-            {isGuest ? (
-              <button
-                type="button"
-                onClick={() => openLoginModal()}
-                className="rail-item rail-item-quiet"
-                aria-label="Log in"
-                {...tip('Log in')}
-              >
-                <Icon name="UserCircleIcon" size={20} variant="outline" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={logout}
-                className="rail-item rail-item-quiet"
-                aria-label="Log out"
-                {...tip(`Log out (${user?.email})`)}
-              >
-                <Icon name="ArrowRightOnRectangleIcon" size={20} variant="outline" />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setMode('hidden')}
-              className="rail-item rail-item-quiet rail-item-danger"
-              aria-label="Hide sidebar menu completely"
-              {...tip('Hide sidebar menu')}
-            >
-              <Icon name="EyeSlashIcon" size={20} variant="outline" />
+              {isGuest ? (
+                <Icon name="UserCircleIcon" size={22} variant="outline" />
+              ) : (
+                <span className="rail-avatar" aria-hidden="true">
+                  {initialsFor(user?.display_name || user?.email)}
+                </span>
+              )}
             </button>
           </div>
         </aside>
+      )}
+
+      {/* Rail account menu - fixed, beside the account button */}
+      {mode === 'icon-only' && railMenuOpen && (
+        <div
+          role="menu"
+          aria-label="Account and settings"
+          data-rail-menu
+          className="rail-menu fixed bottom-[8px] left-[68px] z-[360] hidden w-[232px] flex-col p-1 md:flex animate-in fade-in-0 duration-100"
+        >
+          {!isGuest && (
+            <div className="px-2.5 pb-1.5 pt-1">
+              <div className="truncate text-[13px] font-semibold text-foreground">{user?.display_name || 'Your account'}</div>
+              {user?.email && <div className="truncate text-[12px] text-muted-foreground">{user.email}</div>}
+            </div>
+          )}
+          {!isGuest && <span aria-hidden="true" className="rail-menu-sep" />}
+          <Link href="/config" role="menuitem" className="rail-menu-item" onClick={() => setRailMenuOpen(false)}>
+            <Icon name="Cog6ToothIcon" size={18} variant="outline" />
+            Settings
+          </Link>
+          {!isNativeApp && (
+            <Link href="/config?section=install" role="menuitem" className="rail-menu-item" onClick={() => setRailMenuOpen(false)}>
+              <Icon name="ArrowDownTrayIcon" size={18} variant="outline" />
+              Install app
+            </Link>
+          )}
+          <button type="button" role="menuitem" className="rail-menu-item" onClick={onToggleTheme}>
+            <ThemeToggleIcon theme={theme} size={18} variant="outline" />
+            {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="rail-menu-item"
+            onClick={() => {
+              setRailMenuOpen(false);
+              setMode('hidden');
+            }}
+          >
+            <Icon name="EyeSlashIcon" size={18} variant="outline" />
+            Hide sidebar
+          </button>
+          <span aria-hidden="true" className="rail-menu-sep" />
+          {isGuest ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="rail-menu-item"
+              onClick={() => {
+                setRailMenuOpen(false);
+                openLoginModal();
+              }}
+            >
+              <Icon name="UserCircleIcon" size={18} variant="outline" />
+              Log in
+            </button>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              className="rail-menu-item rail-menu-item-danger"
+              onClick={() => {
+                setRailMenuOpen(false);
+                logout();
+              }}
+            >
+              <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
+              Log out
+            </button>
+          )}
+        </div>
       )}
 
       {/* Rail Tooltip - Rendered outside aside */}

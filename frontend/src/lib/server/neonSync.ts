@@ -235,7 +235,8 @@ export function markPulled(dbName: DbName): void {
  * Skipped while this instance is running a write (that write pulls and pushes itself).
  */
 export function withNeonRead<A extends unknown[], R>(
-  handler: (...args: A) => Promise<R>
+  handler: (...args: A) => Promise<R>,
+  dbName: DbName = 'lab_ninja'
 ): (...args: A) => Promise<R> {
   return async (...args: A) => {
     const now = Date.now();
@@ -246,7 +247,7 @@ export function withNeonRead<A extends unknown[], R>(
     ) {
       lastReadCheck = now;
       // A failed check is not fatal for a read: serve this instance's copy.
-      await serialized(() => pullIfStale('lab_ninja'));
+      await serialized(() => pullIfStale(dbName));
     }
     return handler(...args);
   };
@@ -285,7 +286,8 @@ function unavailable(): Response {
  * worth keeping; re-uploading unchanged bytes is harmless).
  */
 export function withNeonSync<A extends unknown[], R>(
-  handler: (...args: A) => Promise<R>
+  handler: (...args: A) => Promise<R>,
+  dbName: DbName = 'lab_ninja'
 ): (...args: A) => Promise<R> {
   return async (...args: A) => {
     if (!autoSyncEnabled()) return handler(...args);
@@ -297,8 +299,8 @@ export function withNeonSync<A extends unknown[], R>(
       return await serialized(async () => {
         let result!: R;
         for (let attempt = 1; attempt <= MAX_WRITE_ATTEMPTS; attempt++) {
-          const pulled = await pullIfStale('lab_ninja');
-          if (!pulled && held['lab_ninja'] === undefined && original) {
+          const pulled = await pullIfStale(dbName);
+          if (!pulled && held[dbName] === undefined && original) {
             // This instance has never seen Neon's copy (its file is the stale git one): saving here would be
             // lost on the next cold start, or worse, pushed over newer data. Refuse visibly instead.
             return unavailable() as R;
@@ -307,7 +309,7 @@ export function withNeonSync<A extends unknown[], R>(
             attempt === 1 || !pristine ? args : [pristine.clone(), ...args.slice(1)]
           ) as A;
           result = await handler(...callArgs);
-          const pushed = await pushWithRetry('lab_ninja');
+          const pushed = await pushWithRetry(dbName);
           if (pushed === 'failed') {
             // The write is in this instance's file and goes out with its next successful push.
             console.error(
@@ -320,7 +322,7 @@ export function withNeonSync<A extends unknown[], R>(
             console.warn(
               '[neonSync] write lost a race and could not be replayed; keeping the newer copy'
             );
-            await pullIfStale('lab_ninja');
+            await pullIfStale(dbName);
             return result;
           }
           console.warn(

@@ -2881,6 +2881,45 @@
     box-shadow: 0 6px 20px -6px rgba(16, 24, 40, 0.25);
   }
 
+  /* The rail's account button: initials on a quiet disc. */
+  .rail-avatar {
+    @apply flex h-[30px] w-[30px] items-center justify-center rounded-full text-[12px] font-semibold;
+    color: var(--color-foreground);
+    background: var(--color-fill-strong);
+  }
+
+  /* The rail's account menu: the tooltip's glass material, a little roomier. */
+  .rail-menu {
+    border-radius: 12px;
+    border: 1px solid var(--color-separator);
+    background: var(--material-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: 0 10px 30px -8px rgba(16, 24, 40, 0.3);
+  }
+
+  .rail-menu-item {
+    @apply flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[14px] text-foreground focus-ring;
+  }
+
+  .rail-menu-item > svg {
+    color: var(--color-muted-foreground);
+  }
+
+  .rail-menu-item:hover {
+    background: var(--color-fill);
+  }
+
+  .rail-menu-item-danger:hover,
+  .rail-menu-item-danger:hover > svg {
+    color: var(--color-error);
+  }
+
+  .rail-menu-sep {
+    @apply mx-2 my-1 block h-px;
+    background: var(--color-separator);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .nav-tile,
     .rail-item {

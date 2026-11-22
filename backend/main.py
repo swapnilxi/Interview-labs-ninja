@@ -110,6 +110,7 @@ from modules.career_studio.job_match.router import router as career_tailor_route
 from modules.career_studio.views.router import router as career_views_router
 from modules.career_studio.templates_designer.router import router as career_templates_router
 from modules.career_studio.cover_letter.router import router as career_cover_letter_router
+from modules.career_studio.tracker.router import router as career_tracker_router
 
 
 @asynccontextmanager
@@ -218,6 +219,7 @@ app.include_router(career_tailor_router)
 app.include_router(career_views_router)
 app.include_router(career_templates_router)
 app.include_router(career_cover_letter_router)
+app.include_router(career_tracker_router)
 
 
 @app.get("/")
