@@ -12,6 +12,23 @@ import { contentHash, recordBackup, refreshLesson } from './classFolders';
 import { UPDATES_DDL, purgeClassUpdates } from './updatesSchema';
 import { VIDEOS_DDL, cleanPlanVideos, purgeClassVideos, purgeSubjectVideos } from './videosSchema';
 import { WORKBOOKS_DDL, purgeClassWorkbooks } from './workbooks';
+import { ensureIds } from './questionTopics';
+
+/** Generate operations of project question topics (questionTopicHandlers.ts); same table as question_topics_api.py. */
+export const TOPIC_OPS_DDL = `
+CREATE TABLE IF NOT EXISTS lms_topic_operations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    user_id INTEGER,
+    request_hash TEXT NOT NULL,
+    status TEXT NOT NULL,
+    topic_id TEXT,
+    lesson_id TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+`;
 
 // Subject slugs that would collide with a static route segment
 // (/classes/[c]/lesson/[l], /classes/[c]/landing, /classes/[c]/workbooks) or with the class folder's own
@@ -102,6 +119,7 @@ export function ensureLmsTables(): void {
   db.exec(VIDEOS_DDL);
   // Workbooks and each learner's private progress in them (workbooks.ts).
   db.exec(WORKBOOKS_DDL);
+  db.exec(TOPIC_OPS_DDL);
 
   // Migrate columns if table already existed without ai_context
   try {
@@ -432,7 +450,19 @@ function parsePlanItem(item: unknown, lessonIds: Set<string>): Record<string, un
     sublessons,
     // Video links of this module or sub-step (written by PUT .../videos, see videos.ts).
     videos: cleanPlanVideos(rec.videos),
+    ...planItemExtras(rec),
   };
+}
+
+// Optional fields an outline entry may carry: a stable id, and for project question topics (questionTopics.ts)
+// kind/input_type/original_input/version/timestamps. Kept as stored so no save elsewhere drops them.
+const PLAN_EXTRA_STR = ['id', 'kind', 'input_type', 'original_input', 'created_at', 'updated_at'];
+
+function planItemExtras(rec: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of PLAN_EXTRA_STR) if (typeof rec[k] === 'string' && rec[k]) out[k] = rec[k];
+  if (Number.isInteger(rec.version)) out.version = rec.version;
+  return out;
 }
 
 function parseProjectPlan(raw: unknown, lessons: Record<string, unknown>[]): Record<string, unknown>[] {
@@ -450,7 +480,8 @@ function parseProjectPlan(raw: unknown, lessons: Record<string, unknown>[]): Rec
     const parsed = parsePlanItem(item, lessonIds);
     if (parsed) plan.push(parsed);
   }
-  return plan;
+  // Every entry gets a stable id (stored, or derived until the next save).
+  return ensureIds(plan);
 }
 
 export function getSubjectByIdOrSlug(classIdOrSlug: string, subjectIdOrSlug: string): Record<string, unknown> | null {

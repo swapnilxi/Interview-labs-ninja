@@ -198,7 +198,7 @@ export default function CreateClassModal({ isOpen, onClose, onCreated }: CreateC
             <button
               type="submit"
               disabled={loading || !name.trim()}
-              className="px-5 py-2 text-sm font-medium rounded-lg text-white bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+              className="px-5 py-2 text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               {loading ? 'Creating...' : 'Create Class'}
             </button>

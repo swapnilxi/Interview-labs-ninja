@@ -41,6 +41,27 @@ export default function JobMatchPanel({ profiles, loaded, onGoToProfiles, onProf
   }, [profiles, profileId]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = sessionStorage.getItem('labninja.transit.job');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.rawText) {
+          setJobText(parsed.rawText);
+          setSource('description');
+        }
+        if (parsed.url) setJobUrl(parsed.url);
+        if (parsed.title) setJobTitle(parsed.title);
+        if (parsed.company) {
+          setCompany(parsed.company);
+          setTargetCompany(parsed.company);
+        }
+        sessionStorage.removeItem('labninja.transit.job');
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     const p = profiles.find((x) => x.id === profileId);
     if (!p) return;
     if (!targetRole) setTargetRole(p.primary_role || (p.target_roles && p.target_roles[0]) || '');

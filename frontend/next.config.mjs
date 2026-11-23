@@ -19,6 +19,8 @@ const nextConfig = {
   // Source maps expose original source to anyone; ship them only when explicitly asked.
   productionBrowserSourceMaps: process.env.PUBLIC_SOURCE_MAPS === '1',
   distDir: process.env.DIST_DIR || '.next',
+  // The dev-only 'static route' badge sat bottom-left on top of the sidebar rail's account button.
+  devIndicators: { appIsrStatus: false },
   outputFileTracingIncludes: {
     '/api/pdf/documents': ['../backend/data/lab_ninja.sqlite3'],
     '/api/pdf/documents/[id]': ['../backend/data/lab_ninja.sqlite3'],
@@ -51,6 +53,8 @@ const nextConfig = {
     '/api/genai/[...path]': ['../backend/data/lab_ninja.sqlite3', '../backend/modules/genai_lab/topics.json'],
     '/api/lab-sections/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/lab-projects/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
+    // Career Studio (fe-apis/career): its own DB plus lab_ninja for the auth lookup.
+    '/api/career/[[...path]]': ['../backend/data/career_studio.sqlite3', '../backend/data/lab_ninja.sqlite3'],
     // Guided Practice (fe-apis/guidedPractice): the saved path and progress of a DSA page, plus its AI endpoints.
     '/api/guided-practice/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
     '/api/sessions/[[...path]]': ['../backend/data/lab_ninja.sqlite3'],
@@ -109,6 +113,12 @@ const nextConfig = {
         destination: '/ai-lms/:path*',
         permanent: false,
       },
+      // Career Studio aliases
+      {
+        source: '/career-studio',
+        destination: '/career',
+        permanent: false,
+      },
       // The To-Do page moved to /ai-todo. Exact path only (query like ?tab=smart is kept):
       // /todo/* is the To-Do API, not a page.
       {
@@ -161,6 +171,24 @@ const nextConfig = {
       // Exact path: /swipe-learn itself is a page.
       { source: '/swipe-learn/generate', destination: '/api/swipe-learn/generate' },
       { source: '/access-requests/:path*', destination: '/api/access-requests/:path*' },
+      // Career Studio API (fe-apis/career). Prefix-specific on purpose: /career and
+      // /career/view/[id] are pages, so a blanket /career/:path* would hijack them.
+      { source: '/career/profiles/:path*', destination: '/api/career/profiles/:path*' },
+      { source: '/career/resumes/:path*', destination: '/api/career/resumes/:path*' },
+      { source: '/career/views/:path*', destination: '/api/career/views/:path*' },
+      { source: '/career/jobs/:path*', destination: '/api/career/jobs/:path*' },
+      { source: '/career/portfolios/:path*', destination: '/api/career/portfolios/:path*' },
+      { source: '/career/portfolio-versions/:path*', destination: '/api/career/portfolio-versions/:path*' },
+      { source: '/career/cover-letters/:path*', destination: '/api/career/cover-letters/:path*' },
+      { source: '/career/templates/:path*', destination: '/api/career/templates/:path*' },
+      { source: '/career/versions/:path*', destination: '/api/career/versions/:path*' },
+      { source: '/career/sections/:path*', destination: '/api/career/sections/:path*' },
+      { source: '/career/import/:path*', destination: '/api/career/import/:path*' },
+      { source: '/career/generate/:path*', destination: '/api/career/generate/:path*' },
+      { source: '/career/copilot/:path*', destination: '/api/career/copilot/:path*' },
+      { source: '/career/analytics/:path*', destination: '/api/career/analytics/:path*' },
+      { source: '/career/public/:path*', destination: '/api/career/public/:path*' },
+      { source: '/career/tracker/:path*', destination: '/api/career/tracker/:path*' },
     ];
   },
   // The reader's service worker (public/sw.js) must never be served stale, or

@@ -63,14 +63,17 @@ further down in `README.md` — check there before assuming a module's shape.
   `backend/data/lab_ninja.sqlite3` *directly* (Next.js and FastAPI share one file), so a
   `next dev` run in that mode writes test rows into the tracked DB (this happened once and
   had to be restored from git). To test it, point `LABNINJA_DB_DIR` at a scratch folder
-  that holds a copy named `lab_ninja.sqlite3`, and unset `DATABASE_URL` (set, it pushes
-  snapshots to Neon). Auth in that mode uses the same file (so `LABNINJA_DB_DIR`
+  that holds a copy named `lab_ninja.sqlite3`, and unset `DATABASE_URL` anyway (sync turns itself off
+  for a `LABNINJA_DB_DIR` copy, but don't rely on it near production; to test sync itself use
+  `LABNINJA_SYNC_REMOTE_DIR`, README "Data sync across devices"). Auth in that mode uses the same file (so `LABNINJA_DB_DIR`
   protects it too); only on Vercel, where the repo is read-only, is a `/tmp` copy used. Run `git status backend/data` afterwards.
-- **Vercel data lives in ONE Neon row (`sqlite_snapshots`, the whole SQLite file), shared by many warm instances.**
-  `src/lib/server/neonSync.ts`: reads are wrapped in `withNeonRead` (pull if Neon's `updated_at` moved), writes in
-  `withNeonSync` (pull, run, compare-and-set push, replay the request on conflict). A new fe-apis entry point must use
-  both, or a phone and a desktop silently overwrite each other's data (this wiped To-Do items, 2026-11-19). Auto sync
-  runs only on Vercel; local dev never pushes to Neon on its own.
+- **All data lives in ONE Neon row per database (`sqlite_snapshots`, the whole SQLite file), shared by every server:**
+  Vercel instances AND any local `next dev`/FastAPI whose `.env` has `DATABASE_URL` (since 2026-11-23).
+  `src/lib/server/neonSync.ts` ↔ `backend/modules/common/neon_sync.py`: reads are wrapped in `withNeonRead` (pull if Neon
+  moved), writes in `withNeonSync` (pull, run, compare-and-set push, replay on conflict, queue when offline or still
+  losing). A new fe-apis entry point must use both, or a phone and a desktop silently overwrite each other's data (this
+  wiped To-Do items, 2026-11-19; AI LMS reads lacked it until 2026-11-23: "Subject not found"). Queue/state:
+  `npm run sync:status`. README: "Data sync across devices".
 - **Two silent Tailwind traps** (`frontend/tailwind.config.js` is shared — don't change it to "fix" them, it would
   restyle every module). (1) The theme colours (`primary`, `muted`, `border`, `card`, …) are bare `var(--color-x)`
   strings, so an opacity modifier on them — `bg-muted/20`, `border-border/60`, `hover:bg-primary/90` — compiles to
@@ -180,6 +183,15 @@ further down in `README.md` — check there before assuming a module's shape.
   `fe-apis` has the same gate in `requireUserId` (`fe-apis/lms/index.ts`, same allowlist) — keep the two in sync.
   Role/landing-editor checks: `tests/e2e/ai-lms/` (Playwright, README there) and `backend/tests/lms_roles_test.py`.
 - **AI LMS class membership, updates and practice reminders:** `classes/<c>/membership` (PUT/DELETE, allowlisted for non-editors) and `classes/<c>/notifications` (POST, editor+, deliberately not allowlisted) + `GET /notifications` live in both twins (`ai_lms/updates.py` ↔ `fe-apis/lms/updates.ts`, same texts and codes; only the Next.js layer pushes). A class practice reminder is a Scheduler reminder marked `source_text = 'lms-class:<slug>'` (`lib/schedules/classReminders.ts`); never show the marker. README: "Class membership, updates and practice reminders".
+- **AI LMS project question topics** ("Add question or topic", `?ask=1` on a project): a question topic is a sub-step of
+  a `project_plan` module with `kind: "question"` + a normal lesson; every outline entry now carries an `id`
+  (`ensure_ids`, both parsers keep `id/kind/input_type/original_input/version/created_at/updated_at`: a new plan
+  field must be added to BOTH `_parse_plan_item` and `parsePlanItem` or every save drops it). Pure half
+  `ai_lms/question_topics.py` ↔ `fe-apis/lms/questionTopics.ts` (prompts, validation, renderer byte-identical:
+  `python3 backend/tests/lms_question_topics_test.py`); endpoints `question_topics_api.py` ↔ `questionTopicHandlers.ts`.
+  Generation is self-synced (claim + commit via `runSyncedWrite`/`synced_write`, AI outside any lock) and idempotent by
+  `operation_id`; PATCH uses `base_version`. Replan/Break down keep question topics; module/step generate refuse them.
+  README: "Project question topics". End-to-end: `backend/tests/lms_question_topics_e2e.sh`.
 - **AI LMS Workbooks** (`lms_workbooks` + per-learner `lms_workbook_progress`): `ai_lms/workbooks.py` <-> `fe-apis/lms/workbooks.ts`
   (+ `workbookHandlers.ts`), same rules and texts; check with `python3 backend/tests/lms_workbooks_test.py` (both twins, diffed).
   Allowlisted for non-editors on purpose (anyone may make a private one): the module enforces owner/editor/visibility itself, and
@@ -282,7 +294,7 @@ The frontend can run two ways, switched via `NEXT_PUBLIC_BACKEND_MODE`
   string must stay byte-identical across the pair. Isolation rules live in README.md ("Labs Project"): never
   null `lab_section_content.project_id` / `lab_quiz_questions.project_id` on a project delete, and always scope
   section queries by user *and* project. `backend/tests/lab_projects_test.py` covers it.
-- **Guided Practice** is the fourth lab twin: `backend/modules/guided_practice/` ↔ `frontend/fe-apis/guidedPractice/`
+- **Guided Practice** (shown as **Guided Path** since 2026-11-23: no phase or boss is ever locked, a new path is ONE `/outline` request with `first_phase_questions`, everything else is generated on demand; README "Guided Path") is the fourth lab twin: `backend/modules/guided_practice/` ↔ `frontend/fe-apis/guidedPractice/`
   (`/guided-practice/*`, one set of endpoints for every guided lab; page code in `frontend/src/modules/labs/guided/`, routes
   `/dsa-lab/guided-practice` and `/cv-lab/guided-practice`). It stores one document per user, lab, topic and subtopic
   (`guided_practice_state`, saved with a version, a stale save is a 409) and runs AI prompts that return raw text (the browser

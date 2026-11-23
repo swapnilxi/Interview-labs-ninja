@@ -393,3 +393,44 @@ def register(cursor: sqlite3.Cursor) -> None:
     ]:
         if col not in _table_columns(cursor, "job_descriptions"):
             cursor.execute(f"ALTER TABLE job_descriptions ADD COLUMN {col} {ddl};")
+
+    # ── Job & People Tracker. Saved job descriptions double as application
+    #    records: these columns add pipeline state without a second jobs table.
+    for col, ddl in [
+        ("status", "TEXT NOT NULL DEFAULT 'saved'"),
+        ("priority", "TEXT NOT NULL DEFAULT 'medium'"),
+        ("applied_at", "TEXT"),
+        ("deadline", "TEXT"),
+        ("notes", "TEXT NOT NULL DEFAULT ''"),
+        ("rating", "INTEGER NOT NULL DEFAULT 0"),
+    ]:
+        if col not in _table_columns(cursor, "job_descriptions"):
+            cursor.execute(f"ALTER TABLE job_descriptions ADD COLUMN {col} {ddl};")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_descriptions_status ON job_descriptions(user_id, status)")
+
+    # People: recruiters, hiring managers, referrals and mentors, optionally
+    # linked to a tracked job. `stage` is the kanban column for the people board.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS career_people (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            role TEXT,
+            company TEXT,
+            email TEXT,
+            phone TEXT,
+            linkedin_url TEXT,
+            relationship TEXT NOT NULL DEFAULT 'recruiter',
+            stage TEXT NOT NULL DEFAULT 'lead',
+            job_id TEXT,
+            notes TEXT NOT NULL DEFAULT '',
+            tags TEXT,
+            last_contacted TEXT,
+            next_follow_up TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            is_deleted INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_career_people_user ON career_people(user_id, stage, is_deleted)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_career_people_job ON career_people(job_id)")

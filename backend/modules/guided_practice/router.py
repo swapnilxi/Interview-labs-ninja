@@ -106,6 +106,7 @@ _PathTitles = _strings(60, 300)
 _ChildTitles = _strings(10, 400)
 _ExerciseTitles = _strings(20, 300)
 _KeptTitles = _strings(8, 400)
+_PhaseQuestionTitles = _strings(40, 400)
 
 
 class _QuestionIn(_Body):
@@ -181,6 +182,11 @@ class CurriculumPayload(_AiBody):
 class OutlinePayload(_AiBody):
     phase_count: StrictInt = Field(default=5, ge=3, le=6)
     focus: str = Field(default="", max_length=600)
+    # A new path in ONE request: the plan plus the questions of phase 1 (0 = the plan only, as before).
+    first_phase_questions: StrictInt = Field(default=0, ge=0, le=10)
+    # "Add phase": the phases the path has; when sent, only `add_count` new phase outlines are planned (no questions, no boss).
+    existing_phases: List[_OutlinePhaseIn] = Field(default_factory=list, max_length=40)
+    add_count: StrictInt = Field(default=1, ge=1, le=5)
 
 
 class PhasePayload(_AiBody):
@@ -193,6 +199,9 @@ class PhasePayload(_AiBody):
     other_titles: _PathTitles = Field(default_factory=list)  # the questions the rest of the path has: never repeated
     kept_titles: _KeptTitles = Field(default_factory=list)  # this phase's questions that stay (a regenerate keeps worked ones)
     focus: str = Field(default="", max_length=600)
+    question_count: StrictInt = Field(default=5, ge=1, le=10)  # how many questions to write
+    existing_titles: _PhaseQuestionTitles = Field(default_factory=list)  # "Add questions": the phase's questions, in order
+    outline_start: StrictInt = Field(default=1, ge=1, le=50)  # the number of the first phase in `outline`
 
 
 class QuestionPayload(_QuestionBody):
@@ -432,7 +441,15 @@ def curriculum(payload: CurriculumPayload) -> dict:
 @router.post("/outline")
 def outline(payload: OutlinePayload) -> dict:
     """The plan of the path: its phases (title and goal) and the final boss. Each phase is written later, by /phase."""
-    return _run_ai("outline", build_outline_prompt(_ctx(payload), payload.phase_count, payload.focus), payload)
+    prompt = build_outline_prompt(
+        _ctx(payload),
+        payload.phase_count,
+        payload.focus,
+        payload.first_phase_questions,
+        [OutlinePhase(title=o.title, goal=o.goal) for o in payload.existing_phases],
+        payload.add_count,
+    )
+    return _run_ai("outline", prompt, payload)
 
 
 @router.post("/phase")
@@ -446,6 +463,9 @@ def phase(payload: PhasePayload) -> dict:
         other_titles=payload.other_titles,
         kept_titles=payload.kept_titles,
         focus=payload.focus,
+        count=payload.question_count,
+        existing_titles=payload.existing_titles,
+        outline_start=payload.outline_start,
     )
     return _run_ai("phase", build_phase_prompt(_ctx(payload), ph), payload)
 

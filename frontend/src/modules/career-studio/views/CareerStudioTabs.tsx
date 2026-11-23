@@ -33,8 +33,11 @@ import JobMatchPanel from '../job-match/JobMatchPanel';
 import AnalyzerPanel from '../resume/AnalyzerPanel';
 import CoverLetterPanel from '../cover-letter/CoverLetterPanel';
 import { LIST as RESUME_TEMPLATES } from '../resume/templates';
+import CareerStudioIndex from './CareerStudioIndex';
+import JobFinderPanel from '../job-finder/JobFinderPanel';
+import TrackerPanel from '../tracker/TrackerPanel';
 
-const TAB_IDS = ['profiles', 'analyzer', 'generate', 'match', 'coverletters', 'resumes', 'portfolios', 'templates'] as const;
+const TAB_IDS = ['overview', 'jobfinder', 'tracker', 'profiles', 'analyzer', 'generate', 'match', 'coverletters', 'resumes', 'portfolios', 'templates'] as const;
 type Tab = (typeof TAB_IDS)[number];
 const isTab = (v: string | null): v is Tab => !!v && (TAB_IDS as readonly string[]).includes(v);
 type Toast = { message: string; type: 'success' | 'error' } | null;
@@ -48,18 +51,27 @@ function fmt(v?: string) {
 export default function CareerStudioTabs() {
   const router = useRouter();
   const { get, update } = useUrlState();
-  // The tab is the URL's ?tab= (Back/Forward, a refresh and a shared link keep it); a missing or unknown value is Resumes.
+  // The tab is the URL's ?tab= (Back/Forward, a refresh and a shared link keep it); a missing or unknown value is the Overview index.
   const tabParam = get('tab');
-  const tab: Tab = isTab(tabParam) ? tabParam : 'resumes';
+  const tab: Tab = isTab(tabParam) ? tabParam : 'overview';
   // Sub-screens (?letter=, ?design=, ?profile= with its &pane=) belong to the tab they were opened on, so a tab change drops them.
   const goToTab = (next: Tab) => {
-    if (next !== tab) update({ tab: next, letter: null, design: null, profile: null, pane: null });
+    if (next !== tab) {
+      if (next === 'overview') {
+        update({ tab: null, letter: null, design: null, profile: null, pane: null });
+      } else {
+        update({ tab: next, letter: null, design: null, profile: null, pane: null });
+      }
+    }
   };
   const [authed, setAuthed] = useState(true);
   const [profiles, setProfiles] = useState<Resume[]>([]);
   const [profilesLoaded, setProfilesLoaded] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [creator, setCreator] = useState<{ kind: ViewKind; template?: string } | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importInitialSource, setImportInitialSource] = useState<'resume' | 'json' | 'text'>('resume');
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -129,12 +141,15 @@ export default function CareerStudioTabs() {
   }
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
+    { id: 'overview', label: 'All Services', icon: 'Squares2X2Icon' },
+    { id: 'jobfinder', label: 'Job Finder', icon: 'MagnifyingGlassIcon' },
+    { id: 'tracker', label: 'Tracker', icon: 'ViewColumnsIcon' },
     { id: 'profiles', label: 'Profiles', icon: 'IdentificationIcon' },
-    { id: 'analyzer', label: 'Analyzer', icon: 'MagnifyingGlassCircleIcon' },
-    { id: 'generate', label: 'Generate', icon: 'SparklesIcon' },
-    { id: 'match', label: 'Job Matcher', icon: 'ScaleIcon' },
-    { id: 'coverletters', label: 'Cover Letters', icon: 'EnvelopeIcon' },
     { id: 'resumes', label: 'Resumes', icon: 'DocumentTextIcon' },
+    { id: 'coverletters', label: 'Cover Letters', icon: 'EnvelopeIcon' },
+    { id: 'analyzer', label: 'Analyzer', icon: 'MagnifyingGlassCircleIcon' },
+    { id: 'match', label: 'Job Matcher', icon: 'ScaleIcon' },
+    { id: 'generate', label: 'Generate', icon: 'SparklesIcon' },
     { id: 'portfolios', label: 'Portfolios', icon: 'GlobeAltIcon' },
     { id: 'templates', label: 'Template Designer', icon: 'SwatchIcon' },
   ];
@@ -164,7 +179,59 @@ export default function CareerStudioTabs() {
         ))}
       </div>
 
-      {tab === 'profiles' && <ProfilesTab profiles={profiles} loaded={profilesLoaded} onCreate={createProfile} onChanged={loadProfiles} showToast={showToast} />}
+      {tab !== 'overview' && (
+        <nav aria-label="Breadcrumb" className="mb-5 flex items-center gap-2 text-xs text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => goToTab('overview')}
+            className="inline-flex items-center gap-1 font-medium hover:text-foreground transition-colors"
+          >
+            <Icon name="ArrowLeftIcon" size={13} />
+            All Services
+          </button>
+          <span className="text-muted-foreground/40">/</span>
+          <span className="font-semibold text-foreground">
+            {TABS.find((t) => t.id === tab)?.label || tab}
+          </span>
+        </nav>
+      )}
+
+      {tab === 'overview' && (
+        <CareerStudioIndex
+          profiles={profiles}
+          loaded={profilesLoaded}
+          onSelectTab={goToTab}
+          onOpenWizard={() => setWizardOpen(true)}
+          onOpenImport={() => {
+            setImportInitialSource('resume');
+            setImportOpen(true);
+          }}
+        />
+      )}
+      {tab === 'jobfinder' && (
+        <JobFinderPanel
+          profiles={profiles}
+          loaded={profilesLoaded}
+          onGoToProfiles={() => goToTab('profiles')}
+          onSelectTab={goToTab}
+          showToast={showToast}
+        />
+      )}
+      {tab === 'tracker' && <TrackerPanel showToast={showToast} onGoToJobs={() => goToTab('jobfinder')} />}
+      {tab === 'profiles' && (
+        <ProfilesTab
+          profiles={profiles}
+          loaded={profilesLoaded}
+          onCreate={createProfile}
+          onChanged={loadProfiles}
+          onOpenWizard={() => setWizardOpen(true)}
+          onOpenImport={(src) => {
+            setImportInitialSource(src || 'resume');
+            setImportOpen(true);
+          }}
+          showToast={showToast}
+        />
+      )}
       {tab === 'analyzer' && <AnalyzerPanel profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => goToTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
       {tab === 'generate' && <GenerateTab profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => goToTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
       {tab === 'match' && <JobMatchPanel profiles={profiles} loaded={profilesLoaded} onGoToProfiles={() => goToTab('profiles')} onProfilesChanged={loadProfiles} showToast={showToast} />}
@@ -184,15 +251,53 @@ export default function CareerStudioTabs() {
         />
       )}
 
+      <ProfileImportDialog
+        open={importOpen}
+        initialSource={importInitialSource}
+        onClose={() => setImportOpen(false)}
+        onImported={(created) => {
+          void loadProfiles();
+          if (created?.id) openProfileEditor(created.id);
+          else showToast('Profile imported');
+        }}
+      />
+      <CreateProfileWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        showToast={showToast}
+        onCreated={(p) => {
+          void loadProfiles();
+          openProfileEditor(p.id);
+        }}
+        onOpenImport={(src) => {
+          setWizardOpen(false);
+          setImportInitialSource(src);
+          setImportOpen(true);
+        }}
+      />
+
       <ProfileEditorModal onClosed={loadProfiles} />
     </div>
   );
 }
 
-function ProfilesTab({ profiles, loaded, onCreate, onChanged, showToast }: { profiles: Resume[]; loaded: boolean; onCreate: () => void; onChanged: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
-  const [importOpen, setImportOpen] = useState(false);
-  const [importInitialSource, setImportInitialSource] = useState<'resume' | 'json' | 'text'>('resume');
-  const [wizardOpen, setWizardOpen] = useState(false);
+function ProfilesTab({
+  profiles,
+  loaded,
+  onCreate,
+  onChanged,
+  onOpenWizard,
+  onOpenImport,
+  showToast,
+}: {
+  profiles: Resume[];
+  loaded: boolean;
+  onCreate: () => void;
+  onChanged: () => void;
+  onOpenWizard: () => void;
+  onOpenImport: (src?: 'resume' | 'json' | 'text') => void;
+  showToast: (m: string, t?: 'success' | 'error') => void;
+}) {
   const [rename, setRename] = useState<{ id: string; value: string } | null>(null);
   const del = async (id: string, title: string) => {
     if (!window.confirm(`Delete profile "${title}"? Views using it will need a new profile.`)) return;
@@ -224,7 +329,7 @@ function ProfilesTab({ profiles, loaded, onCreate, onChanged, showToast }: { pro
           <p className="text-xs text-muted-foreground mt-0.5">Fill your details once here, then reuse across resumes &amp; portfolios.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setWizardOpen(true)} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth"><Icon name="PlusIcon" size={14} /> Create New Profile</button>
+          <button onClick={onOpenWizard} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth"><Icon name="PlusIcon" size={14} /> Create New Profile</button>
         </div>
       </div>
       {!loaded ? (
@@ -234,7 +339,7 @@ function ProfilesTab({ profiles, loaded, onCreate, onChanged, showToast }: { pro
           <div className="cs-empty-badge"><Icon name="IdentificationIcon" size={28} className="text-primary" /></div>
           <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5 leading-relaxed">A profile holds your reusable career data — personal info, experience, projects, skills. Create one, then spin up as many resumes/portfolios as you like, each with a different template.</p>
           <div className="flex items-center justify-center gap-2">
-            <button onClick={() => setWizardOpen(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth"><Icon name="PlusIcon" size={16} /> Create your first profile</button>
+            <button onClick={onOpenWizard} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-glow transition-smooth"><Icon name="PlusIcon" size={16} /> Create your first profile</button>
           </div>
         </div>
       ) : (
@@ -282,31 +387,6 @@ function ProfilesTab({ profiles, loaded, onCreate, onChanged, showToast }: { pro
           ))}
         </div>
       )}
-
-      <ProfileImportDialog
-        open={importOpen}
-        initialSource={importInitialSource}
-        onClose={() => setImportOpen(false)}
-        onImported={(created) => {
-          onChanged();
-          if (created?.id) openProfileEditor(created.id);
-          else showToast('Profile imported');
-        }}
-      />
-      <CreateProfileWizard
-        open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
-        showToast={showToast}
-        onCreated={(p) => {
-          onChanged();
-          openProfileEditor(p.id);
-        }}
-        onOpenImport={(src) => {
-          setWizardOpen(false);
-          setImportInitialSource(src);
-          setImportOpen(true);
-        }}
-      />
     </div>
   );
 }

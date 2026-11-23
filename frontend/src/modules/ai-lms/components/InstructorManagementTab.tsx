@@ -113,7 +113,7 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
           <button
             type="button"
             onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 transition-all flex-shrink-0"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium text-xs shadow-sm hover:bg-primary/90 transition-all flex-shrink-0"
           >
             <Icon name="UserPlusIcon" size={16} />
             <span>Add Instructor</span>
@@ -173,7 +173,7 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
             onClick={() => setSelectedTypeFilter('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               selectedTypeFilter === 'all'
-                ? 'bg-primary text-white shadow-xs'
+                ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
             }`}
           >
@@ -267,7 +267,7 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
             <button
               type="button"
               onClick={() => setIsCreateOpen(true)}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-xs font-medium shadow-sm hover:bg-primary/90 transition-all"
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium shadow-sm hover:bg-primary/90 transition-all"
             >
               <Icon name="PlusIcon" size={14} />
               <span>Add Instructor</span>
@@ -424,7 +424,7 @@ export default function InstructorManagementTab({ classes }: InstructorManagemen
                   <button
                     type="button"
                     onClick={() => setInstructorToChat(inst)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white font-medium text-xs shadow-xs hover:bg-primary/90 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-medium text-xs shadow-xs hover:bg-primary/90 transition-colors"
                   >
                     <Icon name="ChatBubbleLeftRightIcon" size={14} />
                     <span>Chat with AI Persona</span>

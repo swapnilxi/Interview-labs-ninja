@@ -51,7 +51,7 @@ export default function GuidedPracticeCard({
   return (
     <Link
       href={href}
-      aria-label={`Guided Practice for ${name}${started ? `, ${summary?.percent}% complete` : ''}`}
+      aria-label={`Guided Path for ${name}${started ? `, ${summary?.percent}% complete` : ''}`}
       className="todo-focus group lab-card lab-edge-link flex items-center gap-4 p-4 sm:p-[1.25rem]"
     >
       <span className="lab-tile h-11 w-11 shrink-0" aria-hidden="true">
@@ -59,7 +59,7 @@ export default function GuidedPracticeCard({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-base font-semibold leading-snug text-foreground">
-          Guided Practice
+          Guided Path
         </span>
         {started && summary ? (
           <>
@@ -71,7 +71,7 @@ export default function GuidedPracticeCard({
             <span
               className="mt-2 block h-1.5 overflow-hidden rounded-full mix-bg-foreground/10"
               role="progressbar"
-              aria-label="Guided Practice progress"
+              aria-label="Guided Path progress"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={summary.percent}

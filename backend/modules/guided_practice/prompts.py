@@ -59,7 +59,7 @@ PROFILES: Dict[str, LabProfile] = {
         kind="data-structures-and-algorithms problem",
         thing="problem",
         goal="solving it well",
-        steps="understand the problem, spot the pattern, build the pieces, assemble the solution, then edge cases and follow-ups",
+        steps="the problem statement, its constraints and tiny examples, the prerequisites it needs, tracing small inputs by hand, small Python exercises on each building block, a correct brute-force baseline, its bottleneck, the competing approaches and why one wins, the optimized implementation, then tests and edge cases",
         final_task="the whole problem as a closing challenge",
         boss_relation="This is the final boss: the complete original problem as a closing challenge. Only here may the reference solution solve the whole problem.",
         main_thing="original problem",
@@ -251,7 +251,7 @@ MAX_TOKENS: Dict[str, int] = {
     "curriculum": 4096,
     # The plan of the path: phase titles and goals, and the boss. The answer itself is short (~600 tokens), but a
     # reasoning model's hidden thinking counts against this budget: 1500 left it cut off mid-JSON ("not valid JSON").
-    "outline": 4096,
+    "outline": 6144,  # a new path's plan also carries the questions of phase 1 (first_phase_questions)
     "phase": 6144,  # one page of the path: PHASE_QUESTIONS full questions (room for thinking, as above)
     "question": 5000,
     "breakdown": 3000,
@@ -383,6 +383,11 @@ def quoted(titles: List[str]) -> str:
     return "; ".join(f'"{t}"' for t in titles)
 
 
+def lab_of(c: PromptCtx) -> str:
+    """The lab whose profile a request reads (an unknown lab reads as DSA, like profile_of)."""
+    return c.lab if c.lab in PROFILES else "dsa"
+
+
 def profile_of(c: PromptCtx) -> LabProfile:
     """The words of the lab a request is for; a lab with no profile reads as DSA (the handlers refuse one before this)."""
     return PROFILES.get(c.lab, PROFILES["dsa"])
@@ -479,8 +484,31 @@ def build_curriculum_prompt(c: PromptCtx, phase_count: int, focus: str) -> str:
 # These two prompts split it: `outline` plans the phases (titles and goals) and the boss, `phase` writes ONE phase of
 # PHASE_QUESTIONS full questions. The learner asks for the next page with "Generate more", and "Regenerate phase" is the same call.
 
-# Questions the AI writes per call. Twin: PHASE_QUESTIONS in prompts.ts.
+# Questions the AI writes per call (the default; the learner may ask for another count). Twin: PHASE_QUESTIONS in prompts.ts.
 PHASE_QUESTIONS = 5
+
+# Labs whose answers are programs: their coding answers follow the baseline-to-optimized order.
+CODE_ANSWER_LABS = ("dsa", "cv", "python", "genai")
+# Labs where the heap example of the question rules fits.
+CODING_EXAMPLE_LABS = ("dsa", "python")
+
+
+def question_rules(c: PromptCtx, p: LabProfile) -> List[str]:
+    """The rules every generated question follows (the outline's first phase, a phase, added questions)."""
+    return [
+        "- Every question asks for ONE clear task about one idea, written as a full sentence: a question or an instruction the learner can attempt on their own.",
+        "- Teach prerequisites before using them: the first time an idea, a data structure or a library function appears, ask what it is and how to use it on its own, before any question needs it.",
+        "- Mix the kinds of question where they fit: concept (what it is, why it is used), tracing (follow a tiny input by hand), decision (choose between approaches and justify it), and small hands-on coding exercises.",
+        '- For example, for a heap problem ask separately what a priority queue does, how to push and pop with Python\'s heapq, what the heap holds after a push or a pop, and why repeated dictionary scans cost more for this problem, before asking for the full solution.'
+        if lab_of(c) in CODING_EXAMPLE_LABS
+        else "",
+        "- Titles and objectives never contain the answer, the solution or a hint that gives it away.",
+        f'- "kind" is one of: {p.kinds}',
+        '- "exercise" is true when the learner should write code to answer the question (most implementation and algorithm questions) and false for pure concept questions.',
+        f"- {p.exercise_note}" if p.exercise_note else "",
+        '- "difficulty" is easy, medium or hard. "effort" is a short estimate such as "5 min".',
+        "- Do not give away the final solution: no solution code, and no question that states the complete algorithm outright. The questions guide the learner toward it.",
+    ]
 
 
 @dataclass
@@ -498,64 +526,122 @@ class PhaseInput:
     other_titles: List[str] = field(default_factory=list)  # questions the rest of the path already has
     kept_titles: List[str] = field(default_factory=list)  # questions of THIS phase that stay (a regenerate keeps worked ones)
     focus: str = ""
+    count: int = PHASE_QUESTIONS  # how many questions to write
+    existing_titles: List[str] = field(default_factory=list)  # "Add questions": the phase's questions, in order; write NEW ones after them
+    outline_start: int = 1  # the number of the first phase in `outline` (a long path sends the phases around this one)
 
 
-def build_outline_prompt(c: PromptCtx, phase_count: int, focus: str) -> str:
+OUTLINE_QUESTION_SHAPE = '{"title":"...","objective":"one sentence: what the learner will be able to do","kind":"concept","difficulty":"easy","effort":"5 min","exercise":false}'
+
+
+def build_outline_prompt(
+    c: PromptCtx,
+    phase_count: int,
+    focus: str,
+    first_phase_questions: int = 0,
+    existing: Optional[List[OutlinePhase]] = None,
+    add_count: int = 1,
+) -> str:
     wanted = js_trim(focus)
     p = profile_of(c)
+    if existing:
+        # "Add phase": only the outlines of the new phases; their questions are written later, on demand.
+        have = "\n".join(f"{i + 1}. {o.title}" + (f" - {o.goal}" if o.goal else "") for i, o in enumerate(existing))
+        return blocks(
+            f"You are a senior {p.instructor} extending a guided practice path for ONE {p.kind}. The learner works through it phase by phase, question by question, and {p.practice}. You plan only the outline of the new phases now: their questions are written later, on demand.",
+            problem_block(c),
+            learner_block(c),
+            f'The learner asked the path to focus on:\n"""\n{wanted}\n"""' if wanted else "",
+            f"The path already has these phases, in order:\n{have}",
+            lines(
+                f"Plan exactly {add_count} NEW phase{'' if add_count == 1 else 's'} that come after them:",
+                "- Continue the learning order and go one step further than the last phase. Do not repeat or rename a phase the path already has.",
+                f"- Name each phase for this {p.thing}; do not use generic titles.",
+                '- Every phase has a "goal": one sentence on what the learner can do after it.',
+                f"- {p.lab_note}" if p.lab_note else "",
+            ),
+            "Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:",
+            '{"phases":[{"title":"...","goal":"one sentence: what the learner can do after this phase"}]}',
+        )
+    first = (
+        lines(
+            f"Also write the questions of phase 1 now, and only of phase 1: exactly {first_phase_questions} questions, in learning order, easiest first. The other phases get an empty \"questions\" list; they are written later, on demand.",
+            f"- Phase 1 is the learner's very first contact with the {p.thing}, so keep every question basic: \"easy\", about 5 minutes each. Start with the problem statement, its constraints, a tiny example, and what each building block is, in the simplest words, then tiny hands-on tasks on one small example.",
+            *question_rules(c, p),
+            "- No two questions may repeat each other.",
+        )
+        if first_phase_questions > 0
+        else ""
+    )
+    shape = (
+        '{"phases":[{"title":"...","goal":"one sentence: what the learner can do after this phase","questions":['
+        + OUTLINE_QUESTION_SHAPE
+        + ']},{"title":"...","goal":"...","questions":[]}],"boss":{"title":"...","story":"...","objective":"...","difficulty":"hard","effort":"25 min"}}'
+        if first_phase_questions > 0
+        else '{"phases":[{"title":"...","goal":"one sentence: what the learner can do after this phase"}],"boss":{"title":"...","story":"...","objective":"...","difficulty":"hard","effort":"25 min"}}'
+    )
     return blocks(
-        f"You are a senior {p.instructor} planning a guided practice path for ONE {p.kind}. The learner works through it phase by phase, question by question, and {p.practice}. Each phase is written later, on its own: you plan only the outline now.",
+        f"You are a senior {p.instructor} planning a guided practice path for ONE {p.kind}. The learner works through it phase by phase, question by question, and {p.practice}."
+        + (" You plan the outline now; each later phase is written on its own, on demand." if first_phase_questions > 0 else " Each phase is written later, on its own: you plan only the outline now."),
         problem_block(c),
         learner_block(c),
         f'The learner asked the path to focus on:\n"""\n{wanted}\n"""' if wanted else "",
         lines(
-            f"Plan a path of exactly {phase_count} phases that takes the learner from not knowing the {p.thing} to {p.goal}:",
+            f"Plan a path of exactly {phase_count} phases in learning order that takes the learner from not knowing the {p.thing} to {p.goal}:",
             f"- Start from the very beginning: phase 1 is the plain basics, what the {p.thing} is, what it is for and how it works, in the simplest words, before any technique. Do not assume the learner already knows them.",
-            f"- Build up in small steps: {p.steps}. Name the phases for this {p.thing}; do not use generic titles.",
+            f"- Build up in small steps: {p.steps}. Name the phases for this {p.thing} with topic-specific titles; do not use generic titles.",
             "- Across the phases the learner must also meet the limits of the idea: why it is used instead of the alternatives, and when it fails or becomes the wrong choice.",
             '- Every phase has a "goal": one sentence on what the learner can do after it.',
             f'- Also plan one final boss: {p.final_task}, with a one-sentence framing in "story".',
             f"- {p.lab_note}" if p.lab_note else "",
         ),
+        first,
         "Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:",
-        '{"phases":[{"title":"...","goal":"one sentence: what the learner can do after this phase"}],"boss":{"title":"...","story":"...","objective":"...","difficulty":"hard","effort":"25 min"}}',
+        shape,
     )
 
 
 def build_phase_prompt(c: PromptCtx, ph: PhaseInput) -> str:
     wanted = js_trim(ph.focus)
     p = profile_of(c)
-    plan = "\n".join(f"{i + 1}. {o.title}" + (f" - {o.goal}" if o.goal else "") for i, o in enumerate(ph.outline))
-    count = max(1, PHASE_QUESTIONS - len(ph.kept_titles)) if ph.kept_titles else PHASE_QUESTIONS
-    what = f"Write the questions of phase {ph.number}" + (f': "{ph.title}".' if ph.title else ".")
+    start = max(1, ph.outline_start)
+    plan = "\n".join(f"{start + i}. {o.title}" + (f" - {o.goal}" if o.goal else "") for i, o in enumerate(ph.outline))
+    wanted_count = max(1, ph.count)
+    if ph.existing_titles:
+        what = f"Add questions to phase {ph.number}" + (f': "{ph.title}".' if ph.title else ".")
+        how = (
+            f"- This phase already has these questions, in this order: {quoted(ph.existing_titles)}. They all stay. Write exactly {wanted_count} NEW question{'' if wanted_count == 1 else 's'} that come after them:"
+            " continue the phase goal, go one step further, and do not repeat or reword any of them."
+        )
+    elif ph.kept_titles:
+        what = f"Write the questions of phase {ph.number}" + (f': "{ph.title}".' if ph.title else ".")
+        how = f"- These questions of this phase stay as they are: {quoted(ph.kept_titles)}. Write exactly {max(1, wanted_count - len(ph.kept_titles))} NEW questions that fit with them."
+    else:
+        what = f"Write the questions of phase {ph.number}" + (f': "{ph.title}".' if ph.title else ".")
+        how = f"- Write exactly {wanted_count} questions."
     return blocks(
         f"You are a senior {p.instructor} writing one phase of a guided practice path for ONE {p.kind}. The learner works through it phase by phase, question by question, and {p.practice}.",
         problem_block(c),
         learner_block(c),
         f'The learner asked the path to focus on:\n"""\n{wanted}\n"""' if wanted else "",
-        f"The whole path, phase by phase:\n{plan}" if plan else "",
+        f"The phases around this one:\n{plan}" if plan else "",
         lines(
             what,
             f"Goal of this phase: {ph.goal}" if ph.goal else "",
             "" if ph.title else "- This phase is not in the plan yet: choose its title and its goal, continuing naturally from the phases above and going one step further.",
-            f"- These questions of this phase stay as they are: {quoted(ph.kept_titles)}. Write exactly {count} NEW questions that fit with them." if ph.kept_titles else f"- Write exactly {count} questions.",
+            how,
             f"- Put them in learning order, easiest first. Build up in small steps: {p.steps}.",
             (
-                f"- This is phase 1, the learner's very first contact with the {p.thing}, so keep every question very basic: all \"easy\", about 5 minutes each. Pitch it like the first lesson of a beginner course, the way a Python course starts with \"What is a dictionary?\" and \"Multiply two short lists item by item.\": first ask what each building block is, in the simplest words, then give tiny hands-on tasks on one small example, one step at a time. No edge cases, trade-offs, limits, complexity or interview-style problems yet: the later phases cover those."
+                f"- This is phase 1, the learner's very first contact with the {p.thing}, so keep every question very basic: all \"easy\", about 5 minutes each. Start with the problem statement, its constraints, a tiny example and what each building block is, in the simplest words, then tiny hands-on tasks on one small example, one step at a time. No edge cases, trade-offs, limits, complexity or interview-style problems yet: the later phases cover those."
                 if ph.number == 1
-                else '- Do not assume the learner knows the basics. The first time an idea appears, ask a plain "What is ...?" question about it before anything harder. Mix the kinds of question: what it is, why it is used here instead of the alternatives, how it works, when it fails or becomes the wrong choice (limits, edge cases, trade-offs), and how to spot and fix a mistake.'
+                else '- Do not assume the learner knows the basics. Mix the kinds of question: what it is, why it is used here instead of the alternatives, how it works, when it fails or becomes the wrong choice (limits, edge cases, trade-offs), and how to spot and fix a mistake.'
             ),
-            "- Every question is one clear question or task a learner can attempt on their own, about one idea or one step. Write each title as a full sentence: a question or an instruction.",
-            f'- "kind" is one of: {p.kinds}',
-            '- "exercise" is true when the learner should write code to answer the question (most implementation and algorithm questions) and false for pure concept questions.',
-            f"- {p.exercise_note}" if p.exercise_note else "",
-            '- "difficulty" is easy, medium or hard. "effort" is a short estimate such as "5 min".',
-            "- Do not give away the final solution: no solution code, and no question that states the complete algorithm outright. The questions guide the learner toward it.",
+            *question_rules(c, p),
             f"- Do not repeat any question the path already has: {quoted(ph.other_titles)}" if ph.other_titles else "- No two questions may repeat each other.",
             f"- {p.lab_note}" if p.lab_note else "",
         ),
         "Respond with JSON only: no Markdown fences, no commentary. Use exactly this shape:",
-        '{"title":"...","goal":"one sentence: what the learner can do after this phase","questions":[{"title":"...","objective":"one sentence: what the learner will be able to do","kind":"concept","difficulty":"easy","effort":"5 min","exercise":false}]}',
+        '{"title":"...","goal":"one sentence: what the learner can do after this phase","questions":[' + OUTLINE_QUESTION_SHAPE + ']}',
     )
 
 
@@ -587,6 +673,9 @@ def build_question_prompt(c: PromptCtx, q: QuestionRef, pos: PathPos, sibling_ti
             "   - The reference solution must pass every test. Leave out any test whose expected value you are not sure of.",
             '4. "hints": exactly 3 progressive hints, from a gentle nudge to the key insight. None of them may state the complete solution.',
             '5. "solution_explanation": Markdown. The answer to the question with a short walkthrough. It is shown only when the learner asks for it.',
+            "   For a coding question, go from a tiny example and a correct baseline to the best approach: name the bottleneck, say why the alternatives lose, then the optimized Python code, a dry run on the tiny example, the time and space complexity, and the edge cases."
+            if lab_of(c) in CODE_ANSWER_LABS and (q.wants_exercise or q.kind in ("implementation", "algorithm"))
+            else "",
         ),
         lines(
             "Rules:",
@@ -744,6 +833,7 @@ def build_tutor_prompt(c: PromptCtx, t: TutorInput) -> str:
         "The learner has already opened the reference solution of this question." if t.solution_revealed else "",
         lines(
             "Teaching approach (follow it every turn):",
+            "0. Tutor this ONE question only. Start at the learner's current level, wait for their attempt, then give targeted feedback or ONE hint and resolve their doubts about this question. Do not move on to another question: only when the learner says \"next\" or \"worked, next\", tell them in one sentence to open the next question of the path.",
             "1. Find out what the learner already understands before teaching.",
             "2. Explain the concept in simple language.",
             "3. Use practical examples and analogies.",
@@ -791,7 +881,8 @@ def build_star_code_prompt(c: PromptCtx, s: StarInput) -> str:
             "- Use the standard library and plain Python data structures only: no third-party packages such as numpy, pandas, OpenCV or PyTorch.",
             "- Write one complete program that runs as it is: imports first, clear names, and small helper functions where they make it easier to read.",
             "- Give every function a short docstring that says what it does and its time and space complexity. Comment the lines that need a reason, not the obvious ones.",
-            '- Finish with an if __name__ == "__main__": block that runs two or three small examples with print() and shows the expected output in comments.',
+            "- When a simpler correct approach exists, write it first as a baseline function, then the optimized one, with a comment on the baseline's bottleneck and why the optimized approach wins.",
+            '- Finish with an if __name__ == "__main__": block that runs a tiny example as a dry run, then two or three more examples including edge cases, with print() and the expected output in comments.',
             "- If the question is about an idea and there is no algorithm to write, write a short runnable Python demonstration of the idea instead.",
             p.lab_note,
         ),
@@ -828,6 +919,11 @@ def build_star_prompt(c: PromptCtx, s: StarInput) -> str:
             f"## R — Result: {p.star_result}",
             "## Common mistakes",
             "## Interview tips",
+        ),
+        (
+            "This is a coding question. In the Action, go in this order: a tiny example, a correct baseline in Python, its bottleneck, the alternatives and why they are rejected, the optimized Python code, a dry run on the tiny example, the time and space complexity, and the edge cases."
+            if lab_of(c) in CODE_ANSWER_LABS and (s.question.wants_exercise or s.question.kind in ("implementation", "algorithm") or bool(s.exercise_prompt))
+            else "This is a verbal answer: keep Situation, Task and Result to two or three sentences each, and label any example you make up as hypothetical."
         ),
         'Put important technical terms in **bold**. Be complete but tight: roughly 350 to 650 words plus code. Write the heading lines as plain headings (for example "## S — Situation"), without the descriptions above.',
         variant,

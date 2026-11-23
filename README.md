@@ -272,6 +272,49 @@ Class
 `steps` (insert), `reorder` (move), `suggest-placement` (AI recommendation). Any change to
 these must be made in both `router.py` and `fe-apis/lms/index.ts`.
 
+### Project question topics ("Add question or topic")
+
+Inside a Project a learner types a question ("What type of algorithm relies on a similarity measure to make
+predictions?") or a topic ("K-nearest neighbors") and gets a practical lesson tied to that project.
+
+- **Flow:** *Add question or topic* (`?ask=1` on the project page) → **Continue** asks the AI for a short editable
+  title and a section (an existing section only when it clearly fits, otherwise **User Questions Topics**, created
+  when the first topic that needs it is saved) → the learner can edit the type, title, guiding question (topics)
+  and section → **Generate lesson**. If the suggestion fails, the preview is filled in by hand; if generation fails,
+  everything typed stays (draft in localStorage, `lms.questionTopicDraft.<project>`).
+- **Where it lives:** a sub-step of one of the project's outline modules in `lms_subjects.project_plan`, with
+  `kind: "question"`, `input_type`, `original_input` (verbatim), `version`, plus a normal `lms_lessons` row
+  (`source_type = 'project-question'`). So the outline, navigation, lesson URLs and every viewer mode (Easy Read,
+  Swipe, Breakdown, …) work unchanged. Every outline entry now has an `id` (stored, or derived from parent + title
+  until the next save, `ensure_ids`); sections are addressed by that id.
+- **Lesson:** the model returns JSON with the six required parts (direct answer + concept, real-world use, connection
+  to this project with an honest fit/illustrative flag, step-by-step code with expected output and checks, KPI +
+  baseline + measurement, STAR answer whose result is labelled *projected* unless the project data says it was
+  achieved). It is validated (`normalize_lesson`, one retry with the reason) and rendered by a template; every model
+  string is HTML-escaped and the page carries no script, event handler or link of its own. The page never names its
+  section (topics can move without regenerating).
+- **Organize:** *Rename or move* (title + section of the same project), *Regenerate* (AI, same lesson id),
+  delete. Moving appends to the destination, keeps the topic id, lesson id/slug/URL and HTML, never calls the AI.
+  Regenerating the module outline and *Break down* keep question topics (and their lessons).
+- **Endpoints** (both twins, same texts and codes): `POST .../question-topics/preview`, `POST .../question-topics`
+  (`operation_id` required), `GET .../question-topics/operations/{id}`, `PATCH|DELETE .../question-topics/{topic}`.
+  Access = the existing project rule: `ai_lms:edit` (editor+) or owning the project's class; reads need a login.
+  A section id from another project is a 422.
+- **No duplicates:** one `operation_id` per request, reused by every retry (timeouts, the FastAPI → Next.js
+  fallback, a refresh mid-generation). `lms_topic_operations` records it (`generating`/`done`/`failed`); the commit
+  re-checks it inside `BEGIN IMMEDIATE`, so the second of two simultaneous runs returns the first one's topic. The
+  same id with a different request is a 409; a running one is a 409 with `operation`, which the UI polls.
+- **Stale edits:** PATCH sends `base_version`; an edit made on an old screen gets a 409 with the current topic instead
+  of undoing a newer move or rename made on another device.
+- **Sync:** generation is self-synced (`runSyncedWrite` ↔ `synced_write`): the claim and the commit are short synced
+  writes and the AI call holds no lock; rename/move/delete are ordinary synced writes. See "Data sync across devices".
+- **Code:** `backend/modules/ai_lms/question_topics.py` (pure) + `question_topics_api.py` ↔
+  `frontend/fe-apis/lms/questionTopics.ts` + `questionTopicHandlers.ts`; UI `AddQuestionTopicPanel.tsx` and the
+  question rows in `ProjectDetailModule.tsx`.
+- **Checks:** `cd backend && python3 tests/lms_question_topics_test.py` (twin diff of prompts, validation, renderer,
+  ids; 38 cases) and `backend/tests/lms_question_topics_e2e.sh` (FastAPI + two Next.js servers + a mock AI + a folder
+  standing in for Neon; the LCB GrowthAI acceptance scenario, retries, access, offline, convergence; 70 checks).
+
 ### Video links (labs and AI LMS)
 
 - **Rules in one place.** `frontend/src/lib/video/videoLinks.ts` (browser + `fe-apis`) and its Python mirror
@@ -754,7 +797,29 @@ from shared parts in `frontend/src/modules/labs/common/management/`. A lab is de
 - **Videos on lab pages** can be added for everyone by an admin (`lab_page_videos.user_id = 0`; `lab_sections/videos.py` ↔
   `fe-apis/labSections/videos.ts`): everyone sees them, only an admin removes them, `shared` on the POST body is admin only.
 
-## Guided Practice (`/dsa-lab/guided-practice`, `/cv-lab/guided-practice`)
+## Guided Path (formerly Guided Practice) (`/dsa-lab/guided-practice`, `/cv-lab/guided-practice`)
+
+**Guided Path (2026-11-23).** The visible name is now *Guided Path*; URLs (`/<lab>-lab/guided-practice`), API paths
+(`/guided-practice/*`), the table and the saved document are unchanged, so every saved path, answer and XP loads as before.
+- **Nothing is locked.** Every phase and the boss can be opened at any time (`phaseStatus` is `active` / `available` /
+  `completed`, never `locked`; `isUnlocked` is true for every question). Completion still pays XP, phase rewards, streaks
+  and achievements exactly as before; it only records what was done.
+- **One request starts a path:** `POST /outline` with `first_phase_questions: 5` returns five phase outlines (title + one-
+  sentence goal) and the boss, with questions for phase 1 only (`parseStart`). Phases 2-5 are saved empty (`pending`).
+- **On demand only:** opening a phase, a reload, a tab switch or reopening a path never generates. A question restored from
+  the URL shows *Write this lesson*; only a question the learner clicks writes its lesson by itself.
+- **Generate questions** (an empty phase, any phase, count 3/5/8) = `POST /phase` with `question_count`; **Add questions**
+  appends to a written phase (`existing_titles`, `appendToPhase`: order and ids kept, a title the path has is never added
+  twice); **Add phase** plans 1-3 more empty phases (`/outline` with `existing_phases` + `add_count`, `addPlannedPhases`).
+  Requests send the phases around the target (`outline` window + `outline_start`) and the titles to avoid. Each action has
+  its own busy flag, error and Retry; a failure saves nothing, so a retry cannot duplicate. Up to `MAX_GENERATED_PHASES` = 20.
+- **Prompts:** phases follow learning order (problem, constraints, tiny examples, prerequisites, tracing, small exercises,
+  baseline, bottleneck, alternatives, optimized code, tests; DSA `steps`), one task per question, prerequisites first, mixed
+  kinds, no solution in titles or objectives (`question_rules`). The tutor stays on one question and moves on only on "next".
+  Verbal STAR answers are concise with labelled hypotheticals; coding answers (labs dsa, cv, python, genai) go tiny example →
+  baseline → bottleneck → rejected alternatives → optimized code → dry run → complexity → edge cases, as do lesson solution
+  explanations and *Show code implementation*. Twins byte-identical: 7,323 prompt cases.
+
 
 A dedicated page behind the **Guided Practice** card that every DSA and CV topic and subtopic page shows under "Generate practice
 material" (the brief also calls it SolvePath). One AI-written path per learner and topic: five phases of questions in learning
@@ -1310,6 +1375,52 @@ Two small shared services any module can use. Both need a login and both exist i
     untrusted sources, and each card's `source` must be a URL it actually fetched (shown as "Source: host" on the card).
 - Known limits: the search endpoint is an unofficial HTML page and can change or block; DNS is resolved once for the
   check and again by the fetch (a rebinding window, mitigated by the read-only, login-only, capped design).
+
+## Data sync across devices (SQLite <-> Neon)
+
+Every server keeps the same data: Vercel (what the phone app and the browser load), `next dev` on a laptop, and the
+FastAPI backend. Each one works on its own SQLite file; **Neon holds the current copy** of each file, one row per
+database in `sqlite_snapshots` (`lab_ninja`, `career_studio`). Code: `frontend/src/lib/server/neonSync.ts` and its
+Python twin `backend/modules/common/neon_sync.py` (same table, same rules).
+
+| When | What a server does |
+| --- | --- |
+| Read (`withNeonRead`, FastAPI: any GET) | Pulls Neon's copy first if another server pushed since (checked at most every 1.5 s). |
+| Write (`withNeonSync`, FastAPI: any non-GET) | Pulls, runs the request, pushes with a compare-and-set on `updated_at`. If another server pushed in between, it takes that copy and runs the request again (up to 6 times, with jittered backoff); if it still loses, the request is queued, never dropped. |
+| Neon unreachable | The write is applied to the local file and its request (method, URL, headers, body) is queued in the state file. Once Neon answers: if nobody pushed meanwhile, the file goes up as is; otherwise the server takes Neon's copy and re-sends the queued requests on top, in order. A laptop retries every 15 s while idle; a Vercel instance on its next request. |
+| File changed outside the app (git pull/checkout of the tracked DB, sqlite3 CLI) | Detected by size + mtime. The file is copied to `backend/data/backups/`, then Neon's copy replaces it (it is never pushed over newer data). |
+| Two servers on one file (next dev + FastAPI locally) | A lock directory next to the DB (`<db>.sqlite3.lock.d`, owner pid; a dead owner's lock is broken) is held for every pull and every write + push, so one server never pulls over another's unpushed write. Writes made by this process's own running requests are never taken for an outside change. |
+| Nothing new | A push is skipped when the file's bytes equal what Neon holds (sha1 in the state file), and a pull that would write identical bytes writes nothing, so idle servers don't move Neon's version. |
+
+**Turning it on.** It runs wherever `DATABASE_URL` (the Neon connection string, the same one Vercel uses) is set:
+Vercel, and now local dev too. Put it in `frontend/.env.local` (nextjs-api mode) and/or `backend/.env` (FastAPI). The
+**first** sync on a machine takes Neon's copy: the local file is backed up to `backend/data/backups/<db>-<time>-first-sync.sqlite3`
+first. If that local file had data Neon lacks and you want the local copy to win instead, push it once by hand
+(`uv run python scripts/db_backup.py push`, or Admin > DB > Push) before turning sync on.
+It stays off for test copies (`LABNINJA_DB_DIR` / `LABNINJA_TEST_DB_PATH` / `CAREER_STUDIO_DB_PATH` without
+`LABNINJA_SYNC_REMOTE_DIR`) and everywhere with `LABNINJA_NEON_SYNC=off`.
+
+**Inspecting it.** `cd frontend && npm run sync:status` shows, per database and per server kind, the Neon version
+held, the last sync, the last error, and the queue (`-- --details` lists each queued or refused request;
+`-- --requeue-failed` puts refused ones back on the queue). State files: `backend/data/<db>.sqlite3.sync.json`
+(Next.js) and `.sync-py.json` (FastAPI); gitignored, they hold the login tokens of queued requests. A queued request
+the server refuses on replay (4xx, e.g. an expired login after 30 days, or a record deleted meanwhile) moves to
+"refused" and is not retried on its own.
+
+**Tests:** `backend/tests/neon_sync_e2e.sh` (two `next dev` servers + the Python middleware on a folder remote:
+visibility both ways, 20 and 80 simultaneous writes, offline queue and replay, an external edit, Python/Next.js
+convergence) and `backend/tests/lms_question_topics_e2e.sh` (FastAPI and a Next.js server sharing one file, a second
+Next.js server as the phone). Both need a Python with the backend's deps (`PYTHON=...`, default `uv run python`).
+
+**Testing it without Neon.** `LABNINJA_SYNC_REMOTE_DIR=<folder>` replaces Neon with a folder (`<db>.sqlite3` +
+`<db>.version`); an `OFFLINE` file in it (or `OFFLINE-<LABNINJA_SYNC_TAG>`, per server) simulates a lost connection.
+Run two `next dev` servers (and/or the FastAPI app) with their own `LABNINJA_DB_DIR` copies and the same folder. Checked
+2026-11-23: two Next.js servers and the Python middleware, 20/80/30 simultaneous writes (none lost or doubled), offline
+writes on either side replayed exactly once, external edits backed up and not pushed.
+
+**Limits.** The unit is the whole file, so two servers' writes never merge row by row: they are serialized through
+Neon. A write queued while offline is re-applied *after* edits that reached Neon meanwhile, so if both changed the same
+field, the offline one lands last. `GET /api/push/sweep` (unused) is not wrapped: a replay would re-send notifications.
 
 ## Vercel Deployment & Backend Modes
 

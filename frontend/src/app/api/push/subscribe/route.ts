@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { savePushSubscription, removePushSubscription } from '@/lib/server/webPush';
 import { userIdOrAuthError } from 'fe-apis/todo/_shared';
+import { withNeonSync } from '@/lib/server/neonSync';
 
 // Login required (the app is login-only). The subscription is saved under the caller's own user id.
 
-export async function POST(req: Request) {
+async function POSTImpl(req: Request) {
   const userId = userIdOrAuthError(req);
   if (userId instanceof Response) return userId;
   try {
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+async function DELETEImpl(req: Request) {
   const auth = userIdOrAuthError(req);
   if (auth instanceof Response) return auth;
   try {
@@ -50,3 +51,6 @@ export async function DELETE(req: Request) {
   }
 }
 
+export const POST = withNeonSync(POSTImpl);
+
+export const DELETE = withNeonSync(DELETEImpl);

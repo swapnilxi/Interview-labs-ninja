@@ -199,7 +199,7 @@ export default function ShareClassButton({ classSlug, className }: ShareClassBut
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="inline-flex h-[2.625rem] flex-shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold text-white transition-colors hover:mix-bg-primary/90"
+                  className="inline-flex h-[2.625rem] flex-shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:mix-bg-primary/90"
                 >
                   <Icon
                     name={status === 'copied' ? 'CheckIcon' : 'ClipboardDocumentIcon'}

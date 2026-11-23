@@ -278,7 +278,7 @@ export default function ManualLessonModal({
                 !htmlContent.trim() ||
                 (!!lessonToEdit && loadedHtml === null)
               }
-              className="px-5 py-2 text-sm font-medium rounded-lg text-white bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+              className="px-5 py-2 text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               {loading ? 'Saving...' : lessonToEdit ? 'Update Lesson' : 'Save Lesson'}
             </button>

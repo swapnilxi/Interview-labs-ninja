@@ -14,7 +14,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import {
   VIDEO_DUPLICATE_ERROR,
   VIDEO_LIMIT_ERROR,
@@ -263,7 +263,7 @@ function intSegment(value: string, name: string): number {
   return parseInt(value, 10);
 }
 
-export async function handleListVideos(req: Request): Promise<NextResponse> {
+async function handleListVideosImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -352,3 +352,7 @@ export const handleUpdateVideo = withNeonSync(updateVideoImpl);
 export const handleDeleteVideo = withNeonSync(deleteVideoImpl);
 export const handlePutModuleVideos = withNeonSync(putModuleVideosImpl);
 export const handlePutSublessonVideos = withNeonSync(putSublessonVideosImpl);
+
+// Reads (and AI previews that only read): pull Neon's newer copy first on Vercel, or a warm
+// instance that never saw a project/lesson created on another instance answers 404.
+export const handleListVideos = withNeonRead(handleListVideosImpl);

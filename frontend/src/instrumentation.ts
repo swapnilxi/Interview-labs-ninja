@@ -12,5 +12,6 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const { ensureSeededFromNeon } = await import('./lib/server/neonSync');
     await ensureSeededFromNeon('lab_ninja');
+    await ensureSeededFromNeon('career_studio');
   }
 }
