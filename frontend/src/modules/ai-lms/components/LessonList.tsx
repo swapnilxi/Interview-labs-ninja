@@ -123,7 +123,7 @@ export default function LessonList({
               onClick={() => setIsOrganizeMode(!isOrganizeMode)}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-semibold transition-all ${
                 isOrganizeMode
-                  ? 'bg-primary text-white border-primary shadow-sm'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                   : 'bg-card text-foreground border-border hover:bg-muted'
               }`}
             >
@@ -267,7 +267,7 @@ export default function LessonList({
 
                 {/* Open button */}
                 {!isOrganizeMode && (
-                  <div className="px-3 py-1.5 rounded-lg text-xs font-semibold text-primary bg-primary/10 group-hover:bg-primary group-hover:text-white transition-all flex items-center gap-1">
+                  <div className="px-3 py-1.5 rounded-lg text-xs font-semibold text-primary bg-primary/10 group-hover:bg-primary group-hover:text-primary-foreground transition-all flex items-center gap-1">
                     <span>Study</span>
                     <Icon name="ArrowRightIcon" size={12} />
                   </div>

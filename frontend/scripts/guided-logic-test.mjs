@@ -362,13 +362,19 @@ test('createState: phases, boss and ids', () => {
   assert.deepStrictEqual(state.ui.open, {});
 });
 
-test('phase 2 and the boss are locked until phase 1 completes', () => {
+test('Guided Path: every phase and the boss are open from the start; completion never controls access', () => {
   assert.strictEqual(tree.phaseStatus(state, state.phases[0]), 'active');
-  assert.strictEqual(tree.phaseStatus(state, state.phases[1]), 'locked');
-  assert.strictEqual(tree.bossStatus(state), 'locked');
-  assert.strictEqual(tree.isUnlocked(state, q3), false);
-  assert.strictEqual(tree.completionGate(state, q3).ok, false);
-  assert.strictEqual(xp.completeQuestion(state, q3).state, state); // refused: unchanged
+  assert.strictEqual(tree.phaseStatus(state, state.phases[1]), 'available');
+  assert.strictEqual(tree.bossStatus(state), 'active');
+  assert.strictEqual(tree.isUnlocked(state, q3), true);
+  assert.strictEqual(tree.isUnlocked(state, state.bossId), true);
+  assert.strictEqual(tree.completionGate(state, q3).ok, true);
+  // Completing a phase-2 question before phase 1 works and pays its XP (checked on a copy: the tests below go in order).
+  const early = xp.completeQuestion(state, q3);
+  assert.notStrictEqual(early.state, state);
+  assert.ok(tree.isDone(early.state, q3));
+  assert.ok(early.state.player.xp > 0);
+  assert.strictEqual(tree.phaseStatus(early.state, early.state.phases[0]), 'active', 'phase 1 is still the one to work in');
 });
 
 test('completing pays XP once; undo and redo does not pay again', () => {
@@ -758,16 +764,14 @@ test('hydrateState keeps a saved code implementation, and drops anything that is
   assert.strictEqual(tree.hydrateState(old).progress[q1].star.code, null);
 });
 
-test('nextQuestionId skips locked phases and completed questions', () => {
+test('nextQuestionId goes on into the next phase (nothing is locked) and skips completed questions', () => {
   const fresh = tree.createState(topic, curriculum, '');
   const first = fresh.phases[0].questionIds[0];
   assert.strictEqual(tree.nextQuestionId(fresh, first), fresh.phases[0].questionIds[1]);
   const lastOfP1 = fresh.phases[0].questionIds[1];
-  assert.strictEqual(
-    tree.nextQuestionId(fresh, lastOfP1),
-    first,
-    'phase 2 is locked, so it wraps to the first unfinished one in an unlocked phase'
-  );
+  assert.strictEqual(tree.nextQuestionId(fresh, lastOfP1), fresh.phases[1].questionIds[0]);
+  const skipped = tree.patchProgress(fresh, fresh.phases[1].questionIds[0], { completed: true });
+  assert.notStrictEqual(tree.nextQuestionId(skipped, lastOfP1), fresh.phases[1].questionIds[0]);
 });
 
 test('every lab offers Show code implementation except the one that is all wording', () => {
@@ -974,13 +978,13 @@ test('createPlannedState writes the first phase and leaves the rest pending', ()
   assert.ok(st.bossId && st.questions[st.bossId].title.startsWith('Build the whole'));
   assert.strictEqual(st.focus, 'focus text');
 });
-test('a pending phase is never done: the boss stays locked and the bar does not reach 100%', () => {
+test('a pending phase is never done and the bar does not reach 100%; the boss and every phase stay open', () => {
   let st = finishPhase(planned(), 'p1');
   assert.strictEqual(tree.isPhaseDone(st, st.phases[1]), false);
-  assert.strictEqual(tree.bossStatus(st), 'locked');
+  assert.strictEqual(tree.bossStatus(st), 'active');
   assert.strictEqual(tree.phaseStatus(st, st.phases[0]), 'completed');
   assert.strictEqual(tree.phaseStatus(st, st.phases[1]), 'active');
-  assert.strictEqual(tree.phaseStatus(st, st.phases[2]), 'locked');
+  assert.strictEqual(tree.phaseStatus(st, st.phases[2]), 'available');
   const o = tree.overall(st);
   assert.strictEqual(o.requiredTotal, 5 + 1 + 2 * PHASE_QUESTIONS);
   assert.ok(o.percent < 100 && o.percent > 0, String(o.percent));
@@ -1041,7 +1045,7 @@ test('regenerating a phase also removes the children (breakdown) of the replaced
   const r = tree.applyPhase(st, 'p1', parse.parsePhase(pageJson(5, 'again'), new Set()));
   for (const id of [a, ...kidIds]) assert.strictEqual(r.state.questions[id], undefined);
 });
-test('appendPhases adds the next phase after the last and before the boss, and relocks the boss', () => {
+test('appendPhases adds the next phase after the last and before the boss, which stays open', () => {
   let st = planned();
   for (const id of ['p2', 'p3'])
     st = tree.applyPhase(st, id, parse.parsePhase(pageJson(5, id), new Set())).state;
@@ -1058,12 +1062,86 @@ test('appendPhases adds the next phase after the last and before the boss, and r
   const last = r.state.phases[r.state.phases.length - 1];
   assert.deepStrictEqual([last.id, last.number, last.title], ['p4', 4, 'Phase 4']);
   assert.strictEqual(r.state.phases.length, 4);
-  assert.strictEqual(tree.bossStatus(r.state), 'locked');
+  assert.strictEqual(tree.bossStatus(r.state), 'active');
   assert.strictEqual(r.state.questions[r.state.bossId].relation, 'boss');
   assert.ok(
     tree.questionOrder(r.state).indexOf(r.state.bossId) === tree.questionOrder(r.state).length - 1
   );
 });
+test('Guided Path: parseStart reads ONE answer into five phases with questions in phase 1 only', () => {
+  const answer = JSON.stringify({
+    phases: [
+      { title: 'What the problem asks', goal: 'Restate it.', questions: pageQuestions(5, 'start') },
+      { title: 'Heap basics', goal: 'Use heapq.', questions: [] },
+      { title: 'A baseline', goal: 'Count first.' },
+      { title: 'Why heaps', goal: 'Compare.', questions: [] },
+      { title: 'Optimized', goal: 'Write it.', questions: [] },
+    ],
+    boss: { title: 'Solve the whole problem end to end', story: 'S', objective: 'O' },
+  });
+  const { outline, first } = parse.parseStart(answer, 5);
+  assert.strictEqual(outline.phases.length, 5);
+  assert.strictEqual(first.questions.length, 5);
+  const st = tree.createPlannedState(topic, outline, first, '');
+  assert.strictEqual(st.phases[0].questionIds.length, 5);
+  assert.ok(st.phases.slice(1).every((p) => p.pending && p.questionIds.length === 0));
+  assert.ok(st.phases.every((p) => tree.phaseStatus(st, p) !== 'locked'));
+  assert.throws(
+    () => parse.parseStart(JSON.stringify({ phases: [{ title: 'A', goal: 'g' }, { title: 'B' }] }), 5),
+    /did not write the phase 1 questions/
+  );
+});
+
+test('Guided Path: questions can be generated for phase 4 while phase 1 is not done', () => {
+  const st = planned();
+  const p4 = st.phases.find((p) => p.number === 3) ?? st.phases[st.phases.length - 1];
+  assert.ok(p4.pending);
+  const r = tree.applyPhase(st, p4.id, parse.parsePhase(pageJson(5, 'later'), tree.knownTitles(st)));
+  const written = r.state.phases.find((p) => p.id === p4.id);
+  assert.strictEqual(written.questionIds.length, 5);
+  assert.ok(!written.pending);
+  assert.strictEqual(tree.isPhaseDone(r.state, r.state.phases[0]), false);
+  assert.ok(written.questionIds.every((id) => tree.isUnlocked(r.state, id)));
+});
+
+test('Guided Path: Add questions appends after the existing ones, keeps order and ids, never duplicates', () => {
+  let st = planned();
+  st = tree.patchProgress(st, st.phases[0].questionIds[0], { completed: true });
+  const before = [...st.phases[0].questionIds];
+  const xpBefore = st.player.xp;
+  const page = parse.parsePhase(pageJson(5, 'more'), tree.knownTitles(st), 5);
+  const r = tree.appendToPhase(st, 'p1', page);
+  assert.strictEqual(r.added, 5);
+  const after = r.state.phases[0].questionIds;
+  assert.deepStrictEqual(after.slice(0, before.length), before, 'existing order and ids unchanged');
+  assert.strictEqual(after.length, before.length + 5);
+  assert.ok(tree.isDone(r.state, before[0]), 'progress kept');
+  assert.strictEqual(r.state.player.xp, xpBefore);
+  // A retry that brings the same questions back adds nothing.
+  const again = tree.appendToPhase(r.state, 'p1', page);
+  assert.strictEqual(again.added, 0);
+  assert.strictEqual(again.state, r.state);
+  // Adding to a phase that had no questions yet writes it.
+  const p2 = tree.appendToPhase(r.state, 'p2', parse.parsePhase(pageJson(3, 'p2add'), new Set(), 3));
+  assert.strictEqual(p2.state.phases[1].questionIds.length, 3);
+  assert.ok(!p2.state.phases[1].pending);
+});
+
+test('Guided Path: Add phase plans empty phases after the last one; a retry adds nothing twice', () => {
+  const st = planned();
+  const r = tree.addPlannedPhases(st, [
+    { title: 'Testing and edge cases', goal: 'Test it.' },
+    { title: 'Follow-up variants', goal: 'Extend it.' },
+  ]);
+  assert.strictEqual(r.added, 2);
+  const last = r.state.phases.slice(-2);
+  assert.ok(last.every((p) => p.pending && p.questionIds.length === 0));
+  assert.deepStrictEqual(last.map((p) => p.number), [st.phases.length + 1, st.phases.length + 2]);
+  const again = tree.addPlannedPhases(r.state, [{ title: 'Testing and edge cases', goal: 'x' }]);
+  assert.strictEqual(again.added, 0);
+  assert.strictEqual(tree.bossStatus(r.state), 'active');
+});
+
 test('a document saved before pages existed (no pending flag) behaves exactly as before', () => {
   const old = tree.createState(topic, parse.parseCurriculum(JSON.stringify(outline)), '');
   assert.ok(old.phases.every((p) => p.pending === undefined));

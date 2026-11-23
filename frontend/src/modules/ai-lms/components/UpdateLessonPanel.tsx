@@ -138,7 +138,7 @@ export default function UpdateLessonPanel({
               onClick={() => runRevision('update')}
               disabled={loading !== null || instruction.trim().length < 3}
               title="Edit the existing lesson in place, keeping everything you didn't mention"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary/90 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90 disabled:opacity-50"
             >
               <Icon name="SparklesIcon" size={14} />
               <span>{loading === 'update' ? 'Updating...' : 'Update existing'}</span>
@@ -192,7 +192,7 @@ export default function UpdateLessonPanel({
                   type="button"
                   onClick={() => handleApply()}
                   disabled={applying}
-                  className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
                 >
                   {applying ? 'Saving...' : 'Apply update'}
                 </button>

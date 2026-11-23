@@ -204,7 +204,7 @@ export default function DeeperExplanationPanel({
             <button
               type="button"
               onClick={handleGenerate}
-              className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary/90"
+              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90"
             >
               Explain Deeper
             </button>

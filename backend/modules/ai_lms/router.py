@@ -4,6 +4,7 @@ import html
 import io
 import os
 import re
+import uuid
 import zipfile
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
@@ -35,7 +36,8 @@ from .class_folders import (
 from . import updates
 from starlette.concurrency import run_in_threadpool
 
-from . import workbook_gen, workbooks
+from . import question_topics_api, workbook_gen, workbooks
+from .question_topics import find_questions_section, is_questions_section
 from . import videos as lms_videos
 from .visual_engine import (
     generate_native_visual,
@@ -85,6 +87,7 @@ _NO_SYNC_POST = re.compile(
     r"^/api/lms/(?:"
     r"lessons/[^/]+/(?:view|complete|visualize|easy-read|deeper|breakdown|revise)"
     r"|projects/[^/]+/suggest-placement"
+    r"|projects/[^/]+/question-topics/preview"
     r"|subjects/[^/]+/(?:rag/index|summarize-context)"
     r"|classes/[^/]+/(?:membership|notifications)"
     # Workbooks are not files of the class folder.
@@ -117,6 +120,8 @@ _NON_EDIT_WRITES = re.compile(
     r"|classes/[^/]+/subjects"
     r"|subjects/[^/]+"
     r"|lessons(?:/[^/]+)?"
+    # Project question topics: editors, or the owner of the project's class (question_topics_api.py checks it).
+    r"|projects/[^/]+/question-topics(?:/[^/]+)?"
     r")/?$"
 )
 
@@ -156,6 +161,9 @@ router = APIRouter(
         Depends(_sync_class_folders_after_write, scope="function"),
     ],
 )
+
+# Project question/topic lessons (AI LMS -> Classes -> Project): see question_topics_api.py.
+question_topics_api.register(router)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2145,8 +2153,23 @@ Output ONLY the JSON object. No markdown code blocks before or after."""
     if not plan:
         raise HTTPException(status_code=502, detail="The AI provider returned no modules. Please try again.")
 
-    _delete_plan_lessons(project.get("project_plan") or [])
+    old_plan = project.get("project_plan") or []
+    # Learner question topics are not part of the README plan: keep them (and their lessons) in their own section.
+    questions = [sub for m in old_plan for sub in (m.get("sublessons") or []) if sub.get("kind") == "question"]
+    _delete_plan_lessons([
+        {**m, "lesson_id": None if is_questions_section(m) else m.get("lesson_id"),
+         "sublessons": [x for x in (m.get("sublessons") or []) if x.get("kind") != "question"]}
+        for m in old_plan
+    ])
+    if questions:
+        keep = find_questions_section(old_plan) or {}
+        plan.append({
+            "id": keep.get("id") or f"s-{uuid.uuid4().hex[:12]}", "kind": "questions", "title": "User Questions Topics",
+            "focus": "Questions and topics added by learners, each answered with a practical lesson for this project.",
+            "context": "", "lesson_id": None, "sublessons": questions, "videos": [],
+        })
     save_project_plan(project["id"], plan)
+    _sync_project_lesson_order(project, plan)
     return get_subject_by_id_or_slug(cls["id"], project["id"])  # type: ignore
 
 
@@ -2287,6 +2310,8 @@ async def generate_project_module(
         raise HTTPException(status_code=404, detail="Module not found in this project's outline.")
 
     module = plan[module_index]
+    if is_questions_section(module):
+        raise HTTPException(status_code=409, detail="This section holds learner questions; it has no lesson of its own.")
     outline = "\n".join(
         f"{i + 1}. {m['title']}{' <- THIS MODULE' if i == module_index else ''}" for i, m in enumerate(plan)
     )
@@ -2406,8 +2431,10 @@ Output ONLY the JSON object. No markdown code blocks before or after."""
         raise HTTPException(status_code=502, detail="The AI provider returned no sublessons. Please try again.")
 
     # Replace whatever this module was previously broken down into (and their lessons), if any.
-    _delete_plan_lessons(module.get("sublessons") or [])
-    plan[module_index] = {**module, "sublessons": sublessons}
+    # Question topics filed under this module stay, after the new steps.
+    kept = [x for x in (module.get("sublessons") or []) if x.get("kind") == "question"]
+    _delete_plan_lessons([x for x in (module.get("sublessons") or []) if x.get("kind") != "question"])
+    plan[module_index] = {**module, "sublessons": sublessons + kept}
     save_project_plan(project["id"], plan)
 
     return get_subject_by_id_or_slug(cls["id"], project["id"])  # type: ignore
@@ -2430,6 +2457,8 @@ async def generate_project_sublesson(
         raise HTTPException(status_code=404, detail="Sublesson not found in this module.")
 
     sub = sublessons[sub_index]
+    if sub.get("kind") == "question":
+        raise HTTPException(status_code=409, detail="Regenerate a question topic from its own menu.")
     sibling_outline = "\n".join(
         f"  {i + 1}. {s['title']}{' <- THIS SUBLESSON' if i == sub_index else ''}" for i, s in enumerate(sublessons)
     )

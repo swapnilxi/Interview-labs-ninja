@@ -526,7 +526,7 @@ refused("focus over 600", "phase", {**CTX, "focus": "x" * 601})
 # ── AI endpoints: what a good request does ───────────────────────────────────
 BODIES = {
     "curriculum": ({**CTX, "phase_count": 4, "focus": "pointers"}, 4096, "You are a senior algorithms instructor designing a guided practice path"),
-    "outline": ({**CTX, "phase_count": 4, "focus": "pointers"}, 4096, "You are a senior algorithms instructor planning a guided practice path"),
+    "outline": ({**CTX, "phase_count": 4, "focus": "pointers"}, 6144, "You are a senior algorithms instructor planning a guided practice path"),
     "phase": ({**CTX, "phase_number": 2, "phase_title": "Hash maps", "outline": [{"title": "Basics", "goal": "g"}, {"title": "Hash maps", "goal": "h"}]}, 6144, "You are a senior algorithms instructor writing one phase of a guided practice path"),
     "question": ({**CTX, "question": Q}, 5000, "You are a patient senior algorithms instructor writing the full lesson"),
     "breakdown": ({**CTX, "question": Q}, 3000, "You are a patient senior algorithms instructor. A learner finds the question below too difficult."),
@@ -601,9 +601,9 @@ check("cv curriculum: the goal, the steps and the final boss are the cv ones", a
     "Build up in small steps: build the intuition, learn the core operation, implement it on small inputs, connect it to a real pipeline, then failure modes and trade-offs. Name the phases for this topic; do not use generic titles.",
     '- Also design one final boss: a closing challenge that applies the whole topic end to end, with a one-sentence framing in "story".')), p[:300])
 _, p, _ = prompt_of("curriculum", {**FULL, "phase_count": 4, "focus": "pointers"})
-check("dsa curriculum: the original labels, goal and steps", all(s in p for s in (
+check("dsa curriculum: the original labels and goal, the Guided Path learning order", all(s in p for s in (
     "Original problem: Two Sum \u2014 S", "Problem summary: B", "Pattern family: C", "Problem difficulty: D", "from not knowing the problem to solving it well:",
-    "Build up in small steps: understand the problem, spot the pattern, build the pieces, assemble the solution, then edge cases and follow-ups. Name the phases for this problem; do not use generic titles.",
+    "Build up in small steps: the problem statement, its constraints and tiny examples, the prerequisites it needs, tracing small inputs by hand, small Python exercises on each building block, a correct brute-force baseline, its bottleneck, the competing approaches and why one wins, the optimized implementation, then tests and edge cases. Name the phases for this problem; do not use generic titles.",
     '- Also design one final boss: the whole problem as a closing challenge, with a one-sentence framing in "story".')), p[:300])
 _, p, _ = prompt_of("question", {**CTX, "lab": "cv", "question": {**Q, "relation": "boss"}})
 check("cv question: the boss relation, the exercise data and the main challenge", all(s in p for s in (
@@ -696,6 +696,22 @@ check("... and cv does not", build_curriculum_prompt(PromptCtx(topic_name="T", l
 # ── js_trim: exactly what JavaScript's trim() removes ────────────────────────
 JS_TRIMMED = [9, 10, 11, 12, 13, 32, 160, 5760, *range(8192, 8203), 8232, 8233, 8239, 8287, 12288, 65279]
 check("js_trim removes exactly the characters String.prototype.trim() removes", all(js_trim(chr(cp)) == "" for cp in JS_TRIMMED) and all(js_trim(chr(cp)) == chr(cp) for cp in (0x1C, 0x1F, 0x85, 0x180E, 0x200B, 0x2060)))
+
+# ── Guided Path (2026-11-23): one-request start, "Add phase", "Generate/Add questions" with a count ──
+st, p, tok = prompt_of("outline", {**CTX, "phase_count": 5, "first_phase_questions": 5})
+check("outline: first_phase_questions asks for phase 1's questions in the same answer", st == 200 and "Also write the questions of phase 1 now, and only of phase 1: exactly 5 questions" in p and tok == 6144, f"{st} {p[-400:]}")
+check("outline: first_phase_questions above 10 is a 422", post("outline", {**CTX, "first_phase_questions": 11}).status_code == 422)
+check("outline: first_phase_questions must be a whole number", post("outline", {**CTX, "first_phase_questions": "5"}).status_code == 422)
+st, p, _ = prompt_of("outline", {**CTX, "existing_phases": [{"title": "Basics", "goal": "g"}, {"title": "Heaps"}], "add_count": 2})
+check("outline: existing_phases plans only the new phases (Add phase)", st == 200 and "Plan exactly 2 NEW phases that come after them" in p and "1. Basics - g\n2. Heaps" in p and '"boss"' not in p, p[-500:])
+check("outline: add_count above 5 is a 422", post("outline", {**CTX, "existing_phases": [{"title": "A"}], "add_count": 6}).status_code == 422)
+check("outline: an existing phase needs a title", post("outline", {**CTX, "existing_phases": [{"title": ""}]}).status_code == 422)
+st, p, _ = prompt_of("phase", {**CTX, "phase_number": 4, "phase_title": "Heaps", "question_count": 3, "existing_titles": ["What is a heap?", "Push with heapq."], "outline": [{"title": "Three"}, {"title": "Heaps"}], "outline_start": 3})
+check("phase: existing_titles + question_count append NEW questions after the existing ones", st == 200 and 'Add questions to phase 4: "Heaps".' in p and 'They all stay. Write exactly 3 NEW questions that come after them' in p and "3. Three\n4. Heaps" in p, p[-900:])
+st, p, _ = prompt_of("phase", {**CTX, "phase_number": 2, "question_count": 8})
+check("phase: question_count sets how many questions", st == 200 and "- Write exactly 8 questions." in p)
+for bad in ({"question_count": 0}, {"question_count": 11}, {"outline_start": 51}, {"existing_titles": ["x"] * 41}):
+    check(f"phase: {list(bad)[0]} out of range is a 422", post("phase", {**CTX, **bad}).status_code == 422)
 
 print()
 print(f"{len(failures)} failed" if failures else "all checks passed")

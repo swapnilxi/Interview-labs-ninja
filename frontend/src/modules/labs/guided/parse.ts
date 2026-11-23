@@ -373,10 +373,41 @@ export function parseOutline(text: string): ParsedOutline {
 }
 
 /**
+ * A new path in ONE request (`/outline` with `first_phase_questions`): the plan, and the questions of phase 1 only. The
+ * other phases' questions are written later, on demand. An answer that planned the path but wrote no question for phase 1
+ * is refused, so a retry asks again rather than leaving the learner with an empty first phase.
+ */
+export function parseStart(
+  text: string,
+  count: number
+): { outline: ParsedOutline; first: ParsedPhase } {
+  const outline = parseOutline(text);
+  const raw = extractJson(text, { salvage: true }) as { phases?: unknown };
+  const firstRaw = (listOf(raw, 'phases') as Record<string, unknown>[])[0];
+  const list = (Array.isArray(firstRaw?.questions) ? (firstRaw.questions as unknown[]) : [])
+    .map(outlineQuestion)
+    .filter((q: OutlineQuestion | null): q is OutlineQuestion => !!q);
+  const questions = dedupe(list, new Set<string>()).slice(0, Math.max(1, count));
+  if (!questions.length) {
+    throw new AiParseError(
+      'The AI planned the path but did not write the phase 1 questions. Try again.'
+    );
+  }
+  return {
+    outline,
+    first: { title: outline.phases[0].title, goal: outline.phases[0].goal, questions },
+  };
+}
+
+/**
  * One page of the path (`/phase`): the questions of one phase. `known` is every normalized title the rest of the path
  * has (and the questions of this phase that stay): a question that repeats one is dropped.
  */
-export function parsePhase(text: string, known: Set<string>): ParsedPhase {
+export function parsePhase(
+  text: string,
+  known: Set<string>,
+  limit: number = MAX_QUESTIONS_PER_PHASE
+): ParsedPhase {
   const raw = extractJson(text, { salvage: true }) as {
     title?: unknown;
     goal?: unknown;
@@ -385,7 +416,7 @@ export function parsePhase(text: string, known: Set<string>): ParsedPhase {
   const list = listOf(raw, 'questions')
     .map(outlineQuestion)
     .filter((q: OutlineQuestion | null): q is OutlineQuestion => !!q);
-  const questions = dedupe(list, new Set(known)).slice(0, MAX_QUESTIONS_PER_PHASE);
+  const questions = dedupe(list, new Set(known)).slice(0, Math.max(1, limit));
   if (!questions.length) {
     throw new AiParseError(
       list.length

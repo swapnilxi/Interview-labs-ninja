@@ -399,6 +399,11 @@ def init_lms_db(conn: Optional[sqlite3.Connection] = None) -> None:
         # ── 5d. Workbooks and each learner's private progress in them (see workbooks.py) ──
         ensure_workbook_tables(cursor)
 
+        # ── 5e. Generate operations of project question topics (see question_topics_api.py) ──
+        from .question_topics_api import OPS_DDL
+
+        cursor.execute(OPS_DDL)
+
         # ── 6. Module-root Landing Page (singleton) ────────────────────────────
         # The AI LMS home/intro landing page (frontend/src/modules/ai-lms/classes/landingpage.html),
         # separate from any one class -- see class_folders.py's "Module-root landing page" section.
@@ -740,7 +745,20 @@ def _parse_plan_item(item: Dict[str, Any], lesson_ids: set) -> Optional[Dict[str
         "sublessons": sublessons,
         # Video links of this module or sub-step (written by PUT .../videos, see videos.py).
         "videos": clean_plan_videos(item.get("videos")),
+        **_plan_item_extras(item),
     }
+
+
+# Optional fields an outline entry may carry: a stable id, and for project question topics (question_topics.py)
+# kind/input_type/original_input/version/timestamps. Kept as stored so no save elsewhere drops them.
+_PLAN_EXTRA_STR = ("id", "kind", "input_type", "original_input", "created_at", "updated_at")
+
+
+def _plan_item_extras(item: Dict[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {k: item[k] for k in _PLAN_EXTRA_STR if isinstance(item.get(k), str) and item[k]}
+    if isinstance(item.get("version"), int) and not isinstance(item.get("version"), bool):
+        out["version"] = item["version"]
+    return out
 
 
 def _parse_project_plan(raw: Optional[str], lessons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -763,7 +781,9 @@ def _parse_project_plan(raw: Optional[str], lessons: List[Dict[str, Any]]) -> Li
         parsed = _parse_plan_item(item, lesson_ids)
         if parsed:
             plan.append(parsed)
-    return plan
+    from .question_topics import ensure_ids  # every entry gets a stable id (stored, or derived until the next save)
+
+    return ensure_ids(plan)
 
 
 def create_subject(

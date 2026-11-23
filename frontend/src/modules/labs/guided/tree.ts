@@ -181,7 +181,12 @@ export function phaseTitles(state: GuidedState, phaseId: string): string[] {
 
 // ── Phases and the boss ─────────────────────────────────────────────────────
 
-export type PhaseStatus = 'locked' | 'active' | 'completed';
+/**
+ * Every phase is open from the start (Guided Path): completion records what the learner has done and never controls access.
+ * 'active' is the phase the learner works in (the first one not complete; it opens by default), 'available' any other
+ * phase not complete yet. 'locked' is kept in the type for older callers and is never returned.
+ */
+export type PhaseStatus = 'locked' | 'active' | 'available' | 'completed';
 
 export function isPhaseDone(state: GuidedState, phase: Phase): boolean {
   if (phase.pending) return false;
@@ -190,11 +195,7 @@ export function isPhaseDone(state: GuidedState, phase: Phase): boolean {
 
 export function phaseStatus(state: GuidedState, phase: Phase): PhaseStatus {
   if (isPhaseDone(state, phase)) return 'completed';
-  for (const p of state.phases) {
-    if (p.id === phase.id) return 'active';
-    if (!isPhaseDone(state, p)) return 'locked';
-  }
-  return 'active';
+  return activePhase(state)?.id === phase.id ? 'active' : 'available';
 }
 
 /** The first phase that is not complete (the one the learner works in), or null once every phase is. */
@@ -202,21 +203,19 @@ export function activePhase(state: GuidedState): Phase | null {
   return state.phases.find((p) => !isPhaseDone(state, p)) ?? null;
 }
 
+/** 'locked' is kept in the type for older callers and is never returned: the boss can be faced at any time. */
 export type BossStatus = 'none' | 'locked' | 'active' | 'completed';
 
 export function bossStatus(state: GuidedState): BossStatus {
   if (!state.bossId || !state.questions[state.bossId]) return 'none';
-  if (isDone(state, state.bossId)) return 'completed';
-  return state.phases.every((p) => isPhaseDone(state, p)) ? 'active' : 'locked';
+  return isDone(state, state.bossId) ? 'completed' : 'active';
 }
 
-/** A question can be opened unless it sits in a locked phase (or is the boss before every phase is done). */
+/** Every question of the path can be opened at any time (nothing is locked behind completion). */
 export function isUnlocked(state: GuidedState, id: string): boolean {
   const q = state.questions[id];
   if (!q) return false;
-  if (q.relation === 'boss') return bossStatus(state) !== 'locked';
-  const phase = phaseOfQuestion(state, id);
-  return !!phase && phaseStatus(state, phase) !== 'locked';
+  return q.relation === 'boss' || !!phaseOfQuestion(state, id);
 }
 
 export interface Overall {
@@ -277,15 +276,8 @@ export function nextQuestionId(state: GuidedState, id: string): string | null {
 export function completionGate(state: GuidedState, id: string): { ok: boolean; reason: string } {
   const q = state.questions[id];
   if (!q) return { ok: false, reason: 'This question no longer exists.' };
-  if (!isUnlocked(state, id)) {
-    return {
-      ok: false,
-      reason:
-        q.relation === 'boss'
-          ? 'Complete every phase to face the boss.'
-          : 'Complete the earlier phase to unlock this one.',
-    };
-  }
+  if (!isUnlocked(state, id))
+    return { ok: false, reason: 'This question is not part of the path.' };
   const progress = progressOf(state, id);
   if (progress.completed) return { ok: true, reason: '' };
   const { total, done } = branchStats(state, id, 'breakdown');
@@ -486,7 +478,7 @@ export function applyPhase(state: GuidedState, phaseId: string, parsed: ParsedPh
   };
 }
 
-/** The most phases a path takes through import or "Generate more": more than that is a different path. */
+/** The most phases a path takes through import or "Add phase": more than that is a different path. */
 const MAX_PATH_PHASES = 30;
 
 /**
@@ -525,6 +517,87 @@ export function appendPhases(state: GuidedState, parsed: ParsedCurriculum['phase
     phases.push(phase);
   }
   return { state: { ...working, phases }, added, removed: 0 };
+}
+
+/** Most questions one phase may hold ("Add questions" stops there). */
+export const MAX_PHASE_QUESTIONS = 40;
+
+/**
+ * "Add questions": appends new main questions to one phase after the ones it has. Existing questions keep their order and
+ * ids; a title the path already has is skipped (so a retried request can never add the same question twice). A phase that
+ * was still planned (`pending`) becomes a written one.
+ */
+export function appendToPhase(
+  state: GuidedState,
+  phaseId: string,
+  parsed: ParsedPhase
+): PageResult {
+  const phase = state.phases.find((p) => p.id === phaseId);
+  if (!phase) return { state, added: 0, removed: 0 };
+  const known = knownTitles(state);
+  let working = state;
+  const created: string[] = [];
+  for (const q of parsed.questions) {
+    if (phase.questionIds.length + created.length >= MAX_PHASE_QUESTIONS) break;
+    const key = normTitle(q.title);
+    if (known.has(key)) continue;
+    known.add(key);
+    const made = newQuestion(working, {
+      title: q.title,
+      phaseId: phase.id,
+      relation: 'base',
+      objective: q.objective,
+      kind: q.kind,
+      difficulty: q.difficulty,
+      effort: q.effort,
+      wantsExercise: q.exercise,
+    });
+    working = made.state;
+    created.push(made.question.id);
+  }
+  if (!created.length) return { state, added: 0, removed: 0 };
+  const next: Phase = {
+    ...phase,
+    title: phase.title || parsed.title || `Phase ${phase.number}`,
+    goal: phase.goal || parsed.goal,
+    questionIds: [...phase.questionIds, ...created],
+  };
+  delete next.pending;
+  return {
+    state: { ...working, phases: state.phases.map((p) => (p.id === phase.id ? next : p)) },
+    added: created.length,
+    removed: 0,
+  };
+}
+
+/**
+ * "Add phase": new phases with a title and a goal and no questions yet (`pending`), after the last one. A title the path
+ * already has as a phase is skipped, so a retried request does not add the same phase twice.
+ */
+export function addPlannedPhases(
+  state: GuidedState,
+  outlines: { title: string; goal: string }[]
+): PageResult {
+  const phases = [...state.phases];
+  const have = new Set(phases.map((p) => normTitle(p.title)));
+  let added = 0;
+  for (const o of outlines) {
+    if (phases.length >= MAX_PATH_PHASES) break;
+    const key = normTitle(o.title);
+    if (!o.title || have.has(key)) continue;
+    have.add(key);
+    const number = Math.max(0, ...phases.map((x) => x.number)) + 1;
+    phases.push({
+      id: `p${number}`,
+      number,
+      title: o.title,
+      goal: o.goal,
+      questionIds: [],
+      pending: true,
+    });
+    added += 1;
+  }
+  return { state: added ? { ...state, phases } : state, added, removed: 0 };
 }
 
 /** A question, any of its descendants, has been worked on (so regenerating must not throw that work away). */

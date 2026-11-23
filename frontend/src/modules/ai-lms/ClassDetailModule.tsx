@@ -333,7 +333,7 @@ export default function ClassDetailModule({ classSlug }: ClassDetailModuleProps)
                   onClick={() => setIsOrganizeSubjects(!isOrganizeSubjects)}
                   className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all ${
                     isOrganizeSubjects
-                      ? 'border-primary bg-primary text-white shadow-sm'
+                      ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                       : 'border-border bg-card text-foreground hover:bg-muted'
                   }`}
                 >

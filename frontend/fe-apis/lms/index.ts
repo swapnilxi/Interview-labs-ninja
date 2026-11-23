@@ -4,6 +4,7 @@
  * Route handlers for Next.js App Router API routes under /api/lms.
  */
 
+import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromAuthHeader } from '../_shared/db';
 import {
@@ -39,6 +40,7 @@ import {
 import { callAIText, cleanHtmlOutput, extractJsonObject, NoEmbeddingProviderError } from '../ai';
 import { indexDocument as ragIndexDocument, indexStatus as ragIndexStatus, clearIndex as ragClearIndex, retrieve as ragRetrieve, type RagSection } from '../rag';
 import { generateNativeVisual } from './visualEngine';
+import { findQuestionsSection, isQuestionsSection } from './questionTopics';
 import { isCompleteAiLessonHtml, PREMIUM_DESIGN_SYSTEM_PROMPT } from './htmlBuilder';
 import {
   ensureStartupReconcile,
@@ -54,7 +56,7 @@ import {
   withClassFolderSync,
 } from './classFolders';
 import * as landingEdit from './landingEdit';
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { buildZip } from './zip';
 import { docxText } from './docxText';
 import { HttpError } from '../todo/_shared';
@@ -96,7 +98,7 @@ const EDITOR_ROLES = new Set(['editor', 'instructor', 'admin', 'superadmin']);
 // Workbooks: any signed-in user may create a private one; workbooks.ts checks every change itself.
 // Classes & custom content: non-editors can create classes and update/delete their own content (owner_id == user.id)
 const NON_EDIT_WRITES =
-  /^\/api\/lms\/(?:lessons\/[^/]+\/(?:view|complete)|voice-chat|copilot|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai|classes\/[^/]+\/membership|classes\/[^/]+\/workbooks|workbooks\/[^/]+(?:\/generate\/(?:outline|sections\/[^/]+)|\/progress|\/learners\/[^/]+\/progress|\/explain)?|classes(?:(?:\/[^/]+)?)|classes\/[^/]+\/subjects|subjects\/[^/]+|lessons(?:(?:\/[^/]+)?))\/?$/;
+  /^\/api\/lms\/(?:lessons\/[^/]+\/(?:view|complete)|voice-chat|copilot|upload-source|lessons\/[^/]+\/(?:revise|easy-read|deeper|visualize|breakdown)|classes\/[^/]+\/landing\/ai|landing\/ai|classes\/[^/]+\/membership|classes\/[^/]+\/workbooks|workbooks\/[^/]+(?:\/generate\/(?:outline|sections\/[^/]+)|\/progress|\/learners\/[^/]+\/progress|\/explain)?|classes(?:(?:\/[^/]+)?)|classes\/[^/]+\/subjects|subjects\/[^/]+|lessons(?:(?:\/[^/]+)?)|projects\/[^/]+\/question-topics(?:\/[^/]+)?)\/?$/;
 
 export function requireUserId(req: Request): number | NextResponse {
   const user = getUserFromAuthHeader(req.headers.get('authorization'));
@@ -121,7 +123,7 @@ export function requireUserId(req: Request): number | NextResponse {
 // Classes Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleListClasses(req: Request): Promise<NextResponse> {
+async function handleListClassesImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -155,7 +157,7 @@ async function handleCreateClassImpl(req: Request): Promise<NextResponse> {
   }
 }
 
-export async function handleGetClass(classSlug: string, req: Request): Promise<NextResponse> {
+async function handleGetClassImpl(classSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -268,7 +270,7 @@ async function jsonObject(req: Request): Promise<Record<string, unknown>> {
   return body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
 }
 
-export async function handleGetClassMembership(classSlug: string, req: Request): Promise<NextResponse> {
+async function handleGetClassMembershipImpl(classSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -315,7 +317,7 @@ async function handleSendClassUpdateImpl(classSlug: string, req: Request): Promi
   }
 }
 
-export async function handleListClassUpdates(classSlug: string, req: Request): Promise<NextResponse> {
+async function handleListClassUpdatesImpl(classSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -333,7 +335,7 @@ export async function handleListClassUpdates(classSlug: string, req: Request): P
   }
 }
 
-export async function handleGetMyUpdates(req: Request): Promise<NextResponse> {
+async function handleGetMyUpdatesImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -355,7 +357,7 @@ export const handleSendClassUpdate = withNeonSync(handleSendClassUpdateImpl);
 // Subjects Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleListSubjects(classSlug: string, req: Request): Promise<NextResponse> {
+async function handleListSubjectsImpl(classSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -404,7 +406,7 @@ async function handleCreateSubjectImpl(classSlug: string, req: Request): Promise
   }
 }
 
-export async function handleGetSubject(classSlug: string, subjectSlug: string, req: Request): Promise<NextResponse> {
+async function handleGetSubjectImpl(classSlug: string, subjectSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -609,7 +611,7 @@ function splitIntoFileSections(text: string): RagSection[] {
  * configured, rather than a bare 500, since this is an optional enhancement on
  * top of context_summary (which works with any provider), not a hard
  * requirement. */
-export async function handleBuildRagIndex(subjectId: string, req: Request): Promise<NextResponse> {
+async function handleBuildRagIndexImpl(subjectId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -657,7 +659,7 @@ export async function handleBuildRagIndex(subjectId: string, req: Request): Prom
 
 /** Drop this row's RAG index. Generation falls back to context_summary / a raw
  * prefix, exactly as if it had never been indexed. */
-export async function handleClearRagIndex(subjectId: string, req: Request): Promise<NextResponse> {
+async function handleClearRagIndexImpl(subjectId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -677,7 +679,7 @@ export async function handleClearRagIndex(subjectId: string, req: Request): Prom
 
 /** Chunk count for this row's RAG index (0 if never built) -- lets the UI show
  * indexed/not-indexed status without fetching the whole subject. */
-export async function handleGetRagIndexStatus(subjectId: string, req: Request): Promise<NextResponse> {
+async function handleGetRagIndexStatusImpl(subjectId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -719,7 +721,7 @@ async function handleReorderSubjectsImpl(req: Request): Promise<NextResponse> {
 // Lessons Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleListSubjectLessons(subjectId: string, req: Request): Promise<NextResponse> {
+async function handleListSubjectLessonsImpl(subjectId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -730,7 +732,7 @@ export async function handleListSubjectLessons(subjectId: string, req: Request):
   }
 }
 
-export async function handleListDirectLessons(classSlug: string, req: Request): Promise<NextResponse> {
+async function handleListDirectLessonsImpl(classSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -741,7 +743,7 @@ export async function handleListDirectLessons(classSlug: string, req: Request): 
   }
 }
 
-export async function handleGetLesson(lessonId: string, req: Request): Promise<NextResponse> {
+async function handleGetLessonImpl(lessonId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -758,7 +760,7 @@ export async function handleGetLesson(lessonId: string, req: Request): Promise<N
 }
 
 /** Cheap change check for the viewer's dev auto-refresh; records no view. */
-export async function handleGetLessonStatus(lessonId: string, req: Request): Promise<NextResponse> {
+async function handleGetLessonStatusImpl(lessonId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -778,7 +780,7 @@ export async function handleGetLessonStatus(lessonId: string, req: Request): Pro
 }
 
 /** The class landing page HTML (classes/<class>/landingpage.html), IDE edits pulled in. */
-export async function handleGetClassLanding(classSlug: string, req: Request): Promise<NextResponse> {
+async function handleGetClassLandingImpl(classSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -809,7 +811,7 @@ function saveLandingOrError(classSlug: string, html: string, baseHash?: string |
   }
 }
 
-export async function handleListLandingSections(classSlug: string, req: Request): Promise<NextResponse> {
+async function handleListLandingSectionsImpl(classSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -931,7 +933,7 @@ async function handleDeleteLandingSectionImpl(classSlug: string, sectionId: stri
 }
 
 /** Reprompt the landing page (generate / edit / section). Nothing is saved: the client applies the preview with PUT. */
-export async function handleLandingAi(classSlug: string, req: Request): Promise<NextResponse> {
+async function handleLandingAiImpl(classSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -996,7 +998,7 @@ export async function handleLandingAi(classSlug: string, req: Request): Promise<
   }
 }
 
-export async function handleGetClassLandingStatus(classSlug: string, req: Request): Promise<NextResponse> {
+async function handleGetClassLandingStatusImpl(classSlug: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1019,7 +1021,7 @@ export async function handleGetClassLandingStatus(classSlug: string, req: Reques
 // not a project roadmap "Module" (see the project-plan handlers elsewhere in this file).
 
 /** The AI LMS module-root landing page (classes/landingpage.html), IDE edits pulled in. */
-export async function handleGetModuleLanding(req: Request): Promise<NextResponse> {
+async function handleGetModuleLandingImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1039,7 +1041,7 @@ function saveModuleLandingOrError(html: string, baseHash?: string | null): NextR
   }
 }
 
-export async function handleListModuleLandingSections(req: Request): Promise<NextResponse> {
+async function handleListModuleLandingSectionsImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1171,7 +1173,7 @@ function stripSpaceColon(s: string): string {
 }
 
 /** Reprompt the module-root landing page (generate / edit / section). Nothing is saved: the client applies the preview with PUT. */
-export async function handleModuleLandingAi(req: Request): Promise<NextResponse> {
+async function handleModuleLandingAiImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1241,7 +1243,7 @@ export async function handleModuleLandingAi(req: Request): Promise<NextResponse>
   }
 }
 
-export async function handleGetModuleLandingStatus(req: Request): Promise<NextResponse> {
+async function handleGetModuleLandingStatusImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1253,7 +1255,7 @@ export async function handleGetModuleLandingStatus(req: Request): Promise<NextRe
 }
 
 /** The whole class as a deployable zip: the static site plus vercel.json and a Cloud Run Dockerfile. */
-export async function handleExportClass(classSlug: string, req: Request): Promise<Response> {
+async function handleExportClassImpl(classSlug: string, req: Request): Promise<Response> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1279,7 +1281,7 @@ export async function handleExportClass(classSlug: string, req: Request): Promis
 }
 
 /** Map a classes-folder path (a relative link clicked in a landing page or lesson) to its target. */
-export async function handleResolvePath(req: Request): Promise<NextResponse> {
+async function handleResolvePathImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1418,7 +1420,7 @@ async function handleReorderLessonsImpl(req: Request): Promise<NextResponse> {
   }
 }
 
-export async function handleGetLessonNavigation(lessonId: string, req: Request): Promise<NextResponse> {
+async function handleGetLessonNavigationImpl(lessonId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1429,7 +1431,7 @@ export async function handleGetLessonNavigation(lessonId: string, req: Request):
   }
 }
 
-export async function handleDownloadLesson(lessonId: string, req: Request): Promise<Response> {
+async function handleDownloadLessonImpl(lessonId: string, req: Request): Promise<Response> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1499,7 +1501,7 @@ async function handleMarkLessonCompleteImpl(lessonId: string, req: Request): Pro
 // Continue Learning & Search
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleContinueLearning(req: Request): Promise<NextResponse> {
+async function handleContinueLearningImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1511,7 +1513,7 @@ export async function handleContinueLearning(req: Request): Promise<NextResponse
   }
 }
 
-export async function handleGetRecentLessons(req: Request): Promise<NextResponse> {
+async function handleGetRecentLessonsImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1523,7 +1525,7 @@ export async function handleGetRecentLessons(req: Request): Promise<NextResponse
   }
 }
 
-export async function handleSearch(req: NextRequest): Promise<NextResponse> {
+async function handleSearchImpl(req: NextRequest): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1543,7 +1545,7 @@ export async function handleSearch(req: NextRequest): Promise<NextResponse> {
 // Upload Source Document
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleUploadSource(req: Request): Promise<NextResponse> {
+async function handleUploadSourceImpl(req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -1976,9 +1978,27 @@ Output ONLY the JSON object. No markdown code blocks before or after.`;
     }
 
     // Modules from the previous outline no longer apply; drop their generated lessons.
-    deletePlanLessons((project.project_plan as PlanItem[]) || []);
+    // Learner question topics are not part of the README plan: keep them (and their lessons) in their own section.
+    const oldPlan = (project.project_plan as PlanItem[]) || [];
+    const questions = oldPlan.flatMap((m) => ((m.sublessons as PlanItem[]) || []).filter((x) => x.kind === 'question'));
+    deletePlanLessons(
+      oldPlan.map((m) => ({
+        ...m,
+        lesson_id: isQuestionsSection(m) ? null : m.lesson_id,
+        sublessons: ((m.sublessons as PlanItem[]) || []).filter((x) => x.kind !== 'question'),
+      }))
+    );
+    if (questions.length) {
+      const keep = findQuestionsSection(oldPlan) || {};
+      plan.push({
+        id: (keep.id as string) || `s-${crypto.randomBytes(6).toString('hex')}`, kind: 'questions', title: 'User Questions Topics',
+        focus: 'Questions and topics added by learners, each answered with a practical lesson for this project.',
+        context: '', lesson_id: null, sublessons: questions, videos: [],
+      });
+    }
 
     saveProjectPlan(project.id as string, plan);
+    syncProjectLessonOrder(project, plan);
     const updated = getSubjectByIdOrSlug(cls.id as string, project.id as string);
     return NextResponse.json(updated);
   } catch (err: any) {
@@ -2006,6 +2026,12 @@ async function handleGenerateProjectModuleImpl(
     }
 
     const moduleItem = plan[moduleIndex];
+    if (isQuestionsSection(moduleItem)) {
+      return NextResponse.json(
+        { detail: 'This section holds learner questions; it has no lesson of its own.' },
+        { status: 409 }
+      );
+    }
     const outline = plan
       .map((m, i) => `${i + 1}. ${m.title}${i === moduleIndex ? ' <- THIS MODULE' : ''}`)
       .join('\n');
@@ -2128,7 +2154,7 @@ function serialToTarget(afterRaw: unknown, plan: PlanItem[]) {
 }
 
 /** Recommend where new context belongs. Mirrors router.py's suggest_project_step_placement. */
-export async function handleSuggestProjectPlacement(projectId: string, req: Request): Promise<NextResponse> {
+async function handleSuggestProjectPlacementImpl(projectId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -2312,8 +2338,10 @@ Output ONLY the JSON object. No markdown code blocks before or after.`;
     }
 
     // Replace whatever this module was previously broken down into (and their lessons), if any.
-    deletePlanLessons((moduleItem.sublessons as PlanItem[]) || []);
-    plan[moduleIndex] = { ...moduleItem, sublessons };
+    // Question topics filed under this module stay, after the new steps.
+    const kept = ((moduleItem.sublessons as PlanItem[]) || []).filter((x) => x.kind === 'question');
+    deletePlanLessons(((moduleItem.sublessons as PlanItem[]) || []).filter((x) => x.kind !== 'question'));
+    plan[moduleIndex] = { ...moduleItem, sublessons: [...sublessons, ...kept] };
     saveProjectPlan(project.id as string, plan);
 
     return NextResponse.json(getSubjectByIdOrSlug(cls.id as string, project.id as string));
@@ -2348,6 +2376,9 @@ async function handleGenerateProjectSublessonImpl(
     }
 
     const sub = sublessons[subIndex];
+    if (sub.kind === 'question') {
+      return NextResponse.json({ detail: 'Regenerate a question topic from its own menu.' }, { status: 409 });
+    }
     const siblingOutline = sublessons
       .map((s, i) => `  ${i + 1}. ${s.title}${i === subIndex ? ' <- THIS SUBLESSON' : ''}`)
       .join('\n');
@@ -2406,7 +2437,7 @@ async function handleGenerateProjectSublessonImpl(
   }
 }
 
-export async function handleVisualizeLesson(lessonId: string, req: Request): Promise<NextResponse> {
+async function handleVisualizeLessonImpl(lessonId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -2466,7 +2497,7 @@ Output ONLY the JSON object.`;
   }
 }
 
-export async function handleEasyReadLesson(lessonId: string, req: Request): Promise<NextResponse> {
+async function handleEasyReadLessonImpl(lessonId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -2530,7 +2561,7 @@ Output ONLY the JSON object. No markdown code blocks before or after.`;
 }
 
 /** Reprompt a lesson; returns a preview, nothing is saved. Mirrors router.py's revise_lesson. */
-export async function handleReviseLesson(lessonId: string, req: Request): Promise<NextResponse> {
+async function handleReviseLessonImpl(lessonId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -2629,7 +2660,7 @@ RULES:
   }
 }
 
-export async function handleDeeperLesson(lessonId: string, req: Request): Promise<NextResponse> {
+async function handleDeeperLessonImpl(lessonId: string, req: Request): Promise<NextResponse> {
   try {
     const auth = requireUserId(req);
     if (auth instanceof NextResponse) return auth;
@@ -2844,3 +2875,41 @@ export const handleClearContextSummary = withNeonSync(handleClearContextSummaryI
 export const handleRecordLessonView = withNeonSync(handleRecordLessonViewImpl);
 export const handleMarkLessonComplete = withNeonSync(handleMarkLessonCompleteImpl);
 export const handleBreakdownLesson = withNeonSync(handleBreakdownLessonImpl);
+
+// Reads (and AI previews that only read): pull Neon's newer copy first on Vercel, or a warm
+// instance that never saw a project/lesson created on another instance answers 404.
+export const handleListClasses = withNeonRead(handleListClassesImpl);
+export const handleGetClass = withNeonRead(handleGetClassImpl);
+export const handleGetClassMembership = withNeonRead(handleGetClassMembershipImpl);
+export const handleListClassUpdates = withNeonRead(handleListClassUpdatesImpl);
+export const handleGetMyUpdates = withNeonRead(handleGetMyUpdatesImpl);
+export const handleListSubjects = withNeonRead(handleListSubjectsImpl);
+export const handleGetSubject = withNeonRead(handleGetSubjectImpl);
+export const handleGetRagIndexStatus = withNeonRead(handleGetRagIndexStatusImpl);
+export const handleListSubjectLessons = withNeonRead(handleListSubjectLessonsImpl);
+export const handleListDirectLessons = withNeonRead(handleListDirectLessonsImpl);
+export const handleGetLesson = withNeonRead(handleGetLessonImpl);
+export const handleGetLessonStatus = withNeonRead(handleGetLessonStatusImpl);
+export const handleGetClassLanding = withNeonRead(handleGetClassLandingImpl);
+export const handleListLandingSections = withNeonRead(handleListLandingSectionsImpl);
+export const handleLandingAi = withNeonRead(handleLandingAiImpl);
+export const handleGetClassLandingStatus = withNeonRead(handleGetClassLandingStatusImpl);
+export const handleGetModuleLanding = withNeonRead(handleGetModuleLandingImpl);
+export const handleListModuleLandingSections = withNeonRead(handleListModuleLandingSectionsImpl);
+export const handleModuleLandingAi = withNeonRead(handleModuleLandingAiImpl);
+export const handleGetModuleLandingStatus = withNeonRead(handleGetModuleLandingStatusImpl);
+export const handleExportClass = withNeonRead(handleExportClassImpl);
+export const handleResolvePath = withNeonRead(handleResolvePathImpl);
+export const handleGetLessonNavigation = withNeonRead(handleGetLessonNavigationImpl);
+export const handleDownloadLesson = withNeonRead(handleDownloadLessonImpl);
+export const handleContinueLearning = withNeonRead(handleContinueLearningImpl);
+export const handleGetRecentLessons = withNeonRead(handleGetRecentLessonsImpl);
+export const handleSearch = withNeonRead(handleSearchImpl);
+export const handleUploadSource = withNeonRead(handleUploadSourceImpl);
+export const handleSuggestProjectPlacement = withNeonRead(handleSuggestProjectPlacementImpl);
+export const handleVisualizeLesson = withNeonRead(handleVisualizeLessonImpl);
+export const handleEasyReadLesson = withNeonRead(handleEasyReadLessonImpl);
+export const handleReviseLesson = withNeonRead(handleReviseLessonImpl);
+export const handleDeeperLesson = withNeonRead(handleDeeperLessonImpl);
+export const handleBuildRagIndex = withNeonSync(handleBuildRagIndexImpl);
+export const handleClearRagIndex = withNeonSync(handleClearRagIndexImpl);

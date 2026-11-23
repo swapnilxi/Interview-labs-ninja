@@ -22,7 +22,7 @@ const inputCls =
 const btnCls =
   'inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-card hover:bg-muted text-foreground transition-colors disabled:opacity-50';
 const primaryBtnCls =
-  'inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50';
+  'inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50';
 
 /**
  * Editor+ only (the page doesn't mount this for other roles; the API enforces it too).
@@ -163,7 +163,7 @@ export default function LandingEditorPanel<T extends { html: string; hash: strin
             type="button"
             data-testid={`landing-tab-${id}`}
             onClick={() => setTab(id)}
-            className={`px-2.5 py-1 rounded-lg font-semibold border ${tab === id ? 'bg-primary text-white border-primary' : 'border-border hover:bg-muted'}`}
+            className={`px-2.5 py-1 rounded-lg font-semibold border ${tab === id ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-muted'}`}
           >
             {label}
           </button>

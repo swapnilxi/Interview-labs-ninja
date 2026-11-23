@@ -91,7 +91,7 @@ export interface Phase {
   title: string;
   goal: string;
   questionIds: string[];
-  /** Planned but not written yet: the learner asks for its questions ("Generate more"). Never counts as done. */
+  /** Planned (a title and a goal) with no questions yet: open like any phase; the learner asks for its questions ("Generate questions"). Never counts as done. */
   pending?: boolean;
 }
 

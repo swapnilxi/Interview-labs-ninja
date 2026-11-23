@@ -156,9 +156,9 @@ _cors_origin_regex = os.environ.get("LABNINJA_CORS_ORIGIN_REGEX")
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
-# Pushes lab_ninja.sqlite3 to Neon after writes when DATABASE_URL is set (Vercel), so a
-# cold start / different instance picks up the latest data instead of a stale /tmp
-# reseed. No-op locally. See modules/common/neon_sync.py.
+# Keeps this server's SQLite files in step with Neon (pull before, compare-and-set push after, queue when
+# offline) whenever DATABASE_URL is set, locally too. See modules/common/neon_sync.py and README
+# "Data sync across devices".
 app.add_middleware(NeonSyncMiddleware)
 
 app.add_middleware(

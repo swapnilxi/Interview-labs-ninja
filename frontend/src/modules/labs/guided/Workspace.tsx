@@ -165,10 +165,12 @@ export default function Workspace({
   const lessonBusy = !!busy[lessonKey];
   const lessonError = errors[lessonKey];
 
-  // Opening a question writes its lesson (once; a saved one is never rewritten on a page load).
+  // Clicking a question writes its lesson (once). A question shown because the page restored it (a refresh, a saved
+  // path, back/forward) never generates on its own: it offers "Write this lesson" instead.
+  const autoLesson = guided.openedByUser(id);
   useEffect(() => {
-    if (q && !hasLesson && !lessonBusy && !lessonError) void actions.lesson(id);
-  }, [q, id, hasLesson, lessonBusy, lessonError, actions]);
+    if (autoLesson && q && !hasLesson && !lessonBusy && !lessonError) void actions.lesson(id);
+  }, [autoLesson, q, id, hasLesson, lessonBusy, lessonError, actions]);
 
   if (!q) return null;
   const progress = progressOf(state, id);
@@ -446,13 +448,25 @@ export default function Workspace({
             onRetry={() => void actions.lesson(id)}
             onDismiss={() => actions.clearError(lessonKey)}
           />
-        ) : (
+        ) : lessonBusy || autoLesson ? (
           <div>
             <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner size={14} />
               Writing this lesson…
             </p>
             <SkeletonLines lines={5} label="Writing this lesson" />
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-muted-foreground">This question has no lesson yet.</p>
+            <button
+              type="button"
+              onClick={() => void actions.lesson(id)}
+              className="todo-btn todo-btn-primary"
+            >
+              <Icon name="SparklesIcon" size={15} aria-hidden="true" />
+              Write this lesson
+            </button>
           </div>
         )}
       </section>

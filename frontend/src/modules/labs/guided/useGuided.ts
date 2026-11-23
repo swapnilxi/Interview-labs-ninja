@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { MAX_GENERATED_PHASES, PHASE_COUNT } from './constants';
+import { MAX_GENERATED_PHASES, PHASE_COUNT, PHASE_QUESTIONS } from './constants';
 import type { ImportedPath } from './importPath';
 import { baseFields, pathTitles, questionFields, siblingTitles } from './context';
 import {
@@ -22,13 +22,16 @@ import {
   parseLesson,
   parseOutline,
   parsePhase,
+  parseStart,
   splitTutorReply,
 } from './parse';
 import { labConfig } from './labs';
 import { runTests, summarize, verifyExercise, type RunResult } from './runner';
 import { aiBreakdown, aiDeeper, aiLesson, aiOutline, aiPhase, aiStar, aiTutor } from './service';
 import {
+  addPlannedPhases,
   appendPhases,
+  appendToPhase,
   applyBranch,
   applyPhase,
   canGrow,
@@ -51,7 +54,6 @@ import { useGuidedStore } from './useGuidedStore';
 import type {
   GuidedState,
   LearnMode,
-  ParsedOutline,
   ParsedPhase,
   Question,
   StarVersion,
@@ -109,6 +111,10 @@ function otherTitles(state: GuidedState, exceptPhaseId: string | null): string[]
 
 interface PageRequest {
   number: number;
+  /** How many questions to write (default PHASE_QUESTIONS). */
+  count?: number;
+  /** "Add questions": this phase's questions in order; new ones come after them. */
+  existing?: string[];
   /** Empty for a phase the plan does not have: the AI chooses its title and goal. */
   title: string;
   goal: string;
@@ -125,19 +131,29 @@ async function requestPage(
   state: GuidedState | null,
   a: PageRequest
 ): Promise<ParsedPhase> {
+  // The phases around this one (up to 12), not the whole plan: a long path would not fit, and nearby phases are what matter.
+  const startIdx = Math.max(0, Math.min(a.number - 1 - 5, a.plan.length - 12));
+  const window = a.plan.slice(startIdx, startIdx + 12);
+  const count = Math.min(Math.max(a.count ?? PHASE_QUESTIONS, 1), 10);
+  const existing = a.existing ?? [];
   const reply = await aiPhase({
     ...baseFields(topic, state),
     phase_number: Math.min(Math.max(a.number, 1), 50),
     phase_title: clip(a.title, 200),
     phase_goal: clip(a.goal, 500),
-    outline: a.plan
-      .slice(0, 12)
-      .map((o) => ({ title: clip(o.title, 200) || 'Phase', goal: clip(o.goal, 500) })),
+    outline: window.map((o) => ({ title: clip(o.title, 200) || 'Phase', goal: clip(o.goal, 500) })),
+    outline_start: Math.min(startIdx + 1, 50),
     other_titles: a.others.slice(0, 60).map((t) => clip(t, 300)),
     kept_titles: a.kept.slice(0, 8).map((t) => clip(t, 400)),
+    existing_titles: existing.slice(-40).map((t) => clip(t, 400)),
+    question_count: count,
     focus: clip(a.focus, 600),
   });
-  return parsePhase(reply.text, new Set([...a.others, ...a.kept].map(normTitle)));
+  return parsePhase(
+    reply.text,
+    new Set([...a.others, ...a.kept, ...existing].map(normTitle)),
+    count
+  );
 }
 
 export function useGuided(topic: TopicRef | null) {
@@ -150,8 +166,6 @@ export function useGuided(topic: TopicRef | null) {
   const inflight = useRef(new Set<string>());
   /** What a path being written is doing now ("Planning the path…", "Writing phase 1…"): the start screen shows it. */
   const [stage, setStage] = useState('');
-  /** The plan of a path whose first page failed, so a retry does not plan again (same focus only). */
-  const draft = useRef<{ focus: string; outline: ParsedOutline } | null>(null);
   /** A tutor call that failed: what to send again (the learner's message is already in the thread). */
   const failedTutor = useRef(new Map<string, { action: TutorAction; message: string }>());
 
@@ -189,36 +203,24 @@ export function useGuided(topic: TopicRef | null) {
 
   // ── The path ──────────────────────────────────────────────────────────────
 
-  /** A fresh path in two small calls: the plan, then its first page of five full questions. The other phases wait as "Generate more". */
+  /**
+   * A fresh path in ONE request: the plan (PHASE_COUNT phases with titles and goals, and the boss) and the PHASE_QUESTIONS
+   * questions of phase 1. The other phases stay empty until the learner asks for their questions.
+   */
   const writeFreshPath = useCallback(
     async (focus: string): Promise<GuidedState | null> => {
       if (!topic) return null;
       const wanted = focus.trim();
-      let outline = draft.current && draft.current.focus === wanted ? draft.current.outline : null;
       try {
-        if (!outline) {
-          setStage('Planning the path…');
-          const reply = await aiOutline({
-            ...baseFields(topic, null),
-            phase_count: PHASE_COUNT,
-            focus: clip(wanted, 600),
-          });
-          outline = parseOutline(reply.text);
-          draft.current = { focus: wanted, outline };
-        }
-        const first = outline.phases[0];
-        setStage(`Writing phase 1: ${first.title}…`);
-        const page = await requestPage(topic, null, {
-          number: 1,
-          title: first.title,
-          goal: first.goal,
-          plan: outline.phases,
-          others: [],
-          kept: [],
-          focus: wanted,
+        setStage('Planning the path and writing phase 1…');
+        const reply = await aiOutline({
+          ...baseFields(topic, null),
+          phase_count: PHASE_COUNT,
+          first_phase_questions: PHASE_QUESTIONS,
+          focus: clip(wanted, 600),
         });
-        draft.current = null;
-        return createPlannedState(topic, outline, page, wanted);
+        const { outline, first } = parseStart(reply.text, PHASE_QUESTIONS);
+        return createPlannedState(topic, outline, first, wanted);
       } finally {
         setStage('');
       }
@@ -250,13 +252,14 @@ export function useGuided(topic: TopicRef | null) {
    * questions the learner worked on stay, the rest are replaced).
    */
   const writePhase = useCallback(
-    (phaseId: string) =>
+    (phaseId: string, count: number = PHASE_QUESTIONS) =>
       run(`phase:${phaseId}`, async () => {
         const s = get();
         const phase = s?.phases.find((p) => p.id === phaseId);
         if (!s || !phase || !topic) return;
         const page = await requestPage(topic, s, {
           number: phase.number,
+          count,
           title: phase.title,
           goal: phase.goal,
           plan: s.phases,
@@ -277,27 +280,63 @@ export function useGuided(topic: TopicRef | null) {
     [run, get, mutate, topic]
   );
 
-  /** "Generate more" past the plan: the AI chooses the next phase and writes its five questions. */
-  const addPhase = useCallback(
-    () =>
-      run('phase:new', async () => {
+  /**
+   * "Add questions": `count` new questions appended to a phase after the ones it has (their order and ids stay). Nothing is
+   * saved when the call fails, and a title the path already has is never added, so a retry cannot duplicate.
+   */
+  const appendQuestions = useCallback(
+    (phaseId: string, count: number = PHASE_QUESTIONS) =>
+      run(`add:${phaseId}`, async () => {
         const s = get();
-        if (!s || !topic || s.phases.length >= MAX_GENERATED_PHASES) return;
-        const number = s.phases.length + 1;
+        const phase = s?.phases.find((p) => p.id === phaseId);
+        if (!s || !phase || !topic) return;
         const page = await requestPage(topic, s, {
-          number,
-          title: '',
-          goal: '',
+          number: phase.number,
+          count,
+          title: phase.title,
+          goal: phase.goal,
           plan: s.phases,
-          others: otherTitles(s, null),
+          others: otherTitles(s, phase.id),
           kept: [],
+          existing: phase.questionIds
+            .filter((id) => s.questions[id])
+            .map((id) => s.questions[id].title),
           focus: s.focus,
         });
         mutate(
           (cur) => {
-            const r = appendPhases(cur, [
-              { title: page.title, goal: page.goal, questions: page.questions },
-            ]);
+            const r = appendToPhase(cur, phaseId, page);
+            return r.added ? r.state : null;
+          },
+          { immediate: true }
+        );
+      }),
+    [run, get, mutate, topic]
+  );
+
+  /**
+   * "Add phase": the AI plans `count` more phases (a title and a goal each) after the last one. Their questions are
+   * written on demand, like any empty phase. A phase title the path already has is skipped, so a retry cannot duplicate.
+   */
+  const addPhase = useCallback(
+    (count: number = 1) =>
+      run('phase:new', async () => {
+        const s = get();
+        if (!s || !topic || s.phases.length >= MAX_GENERATED_PHASES) return;
+        const wanted = Math.min(Math.max(count, 1), 5, MAX_GENERATED_PHASES - s.phases.length);
+        const reply = await aiOutline({
+          ...baseFields(topic, s),
+          phase_count: PHASE_COUNT,
+          focus: clip(s.focus, 600),
+          existing_phases: s.phases
+            .slice(-40)
+            .map((p) => ({ title: clip(p.title, 200) || 'Phase', goal: clip(p.goal, 500) })),
+          add_count: wanted,
+        });
+        const planned = parseOutline(reply.text).phases.slice(0, wanted);
+        mutate(
+          (cur) => {
+            const r = addPlannedPhases(cur, planned);
             return r.added ? r.state : null;
           },
           { immediate: true }
@@ -330,8 +369,13 @@ export function useGuided(topic: TopicRef | null) {
 
   // ── Moving around ─────────────────────────────────────────────────────────
 
+  /** Questions the learner opened by clicking in this visit: only those write a missing lesson on their own. */
+  const userOpened = useRef(new Set<string>());
+  const openedByUser = useCallback((qid: string) => userOpened.current.has(qid), []);
+
   const select = useCallback(
-    (qid: string | null) => {
+    (qid: string | null, opts: { byUser?: boolean } = {}) => {
+      if (qid && opts.byUser) userOpened.current.add(qid);
       mutate((cur) => {
         if (qid === cur.ui.questionId) return cur;
         const q = qid ? cur.questions[qid] : null;
@@ -793,6 +837,7 @@ export function useGuided(topic: TopicRef | null) {
       generatePath,
       regeneratePath,
       writePhase,
+      appendQuestions,
       addPhase,
       importPath,
       select,
@@ -822,6 +867,7 @@ export function useGuided(topic: TopicRef | null) {
       generatePath,
       regeneratePath,
       writePhase,
+      appendQuestions,
       addPhase,
       importPath,
       select,
@@ -849,7 +895,7 @@ export function useGuided(topic: TopicRef | null) {
     ]
   );
 
-  return { ...store, busy, errors, runs, stage, actions };
+  return { ...store, busy, errors, runs, stage, actions, openedByUser };
 }
 
 export type Guided = ReturnType<typeof useGuided>;

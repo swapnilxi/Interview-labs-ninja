@@ -252,7 +252,7 @@ export default function QuickLessonGenerator({
           type="button"
           onClick={() => handleGenerate()}
           disabled={isGenerating || (!content.trim() && !uploadedFile)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium text-xs shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0"
         >
           {isGenerating ? (
             <>

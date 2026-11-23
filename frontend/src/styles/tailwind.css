@@ -2111,6 +2111,48 @@
     --lab-accent-ink: #b8860b;
   }
 
+  /* Dragon Ball: --color-primary is golden yellow (#FACC15).
+     In dark mode (and light mode), any button, badge, pill, or container with a solid primary background
+     must use the dark ink (--color-primary-foreground: #0b1020).
+     Pure white text (#ffffff or text-white) on #FACC15 fails contrast (1.54:1). */
+  html[data-accent-preset='dragonball'] .bg-primary,
+  html[data-accent-preset='dragonball'] .bg-primary .text-white,
+  html[data-accent-preset='dragonball'] .bg-primary.text-white,
+  html[data-accent-preset='dragonball'] button.bg-primary,
+  html[data-accent-preset='dragonball'] a.bg-primary,
+  html[data-accent-preset='dragonball'] .lms-btn-primary,
+  html[data-accent-preset='dragonball'] .nav-pill-button {
+    color: var(--color-primary-foreground, #0b1020) !important;
+  }
+
+  html[data-accent-preset='dragonball'] .bg-primary :is(span, p, strong, em, svg, b, i, .text-white) {
+    color: var(--color-primary-foreground, #0b1020) !important;
+    fill: currentColor;
+  }
+
+  html[data-accent-preset='dragonball'] .bg-primary svg {
+    stroke: currentColor;
+  }
+
+  /* When hovered into solid primary */
+  html[data-accent-preset='dragonball'] :is([class~='hover:bg-primary']:hover, .hover\:bg-primary:hover) {
+    color: var(--color-primary-foreground, #0b1020) !important;
+  }
+
+  html[data-accent-preset='dragonball'] :is([class~='hover:bg-primary']:hover, .hover\:bg-primary:hover) :is(span, p, strong, em, svg, b, i, .text-white) {
+    color: var(--color-primary-foreground, #0b1020) !important;
+    fill: currentColor;
+  }
+
+  html[data-accent-preset='dragonball'] .group:hover :is([class~='group-hover:bg-primary'], .group-hover\:bg-primary) {
+    color: var(--color-primary-foreground, #0b1020) !important;
+  }
+
+  html[data-accent-preset='dragonball'] .group:hover :is([class~='group-hover:bg-primary'], .group-hover\:bg-primary) :is(span, p, strong, em, svg, b, i, .text-white, [class~='group-hover:text-white']) {
+    color: var(--color-primary-foreground, #0b1020) !important;
+    fill: currentColor;
+  }
+
   /* Current page: the glow comes up a little. */
   .mobile-tab-orb.mobile-tab-active .mobile-tab-orb-disc {
     box-shadow:

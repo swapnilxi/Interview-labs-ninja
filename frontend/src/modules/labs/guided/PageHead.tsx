@@ -148,7 +148,7 @@ export default function PageHead({
             ref={titleRef}
             className="text-[2rem] font-semibold leading-tight tracking-tight text-foreground sm:text-2xl"
           >
-            Guided Practice
+            Guided Path
           </h1>
           <p className="mt-1 break-words text-base leading-snug text-muted-foreground">{name}</p>
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
