@@ -125,8 +125,9 @@ export default function StartScreen({
         </button>
         <FormatHelpButton open={help} onToggle={() => setHelp((v) => !v)} controlsId={helpId} />
         <p className="text-xs text-muted-foreground">
-          Generating uses the AI model chosen in Config: a plan, then your first five questions
-          (about 20 seconds). You can ask for more later. Importing needs no AI.
+          Generating uses the AI model chosen in Config: one request writes a plan of five phases
+          and the five questions of phase 1. Every phase is open; generate its questions whenever
+          you like, add more questions or phases later. Importing needs no AI.
         </p>
       </div>
 

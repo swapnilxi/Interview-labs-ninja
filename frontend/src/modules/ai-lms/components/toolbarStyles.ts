@@ -11,7 +11,7 @@ export const LMS_TOOLBAR_BTN =
 
 /** The class page's one filled action (Generate Lesson). */
 export const LMS_TOOLBAR_BTN_PRIMARY =
-  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-primary px-3.5 text-xs font-medium text-white shadow-sm transition-colors hover:mix-bg-primary/90 disabled:opacity-60';
+  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-primary px-3.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:mix-bg-primary/90 disabled:opacity-60';
 
 /** An action that is on but still secondary (an indigo outline: Add Project). */
 export const LMS_TOOLBAR_BTN_ACCENT =

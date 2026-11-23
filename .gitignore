@@ -42,6 +42,12 @@ backend/data/uploads/*
 # not the shipped seed DB, never belongs in git.
 backend/data/backups/
 
+# Sync state + queued offline writes of each server (neonSync.ts / neon_sync.py): per machine, holds
+# login tokens of queued requests, never belongs in git.
+*.sqlite3.sync.json
+*.sqlite3.sync-py.json
+*.sqlite3.part-*
+
 # ── Node / Frontend ───────────────────────────────────────────────────────────
 node_modules/
 .pnp

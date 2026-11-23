@@ -153,7 +153,7 @@ export default function InstructorChatModal({
                   className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-xs ${
                     isInst
                       ? 'bg-muted/60 text-foreground border border-border/60 rounded-tl-xs'
-                      : 'bg-primary text-white rounded-tr-xs'
+                      : 'bg-primary text-primary-foreground rounded-tr-xs'
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.text}</p>
@@ -185,7 +185,7 @@ export default function InstructorChatModal({
           <button
             type="submit"
             disabled={loading || !inputMessage.trim()}
-            className="p-2.5 rounded-xl bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm"
+            className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm"
           >
             <Icon name="PaperAirplaneIcon" size={16} />
           </button>

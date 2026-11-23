@@ -498,7 +498,7 @@ export default function LessonViewer({
                     type="button"
                     onClick={() => handleSaveEdit()}
                     disabled={isSaving}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
                   >
                     <Icon name="CheckIcon" size={14} />
                     <span>{isSaving ? 'Saving...' : 'Save'}</span>

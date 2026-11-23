@@ -12,7 +12,7 @@
  * (/admin/*) is not ported yet. Keep in sync with the Python code (CLAUDE.md, "Dual deployment modes").
  */
 
-import { withNeonSync } from '@/lib/server/neonSync';
+import { withNeonRead, withNeonSync } from '@/lib/server/neonSync';
 import { HttpError, requireTodoUserId, withTodoDb, type Row, type TodoDb } from '../todo/_shared';
 
 let schemaReady = false;
@@ -176,7 +176,7 @@ function getProfile(db: TodoDb, userId: number): Row | null {
   };
 }
 
-export function handleProfileGet(req: Request): Response {
+function profileGet(req: Request): Response {
   return respond(() => {
     const userId = requireTodoUserId(req);
     return { body: withAccountDb((db) => getProfile(db, userId)) ?? { user_id: userId } };
@@ -223,6 +223,7 @@ async function profilePut(req: Request): Promise<Response> {
 }
 
 export const handleProfilePut = withNeonSync(profilePut);
+export const handleProfileGet = withNeonRead(async (req: Request) => profileGet(req));
 
 // ── Access requests (auth/db.py) ─────────────────────────────────────────────────────────────────────────────
 
@@ -306,11 +307,12 @@ async function createRequest(req: Request): Promise<Response> {
 }
 
 const createRequestSynced = withNeonSync(createRequest);
+const listMineSynced = withNeonRead(async (req: Request) => listMine(req));
 
 /** Entry point for src/app/api/access-requests/[[...path]]/route.ts. */
 export function handleAccessRequests(req: Request, segments: string[]): Promise<Response> | Response {
   const path = segments.join('/');
-  if (req.method === 'GET' && path === 'me') return listMine(req);
+  if (req.method === 'GET' && path === 'me') return listMineSynced(req);
   if (req.method === 'POST' && path === '') return createRequestSynced(req);
   const known = path === 'me' || path === '';
   return Response.json({ detail: known ? 'Method Not Allowed' : 'Not Found' }, { status: known ? 405 : 404 });

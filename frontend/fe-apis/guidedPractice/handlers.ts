@@ -353,7 +353,19 @@ export const routes: TodoRoute[] = [
       const ctx = parseCtx(body);
       const phaseCount = intField(body, 'phase_count', 3, 6, 5);
       const focus = strField(body, 'focus', 600, { def: '' });
-      return runAi('outline', buildOutlinePrompt(ctx, phaseCount, focus), body);
+      // A new path in ONE request: the plan plus the questions of phase 1 (0 = the plan only, as before).
+      const firstPhaseQuestions = intField(body, 'first_phase_questions', 0, 10, 0);
+      // "Add phase": the phases the path has; when sent, only `add_count` new phase outlines are planned.
+      const existing = objectList(body, 'existing_phases', 40).map((o) => ({
+        title: strField(o, 'title', 200, { min: 1, label: 'existing_phases.title' }),
+        goal: strField(o, 'goal', 500, { def: '', label: 'existing_phases.goal' }),
+      }));
+      const addCount = intField(body, 'add_count', 1, 5, 1);
+      return runAi(
+        'outline',
+        buildOutlinePrompt(ctx, phaseCount, focus, firstPhaseQuestions, existing, addCount),
+        body
+      );
     },
   },
   {
@@ -370,6 +382,9 @@ export const routes: TodoRoute[] = [
         otherTitles: stringList(body, 'other_titles', 60, 300),
         keptTitles: stringList(body, 'kept_titles', 8, 400),
         focus: strField(body, 'focus', 600, { def: '' }),
+        count: intField(body, 'question_count', 1, 10, 5),
+        existingTitles: stringList(body, 'existing_titles', 40, 400),
+        outlineStart: intField(body, 'outline_start', 1, 50, 1),
       });
       return runAi('phase', prompt, body);
     },

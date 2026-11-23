@@ -750,7 +750,7 @@ export default function ImportLabModuleButton({
                       type="button"
                       disabled={selected.size === 0}
                       onClick={() => setStep('options')}
-                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:mix-bg-primary/90 disabled:opacity-50"
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:mix-bg-primary/90 disabled:opacity-50"
                     >
                       Continue
                     </button>
@@ -763,7 +763,7 @@ export default function ImportLabModuleButton({
                       !plans || options.sectionIds.length + (options.includeQuiz ? 1 : 0) === 0
                     }
                     onClick={startImport}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:mix-bg-primary/90 disabled:opacity-50"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:mix-bg-primary/90 disabled:opacity-50"
                   >
                     {`Import ${plural(selectedTopics.length, 'module')}`}
                   </button>
@@ -783,7 +783,7 @@ export default function ImportLabModuleButton({
                   <button
                     type="button"
                     onClick={close}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:mix-bg-primary/90"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:mix-bg-primary/90"
                   >
                     Done
                   </button>

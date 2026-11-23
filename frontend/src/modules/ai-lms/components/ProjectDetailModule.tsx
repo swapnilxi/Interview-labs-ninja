@@ -6,7 +6,9 @@ import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLmsViewMode } from '../context/LmsViewModeContext';
-import { lmsService, type PlacementSuggestion } from '../services/lmsService';
+import { LmsRequestError, lmsService, type PlacementSuggestion } from '../services/lmsService';
+import { useUrlState } from '@/lib/navigation/urlState';
+import AddQuestionTopicPanel from './AddQuestionTopicPanel';
 import { extractMultipleFiles, mergeSourceNames } from '../utils/contextFiles';
 import type { LmsClass, LmsLesson, LmsProjectPlanItem, LmsSubject } from '../types';
 import ConfirmDialog from './ConfirmDialog';
@@ -296,7 +298,7 @@ function InsertGap({
           <button
             type="submit"
             disabled={!title.trim() || saving}
-            className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
           >
             {saving
               ? generate
@@ -359,6 +361,12 @@ export default function ProjectDetailModule({
   const [itemStatus, setItemStatus] = useState<Record<string, ItemStatus>>({});
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // "Add question or topic" panel: its own address (?ask=1), so Back closes it and a link opens it.
+  const { get: getParam, update: updateParams } = useUrlState();
+  const askOpen = getParam('ask') === '1';
+  const [topicEdit, setTopicEdit] = useState<{ id: string; title: string; sectionId: string } | null>(null);
+  const [topicBusy, setTopicBusy] = useState<string | null>(null);
+  const [topicToDelete, setTopicToDelete] = useState<LmsProjectPlanItem | null>(null);
 
   const plan = project.project_plan || [];
   const flatItems = useMemo(() => flattenPlan(plan), [plan]);
@@ -380,6 +388,76 @@ export default function ProjectDetailModule({
   const statusFor = (flat: FlatItem): ItemStatus => {
     if (itemStatus[flat.key]) return itemStatus[flat.key];
     return flat.item.lesson_id ? 'done' : 'idle';
+  };
+
+  // ── Question topics (rename, move, regenerate, delete; no AI except regenerate) ──
+  const isQuestionsModule = (m: LmsProjectPlanItem) =>
+    m.kind === 'questions' || m.title.trim().toLowerCase() === 'user questions topics';
+
+  const saveTopicEdit = async (item: LmsProjectPlanItem, sectionNow: string) => {
+    if (!topicEdit || !item.id) return;
+    const title = topicEdit.title.trim();
+    if (!title) return;
+    setTopicBusy(item.id);
+    setError(null);
+    try {
+      await lmsService.updateQuestionTopic(project.id, item.id, {
+        ...(title !== item.title ? { title } : {}),
+        ...(topicEdit.sectionId !== sectionNow ? { section_id: topicEdit.sectionId } : {}),
+        base_version: item.version ?? 1,
+      });
+      setTopicEdit(null);
+      setItemStatus({});
+      onReload();
+    } catch (err) {
+      setError(
+        err instanceof LmsRequestError && err.status === 409
+          ? `${err.message} Your change was not saved.`
+          : err instanceof Error
+          ? err.message
+          : 'Could not save the topic.'
+      );
+      if (err instanceof LmsRequestError && err.status === 409) onReload();
+    } finally {
+      setTopicBusy(null);
+    }
+  };
+
+  const regenerateTopic = async (item: LmsProjectPlanItem, sectionId: string) => {
+    if (!item.id) return;
+    setTopicBusy(item.id);
+    setError(null);
+    try {
+      await lmsService.generateQuestionTopic(project.id, {
+        operation_id: `regen-${item.id}-${item.version ?? 1}`,
+        input: item.original_input || item.title,
+        input_type: item.input_type || 'question',
+        title: item.title,
+        section_id: sectionId,
+        topic_id: item.id,
+      });
+      onReload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not regenerate the lesson.');
+    } finally {
+      setTopicBusy(null);
+    }
+  };
+
+  const confirmDeleteTopic = async () => {
+    const item = topicToDelete;
+    setTopicToDelete(null);
+    if (!item?.id) return;
+    setTopicBusy(item.id);
+    try {
+      await lmsService.deleteQuestionTopic(project.id, item.id);
+      setItemStatus({});
+      onReload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete the topic.');
+    } finally {
+      setTopicBusy(null);
+    }
   };
 
   // ── README / Context ────────────────────────────────────────────────────
@@ -503,7 +581,11 @@ export default function ProjectDetailModule({
   const handleGenerateAll = async () => {
     // A module that's been broken down is represented by its sublessons, not itself.
     const targets = flatItems.filter(
-      (f) => !f.item.lesson_id && !(f.depth === 0 && (f.item.sublessons || []).length > 0)
+      (f) =>
+        !f.item.lesson_id &&
+        f.item.kind !== 'question' &&
+        !(f.depth === 0 && isQuestionsModule(f.item)) &&
+        !(f.depth === 0 && (f.item.sublessons || []).length > 0)
     );
     if (targets.length === 0) return;
 
@@ -639,7 +721,125 @@ export default function ProjectDetailModule({
     }
   };
 
+  const renderQuestionRow = (flat: FlatItem) => {
+    const item = flat.item;
+    const href = item.lesson_id ? lessonHref(item.lesson_id) : null;
+    const section = plan[flat.moduleIndex];
+    const editing = topicEdit?.id === item.id;
+    const busy = topicBusy === item.id;
+    return (
+      <div
+        key={flat.key}
+        className={`ml-[1.5rem] sm:ml-10 rounded-xl border border-border bg-card p-4 space-y-3 ${busy ? 'opacity-60' : ''}`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <span className="tabular-nums text-xs font-medium px-2 py-1 rounded-md bg-muted text-muted-foreground flex-shrink-0">
+              {flat.moduleIndex + 1}.{(flat.subIndex ?? 0) + 1}
+            </span>
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-foreground break-words">{item.title}</span>
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-border text-muted-foreground">
+                  {item.input_type === 'topic' ? 'Topic' : 'Question'}
+                </span>
+              </div>
+              {item.original_input && (
+                <p className="text-xs text-muted-foreground line-clamp-2 break-words">{item.original_input}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            {href ? (
+              <Link
+                href={href}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-[opacity]"
+              >
+                <span>Open</span>
+                <Icon name="ArrowRightIcon" size={12} />
+              </Link>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">Lesson missing</span>
+            )}
+            {canEdit && !editing && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setTopicEdit({ id: item.id as string, title: item.title, sectionId: section.id as string })}
+                  className="px-3 py-1.5 rounded-lg border border-border bg-card text-foreground text-xs font-medium hover:bg-muted disabled:opacity-50 transition-colors"
+                >
+                  Rename or move
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => regenerateTopic(item, section.id as string)}
+                  title={item.lesson_id ? 'Write the lesson again (uses the AI)' : 'Write the missing lesson (uses the AI)'}
+                  className="px-3 py-1.5 rounded-lg text-muted-foreground text-xs font-medium hover:text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+                >
+                  {busy ? 'Working…' : item.lesson_id ? 'Regenerate' : 'Generate'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setTopicToDelete(item)}
+                  aria-label={`Delete ${item.title}`}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-muted disabled:opacity-50 transition-colors"
+                >
+                  <Icon name="TrashIcon" size={14} />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        {editing && topicEdit && (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={topicEdit.title}
+              maxLength={120}
+              aria-label="Topic title"
+              onChange={(e) => setTopicEdit({ ...topicEdit, title: e.target.value })}
+              className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <select
+              value={topicEdit.sectionId}
+              aria-label="Section"
+              onChange={(e) => setTopicEdit({ ...topicEdit, sectionId: e.target.value })}
+              className="sm:w-56 px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              {plan.filter((m) => m.id).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.title}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={busy || !topicEdit.title.trim()}
+                onClick={() => saveTopicEdit(item, section.id as string)}
+                className="px-3 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setTopicEdit(null)}
+                className="px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderItemRow = (flat: FlatItem) => {
+    if (flat.item.kind === 'question') return renderQuestionRow(flat);
+    const isQuestionsHeader = flat.depth === 0 && isQuestionsModule(flat.item);
     const status = statusFor(flat);
     const href = flat.item.lesson_id ? lessonHref(flat.item.lesson_id) : null;
     const isBusy = status === 'generating' || isGeneratingAll || isPlanning;
@@ -706,19 +906,19 @@ export default function ProjectDetailModule({
         </div>
 
         <div className="flex items-center gap-2.5 flex-shrink-0 flex-wrap">
-          <StatusBadge status={status} />
+          {!isQuestionsHeader && <StatusBadge status={status} />}
 
           {href && (
             <Link
               href={href}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
             >
               <span>Open</span>
               <Icon name="ArrowRightIcon" size={12} />
             </Link>
           )}
 
-          {canEdit && (
+          {canEdit && !isQuestionsHeader && (
           <button
             type="button"
             disabled={isBusy}
@@ -730,7 +930,7 @@ export default function ProjectDetailModule({
           </button>
           )}
 
-          {canEdit && canBreakDown && (
+          {canEdit && canBreakDown && !isQuestionsHeader && (
             <button
               type="button"
               disabled={isBusy}
@@ -906,6 +1106,29 @@ export default function ProjectDetailModule({
 
       {mode === 'modules' && (
         <>
+          {canEdit &&
+            (askOpen ? (
+              <AddQuestionTopicPanel
+                project={project}
+                onClose={() => updateParams({ ask: null })}
+                onSaved={() => {
+                  setItemStatus({});
+                  onReload();
+                }}
+              />
+            ) : (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => updateParams({ ask: '1' })}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                >
+                  <Icon name="QuestionMarkCircleIcon" size={16} />
+                  <span>Add question or topic</span>
+                </button>
+              </div>
+            ))}
+
           {canEdit && plan.length > 0 && (
             <section className="space-y-1.5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
@@ -948,7 +1171,10 @@ export default function ProjectDetailModule({
                     isPlanning ||
                     flatItems.every(
                       (f) =>
-                        f.item.lesson_id || (f.depth === 0 && (f.item.sublessons || []).length > 0)
+                        f.item.lesson_id ||
+                        f.item.kind === 'question' ||
+                        (f.depth === 0 && isQuestionsModule(f.item)) ||
+                        (f.depth === 0 && (f.item.sublessons || []).length > 0)
                     )
                   }
                   onClick={handleGenerateAll}
@@ -1036,9 +1262,19 @@ export default function ProjectDetailModule({
       )}
 
       <ConfirmDialog
+        isOpen={Boolean(topicToDelete)}
+        title="Delete topic"
+        message={`Delete "${topicToDelete?.title ?? ''}" and its lesson? This can't be undone.`}
+        confirmLabel="Delete"
+        isDestructive
+        onConfirm={confirmDeleteTopic}
+        onCancel={() => setTopicToDelete(null)}
+      />
+
+      <ConfirmDialog
         isOpen={confirmReplan}
         title="Regenerate Module Outline"
-        message="This replaces the current module outline and deletes every module/sublesson lesson already generated from it. This can't be undone."
+        message="This replaces the current module outline and deletes every module/sublesson lesson already generated from it. Question topics and their lessons are kept in User Questions Topics. This can't be undone."
         confirmLabel="Regenerate Outline"
         isDestructive
         onConfirm={() => {

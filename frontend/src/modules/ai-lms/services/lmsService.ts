@@ -15,6 +15,9 @@ import type {
   LmsLandingSaved,
   LmsLandingSection,
   LmsLesson,
+  LmsQuestionTopic,
+  LmsQuestionTopicPreview,
+  LmsQuestionTopicResult,
   LmsMembership,
   LmsMembershipStatus,
   LmsModuleLanding,
@@ -40,6 +43,22 @@ export interface PlacementSuggestion {
 
 /** The lesson changed since the editor loaded it (e.g. its .html file was saved in the IDE). */
 export class LmsConflictError extends Error {}
+
+/** A refused request that carries more than a message (a 409 with the current topic or a running operation). */
+export class LmsRequestError extends Error {
+  constructor(message: string, public status: number, public body: Record<string, unknown>) {
+    super(message);
+  }
+}
+
+async function jsonOrThrow<T>(res: Response): Promise<T> {
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const detail = typeof body.detail === 'string' ? body.detail : `Request failed (HTTP ${res.status})`;
+    throw new LmsRequestError(res.status === 401 ? 'Log in to use this feature.' : detail, res.status, body);
+  }
+  return body as T;
+}
 
 export interface ProjectGenerateResult {
   lesson: LmsLesson;
@@ -774,6 +793,68 @@ export const lmsService = {
   },
 
   /** Generate (or regenerate in place) the standalone lesson for one sublesson. */
+  // ── Project question topics (question_topics_api.py <-> questionTopicHandlers.ts) ──
+  /** AI suggestion of a title and a section for a question/topic. Saves nothing. */
+  async previewQuestionTopic(projectId: string, input: string): Promise<LmsQuestionTopicPreview> {
+    const res = await apiFetch(`/api/lms/projects/${encodeURIComponent(projectId)}/question-topics/preview`, {
+      method: 'POST',
+      body: JSON.stringify({ ...defaultAIRequestFields(), input }),
+    });
+    return jsonOrThrow<LmsQuestionTopicPreview>(res);
+  },
+
+  /** Generate (or, with topic_id, regenerate) the lesson. Send the SAME operation_id on every retry: the server
+   * returns the already-saved topic instead of making a second one. */
+  async generateQuestionTopic(
+    projectId: string,
+    payload: {
+      operation_id: string;
+      input: string;
+      input_type: 'question' | 'topic';
+      title: string;
+      section_id: string;
+      guiding_question?: string;
+      topic_id?: string;
+    }
+  ): Promise<LmsQuestionTopicResult> {
+    const res = await apiFetch(`/api/lms/projects/${encodeURIComponent(projectId)}/question-topics`, {
+      method: 'POST',
+      body: JSON.stringify({ ...defaultAIRequestFields(), ...payload }),
+    });
+    return jsonOrThrow<LmsQuestionTopicResult>(res);
+  },
+
+  async getQuestionTopicOperation(
+    projectId: string,
+    operationId: string
+  ): Promise<LmsQuestionTopicResult | { operation: { id: string; status: 'generating' | 'failed'; error: string | null } }> {
+    const res = await apiFetch(
+      `/api/lms/projects/${encodeURIComponent(projectId)}/question-topics/operations/${encodeURIComponent(operationId)}`
+    );
+    return jsonOrThrow(res);
+  },
+
+  /** Rename and/or move a question topic. base_version makes a stale edit fail (409) instead of undoing a newer one. */
+  async updateQuestionTopic(
+    projectId: string,
+    topicId: string,
+    payload: { title?: string; section_id?: string; base_version?: number }
+  ): Promise<{ topic: LmsQuestionTopic; project: LmsSubject }> {
+    const res = await apiFetch(
+      `/api/lms/projects/${encodeURIComponent(projectId)}/question-topics/${encodeURIComponent(topicId)}`,
+      { method: 'PATCH', body: JSON.stringify(payload) }
+    );
+    return jsonOrThrow(res);
+  },
+
+  async deleteQuestionTopic(projectId: string, topicId: string): Promise<void> {
+    const res = await apiFetch(
+      `/api/lms/projects/${encodeURIComponent(projectId)}/question-topics/${encodeURIComponent(topicId)}`,
+      { method: 'DELETE' }
+    );
+    await jsonOrThrow(res);
+  },
+
   async generateProjectSublesson(
     projectId: string,
     moduleIndex: number,

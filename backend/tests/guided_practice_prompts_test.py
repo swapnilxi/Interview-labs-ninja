@@ -311,6 +311,20 @@ def build_cases():
             for answer in ("", "## A — Action\nUse a dict.\n\n```python\nprint(1)\n```"):
                 add("star", {"ctx": ctx(ck), "s": star_input("code", pos=pos(pk), question=question("plain", "base"), existingAnswer=answer, explanation="Lesson." if answer else "")}, f"code-{ck}-{pk}-{'ans' if answer else 'bare'}")
 
+    # ── Guided Path (2026-11-23): one-request start, "Add phase", "Generate/Add questions" with a count, phase windows ──
+    for ck in CTX_KINDS:
+        for first in (0, 1, 5, 8):
+            add("outline", {"ctx": ctx(ck), "phaseCount": 5, "focus": pick(["", "  heaps  "]), "firstPhaseQuestions": first}, f"{ck}-first{first}")
+        for n_have in (1, 5, 12):
+            for add_count in (1, 2, 3):
+                add("outline", {"ctx": ctx(ck), "phaseCount": 5, "focus": pick(["", pick(TRICKY)]), "existing": plan(n_have), "addCount": add_count}, f"{ck}-extend{n_have}-add{add_count}")
+    for ck in CTX_KINDS:
+        for count in (1, 3, 5, 8):
+            for existing in (0, 1, 5, 20):
+                add("phase", {"ctx": ctx(ck), "ph": phase_in(count=count, existingTitles=titles_list(existing), outlineStart=rng.choice([1, 4]), number=rng.choice([1, 4]))}, f"{ck}-count{count}-existing{existing}")
+        for kept in (0, 2, 7):
+            add("phase", {"ctx": ctx(ck), "ph": phase_in(count=rng.choice([3, 8]), keptTitles=titles_list(kept))}, f"{ck}-regen-count-kept{kept}")
+
     # ── labs: everything above ran WITHOUT `lab` (the dsa fixtures of the first version, unchanged and still first in the list) ──
     # Appended after the random draws on purpose, so the first 611 cases stay byte-for-byte what they were.
     n_dsa = len(cases)
@@ -366,7 +380,7 @@ for (const c of cases) {
   const a = c.args;
   switch (c.fn) {
     case 'curriculum': out[c.id] = m.buildCurriculumPrompt(a.ctx, a.phaseCount, a.focus); break;
-    case 'outline': out[c.id] = m.buildOutlinePrompt(a.ctx, a.phaseCount, a.focus); break;
+    case 'outline': out[c.id] = m.buildOutlinePrompt(a.ctx, a.phaseCount, a.focus, a.firstPhaseQuestions ?? 0, a.existing ?? [], a.addCount ?? 1); break;
     case 'phase': out[c.id] = m.buildPhasePrompt(a.ctx, a.ph); break;
     case 'question': out[c.id] = m.buildQuestionPrompt(a.ctx, a.q, a.pos, a.siblingTitles); break;
     case 'breakdown': out[c.id] = m.buildBreakdownPrompt(a.ctx, a.q, a.pos, a.existing, a.pathTitles, a.regenerate); break;
@@ -426,7 +440,10 @@ def build_py(case):
     if fn == "curriculum":
         return P.build_curriculum_prompt(ctx_of(a["ctx"]), a["phaseCount"], a["focus"])
     if fn == "outline":
-        return P.build_outline_prompt(ctx_of(a["ctx"]), a["phaseCount"], a["focus"])
+        return P.build_outline_prompt(
+            ctx_of(a["ctx"]), a["phaseCount"], a["focus"], a.get("firstPhaseQuestions", 0),
+            [P.OutlinePhase(**conv(o)) for o in a.get("existing", [])], a.get("addCount", 1),
+        )
     if fn == "phase":
         ph = dict(a["ph"])
         ph["outline"] = [P.OutlinePhase(**conv(o)) for o in ph["outline"]]

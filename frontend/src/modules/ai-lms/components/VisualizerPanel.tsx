@@ -192,7 +192,7 @@ export default function VisualizerPanel({
                 type="button"
                 onClick={handleEmbedIntoLesson}
                 disabled={embedding || embedSuccess}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50"
               >
                 <Icon name={embedSuccess ? 'CheckIcon' : 'ArrowDownTrayIcon'} size={14} />
                 <span>
@@ -244,7 +244,7 @@ export default function VisualizerPanel({
                 handleGenerateVisual(customConcept.trim());
                 setShowPromptInput(false);
               }}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90"
+              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90"
             >
               Generate
             </button>
@@ -298,7 +298,7 @@ export default function VisualizerPanel({
             <button
               type="button"
               onClick={() => handleGenerateVisual()}
-              className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary/90"
+              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90"
             >
               Generate Visual
             </button>

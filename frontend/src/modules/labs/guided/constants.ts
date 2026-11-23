@@ -57,8 +57,10 @@ export const DEEPER_ANGLES: Record<string, string> = {
 export const PHASE_COUNT = 5;
 /** Questions the AI writes per page of the path (a phase). Twin: PHASE_QUESTIONS in fe-apis/guidedPractice/prompts.ts. */
 export const PHASE_QUESTIONS = 5;
-/** Phases the AI plans and "Generate more" can add: past this a path is long enough. */
-export const MAX_GENERATED_PHASES = 8;
+/** Phases a path can grow to with "Add phase" (five is only the starting plan). */
+export const MAX_GENERATED_PHASES = 20;
+/** The question counts the learner can pick for "Generate questions" / "Add questions" (PHASE_QUESTIONS is the default). */
+export const QUESTION_BATCH_SIZES = [3, 5, 8] as const;
 /** A breakdown of a breakdown of a breakdown ... stops here: past it a step is already as small as it gets. */
 export const MAX_DEPTH = 5;
 

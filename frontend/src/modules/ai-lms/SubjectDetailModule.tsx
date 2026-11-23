@@ -286,7 +286,7 @@ export default function SubjectDetailModule({ classSlug, subjectSlug }: SubjectD
 
             <Link
               href={`/ai-lms/generate?class=${lmsClass.slug}&subject=${subject.slug}`}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-xs shadow-sm hover:bg-primary/90 transition-all"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium text-xs shadow-sm hover:bg-primary/90 transition-all"
             >
               <Icon name="SparklesIcon" size={15} />
               <span>Generate with AI</span>

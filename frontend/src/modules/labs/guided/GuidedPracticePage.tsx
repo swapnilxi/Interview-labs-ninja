@@ -192,7 +192,7 @@ export default function GuidedPracticePage({
 
   const handleSelect = useCallback(
     (id: string) => {
-      actions.select(id);
+      actions.select(id, { byUser: true });
       update({ q: id }, qParam ? 'replace' : 'push');
       if (!qParam) pushed.current = true;
       requestAnimationFrame(() => {

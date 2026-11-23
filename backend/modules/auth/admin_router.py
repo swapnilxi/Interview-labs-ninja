@@ -23,7 +23,7 @@ from modules.auth.dependencies import (
 )
 from modules.auth.security import hash_password
 from modules.common.db import get_db_path
-from modules.common.neon_sync import download_snapshot, upload_snapshot
+from modules.common.neon_sync import download_snapshot, mark_pulled, upload_snapshot
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -303,4 +303,5 @@ async def pull_db_from_production(admin: dict = Depends(require_permission("user
     db_path = get_db_path()
     with open(db_path, "wb") as f:
         f.write(snapshot)
+    mark_pulled("lab_ninja")  # the sync layer must not take this for a change made behind its back
     return {"status": "pulled"}

@@ -49,6 +49,55 @@ export interface LmsProjectPlanItem {
   sublessons: LmsProjectPlanItem[];
   /** Video links of this module or sub-step (PUT .../videos; the outline carries them, so they move with the entry). */
   videos?: { url: string; title: string }[];
+  /** Stable id of this module or step (stored, or derived from its position until the next save). */
+  id?: string;
+  /** 'questions' = the project's "User Questions Topics" section; 'question' = a learner question topic. */
+  kind?: 'questions' | 'question';
+  /** Question topics only: what the learner typed, verbatim, and whether it was a question or a topic. */
+  input_type?: 'question' | 'topic';
+  original_input?: string;
+  /** Question topics only: bumped on every rename/move; PATCH sends it back to catch edits made elsewhere. */
+  version?: number;
+  updated_at?: string;
+}
+
+/** A project section a question topic can live in (a module of the project's outline). */
+export interface LmsTopicSection {
+  id: string;
+  title: string;
+  is_questions: boolean;
+}
+
+/** POST .../question-topics/preview */
+export interface LmsQuestionTopicPreview {
+  input_type: 'question' | 'topic';
+  title: string;
+  section: { id: string; title: string; is_new: boolean };
+  reason: string;
+  guiding_question: string;
+  sections: LmsTopicSection[];
+}
+
+export interface LmsQuestionTopic {
+  id: string;
+  title: string;
+  input_type: 'question' | 'topic';
+  original_input: string;
+  section_id: string;
+  section_title: string;
+  lesson_id: string | null;
+  version: number;
+  updated_at: string;
+}
+
+/** POST .../question-topics (and a finished GET .../operations/{id}) */
+export interface LmsQuestionTopicResult {
+  topic: LmsQuestionTopic;
+  lesson: { id: string; slug: string; title: string } | null;
+  lesson_url: string | null;
+  operation: { id: string; status: 'done' };
+  replayed: boolean;
+  project: LmsSubject;
 }
 
 export interface LmsSubject {
