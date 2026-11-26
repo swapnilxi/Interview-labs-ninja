@@ -28,40 +28,122 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // ── JSON ────────────────────────────────────────────────────────────────────
 
-/** Escapes raw control characters inside strings, drops bad escapes (\') and trailing commas. */
+/** Zero-width characters a chat window or a copy from a web page leaves between tokens. */
+const INVISIBLE = /[​-‍⁠﻿]/;
+/** Bare words outside strings: Python/JS literals mean JSON's own; anything else is read as a string. */
+const BARE_WORDS: Record<string, string> = {
+  true: 'true',
+  false: 'false',
+  null: 'null',
+  True: 'true',
+  False: 'false',
+  None: 'null',
+  undefined: 'null',
+  NaN: 'null',
+};
+
+/**
+ * Whether a quote at `j - 1` inside a string really ends it: what follows must be a `:` or a `}`/`]`, or a `,` followed by
+ * the start of another value. Otherwise it is a quote the writer forgot to escape (`"What does "self" mean?"`).
+ */
+function quoteCloses(src: string, j: number): boolean {
+  const skip = (k: number) => {
+    while (k < src.length && (/\s/.test(src[k]) || INVISIBLE.test(src[k]))) k++;
+    return k;
+  };
+  j = skip(j);
+  if (j >= src.length) return true;
+  const c = src[j];
+  if (c === ':' || c === '}' || c === ']') return true;
+  if (c !== ',') return false;
+  j = skip(j + 1);
+  if (j >= src.length) return true;
+  const d = src[j];
+  if ('"\'“”„{[}]-'.includes(d) || /[0-9]/.test(d)) return true;
+  if (d === '/' && (src[j + 1] === '/' || src[j + 1] === '*')) return true; // a comment, then the next value
+  const rest = src.slice(j, j + 80);
+  // A literal, or an unquoted key (`, kind: "concept"`).
+  return /^(?:true|false|null|True|False|None)\b/.test(rest) || /^[A-Za-z_$][\w$]*\s*:/.test(rest);
+}
+
+/**
+ * Makes JSON written by a person or another AI readable. Inside strings: raw newlines and control characters are escaped, bad
+ * escapes (\', a \u without four hex digits) lose their backslash, and a straight quote that does not end the string is
+ * escaped. Outside strings: trailing commas, // and /* *\/ comments and zero-width characters are dropped, non-breaking and
+ * other odd spaces become spaces, curly and single quotes become straight ones, True/False/None become JSON's literals and
+ * other bare words (unquoted keys) are quoted. Valid JSON is never passed through here (callers try JSON.parse first).
+ */
 export function repairJson(src: string): string {
   let out = '';
-  let inString = false;
+  /** The quote characters that can end the current string, or null outside one. */
+  let closers: string | null = null;
   let escaped = false;
   for (let i = 0; i < src.length; i++) {
     const ch = src[i];
-    if (inString) {
+    if (closers !== null) {
       if (escaped) {
         escaped = false;
-        if ('"\\/bfnrtu'.includes(ch)) out += ch;
+        if (ch === 'u') {
+          if (/^[0-9a-fA-F]{4}$/.test(src.slice(i + 1, i + 5))) out += ch;
+          else out = out.slice(0, -1) + ch;
+        } else if ('"\\/bfnrt'.includes(ch)) out += ch;
         else out = out.slice(0, -1) + ch; // an escape JSON does not know: keep the character, lose the backslash
         continue;
       }
       if (ch === '\\') {
         out += ch;
         escaped = true;
-      } else if (ch === '"') {
-        out += ch;
-        inString = false;
-      } else if (ch === '\n') out += '\\n';
+      } else if (closers.includes(ch) && quoteCloses(src, i + 1)) {
+        out += '"';
+        closers = null;
+      } else if (ch === '"') out += '\\"';
+      else if (ch === '\n') out += '\\n';
       else if (ch === '\r') out += '\\r';
       else if (ch === '\t') out += '\\t';
+      else if (ch < ' ') out += ' ';
       else out += ch;
       continue;
     }
     if (ch === '"') {
-      inString = true;
+      closers = '"';
       out += ch;
+      continue;
+    }
+    if (ch === '“' || ch === '”' || ch === '„') {
+      closers = '”“"';
+      out += '"';
+      continue;
+    }
+    if (ch === "'") {
+      closers = "'";
+      out += '"';
+      continue;
+    }
+    if (INVISIBLE.test(ch)) continue;
+    if (ch !== '\n' && ch !== '\r' && ch !== '\t' && ch !== ' ' && /\s/.test(ch)) {
+      out += ' ';
+      continue;
+    }
+    if (ch === '/' && src[i + 1] === '/') {
+      while (i + 1 < src.length && src[i + 1] !== '\n') i++;
+      continue;
+    }
+    if (ch === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2);
+      i = end === -1 ? src.length : end + 1;
+      continue;
+    }
+    if (/[A-Za-z_$]/.test(ch) && !/[0-9.]/.test(src[i - 1] ?? '')) {
+      let j = i;
+      while (j < src.length && /[A-Za-z0-9_$]/.test(src[j])) j++;
+      const word = src.slice(i, j);
+      out += BARE_WORDS[word] ?? JSON.stringify(word);
+      i = j - 1;
       continue;
     }
     if (ch === ',') {
       let j = i + 1;
-      while (j < src.length && /\s/.test(src[j])) j++;
+      while (j < src.length && (/\s/.test(src[j]) || INVISIBLE.test(src[j]))) j++;
       if (src[j] === '}' || src[j] === ']') continue;
     }
     out += ch;

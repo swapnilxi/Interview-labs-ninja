@@ -29,31 +29,71 @@ export interface ImportedPath {
   /** Questions in the JSON, and how many made it into the path (duplicates, untitled items and the limits drop the rest). */
   found: number;
   kept: number;
+  /** The JSON was cut off (the other AI hit its length limit) and only its complete part was read. */
+  truncated?: boolean;
 }
 
 const NOT_JSON =
   'This is not valid JSON. Look for a missing bracket, comma or quote and try again.';
 
-function readJson(text: string): unknown {
+/** Where JSON.parse gave up on the repaired text, as "line 4: …snippet…", or null when it does not say. */
+function whereItBreaks(body: string): string | null {
+  const repaired = repairJson(body);
+  try {
+    JSON.parse(repaired);
+    return null;
+  } catch (e) {
+    const m = /position (\d+)/.exec(e instanceof Error ? e.message : '');
+    if (!m) return null;
+    const pos = Math.min(Number(m[1]), repaired.length);
+    const line = repaired.slice(0, pos).split('\n').length;
+    const snippet = repaired
+      .slice(Math.max(0, pos - 30), pos + 30)
+      .replace(/\s+/g, ' ')
+      .replace(/\\"/g, '"')
+      .trim();
+    return `line ${line}, near “${snippet}”`;
+  }
+}
+
+function readJson(text: string): { value: unknown; truncated: boolean } {
   const t = (text ?? '')
+    .replace(/^﻿/, '')
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '')
     .trim();
   if (!t) throw new AiParseError('Paste some JSON first.');
   if (t.length > MAX_IMPORT_CHARS) throw new AiParseError('This is too long to be a path.');
-  try {
-    if (t.startsWith('[')) {
-      const body = t.slice(0, t.lastIndexOf(']') + 1) || t;
-      try {
-        return JSON.parse(body);
-      } catch {
-        return JSON.parse(repairJson(body));
-      }
+  if (t.startsWith('[')) {
+    const body = t.slice(0, t.lastIndexOf(']') + 1) || t;
+    try {
+      return { value: JSON.parse(body), truncated: false };
+    } catch {
+      /* repaired below */
     }
-    return extractJson(t);
+    try {
+      return { value: JSON.parse(repairJson(body)), truncated: false };
+    } catch {
+      /* fall through to extractJson, which also finds `{...}` */
+    }
+  }
+  try {
+    return { value: extractJson(t), truncated: false };
   } catch {
-    throw new AiParseError(NOT_JSON);
+    /* maybe cut off: try keeping the complete part */
+  }
+  try {
+    // An answer cut off by the other AI's length limit: keep every question that was complete.
+    return { value: extractJson(t, { salvage: true }), truncated: true };
+  } catch {
+    const start = t.search(/[{[]/);
+    const where = start === -1 ? null : whereItBreaks(t.slice(start));
+    throw new AiParseError(
+      where
+        ? `This is not valid JSON (${where}). Look for a missing bracket, comma or quote there and try again.`
+        : NOT_JSON
+    );
   }
 }
 
@@ -114,7 +154,8 @@ function phasesOf(raw: unknown): { phases: RawPhase[]; boss: unknown } {
 
 /** Reads the JSON text into a path. Throws `AiParseError` with a message that can be shown as is. */
 export function parseImportedPath(text: string): ImportedPath {
-  const { phases, boss } = phasesOf(readJson(text));
+  const { value, truncated } = readJson(text);
+  const { phases, boss } = phasesOf(value);
   const found = phases.reduce((n, p) => n + p.questions.length, 0);
   let curriculum: ParsedCurriculum;
   try {
@@ -128,14 +169,18 @@ export function parseImportedPath(text: string): ImportedPath {
     throw e;
   }
   const kept = curriculum.phases.reduce((n, p) => n + p.questions.length, 0);
-  return { curriculum, found, kept };
+  return { curriculum, found, kept, truncated };
 }
 
 /** What to tell the person when some questions did not make it, or null when all did. */
 export function importNote(r: ImportedPath): string | null {
-  if (r.kept >= r.found) return null;
+  const cut = r.truncated
+    ? 'The JSON looked cut off, so only its complete questions were imported. Ask the other AI to continue for the rest.'
+    : null;
+  if (r.kept >= r.found) return cut;
   const skipped = r.found - r.kept;
-  return `${skipped} question${skipped === 1 ? ' was' : 's were'} left out: duplicates, items without a title, and anything past ${MAX_PHASES} phases of ${MAX_QUESTIONS_PER_PHASE} questions.`;
+  const left = `${skipped} question${skipped === 1 ? ' was' : 's were'} left out: duplicates, items without a title, and anything past ${MAX_PHASES} phases of ${MAX_QUESTIONS_PER_PHASE} questions.`;
+  return cut ? `${cut} ${left}` : left;
 }
 
 /** A prompt to give any other AI so that its answer can be imported here. */

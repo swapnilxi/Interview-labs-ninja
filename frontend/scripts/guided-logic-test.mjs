@@ -118,6 +118,21 @@ test('extractJson says a cut-off answer was cut off, and salvage keeps the compl
     ],
   });
 });
+test('extractJson reads JSON pasted from another AI (odd spaces, stray quotes, comments, Python literals)', () => {
+  const want = { a: 'What does "self" mean?', b: false, c: null, d: [1, 2] };
+  const cases = [
+    '{ "a": "What does "self" mean?",\n  "b": False, "c": None, "d": [1, 2,]}',
+    '{​"a": "What does \\"self\\" mean?", // note\n"b": false, /* x */ "c": null, "d": [1,2]}',
+    "{'a': 'What does \"self\" mean?', 'b': false, 'c': null, 'd': [1, 2]}",
+    '{a: "What does \\"self\\" mean?", b: false, c: null, d: [1, 2]}',
+    '{“a”: “What does "self" mean?”, "b": false, "c": null, "d": [1, 2]}',
+  ];
+  for (const c of cases) assert.deepStrictEqual(parse.extractJson(c), want, c);
+  assert.deepStrictEqual(parse.extractJson('{"a": "don\'t \\user", "b": "x, y"}'), {
+    a: "don't user",
+    b: 'x, y',
+  });
+});
 test('parseOutline and parsePhase read a cut-off answer and a bare array', () => {
   const o = parse.parseOutline(
     '{"phases":[{"title":"What it is","goal":"g"},{"title":"How it works","goal":"g"}],"boss":{"title":"Big fin'
