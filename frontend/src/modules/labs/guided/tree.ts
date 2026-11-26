@@ -481,19 +481,34 @@ export function applyPhase(state: GuidedState, phaseId: string, parsed: ParsedPh
 /** The most phases a path takes through import or "Add phase": more than that is a different path. */
 const MAX_PATH_PHASES = 30;
 
-/**
- * Adds written phases after the last one (before the boss). Used by "Generate more" past the plan and by importing JSON into a path.
- * The boss stays last, and a finished phase never reopens: the new phase is simply the next one.
- */
-export function appendPhases(state: GuidedState, parsed: ParsedCurriculum['phases']): PageResult {
+/** An id no phase of the path has yet (ids stay put when phases are renumbered, so they can run ahead of the numbers). */
+function nextPhaseId(phases: Phase[]): string {
+  const used = new Set(phases.map((p) => p.id));
+  let n =
+    Math.max(
+      0,
+      ...phases.map((p) => Number(/^p(\d+)$/.exec(p.id)?.[1] ?? 0)),
+      ...phases.map((p) => p.number)
+    ) + 1;
+  while (used.has(`p${n}`)) n += 1;
+  return `p${n}`;
+}
+
+/** Builds written phases (with their questions) from parsed ones, numbered from `firstNumber`; at most `room` of them. */
+function buildPhases(
+  state: GuidedState,
+  parsed: ParsedCurriculum['phases'],
+  firstNumber: number,
+  room: number
+): { working: GuidedState; built: Phase[]; added: number } {
   let working = state;
-  const phases = [...state.phases];
+  const built: Phase[] = [];
   let added = 0;
   for (const p of parsed) {
-    if (phases.length >= MAX_PATH_PHASES) break;
-    const number = Math.max(0, ...phases.map((x) => x.number)) + 1;
+    if (built.length >= room) break;
+    const number = firstNumber + built.length;
     const phase: Phase = {
-      id: `p${number}`,
+      id: nextPhaseId([...state.phases, ...built]),
       number,
       title: p.title || `Phase ${number}`,
       goal: p.goal,
@@ -514,9 +529,40 @@ export function appendPhases(state: GuidedState, parsed: ParsedCurriculum['phase
       phase.questionIds.push(made.question.id);
       added += 1;
     }
-    phases.push(phase);
+    built.push(phase);
   }
-  return { state: { ...working, phases }, added, removed: 0 };
+  return { working, built, added };
+}
+
+/**
+ * Adds written phases after the last one (before the boss). Used by "Generate more" past the plan.
+ * The boss stays last, and a finished phase never reopens: the new phase is simply the next one.
+ */
+export function appendPhases(state: GuidedState, parsed: ParsedCurriculum['phases']): PageResult {
+  const first = Math.max(0, ...state.phases.map((x) => x.number)) + 1;
+  const { working, built, added } = buildPhases(
+    state,
+    parsed,
+    first,
+    MAX_PATH_PHASES - state.phases.length
+  );
+  return { state: { ...working, phases: [...state.phases, ...built] }, added, removed: 0 };
+}
+
+/**
+ * Puts phases imported from JSON at the top of the path, before every phase it already has (written or still planned), and
+ * renumbers those after them. Phase ids do not change, so progress, answers and XP stay where they were; the boss stays last.
+ */
+export function prependPhases(state: GuidedState, parsed: ParsedCurriculum['phases']): PageResult {
+  const { working, built, added } = buildPhases(
+    state,
+    parsed,
+    1,
+    MAX_PATH_PHASES - state.phases.length
+  );
+  if (!built.length) return { state, added: 0, removed: 0 };
+  const rest = state.phases.map((p, i) => ({ ...p, number: built.length + i + 1 }));
+  return { state: { ...working, phases: [...built, ...rest] }, added, removed: 0 };
 }
 
 /** Most questions one phase may hold ("Add questions" stops there). */
@@ -588,7 +634,7 @@ export function addPlannedPhases(
     have.add(key);
     const number = Math.max(0, ...phases.map((x) => x.number)) + 1;
     phases.push({
-      id: `p${number}`,
+      id: nextPhaseId(phases),
       number,
       title: o.title,
       goal: o.goal,

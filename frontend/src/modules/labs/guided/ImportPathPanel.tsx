@@ -21,7 +21,7 @@ export type ImportMode = 'append' | 'replace';
  * "Copy a prompt for another AI" hands over a prompt whose answer can be pasted straight back.
  *
  * On the start screen there is no path yet, so the JSON simply becomes it. Inside an existing path (`existing`) the person
- * chooses: add its phases after the last one (the default: nothing they have done is touched) or replace the whole path
+ * chooses: add its phases at the top of the path (the default: nothing they have done is touched) or replace the whole path
  * (progress and XP on the page are lost, so that asks first).
  */
 export default function ImportPathPanel({
@@ -165,7 +165,7 @@ export default function ImportPathPanel({
                 [
                   'append',
                   'Add them to my path',
-                  'New phases after the last one. Nothing you have done changes.',
+                  'New phases at the top, before the generated ones. Nothing you have done changes.',
                 ],
                 [
                   'replace',

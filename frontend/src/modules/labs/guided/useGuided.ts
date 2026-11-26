@@ -30,7 +30,7 @@ import { runTests, summarize, verifyExercise, type RunResult } from './runner';
 import { aiBreakdown, aiDeeper, aiLesson, aiOutline, aiPhase, aiStar, aiTutor } from './service';
 import {
   addPlannedPhases,
-  appendPhases,
+  prependPhases,
   appendToPhase,
   applyBranch,
   applyPhase,
@@ -355,7 +355,7 @@ export function useGuided(topic: TopicRef | null) {
       if (mode === 'append') {
         mutate(
           (cur) => {
-            const r = appendPhases(cur, path.curriculum.phases);
+            const r = prependPhases(cur, path.curriculum.phases);
             return r.added ? r.state : null;
           },
           { immediate: true }

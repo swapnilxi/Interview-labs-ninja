@@ -1083,6 +1083,30 @@ test('appendPhases adds the next phase after the last and before the boss, which
     tree.questionOrder(r.state).indexOf(r.state.bossId) === tree.questionOrder(r.state).length - 1
   );
 });
+test('prependPhases puts imported phases on top, renumbers the rest and keeps their ids, progress and the boss', () => {
+  let st = planned();
+  st = finishPhase(st, 'p1');
+  const before = st.phases.map((p) => p.id);
+  const r = tree.prependPhases(st, [
+    { title: 'Imported A', goal: 'g', questions: parse.parsePhase(pageJson(3, 'impa'), new Set()).questions },
+    { title: 'Imported B', goal: 'g', questions: parse.parsePhase(pageJson(2, 'impb'), new Set()).questions },
+  ]);
+  assert.strictEqual(r.added, 5);
+  const ph = r.state.phases;
+  assert.deepStrictEqual(ph.slice(0, 2).map((p) => p.title), ['Imported A', 'Imported B']);
+  assert.deepStrictEqual(ph.map((p) => p.number), ph.map((_, i) => i + 1));
+  assert.deepStrictEqual(ph.slice(2).map((p) => p.id), before);
+  assert.strictEqual(new Set(ph.map((p) => p.id)).size, ph.length);
+  assert.ok(tree.isPhaseDone(r.state, ph.find((p) => p.id === 'p1')));
+  const order = tree.questionOrder(r.state);
+  assert.strictEqual(order[0], ph[0].questionIds[0]);
+  assert.strictEqual(order[order.length - 1], r.state.bossId);
+  // A phase planned later still gets a fresh id and the next number.
+  const more = tree.addPlannedPhases(r.state, [{ title: 'Later phase', goal: 'g' }]);
+  const last = more.state.phases[more.state.phases.length - 1];
+  assert.strictEqual(last.number, ph.length + 1);
+  assert.ok(!ph.some((p) => p.id === last.id));
+});
 test('Guided Path: parseStart reads ONE answer into five phases with questions in phase 1 only', () => {
   const answer = JSON.stringify({
     phases: [

@@ -104,7 +104,7 @@ export function FormatHelp({ id, existing }: { id: string; existing: boolean }) 
       <p className="mt-3 font-medium text-foreground">What happens to it</p>
       <p className="mt-1">
         {existing
-          ? 'You choose: add its phases at the end of your path (what you have done stays), or replace the whole path (your progress and XP on this page are lost).'
+          ? 'You choose: add its phases at the top of your path, before the generated ones (what you have done stays), or replace the whole path (your progress and XP on this page are lost).'
           : 'It becomes your path, with no AI call. Later you can add more questions from JSON, or have the AI write more.'}
       </p>
     </div>
